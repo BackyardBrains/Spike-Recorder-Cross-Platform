@@ -1,0 +1,13 @@
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/data/icudtl.dat
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/flutter_windows.dll
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/flutter_libserialport_plugin.dll
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/serialport.dll
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/permission_handler_windows_plugin.dll
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/data/flutter_assets/AssetManifest.bin
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/data/flutter_assets/AssetManifest.json
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/data/flutter_assets/FontManifest.json
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/data/flutter_assets/fonts/MaterialIcons-Regular.otf
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/data/flutter_assets/kernel_blob.bin
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/data/flutter_assets/NOTICES.Z
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/data/flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf
+C:/Users/pulki/OneDrive/spikerbox_flutter/build/windows/runner/Debug/data/flutter_assets/shaders/ink_sparkle.frag

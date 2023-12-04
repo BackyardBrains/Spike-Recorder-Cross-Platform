@@ -1,0 +1,7 @@
+{
+    "C_Cpp.default.compilerPath": "/usr/bin/clang",
+    "files.associations": {
+        "low_pass_filter.h": "c",
+        "math.h": "c"
+    }
+}

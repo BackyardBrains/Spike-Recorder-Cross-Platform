@@ -8,3 +8,4 @@ export 'software_setting_provider.dart';
 export 'serial_provider.dart';
 export 'port_scan_provider.dart';
 export 'sample_rate_provider.dart';
+export 'debug_time_provider.dart';

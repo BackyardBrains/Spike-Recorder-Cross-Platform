@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -6,11 +7,14 @@ import 'package:flutter/material.dart';
 class GraphDataProvider extends ChangeNotifier {
   int delay = 0;
   static const int _graphBufferLength = 10000;
+  int bufferDuration = 30;
+
   double _scale = 1.0;
   int _startIndex = 0;
   int _endIndex = _graphBufferLength - 1;
   int _timer = 20;
   int get timer => _timer;
+  int get graphBufferLength => _graphBufferLength;
 
   int samplesInCurrentView = _graphBufferLength;
 
@@ -93,6 +97,17 @@ class GraphDataProvider extends ChangeNotifier {
 
   void updateGraph() {
     try {
+      // Int16List newInt16List =
+      //     _entireGraphBuffer.sublist(_startIndex, _endIndex);
+      // Int16List n = Int16List(_endIndex - _startIndex);
+
+      // for (int i = 0; i < n.length; i++) {
+      //   n[i] = newInt16List[i];
+      // }
+      // Int16List afterEnvelopData = envelopData(n, 2000);
+      // _outputGraphStreamController.add(afterEnvelopData.buffer.asUint8List());
+
+      // print("the _entire graph first index value is ${_entireGraphBuffer.}")
       _outputGraphStreamController.add(_entireGraphBuffer
           .sublist(_startIndex, _endIndex)
           .buffer
@@ -137,7 +152,7 @@ class GraphDataProvider extends ChangeNotifier {
   }
 
   timeCalculate(int currentSample) {
-    int timeOfGraph = (double.tryParse((currentSample / _graphBufferLength)
+    (double.tryParse((currentSample / _graphBufferLength)
                 .toStringAsFixed(1)
                 .replaceAll(".", "")) ??
             (currentSample / _graphBufferLength))
@@ -163,4 +178,82 @@ class GraphDataProvider extends ChangeNotifier {
 
     updateGraph();
   }
+
+  // set the bufferlength
+
+  // setBufferLength(int graphBufferLength) {
+  //   print("the buffer length is ${_graphBufferLength}");
+  //   // _graphBufferLength = graphBufferLength * 30;
+
+  //   notifyListeners();
+  // }
+
+  //enveloping the data
+
+  Int16List envelopData(Int16List samples, int totalPoints) {
+    int stepSize = (samples.length / totalPoints).round();
+    Int16List envelopePoints =
+        Int16List(totalPoints * 2); // Double the size for min and max values
+
+    for (int i = 0; i < totalPoints; i++) {
+      int start = i * stepSize;
+      int end = (i + 1) * stepSize;
+      end = end > samples.length ? samples.length : end;
+
+      int maxVal = samples.sublist(start, end).reduce(max);
+      int minVal = samples.sublist(start, end).reduce(min);
+      envelopePoints[i * 2] = maxVal;
+      envelopePoints[i * 2 + 1] = minVal;
+    }
+
+    return envelopePoints;
+  }
+  // Int16List envelopData(Int16List sourceData, int envelopedLength) {
+  //   // Initialize the list to store enveloped data
+  //   Int16List envelopedData = Int16List(envelopedLength);
+
+  //   // Initialize circular buffer for envelopes
+  //   int head = 0;
+  //   List<Int16List> envelopes = List.generate(
+  //     21,
+  //     (index) => Int16List((sourceData.length / (1 << index)).ceil()),
+  //   );
+
+  //   // Iterate through each sample in the source data
+  //   for (int i = 0; i < sourceData.length; i++) {
+  //     // Iterate through different levels of envelopes
+  //     for (int j = 1; j <= 21; j++) {
+  //       int skipCount = 1 << j;
+  //       int envelopeIndex = j - 1;
+  //       int envelopeSampleIndex = (head ~/ skipCount);
+
+  //       // Check if the envelope index is within bounds
+  //       if (envelopeSampleIndex >= envelopes[envelopeIndex].length) {
+  //         continue;
+  //       }
+
+  //       // Retrieve the current value in the envelope
+  //       int dst = envelopes[envelopeIndex][envelopeSampleIndex];
+
+  //       // Update the envelope based on the current sample
+  //       if (head % skipCount == 0) {
+  //         envelopes[envelopeIndex][envelopeSampleIndex] = sourceData[i];
+  //       } else {
+  //         envelopes[envelopeIndex][envelopeSampleIndex] =
+  //             dst < sourceData[i] ? sourceData[i] : dst;
+  //       }
+  //     }
+
+  //     // Add the raw data to the enveloped data (circular buffer)
+  //     envelopedData[head++] = sourceData[i];
+
+  //     // Wrap around the circular buffer if it reaches the specified length
+  //     if (head == envelopedLength) {
+  //       head = 0;
+  //     }
+  //   }
+
+  //   // Return the enveloped data
+  //   return envelopedData;
+  // }
 }

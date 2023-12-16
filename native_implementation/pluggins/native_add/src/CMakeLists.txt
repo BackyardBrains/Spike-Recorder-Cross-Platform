@@ -14,6 +14,8 @@ set(SOURCE_FILES
         low_pass_filter.cpp
         filter_base.cpp
         notch_filter.cpp
+        sample_buffer.cpp
+        envelope.cpp
 )
 
 # Check if compiling for Windows

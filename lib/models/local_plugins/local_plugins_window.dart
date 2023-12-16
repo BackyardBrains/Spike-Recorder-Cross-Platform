@@ -39,10 +39,10 @@ class LocalPluginWindow implements LocalPlugin {
   }
 
   @override
-  Future<bool> initNotchPassFilters(FilterSetup filterBaseSettingsModel) async {
+  Future<bool> initNotchFilters(FilterSetup filterBaseSettingsModel) async {
     // native_add.SetUpNotchFilter();
     bool checkInit = native_add.initNotchPassFilter(filterBaseSettingsModel);
-    print("the init notch Pass filter is $checkInit");
+   
     return checkInit;
   }
 

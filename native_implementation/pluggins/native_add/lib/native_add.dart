@@ -134,7 +134,6 @@ Future<SendPort> _mHelperIsolateSendPort = () async {
           switch (data.filterType) {
             case FilterType.notchFilter:
               isNotchPassFilter = data.isFilterOn;
-              print("the filterType is ${isNotchPassFilter}");
               initNotchPassFilter(data);
               break;
             case FilterType.highPassFilter:
@@ -161,6 +160,20 @@ Future<SendPort> _mHelperIsolateSendPort = () async {
             _bindings.applyNotchPassFilter(is50Hertz, data.channelIndex,
                 _mPointer[data.channelIndex], data.dataLength);
           }
+
+          // _bindings.addDataToSampleBuffer(
+          //     _mPointer[data.channelIndex], data.dataLength);
+
+          // TODO changing accordingly  when data comes
+          // int rateOfSample = 2000;
+          // int sampleBuffer = 9600000;
+          // int skipBuffer = skipPoints(sampleBuffer, rateOfSample);
+
+          // _bindings.getEnvelopFromSampleBuffer(23, data.dataLength, skipBuffer,
+          //     _envelopingBuffer[data.channelIndex]);
+
+          // final _IsolateResponse response =
+          //     _IsolateResponse(data.id, envelopData.buffer.asUint8List());
 
           final _IsolateResponse response = _IsolateResponse(
               data.id,
@@ -236,7 +249,7 @@ bool initNotchPassFilter(FilterSetup filterBaseSettingsModel) {
   _helperIsolateSendPort?.send(filterBaseSettingsModel);
   is50Hertz =
       filterBaseSettingsModel.filterConfiguration.cutOffFrequency == 50 ? 1 : 0;
-  print("the cutOffFrequency is $is50Hertz");
+
   _bindings.initNotchPassFilter(
     is50Hertz,
     filterBaseSettingsModel.channelCount,

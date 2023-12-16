@@ -1,4 +1,5 @@
 import 'dart:ffi' as ffi;
+import 'dart:typed_data';
 
 /*
 *
@@ -15,12 +16,17 @@ typedef ApplyHighPassFilter = double Function(int, ffi.Pointer<ffi.Int16>, int);
 typedef InitLowPassFilterProcess = double Function(int, double, double, double);
 typedef ApplyLowPassFilter = double Function(int, ffi.Pointer<ffi.Int16>, int);
 
-typedef InitNotchPassFilterProcess = double Function(int,
-    int, double, double, double);
+typedef InitNotchPassFilterProcess = double Function(
+    int, int, double, double, double);
 typedef ApplyNotchPassFilter = double Function(
     int, int, ffi.Pointer<ffi.Int16>, int);
 
-typedef setNotchPassFilterProcess = double Function(int, int);
+typedef SetNotchFilterProcess = double Function(int, int);
+
+typedef AddDataToSampleBuffer = double Function(ffi.Pointer<ffi.Int16>, int);
+
+typedef GetEnvelopDataFromSampleBuffer = double Function(
+    int offset, int len, int skip, ffi.Pointer<ffi.Int16> src);
 
 /*
 *
@@ -82,7 +88,7 @@ class NativeAddBindings {
               )>>('isCheckData')
       .asFunction();
 
-  /// Call initHighPassFilter to initialise or set filter configuration
+  /// Call initHighPassFilter to initialize or set filter configuration
   double initHighPassFilter(
       int channelCount, double sampleRate, double cutOff, double q) {
     return _initHighPassFilterProcess(channelCount, sampleRate, cutOff, q);
@@ -118,8 +124,7 @@ class NativeAddBindings {
   /// Call initLowPassFilter to initialise or set filter configuration
   double initLowPassFilter(
       int channelCount, double sampleRate, double cutOff, double q) {
-    _initLowPassFilterProcess(channelCount, sampleRate, cutOff, q);
-    return 1;
+    return _initLowPassFilterProcess(channelCount, sampleRate, cutOff, q);
   }
 
   late final InitLowPassFilterProcess _initLowPassFilterProcess = _lookup<
@@ -145,12 +150,11 @@ class NativeAddBindings {
     return _setNotchPassFilter(isNotch50, isNotch60);
   }
 
-  late final setNotchPassFilterProcess _setNotchPassFilter =
+  late final SetNotchFilterProcess _setNotchPassFilter =
       _lookup<ffi.NativeFunction<ffi.Double Function(ffi.Int, ffi.Int)>>(
               'setNotch')
           .asFunction();
 
-          
   double initNotchPassFilter(int isHertz50, int channelCount, double sampleRate,
       double cutOff, double q) {
     _initNotchPassFilterProcess(isHertz50, channelCount, sampleRate, cutOff, q);
@@ -163,9 +167,9 @@ class NativeAddBindings {
                   ffi.Double)>>('initNotchPassFilter')
       .asFunction();
 
-  double applyNotchPassFilter(int _isNotch50, int channelIndex,
+  double applyNotchPassFilter(int isNotch50, int channelIndex,
       ffi.Pointer<ffi.Int16> data, int sampleCount) {
-    return _applyNotchPassFilter(_isNotch50, channelIndex, data, sampleCount);
+    return _applyNotchPassFilter(isNotch50, channelIndex, data, sampleCount);
   }
 
   late final ApplyNotchPassFilter _applyNotchPassFilter = _lookup<
@@ -174,15 +178,38 @@ class NativeAddBindings {
                   ffi.Uint32)>>('applyNotchPassFilter')
       .asFunction();
 
-  ffi.Pointer<ffi.Uint8> multiplyArrayElements(
-      ffi.Pointer<ffi.Uint8> array, int length) {
-    return _multiplyArrayElements(array, length);
-  }
+  // double addDataToSampleBuffer(ffi.Pointer<ffi.Int16> src, int length) {
+  //   return _addDataSampleBuffer(src, length);
+  // }
 
-  late final _multiplyArrayElementsPtr = _lookup<
-      ffi.NativeFunction<
-          ffi.Pointer<ffi.Uint8> Function(
-              ffi.Pointer<ffi.Uint8>, ffi.Int64)>>('multiply_array_elements');
-  late final _multiplyArrayElements = _multiplyArrayElementsPtr.asFunction<
-      ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.Uint8>, int)>();
+  // late final AddDataToSampleBuffer _addDataSampleBuffer = _lookup<
+  //         ffi.NativeFunction<
+  //             ffi.Double Function(
+  //                 ffi.Pointer<ffi.Int16>, ffi.Int16)>>('addDataToSampleBuffer')
+  //     .asFunction();
+
+  // double getEnvelopFromSampleBuffer(
+  //     int offset, int length, int skip, ffi.Pointer<ffi.Int16> src) {
+  //   final double resultArray = _getEnvelopSampleData(offset, length, skip, src);
+  //   // Calculate the length of the Int16List based on the provided length
+  //   // final int resultLength = length * 2; // Two Int16 elements per pair
+
+  //   // Convert the Pointer<Int16> to Int16List
+  //   // final Int16List resultList = resultArray.asTypedList(resultLength);
+  //   // print("the result is $resultList");
+
+  //   // Free the memory associated with the Pointer
+
+  //   return resultArray;
+  // }
+
+  // late final GetEnvelopDataFromSampleBuffer _getEnvelopSampleData = _lookup<
+  //         ffi.NativeFunction<
+  //             ffi.Double Function(
+  //               ffi.Int16,
+  //               ffi.Int16,
+  //               ffi.Int16,
+  //               ffi.Pointer<ffi.Int16>,
+  //             )>>('getDataFromSampleBuffer')
+  //     .asFunction();
 }

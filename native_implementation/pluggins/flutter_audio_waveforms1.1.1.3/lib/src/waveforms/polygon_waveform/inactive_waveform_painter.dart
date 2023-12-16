@@ -101,7 +101,11 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
       for (; i < samples.length - 1; i++) {
         final x = sampleWidth * i;
         final y = samples[i] * gain;
-        path.lineTo(x, y);
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
         // if (i < 10) {
         //   print("values at index $i : ${samples[i]}");
         // }

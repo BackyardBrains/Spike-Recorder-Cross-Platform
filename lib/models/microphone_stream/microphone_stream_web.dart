@@ -28,15 +28,21 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
   /// Called only once in the beginning to send address of buffer to dart
   void onDataBufferAllocated(Int16List dataBuffer) {
     _micDataBuffer = dataBuffer;
-    print("_micDataBuffer allocated ${_micDataBuffer?.length} ");
   }
 
   void onDataReceived() {
-    if (_micDataBuffer == null) {
-      return;
+    try {
+      if (_micDataBuffer == null) {
+        return;
+      }
+
+      // Convert Int16List to Uint8List
+
+      // Add Uint8List to the stream
+      addListenAudioStreamController.add(_micDataBuffer!.buffer.asUint8List());
+    } catch (error) {
+      print("Error in onDataReceived: $error");
     }
-    Uint8List uList = Uint8List.fromList(_micDataBuffer!.buffer.asUint8List());
-    addListenAudioStreamController.add(uList);
   }
 
   @override

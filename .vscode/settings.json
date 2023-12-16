@@ -101,6 +101,7 @@
     "cSpell.words": [
         "backyardbrains",
         "calloc",
+        "ccall",
         "DATABITS",
         "Datato",
         "dragprovider",
@@ -113,6 +114,7 @@
         "HUMANSB",
         "Inited",
         "isgraphplay",
+        "libserialport",
         "listof",
         "MSBPCDC",
         "MUSCLESS",

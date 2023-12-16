@@ -3,6 +3,8 @@ import 'package:spikerbox_architecture/models/serial_util/serial_util.dart'
     if (dart.library.io) 'package:spikerbox_architecture/models/serial_util/serial_util_native.dart'
     if (dart.library.html) 'package:spikerbox_architecture/models/serial_util/serial_util_web.dart';
 
+import '../../provider/provider_export.dart';
+
 abstract class SerialUtil {
   factory SerialUtil() => getSerialUtil();
 
@@ -29,4 +31,7 @@ abstract class SerialUtil {
   Stream<Uint8List>? dataStream;
 
   void streamListen({required Stream<Uint8List>? getData}) {}
+
+  Future<void> deviceConnectWithPort(SampleRateProvider sampleRateProvider,
+      ConstantProvider constantProvider) async {}
 }

@@ -4,11 +4,14 @@ import 'package:native_add/model/model.dart';
 import '../models/constant.dart';
 
 class DataStatusProvider extends ChangeNotifier {
-  bool _isEnableAudio = true;
+  bool _isMicrophoneData = true;
   bool _isSampleDataOn = false;
   bool _isDeviceDataOn = false;
   bool _is50Hertz = false;
   bool _is60Hertz = false;
+  bool _isDebugging = false;
+
+  //
 
   FilterSetup _highPassFilterSettings = const FilterSetup(
       isFilterOn: false,
@@ -26,7 +29,7 @@ class DataStatusProvider extends ChangeNotifier {
 
   FilterSetup _notchPassFilterSettings = const FilterSetup(
       isFilterOn: false,
-      filterType: FilterType.lowPassFilter,
+      filterType: FilterType.notchFilter,
       filterConfiguration:
           FilterConfiguration(cutOffFrequency: 500, sampleRate: 10000),
       channelCount: channelCountBuffer);
@@ -35,12 +38,20 @@ class DataStatusProvider extends ChangeNotifier {
   bool get is60Hertz => _is60Hertz;
   bool get is50Hertz => _is50Hertz;
   bool get isSampleDataOn => _isSampleDataOn;
-  bool get isMicrophoneData => _isEnableAudio;
+  bool get isMicrophoneData => _isMicrophoneData;
   FilterSetup get lowPassFilterSettings => _lowPassFilterSettings;
   FilterSetup get highPassFilterSettings => _highPassFilterSettings;
 
+  FilterSetup get notchPassFilterSettings => _notchPassFilterSettings;
+  bool get isDebugging => _isDebugging;
+
   setSampleDataStatus(bool sampleDataStatus) {
     _isSampleDataOn = sampleDataStatus;
+    notifyListeners();
+  }
+
+  setDebuggingDataStatus(bool newStatus) {
+    _isDebugging = newStatus;
     notifyListeners();
   }
 
@@ -55,7 +66,7 @@ class DataStatusProvider extends ChangeNotifier {
   }
 
   setMicrophoneDataStatus(bool microphoneDataStatus) {
-    _isEnableAudio = microphoneDataStatus;
+    _isMicrophoneData = microphoneDataStatus;
     notifyListeners();
   }
 
@@ -66,13 +77,16 @@ class DataStatusProvider extends ChangeNotifier {
 
   setLowPassFilterSetting(FilterSetup filterConfiguration) {
     _lowPassFilterSettings = filterConfiguration;
+    notifyListeners();
   }
 
   setHighPassFilterSetting(FilterSetup filterConfiguration) {
     _highPassFilterSettings = filterConfiguration;
+    notifyListeners();
   }
 
   setNotchPassFilterSetting(FilterSetup filterConfiguration) {
     _notchPassFilterSettings = filterConfiguration;
+    notifyListeners();
   }
 }

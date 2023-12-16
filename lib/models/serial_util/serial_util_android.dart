@@ -4,6 +4,10 @@ import 'package:spikerbox_architecture/models/serial_util/serial_util_check.dart
 import 'package:usb_serial/usb_serial.dart';
 import 'package:usb_serial/transaction.dart';
 
+import '../../functionality/functionality_export.dart';
+import '../../provider/provider_export.dart';
+import '../default_config_model.dart';
+
 // import 'package:serial_communication/serial_communication.dart';
 
 class SerialUtilAndroid implements SerialUtil {
@@ -54,6 +58,8 @@ class SerialUtilAndroid implements SerialUtil {
       String? name, int baudRate) async {
     for (var element in devices) {
       if (element.deviceName == name) {
+        _baudRate = baudRate;
+
         await connectToPort();
         break;
       }
@@ -67,8 +73,6 @@ class SerialUtilAndroid implements SerialUtil {
 
   @override
   Future<void> getAvailablePorts(int baudRate) async {
-    _baudRate = baudRate;
-
     availablePorts =
         await startPortCheck(_baudRate); // Adjust baudRate as needed
   }
@@ -122,5 +126,26 @@ class SerialUtilAndroid implements SerialUtil {
     // _transaction!.stream.listen((line){ });
 
     return true;
+  }
+
+  @override
+  Future<void> deviceConnectWithPort(SampleRateProvider sampleRateProvider,
+      ConstantProvider constantProvider) async {
+    devices = await UsbSerial.listDevices();
+    print("the devices is ${devices.first.productName}");
+
+    Config deviceConfig = await SetUpFunctionality().getAllDeviceList();
+    List<Board> allBoards = deviceConfig.boards ?? [];
+    if (devices.last.productName == "Human Human Interface") {
+      Board matchingBoards = allBoards.firstWhere((board) {
+        return board.userFriendlyFullName == devices.first.productName;
+      });
+
+      sampleRateProvider
+          .setSampleRate(int.parse(matchingBoards.maxSampleRate.toString()));
+      constantProvider.setBaudRate(500000);
+    } else {
+      constantProvider.setBaudRate(222222);
+    }
   }
 }

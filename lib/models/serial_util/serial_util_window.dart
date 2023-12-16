@@ -1,6 +1,11 @@
+// ignore_for_file: empty_catches
+
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_libserialport/flutter_libserialport.dart';
+import 'package:spikerbox_architecture/provider/provider_export.dart';
+import '../../functionality/functionality_export.dart';
+import '../default_config_model.dart';
 import 'serial_util_check.dart';
 
 class SerialUtilWindow implements SerialUtil {
@@ -15,9 +20,8 @@ class SerialUtilWindow implements SerialUtil {
 
   @override
   Future<List<String>> startPortCheck(int baudRate) async {
-    // Timer.periodic(Duration(seconds: 5), (timer) {
     availablePorts = SerialPort.availablePorts;
-    // });
+
     return availablePorts;
   }
 
@@ -26,7 +30,7 @@ class SerialUtilWindow implements SerialUtil {
   Future<void> getAvailablePorts(int baudRate) async {
     availablePorts = await startPortCheck(9600); // Adjust baudRate as needed
 
-    // Wait for 5 seconds before the next check
+    // Wait for 3 seconds before the next check
   }
 
   @override
@@ -66,6 +70,7 @@ class SerialUtilWindow implements SerialUtil {
   Future<Stream<Uint8List>?> openPortToListen(
       String? portName, int baudRate) async {
     _baudRate = baudRate;
+    port?.close();
     // checkEscapeSequence();
     if (portName == null) return null;
     port = SerialPort(portName);
@@ -95,5 +100,34 @@ class SerialUtilWindow implements SerialUtil {
         if (message.contains(":") && message.contains(";")) {}
       });
     } catch (e) {}
+  }
+
+  @override
+  Future<void> deviceConnectWithPort(SampleRateProvider sampleRateProvider,
+      ConstantProvider constantProvider) async {
+    port = SerialPort(availablePorts.last);
+
+    Config deviceConfig = await SetUpFunctionality().getAllDeviceList();
+    List<Board> allBoards = deviceConfig.boards ?? [];
+    if (port?.productName == "Human Human Interface") {
+      Board matchingBoards = allBoards.firstWhere((board) {
+        return board.userFriendlyFullName == port?.productName;
+      });
+
+      sampleRateProvider
+          .setSampleRate(int.parse(matchingBoards.maxSampleRate.toString()));
+      constantProvider.setBaudRate(500000);
+    } else if (port?.productId == 29597) {
+    } else {
+      constantProvider.setBaudRate(222222);
+    }
+
+    // port!.name;
+    // final devices = SerialPort.fromAddress(port!.address);
+    // devices.name;
+
+    // print(
+    //     "the macAddress ${devices.macAddress}, busNumber ${devices.busNumber}, vendorid ${devices.vendorId},serial number ${devices.serialNumber}, address ${devices.address} ComName ${devices.name}, manufacture ${devices.manufacturer} and product name ${devices.productName}");
+    // devices.productName;
   }
 }

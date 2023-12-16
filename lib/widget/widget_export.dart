@@ -6,3 +6,4 @@ export 'custom_slider_widget.dart';
 export 'show_dialog.dart';
 export 'spiker_box_button.dart';
 export 'water_droplet.dart';
+export 'white_checkbox_widget.dart';

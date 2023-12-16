@@ -25,7 +25,7 @@ class LocalPluginAndroid implements LocalPlugin {
   }
 
   @override
-  Future<bool> initNotchPassFilters(FilterSetup filterBaseSettingsModel) async {
+  Future<bool> initNotchFilters(FilterSetup filterBaseSettingsModel) async {
     bool checkInit = native_add.initNotchPassFilter(filterBaseSettingsModel);
     return checkInit;
   }

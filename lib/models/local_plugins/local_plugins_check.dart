@@ -41,7 +41,7 @@ abstract class LocalPlugin {
     return false;
   }
 
-  Future<bool> initNotchPassFilters(FilterSetup filterBaseSettingsModel) async {
+  Future<bool> initNotchFilters(FilterSetup filterBaseSettingsModel) async {
     return false;
   }
 }

@@ -52,4 +52,6 @@ class FilterConfiguration {
       'sampleRate': sampleRate,
     };
   }
+
+  
 }

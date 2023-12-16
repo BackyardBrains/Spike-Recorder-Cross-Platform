@@ -2,3 +2,5 @@
 #include "../../src/filter_base.cpp"
 #include "../../src/high_pass_filter.cpp"
 #include "../../src/low_pass_filter.cpp"
+#include "../../src/sample_buffer.cpp"
+#include "../../src/envelope.cpp"

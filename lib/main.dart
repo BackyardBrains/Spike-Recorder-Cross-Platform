@@ -33,6 +33,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => PortScanProvider()),
         ChangeNotifierProvider(create: (_) => SampleRateProvider()),
         ChangeNotifierProvider(create: (_) => CustomRangeSliderProvider()),
+        ChangeNotifierProvider(create: (_) => DebugTimeProvider()),
       ],
       child: const MyApp(),
     ),
@@ -83,9 +84,7 @@ class _MyAppState extends State<MyApp> {
             : Consumer<ConstantProvider>(
                 builder: (context, data, child) {
                   return GraphTemplate(
-                    channelCount: data.getChannelCount(),
-                    bitsData: data.getBitData(),
-                    baudRate: data.getBaudRate(),
+                    constantProvider: data,
                   );
                 },
               ));

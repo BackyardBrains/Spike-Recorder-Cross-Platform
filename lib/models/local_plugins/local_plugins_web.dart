@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:native_add/model/model.dart';
 import 'package:spikerbox_architecture/models/models.dart';
-import 'package:spikerbox_architecture/models/local_plugins/local_plugins_check.dart';
 import 'dart:js' as js;
 
 LocalPlugin getLocalPlugins() => LocalPluginWeb();
@@ -10,6 +9,7 @@ LocalPlugin getLocalPlugins() => LocalPluginWeb();
 class LocalPluginWeb implements LocalPlugin {
   FilterSetup? _highPassFilterSetup;
   FilterSetup? _lowPassFilterSetup;
+  FilterSetup? _notchFilterSetup;
 
   static final List<Int16List?> _dataBuffer =
       List.generate(channelCountBuffer, (index) => null);
@@ -31,9 +31,9 @@ class LocalPluginWeb implements LocalPlugin {
         },
       );
     }
+    js.context.callMethod("initializeModule", []);
     js.context['onDataBufferAllocated'] = onDataBufferAllocated;
     js.context['onProcessingDone'] = onProcessingDone;
-    js.context.callMethod("initializeModule", []);
   }
 
   @override
@@ -51,6 +51,7 @@ class LocalPluginWeb implements LocalPlugin {
   @override
   Future<bool> initHighPassFilters(FilterSetup filterBaseSettingsModel) async {
     _highPassFilterSetup = filterBaseSettingsModel;
+
     js.context.callMethod("sendToWebInitHighPassFilter", [
       filterBaseSettingsModel.channelCount,
       filterBaseSettingsModel.filterConfiguration.sampleRate,
@@ -63,6 +64,7 @@ class LocalPluginWeb implements LocalPlugin {
   @override
   Future<bool> initLowPassFilters(FilterSetup filterBaseSettingsModel) async {
     _lowPassFilterSetup = filterBaseSettingsModel;
+
     js.context.callMethod("sendToWebInitLowPassFilter", [
       filterBaseSettingsModel.channelCount,
       filterBaseSettingsModel.filterConfiguration.sampleRate,
@@ -72,8 +74,16 @@ class LocalPluginWeb implements LocalPlugin {
     return true;
   }
 
-  Future<bool> initNotchPassFilters(FilterSetup filterBaseSettingsModel) async {
-    return false;
+  @override
+  Future<bool> initNotchFilters(FilterSetup filterBaseSettingsModel) async {
+    _notchFilterSetup = filterBaseSettingsModel;
+    js.context.callMethod("sendToWebInitNotchFilter", [
+      filterBaseSettingsModel.channelCount,
+      filterBaseSettingsModel.filterConfiguration.sampleRate,
+      filterBaseSettingsModel.filterConfiguration.cutOffFrequency,
+      0.5
+    ]);
+    return true;
   }
 
   @override
@@ -108,6 +118,11 @@ class LocalPluginWeb implements LocalPlugin {
     if (_lowPassFilterSetup != null) {
       if (_lowPassFilterSetup!.isFilterOn) {
         toApplyLowPass = true;
+      }
+    }
+    if (_notchFilterSetup != null) {
+      if (_notchFilterSetup!.isFilterOn) {
+        toApplyNotch = true;
       }
     }
     js.context.callMethod("sendToWorkerApplyFilter", [

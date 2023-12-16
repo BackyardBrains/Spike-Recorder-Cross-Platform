@@ -30,12 +30,15 @@ function initializeModule() {
 
     if (event.data.message === "dataBufferAllocation") {
       // Share the typed view of allocated buffer with Dart
+
       window.onDataBufferAllocated(event.data.dataBuffer, event.data.chIdx);
     }
     // Listening to messages
     workerChannel.port2.onmessage = function (event) { };
   };
 }
+
+// init highPassFilter
 
 function sendToWebInitHighPassFilter(
   channelCount,
@@ -56,6 +59,9 @@ function sendToWebInitHighPassFilter(
   // Optionally, log a message after sending
 }
 
+
+// init lowPassFilter
+
 function sendToWebInitLowPassFilter(
   channelCount,
   sampleRate,
@@ -65,6 +71,26 @@ function sendToWebInitLowPassFilter(
   // Create an object to hold the message data
   const messageData = {
     message: "webInitLowPassFilter",
+    channelCount: channelCount,
+    sampleRate: sampleRate,
+    cutOffFrequency: cutOffFrequency,
+    q: 0.5,
+  };
+
+  // Send the message to the web worker
+  mWorker.postMessage(messageData);
+}
+
+
+function sendToWebInitNotchFilter(
+  channelCount,
+  sampleRate,
+  cutOffFrequency,
+  q
+) {
+  // Create an object to hold the message data
+  const messageData = {
+    message: "webInitNotchFilter",
     channelCount: channelCount,
     sampleRate: sampleRate,
     cutOffFrequency: cutOffFrequency,
@@ -95,3 +121,4 @@ function sendToWorkerApplyFilter(
   // Send the message to the web worker
   mWorker.postMessage(messageData);
 }
+

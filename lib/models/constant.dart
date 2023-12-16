@@ -13,5 +13,5 @@ const int channelCountBuffer = 6;
 const int dummySamplingRate = 10000;
 const int winMicSampleRate = 48000;
 const int macMicSampleRate = 44100;
-const int webMicSampleRate = 44100;
-const int androidMicSampleRate = 44100;
+const int webMicSampleRate = 48000;
+const int androidMicSampleRate = 16000;

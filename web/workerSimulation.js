@@ -8,6 +8,7 @@ let dataBufferChannelWise = [];
 const packetSize = 2000;
 
 let ptrDataArrayChannel1;
+let is50Hertz = 0;
 
 var vm = self;
 var tempOnMessage = self.onmessage;
@@ -53,12 +54,28 @@ self.onmessage = async function (eventFromMain) {
             break;
 
         case "webInitLowPassFilter":
+
+
             channelCount = eventFromMain.data.channelCount;
             sampleRate = eventFromMain.data.sampleRate;
             cutOffFrequency = eventFromMain.data.cutOffFrequency;
             q = eventFromMain.data.q;
             var result = Module._initLowPassFilter(channelCount, sampleRate, cutOffFrequency, q);
             break;
+
+        case "webInitNotchFilter":
+            channelCount = eventFromMain.data.channelCount;
+            sampleRate = eventFromMain.data.sampleRate;
+            cutOffFrequency = eventFromMain.data.cutOffFrequency;
+            q = eventFromMain.data.q;
+            is50Hertz = eventFromMain.data.cutOffFrequency == 50 ? 1 : 0;
+
+
+            var result = Module._initNotchFilter(
+                is50Hertz,
+                channelCount, sampleRate, cutOffFrequency, q);
+            break;
+
 
         case "webApplyFilter":
             if (eventFromMain.data.toApplyHighPass) {
@@ -78,6 +95,16 @@ self.onmessage = async function (eventFromMain) {
                     ['number', 'number', 'number'], // Argument types: int16_t, short*, int32_t
                     [eventFromMain.data.channelIdx, ptrDataArrayChannelWise[eventFromMain.data.channelIdx], eventFromMain.data.sampleCount]
                 );
+            }
+            if (eventFromMain.data.toApplyNotch) {
+                const response = Module.ccall(
+                    'applyNotchFilter',
+                    'number', // Assuming the function returns a number (pointer)
+                    ['number', 'number', 'number', 'number'], // Argument types: int16_t, short*, int32_t
+                    [is50Hertz, eventFromMain.data.channelIdx, ptrDataArrayChannelWise[eventFromMain.data.channelIdx], eventFromMain.data.sampleCount]
+
+                );
+                console.log("notch filter is running " + response);
             }
 
             postMessage({

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:spikerbox_architecture/screen/admin_dashboard_screen/adminscreen.dart';
+import 'package:spikerbox_architecture/screen/admin_dashboard_screen/admin_screen.dart';
 import 'package:spikerbox_architecture/screen/graph_template.dart';
 
 import '../provider/devices_provider.dart';
@@ -52,9 +52,7 @@ class _DashBoardPageRouteState extends State<DashBoardPageRoute> {
                       MaterialPageRoute(
                         builder: (context) {
                           return GraphTemplate(
-                            channelCount: data.getChannelCount(),
-                            bitsData: data.getBitData(),
-                            baudRate: data.getBaudRate(),
+                            constantProvider: data,
                           );
                         },
                       ),

@@ -15,6 +15,7 @@ class LocalPluginWindow implements LocalPlugin {
     await native_add.spawnHelperIsolate();
     for (int i = 0; i < channelCountBuffer; i++) {
       _bufferHandlerOnDemand[i] = BufferHandlerOnDemand(
+        chunkReadSize: 4000,
         onDataAvailable: (Uint8List newList) {
           onPacketAvailable(newList, i);
         },
@@ -32,6 +33,17 @@ class LocalPluginWindow implements LocalPlugin {
     return;
   }
 
+  int sampleLength = 44100 * 120;
+  int skipCount = 44100 * 120 ~/ 2000;
+
+  @override
+  void setEnvelopConfigure(int duration) {
+    // _envelopingConfig[0].setConfig(bufferSize: (44100 ~/ 1000) * duration);
+    sampleLength = (44100 * duration) ~/ 1000;
+    skipCount = sampleLength ~/ 2000;
+    // print("the sampleLength is $sampleLength and skip Count is ${skipCount}");
+  }
+
   @override
   Future<bool> initHighPassFilters(FilterSetup filterBaseSettingsModel) async {
     bool checkInit = native_add.initHighPassFilter(filterBaseSettingsModel);
@@ -42,7 +54,7 @@ class LocalPluginWindow implements LocalPlugin {
   Future<bool> initNotchFilters(FilterSetup filterBaseSettingsModel) async {
     // native_add.SetUpNotchFilter();
     bool checkInit = native_add.initNotchPassFilter(filterBaseSettingsModel);
-   
+
     return checkInit;
   }
 
@@ -65,11 +77,13 @@ class LocalPluginWindow implements LocalPlugin {
 
     Int16List listToFilter = array.buffer.asInt16List();
     Uint8List? filterElement = await native_add.filterArrayElements(
-      array: listToFilter,
-      length: listToFilter.length,
-      channelIndex: channelIndex,
-    );
+        array: listToFilter,
+        length: listToFilter.length,
+        channelIndex: channelIndex,
+        sampleLength: sampleLength,
+        skipCount: skipCount);
 
+    // print("The filter element is ${filterElement.length}");
     // TODO: currently data of all channels being added to the same stream
     postFilterStreamController.add(filterElement);
 

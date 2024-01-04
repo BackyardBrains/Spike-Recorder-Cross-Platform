@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:native_add/model/model.dart';
-
 import '../models/constant.dart';
 
 class DataStatusProvider extends ChangeNotifier {

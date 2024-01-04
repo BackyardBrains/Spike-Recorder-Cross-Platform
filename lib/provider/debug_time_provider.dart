@@ -10,11 +10,11 @@ class DebugTimeProvider extends ChangeNotifier {
   int _maxTime = 0;
 
   int get averageTime => _averageTime;
-
   int get minTime => _minTime;
   int get maxTime => _maxTime;
 
-  addTime(
+// *   provider for  render data in calculation  on the graph
+  addGraphTime(
     int time,
   ) {
     if (_totalTime + time > maxIntValue) {
@@ -28,7 +28,6 @@ class DebugTimeProvider extends ChangeNotifier {
     _counter++;
     _totalTime += time;
     _averageTime = (_totalTime ~/ _counter);
-    // print("the average is $averageTime");
     notifyListeners();
   }
 
@@ -53,14 +52,17 @@ class DebugTimeProvider extends ChangeNotifier {
 
   setMax(int max) {
     _maxTime = max;
-    // print("the max is $max");
     notifyListeners();
   }
 
   setMin(int min) {
     _minTime = min;
-
-    // print("the max is $min");
     notifyListeners();
   }
+
+  //*
+
+
+
+  addMicrophoneTiming() {}
 }

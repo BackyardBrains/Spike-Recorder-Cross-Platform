@@ -44,4 +44,6 @@ abstract class LocalPlugin {
   Future<bool> initNotchFilters(FilterSetup filterBaseSettingsModel) async {
     return false;
   }
+
+  void setEnvelopConfigure(int duration){}
 }

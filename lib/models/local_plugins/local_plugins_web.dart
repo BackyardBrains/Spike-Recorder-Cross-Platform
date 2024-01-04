@@ -151,4 +151,8 @@ class LocalPluginWeb implements LocalPlugin {
     _bufferHandlerOnDemand[channelIdx]?.toFetchBytes = true;
     _bufferHandlerOnDemand[channelIdx]?.requestData();
   }
+  
+
+  @override
+  void setEnvelopConfigure(int duration) {}
 }

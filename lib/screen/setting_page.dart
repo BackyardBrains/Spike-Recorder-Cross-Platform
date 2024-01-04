@@ -175,8 +175,8 @@ class _SettingPageState extends State<SettingPage> {
                           child: kIsWeb
                               ? Consumer<PortScanProvider>(
                                   builder: (context, portList, snapshot) {
-                                  print(
-                                      "the length of port is ${portList.availablePorts.length}");
+                                  // print(
+                                  //     "the length of port is ${portList.availablePorts.length}");
                                   if (portList.availablePorts.isEmpty) {
                                     return const SizedBox.shrink();
                                   } else {
@@ -429,11 +429,7 @@ class _FilterProcessWidgetState extends State<FilterProcessWidget> {
                     dataStatus.setSampleDataStatus(true);
                     Provider.of<SampleRateProvider>(context, listen: false)
                         .setSampleRate(dummySamplingRate);
-                  }else if(
-                    !dataStatus.isMicrophoneData
-                  ){
-                      
-                  }
+                  } else if (!dataStatus.isMicrophoneData) {}
                   dataStatus.setSampleDataStatus(value!);
 
                   // setState(() {

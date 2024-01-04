@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:typed_data';
-
 import 'package:native_add/model/model.dart';
 import 'package:spikerbox_architecture/models/local_plugins/local_plugins_check.dart';
 import 'package:native_add/native_add.dart' as native_add;
@@ -17,11 +16,23 @@ class LocalPluginAndroid implements LocalPlugin {
     await native_add.spawnHelperIsolate();
     for (int i = 0; i < channelCountBuffer; i++) {
       _bufferHandlerOnDemand[i] = BufferHandlerOnDemand(
+        chunkReadSize: 4000,
         onDataAvailable: (Uint8List newList) {
           onPacketAvailable(newList, i);
         },
       );
     }
+  }
+
+  int sampleLength = 44100 * 120;
+  int skipCount = 44100 * 120 ~/ 2000;
+
+  @override
+  void setEnvelopConfigure(int duration) {
+    // _envelopingConfig[0].setConfig(bufferSize: (44100 ~/ 1000) * duration);
+    sampleLength = (44100 * duration) ~/ 1000;
+    skipCount = sampleLength ~/ 2000;
+    // print("the sampleLength is $sampleLength and skip Count is ${skipCount}");
   }
 
   @override
@@ -65,10 +76,11 @@ class LocalPluginAndroid implements LocalPlugin {
 
     Int16List listToFilter = array.buffer.asInt16List();
     Uint8List? filterElement = await native_add.filterArrayElements(
-      array: listToFilter,
-      length: listToFilter.length,
-      channelIndex: channelIndex,
-    );
+        array: listToFilter,
+        length: listToFilter.length,
+        channelIndex: channelIndex,
+        sampleLength: sampleLength,
+        skipCount: skipCount);
 
     // TODO: currently data of all channels being added to the same stream
     postFilterStreamController.add(filterElement);

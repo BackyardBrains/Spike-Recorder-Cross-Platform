@@ -6,6 +6,7 @@ SampleBuffer::SampleBuffer(int64_t pos) : _pos(pos), _head(0), _buffer(new int16
     memset(segmentsState, 0, sizeof(int[NUMBER_OF_SEGMENTS]));
 
     int size = SIZE / 2;
+
     // create SIZE_LOG2 (21) envelope arrays.
     for (int i = 0; i < SIZE_LOG2; i++, size /= 2)
     {
@@ -18,6 +19,9 @@ SampleBuffer::SampleBuffer(int64_t pos) : _pos(pos), _head(0), _buffer(new int16
 //
 SampleBuffer::SampleBuffer(const SampleBuffer &other) : _pos(other._pos), _head(other._head), _buffer(new int16_t[SIZE]), _notEmpty(false)
 {
+
+    // std::cout << "" << pos1 << std::endl;
+
     memcpy(_buffer, other._buffer, sizeof(int16_t[SIZE]));
     memcpy(segmentsState, other.segmentsState, sizeof(int[NUMBER_OF_SEGMENTS]));
     for (int i = 0; i < static_cast<int>(SIZE_LOG2); i++)
@@ -40,7 +44,6 @@ SampleBuffer::~SampleBuffer()
 
 void SampleBuffer::addData(const int16_t *src, int64_t len)
 {
-    std::cout << "Function is hitting 2 " << std::endl;
     if (len > 0)
         _notEmpty = true;
     for (int i = 0; i < len; i++)
@@ -55,6 +58,8 @@ void SampleBuffer::addData(const int16_t *src, int64_t len)
             // on interval of skipCount consecutive samples and store as one value of envelope
             // at envelopeSampleIndex index
             const unsigned int envelopeSampleIndex = (_head / skipCount); // ROUNDING on division!!!!
+
+            // std::cout << "snvelopSampleIndex " << envelopeIndex << std::endl;
 
             if (envelopeSampleIndex >= _envelopes[envelopeIndex].size())
             {
@@ -79,13 +84,16 @@ void SampleBuffer::addData(const int16_t *src, int64_t len)
         }
 
         // add raw data to simple circular buffer
+        // std::cout << "head " << _head << std::endl;
+
         _buffer[_head++] = *src++;
+
         if (_head == SIZE)
             _head = 0;
     }
-    // std::cout<<"Adding inside: _pos = "<<_pos<<"\n";
+    // std::cout << "Adding inside: _pos = " << _pos << "\n";
     _pos += len; // add to cumulative number of samples (number of samples since begining of the time)
-    std::cout << "After Adding inside: _pos = " << _pos << "\n";
+    // std::cout << "After Adding inside: _pos = " << _pos << "\n";
     // std::cout<<"Head: "<<_head<<" Pos: "<<_pos<<"\n";
 }
 
@@ -162,13 +170,17 @@ void SampleBuffer::getData(int16_t *dst, int64_t offset, int64_t len) const
 
 void SampleBuffer::getDataEnvelope(std::pair<int16_t, int16_t> *dst, int64_t offset, int64_t len, int skip) const
 {
+
+    // std::cout << " Pos is " << _pos << std::endl;
+    // int rightValue = _pos + len;
+    // std::cout << " right  int value " << rightValue << std::endl;
+
     // qDebug() << "SampleBuffer: CALLING getDataEnvelope(<dst>," << offset << "," << len << "," << skip << ") w/ force =" << force;
     const int64_t lllleft = (offset - _pos);        //(negative value)
-    const int64_t rrrright = (offset - _pos + len); //(usualy negative value if we don't ask for future)
+    const int64_t rrrright = (offset - _pos + len); //(usually negative value if we don't ask for future)
     int j = 0;
     for (int64_t i = lllleft; i < rrrright; j++)
     {
-
         std::pair<int16_t, int16_t> bounding(0, 0);
 
         // if (i >= -SIZE) we still have that data in circular buffer
@@ -239,7 +251,6 @@ void SampleBuffer::getDataEnvelope(std::pair<int16_t, int16_t> *dst, int64_t off
         dst[j] = bounding;
         // qDebug() << "zZz";
     }
-    std::cout << "checking the  " << std::endl;
     // qDebug() << "SampleBuffer: RETURNING";
 }
 
@@ -247,6 +258,7 @@ std::vector<int16_t> SampleBuffer::getData(int64_t offset, int64_t len) const
 {
     std::vector<int16_t> result(len);
     getData(result.data(), offset, len);
+
     return result;
 }
 
@@ -261,8 +273,15 @@ std::vector<int16_t> SampleBuffer::getData(int64_t offset, int64_t len) const
 //
 std::vector<std::pair<int16_t, int16_t>> SampleBuffer::getDataEnvelope(int64_t offset, int64_t len, int skip) const
 {
+    // std::cout << "In SampleBuffer::getDataEnvelope" << std::endl;
+
     std::vector<std::pair<int16_t, int16_t>> result(len / skip);
+    // std::cout << "len :  " << len << std::endl;
+    // std::cout << "offset :  " << offset << std::endl;
+    // std::cout << "skip :  " << skip << std::endl;
+    // std::cout << "result length :  " << len / skip << std::endl;
+    // << std::endl;
     getDataEnvelope(result.data(), offset, len, skip);
-    std::cout << "result from sampleBuffer : " << offset << std::endl;
+    // std::cout << "result from sampleBuffer : " << offset << std::endl;
     return result;
 }

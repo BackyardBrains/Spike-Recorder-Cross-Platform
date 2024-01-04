@@ -17,6 +17,7 @@ const String _libName = 'native_add';
 
 // Future<double> initHighValueFilter(int){}
 /// The dynamic library in which the symbols for [NativeAddBindings] can be found.
+
 final ffi.DynamicLibrary _dylib = () {
   if (Platform.isMacOS || Platform.isIOS) {
     return ffi.DynamicLibrary.open('$_libName.framework/$_libName');
@@ -162,8 +163,8 @@ Future<MicAck> listenMicOfAudio() async {
 }
 
 Future<void> continuouslyCheckMicData(SendPort isolateToMainMic) async {
-  // int counter = 0;
-  // Stopwatch stopwatch = Stopwatch();
+  int counter = 0;
+
   final Duration pollDuration = Platform.isWindows
       ? const Duration(milliseconds: 10)
       : const Duration(microseconds: 100);
@@ -175,15 +176,25 @@ Future<void> continuouslyCheckMicData(SendPort isolateToMainMic) async {
     if (isFetchingData) return;
     isFetchingData = true;
     double isCheck = _bindingsMic.isAudioCaptureData(_micPointer);
-
     if (isCheck == 1.0) {
       Int16List int16list = _micPointer.asTypedList(_bufferLength);
-      isolateToMainMic.send(Int16List.fromList(int16list));
+      // isolateToMainMic.send(int16list);
+      // MicDataWithDetail micDataWithDetail = MicDataWithDetail(
+      //     micData: int16list,
+      //     upComingDataTiming: stopwatch.elapsedMilliseconds);
+      isolateToMainMic.send(int16list);
+
       // print("the stop watch ${stopwatch.elapsedMilliseconds} and $isCheck");
     }
     stopwatch.reset();
     isFetchingData = false;
   });
+}
+
+class MicDataWithDetail {
+  final Int16List micData;
+  final int upComingDataTiming;
+  MicDataWithDetail({required this.micData, required this.upComingDataTiming});
 }
 
 Future<void> initializeMic() async {

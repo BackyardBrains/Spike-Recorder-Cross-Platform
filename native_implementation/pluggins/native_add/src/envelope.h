@@ -7,6 +7,9 @@
 #define EXTERNC
 #endif
 
+#include <iostream>
+#include <vector>
+#include <random>
 #include "sample_buffer.h"
 
 EXTERNC FUNCTION_ATTRIBUTE double addDataToSampleBuffer(int16_t *src, int len);

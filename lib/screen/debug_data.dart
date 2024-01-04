@@ -20,20 +20,20 @@ class _DebugTheDataDetailState extends State<DebugTheDataDetail> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Text(
-                  "Average Time = ${debugTimeList.averageTime}",
-                  style: SoftwareTextStyle().kWtMediumTextStyle,
-                ),
-              ],
-            ),
             Text(
-              "Min TIme = ${debugTimeList.minTime} ",
+              "Packet Detail of render data(audio and serial) on Graph",
               style: SoftwareTextStyle().kWtMediumTextStyle,
             ),
             Text(
-              "Mxn TIme = ${debugTimeList.maxTime} ",
+              "Average Time = ${debugTimeList.averageTime} microsecond /per packet",
+              style: SoftwareTextStyle().kWtMediumTextStyle,
+            ),
+            Text(
+              "Min TIme = ${debugTimeList.minTime} microsecond",
+              style: SoftwareTextStyle().kWtMediumTextStyle,
+            ),
+            Text(
+              "Mxn TIme = ${debugTimeList.maxTime} microsecond",
               style: SoftwareTextStyle().kWtMediumTextStyle,
             ),
           ],

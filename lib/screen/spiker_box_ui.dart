@@ -72,7 +72,7 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
                 color: Colors.white,
               ),
               Text(
-                timerCalculate.sampleOnGraph.toString(),
+                "${timerCalculate.timeOnGraph} ms",
                 style: SoftwareTextStyle().kWtMediumTextStyle,
               ),
             ],

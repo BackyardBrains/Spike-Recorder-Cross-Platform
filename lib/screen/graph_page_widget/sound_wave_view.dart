@@ -90,6 +90,7 @@ class _BottomButtonsState extends State<BottomButtons> {
           iconData: isGraphStatus ? Icons.pause : Icons.play_arrow,
           onTapButton: () {
             isGraphStatus = !isGraphStatus;
+            
             widget.pauseButton(isGraphStatus);
             setState(() {});
           },

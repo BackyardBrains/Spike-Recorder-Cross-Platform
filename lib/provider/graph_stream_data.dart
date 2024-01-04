@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
-
+import 'package:native_add/native_add.dart' as native_add;
 import 'package:flutter/material.dart';
+import 'package:spikerbox_architecture/models/global_buffer.dart';
 
 class GraphDataProvider extends ChangeNotifier {
   int delay = 0;
-  static const int _graphBufferLength = 10000;
-  int bufferDuration = 30;
+  static const int _graphBufferLength = 4000;
+  // int bufferDuration = 30;
 
   double _scale = 1.0;
   int _startIndex = 0;
@@ -19,6 +20,8 @@ class GraphDataProvider extends ChangeNotifier {
   int samplesInCurrentView = _graphBufferLength;
 
   int get sampleOnGraph => samplesInCurrentView;
+
+  int timeOnGraph = 120000;
 
   final Int16List _entireGraphBuffer =
       Int16List.fromList(List.generate(_graphBufferLength, (index) => 0));
@@ -35,6 +38,7 @@ class GraphDataProvider extends ChangeNotifier {
   /// Initializes the stream to output data to graph [_outputGraphStream]
   void setStreamOfData(Stream<Uint8List> graphStreamData) {
     _inputGraphStream = graphStreamData;
+
     _outputGraphStream = _outputGraphStreamController.stream
         .asBroadcastStream()
         .transform(myStreamTransformer());
@@ -67,21 +71,27 @@ class GraphDataProvider extends ChangeNotifier {
   }
 
   void inputListener(Uint8List input) {
+    // print("the input  ${input.length}");
     Int16List int16List = input.buffer.asInt16List();
     int valueCount = int16List.length;
     delay++;
     // if (delay == 1000) {
     //   print("dsf");
     // }
-    int k = 0;
+    // int k = 0;
 
+    // for (int i = 0; i < _entireGraphBuffer.length; i++) {
+    //   if (i < _entireGraphBuffer.length - valueCount) {
+    //     _entireGraphBuffer[i] = _entireGraphBuffer[i + valueCount];
+    //   } else {
+    //     _entireGraphBuffer[i] = int16List[k];
+    //     k++;
+    //   }
+    // }
+    // print(
+    //     "the entireGraphBuffer ${_entireGraphBuffer.length} and int16List ${int16List.length}");
     for (int i = 0; i < _entireGraphBuffer.length; i++) {
-      if (i < _entireGraphBuffer.length - valueCount) {
-        _entireGraphBuffer[i] = _entireGraphBuffer[i + valueCount];
-      } else {
-        _entireGraphBuffer[i] = int16List[k];
-        k++;
-      }
+      _entireGraphBuffer[i] = int16List[i];
     }
 
     updateGraph();
@@ -119,33 +129,48 @@ class GraphDataProvider extends ChangeNotifier {
   }
 
   /// Sets the start and end index from where to read the data from [_entireGraphBuffer]
+  // void setScrollIndex(double delta) {
+  //   _scale += delta * -0.001;
+  //   _scale = _scale.clamp(0, 1);
+
+  //   int tempSamplesInCurrentView = (_graphBufferLength * _scale).floor();
+
+  //   // Samples should be more than 100
+  //   tempSamplesInCurrentView =
+  //       tempSamplesInCurrentView > 100 ? tempSamplesInCurrentView : 100;
+
+  //   // Samples should be more than 10%
+  //   tempSamplesInCurrentView =
+  //       tempSamplesInCurrentView > (_graphBufferLength * 0.1)
+  //           ? tempSamplesInCurrentView
+  //           : (_graphBufferLength * 0.1).floor();
+
+  //   samplesInCurrentView = (_endIndex) - tempSamplesInCurrentView < 0
+  //       ? (_endIndex)
+  //       : tempSamplesInCurrentView;
+  //   _startIndex = (_endIndex) - samplesInCurrentView;
+
+  //   _scale = (samplesInCurrentView / _graphBufferLength).clamp(0, 1);
+
+  //   // print(
+  //   //     "on setScrollIndex: $_startIndex - $_endIndex, tempSamplesInCurrentView: $tempSamplesInCurrentView, samples: $samplesInCurrentView");
+
+  //   timeCalculate(samplesInCurrentView);
+  //   updateGraph();
+
+  //   notifyListeners();
+  // }
   void setScrollIndex(double delta) {
-    _scale += delta * -0.001;
-    _scale = _scale.clamp(0, 1);
+    _scale += delta * -0.0001;
+    _scale = _scale.clamp(0.001, 1);
 
-    int tempSamplesInCurrentView = (_graphBufferLength * _scale).floor();
+    /// In milliseconds
+    int durationToDisplay = (_scale * 120 * 1000).toInt();
+    // print("Duration ${durationToDisplay}");
+    localPlugin.setEnvelopConfigure(durationToDisplay);
 
-    // Samples should be more than 100
-    tempSamplesInCurrentView =
-        tempSamplesInCurrentView > 100 ? tempSamplesInCurrentView : 100;
+    timeOnGraph = durationToDisplay;
 
-    // Samples should be more than 10%
-    tempSamplesInCurrentView =
-        tempSamplesInCurrentView > (_graphBufferLength * 0.1)
-            ? tempSamplesInCurrentView
-            : (_graphBufferLength * 0.1).floor();
-
-    samplesInCurrentView = (_endIndex) - tempSamplesInCurrentView < 0
-        ? (_endIndex)
-        : tempSamplesInCurrentView;
-    _startIndex = (_endIndex) - samplesInCurrentView;
-
-    _scale = (samplesInCurrentView / _graphBufferLength).clamp(0, 1);
-
-    // print(
-    //     "on setScrollIndex: $_startIndex - $_endIndex, tempSamplesInCurrentView: $tempSamplesInCurrentView, samples: $samplesInCurrentView");
-
-    timeCalculate(samplesInCurrentView);
     updateGraph();
 
     notifyListeners();

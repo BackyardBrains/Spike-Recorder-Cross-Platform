@@ -31,7 +31,6 @@ class SerialUtilWeb implements SerialUtil {
     try {
       await port1.open(
         baudRate: _baudRate,
-        bufferSize: 8192,
       );
 
       isPortOpen = true;
@@ -44,11 +43,14 @@ class SerialUtilWeb implements SerialUtil {
 
     await port1.close();
     _port = await window.navigator.serial.requestPort();
-    print("the baudRate is $_baudRate");
+
     try {
       await _port?.open(
         baudRate: _baudRate,
-        bufferSize: 8192,
+        dataBits: DataBits.eight,
+        stopBits: StopBits.one,
+        bufferSize: 255,
+        flowControl: FlowControl.hardware,
       );
       isSetBaudRate = true;
 
@@ -108,15 +110,15 @@ class SerialUtilWeb implements SerialUtil {
         dataStream = streamController.stream.asBroadcastStream();
       }
       isListenPort = true;
-      try {
-        while (isListenPort) {
-          ReadableStreamDefaultReadResult result = await reader!.read();
-          final currentTime = DateTime.now();
-          currentTime.difference(startTime);
-          streamController.add(result.value);
+
+      while (isListenPort) {
+        ReadableStreamDefaultReadResult result = await reader!.read();
+
+        final currentTime = DateTime.now();
+        currentTime.difference(startTime);
+        if (result.value.isNotEmpty) {
+          streamController.add(result.value.buffer.asUint8List());
         }
-      } catch (e) {
-        print("error is while $e");
       }
     } catch (e) {
       print("Reading port failed with exception: \n$e");

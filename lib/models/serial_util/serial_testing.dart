@@ -8,7 +8,6 @@ class SerialUtilWebCheck {
   SerialPort? _port;
   SerialPortInfo? portInfo;
 
-  @override
   Future<void> openPortToListen(String name) async {
     _port = await window.navigator.serial.requestPort();
     try {
@@ -20,7 +19,6 @@ class SerialUtilWebCheck {
     readFromPort();
   }
 
-  @override
   Future<void> writeToPort(
       {required Uint8List bytesMesage, required String address}) async {
     if (_port == null) {
@@ -33,8 +31,6 @@ class SerialUtilWebCheck {
     await writer.write(bytesMesage);
     await writer.ready;
   }
-
-  @override
   Future<void> readFromPort() async {
     if (_port == null) {
       return;

@@ -178,38 +178,38 @@ class NativeAddBindings {
                   ffi.Uint32)>>('applyNotchPassFilter')
       .asFunction();
 
-  // double addDataToSampleBuffer(ffi.Pointer<ffi.Int16> src, int length) {
-  //   return _addDataSampleBuffer(src, length);
-  // }
+  double addDataToSampleBuffer(ffi.Pointer<ffi.Int16> src, int length) {
+    return _addDataSampleBuffer(src, length);
+  }
 
-  // late final AddDataToSampleBuffer _addDataSampleBuffer = _lookup<
-  //         ffi.NativeFunction<
-  //             ffi.Double Function(
-  //                 ffi.Pointer<ffi.Int16>, ffi.Int16)>>('addDataToSampleBuffer')
-  //     .asFunction();
+  late final AddDataToSampleBuffer _addDataSampleBuffer = _lookup<
+          ffi.NativeFunction<
+              ffi.Double Function(
+                  ffi.Pointer<ffi.Int16>, ffi.Int)>>('addDataToSampleBuffer')
+      .asFunction();
 
-  // double getEnvelopFromSampleBuffer(
-  //     int offset, int length, int skip, ffi.Pointer<ffi.Int16> src) {
-  //   final double resultArray = _getEnvelopSampleData(offset, length, skip, src);
-  //   // Calculate the length of the Int16List based on the provided length
-  //   // final int resultLength = length * 2; // Two Int16 elements per pair
+  double getEnvelopFromSampleBuffer(
+      int offset, int length, int skip, ffi.Pointer<ffi.Int16> src) {
+    final double resultArray = _getEnvelopSampleData(offset, length, skip, src);
+    // Calculate the length of the Int16List based on the provided length
+    // final int resultLength = length * 2; // Two Int16 elements per pair
 
-  //   // Convert the Pointer<Int16> to Int16List
-  //   // final Int16List resultList = resultArray.asTypedList(resultLength);
-  //   // print("the result is $resultList");
+    // Convert the Pointer<Int16> to Int16List
+    // final Int16List resultList = resultArray.asTypedList(resultLength);
+    // print("the result is $resultList");
 
-  //   // Free the memory associated with the Pointer
+    // Free the memory associated with the Pointer
 
-  //   return resultArray;
-  // }
+    return resultArray;
+  }
 
-  // late final GetEnvelopDataFromSampleBuffer _getEnvelopSampleData = _lookup<
-  //         ffi.NativeFunction<
-  //             ffi.Double Function(
-  //               ffi.Int16,
-  //               ffi.Int16,
-  //               ffi.Int16,
-  //               ffi.Pointer<ffi.Int16>,
-  //             )>>('getDataFromSampleBuffer')
-  //     .asFunction();
+  late final GetEnvelopDataFromSampleBuffer _getEnvelopSampleData = _lookup<
+          ffi.NativeFunction<
+              ffi.Double Function(
+                ffi.Int,
+                ffi.Int,
+                ffi.Int,
+                ffi.Pointer<ffi.Int16>,
+              )>>('getDataFromSampleBuffer')
+      .asFunction();
 }

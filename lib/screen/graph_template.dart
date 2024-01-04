@@ -101,6 +101,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     Future.delayed(const Duration(seconds: 2)).then((value) {
       microphoneUtil.init().then((value) {
         microphoneUtil.micStream!.listen((event) {
+          // print("the length of ${event.length}");
           bool isAudioListen =
               context.read<DataStatusProvider>().isMicrophoneData;
           // print("the event is $event");
@@ -156,7 +157,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         if (isDebugging) {
           context
               .read<DebugTimeProvider>()
-              .addTime(timeTaken.elapsedMicroseconds);
+              .addGraphTime(timeTaken.elapsedMicroseconds);
         }
         timeTaken.reset();
         Uint16List newDataPoints;
@@ -222,7 +223,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
             newPoints[i] = a;
           }
         }
-
         await localPlugin.filterArrayElements(
           array: newPoints,
           arrayLength: newPoints.length,
@@ -340,8 +340,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
             case 2:
 
               // TODO: only first channel data is being passed, ie, the first two bytes
-              _graphStreamController
-                  .add(ChannelUtil.dropEveryOtherTwoBytes(dataFromBuffer));
+              // _graphStreamController
+              //     .add(ChannelUtil.dropEveryOtherTwoBytes(dataFromBuffer));
               break;
           }
         }
@@ -788,7 +788,6 @@ class _DeviceSettingConfigurationState
     extends State<DeviceSettingConfiguration> {
   @override
   Widget build(BuildContext context) {
-  
     return Consumer<SoftwareConfigProvider>(
         builder: (context, softwareSetting, snapshot) {
       if (softwareSetting.isSettingEnable) {

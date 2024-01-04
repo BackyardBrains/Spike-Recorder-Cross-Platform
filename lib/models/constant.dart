@@ -6,7 +6,7 @@ const int kGraphPointsCount = 2048;
 /// Number of 16bit points to be be updated
 ///
 /// ie, [kGraphPointsCount] * 2 bytes
-const int kGraphUpdateCount = 256;
+const int kGraphUpdateCount = 4000;
 
 // TODO: Hardcoded values to be removed
 const int channelCountBuffer = 6;

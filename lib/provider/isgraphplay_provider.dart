@@ -18,5 +18,6 @@ class GraphResumePlayProvider extends ChangeNotifier {
   setGraphResumePlay(bool isGraphStatus) {
     _graphStatus = isGraphStatus;
     _graphStatusStreamController.add(isGraphStatus);
+    notifyListeners();
   }
 }

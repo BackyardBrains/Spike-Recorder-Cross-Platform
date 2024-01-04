@@ -4,6 +4,5 @@
 #include "../../src/low_pass_filter.cpp"
 #include "../../src/mac_capture_audio.cpp"
 #include "../../src/notch_filter.cpp"
-
 #include "../../src/sample_buffer.cpp"
 #include "../../src/envelope.cpp"

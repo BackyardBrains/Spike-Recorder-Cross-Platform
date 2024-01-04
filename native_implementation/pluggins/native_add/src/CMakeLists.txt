@@ -16,6 +16,7 @@ set(SOURCE_FILES
         notch_filter.cpp
         sample_buffer.cpp
         envelope.cpp
+        timing_debug.cpp
 )
 
 # Check if compiling for Windows

@@ -1,4 +1,5 @@
 #include "capture_audio.h"
+#include "timing_debug.h"
 
 // // Constants for audio configuration
 // const int SAMPLE_RATE = 44100;
@@ -25,6 +26,8 @@
 //     std::cout << "Callback run" << std::endl;
 //     return callback(nullptr, bar);
 // }
+
+TimingDebug timing_Debug;
 
 const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
 const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
@@ -234,9 +237,39 @@ extern "C"
         // std::cout <<  "result in cpp : " << result << std::endl;
         if (result >= 0.0)
         {
+
+            timing_Debug.noteTime();
+            // auto current_time = std::chrono::steady_clock::now();
+            // auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - pMySink.start_time);
+            // int seconds = static_cast<int>(elapsed_time.count());
+            // Now you can use 'seconds' as an integer
+            // std::cout << "result in seconds: " << seconds << std::endl;
+            // timing.noteTime(seconds);
+            // std::cout << "Elapsed Time: " << timing.getElapsedTime() << std::endl;
+            // std::cout << "Max Time: " << timing.getMaxTime() << std::endl;
+            // std::cout << "Min Time: " << timing.getMinTime() << std::endl;
+
+            // auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - pMySink->start_time).count();
+            // std::cout << "result in epoch : " << elapsed_time << std::endl;
             return 1.0;
         }
         return 0.0;
+    }
+
+    EXTERNC FUNCTION_ATTRIBUTE int getAvg()
+    {
+
+        return timing_Debug.getAvg();
+    }
+    EXTERNC FUNCTION_ATTRIBUTE int getMin()
+    {
+
+        return timing_Debug.getMinTime();
+    }
+    EXTERNC FUNCTION_ATTRIBUTE int getMax()
+    {
+
+        return timing_Debug.getMaxTime();
     }
 
 #ifdef __cplusplus

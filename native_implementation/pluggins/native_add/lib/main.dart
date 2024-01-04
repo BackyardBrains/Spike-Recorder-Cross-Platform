@@ -28,6 +28,11 @@ typedef AddDataToSampleBuffer = double Function(ffi.Pointer<ffi.Int16>, int);
 typedef GetEnvelopDataFromSampleBuffer = double Function(
     int offset, int len, int skip, ffi.Pointer<ffi.Int16> src);
 
+typedef GetAudioElapseTime = int Function();
+typedef GetAudioMinTime = int Function();
+
+typedef GetAudioMaxTime = int Function();
+
 /*
 *
 *
@@ -67,7 +72,6 @@ class NativeAddBindings {
 
 // Mic stream from the window native code
   double listenMic() {
-    print("check in native code");
     return _capturingAudio();
   }
 
@@ -80,6 +84,30 @@ class NativeAddBindings {
 
     // Perform your operations here
   }
+
+// getAudioElapseData
+  int getElapseAudio() {
+    return getAudioElapseTime();
+  }
+
+  int getMinAudio() {
+    return getAudioMinTime();
+  }
+
+  int getMaxAudio() {
+    return getAudioMaxTime();
+  }
+
+  late final GetAudioElapseTime getAudioElapseTime =
+      _lookup<ffi.NativeFunction<ffi.Int Function()>>('getAvg').asFunction();
+
+  late final GetAudioMaxTime getAudioMaxTime =
+      _lookup<ffi.NativeFunction<ffi.Int Function()>>('getMin').asFunction();
+
+  late final GetAudioMinTime getAudioMinTime =
+      _lookup<ffi.NativeFunction<ffi.Int Function()>>('getMax').asFunction();
+
+//
 
   late final CheckAudioData _isAudioCapture = _lookup<
           ffi.NativeFunction<

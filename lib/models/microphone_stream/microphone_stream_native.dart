@@ -1,7 +1,5 @@
 import 'dart:io';
-
 import 'package:spikerbox_architecture/models/microphone_stream/microphone_stream_android.dart';
-
 import 'microphone_stream_check.dart';
 import 'package:spikerbox_architecture/models/microphone_stream/microphone_stream_window.dart';
 

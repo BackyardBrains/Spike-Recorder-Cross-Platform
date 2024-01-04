@@ -7,6 +7,8 @@ import 'dart:typed_data';
 import 'package:native_add/allocation.dart';
 import 'package:native_add/main.dart';
 
+import 'model/sending_data.dart';
+
 Isolate? _helperIsolateMic;
 SendPort? _helperIsolateSendPortMic;
 
@@ -64,7 +66,7 @@ final Map<int, Completer<MicAck>> _isolateResultsOfMic =
     <int, Completer<MicAck>>{};
 
 Future<void> mainIsolateForMic(
-    StreamController<Uint8List> micDataController) async {
+    StreamController<SendingDataToDart> micDataController) async {
   if (_helperIsolateMic == null) {
     _helperIsolateSendPortMic =
         await mainIsolateForMicHelperStart(micDataController);
@@ -72,7 +74,7 @@ Future<void> mainIsolateForMic(
 }
 
 Future<SendPort> mainIsolateForMicHelperStart(
-    StreamController<Uint8List> micDataController) async {
+    StreamController<SendingDataToDart> micDataController) async {
   final Completer<SendPort> completerSendPortForMic = Completer<SendPort>();
 
   final ReceivePort response = ReceivePort();
@@ -104,8 +106,12 @@ Future<SendPort> mainIsolateForMicHelperStart(
 
       return;
     }
-    if (message is Int16List) {
-      micDataController.add(message.buffer.asUint8List());
+
+    //
+    //
+    //
+    if (message is SendingDataToDart) {
+      micDataController.add(message);
     } else {
       throw UnsupportedError(
           'Unsupported message type: ${message.runtimeType}');
@@ -178,11 +184,21 @@ Future<void> continuouslyCheckMicData(SendPort isolateToMainMic) async {
     double isCheck = _bindingsMic.isAudioCaptureData(_micPointer);
     if (isCheck == 1.0) {
       Int16List int16list = _micPointer.asTypedList(_bufferLength);
+
       // isolateToMainMic.send(int16list);
       // MicDataWithDetail micDataWithDetail = MicDataWithDetail(
       //     micData: int16list,
       //     upComingDataTiming: stopwatch.elapsedMilliseconds);
-      isolateToMainMic.send(int16list);
+//  sending data to worker
+      int elapse = _bindingsMic.getElapseAudio();
+      int minTime = _bindingsMic.getMinAudio();
+      int maxTime = _bindingsMic.getMaxAudio();
+      SendingDataToDart sendingDataToDart = SendingDataToDart(
+          int16list: int16list,
+          elapseTime: elapse,
+          maxTime: maxTime,
+          minTime: minTime);
+      isolateToMainMic.send(sendingDataToDart);
 
       // print("the stop watch ${stopwatch.elapsedMilliseconds} and $isCheck");
     }

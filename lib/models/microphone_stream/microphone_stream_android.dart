@@ -4,16 +4,17 @@ import 'dart:typed_data';
 import 'package:sound_stream_now/sound_stream_now.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:native_add/model/sending_data.dart';
 import 'microphone_stream_check.dart';
 
 class MicrophoneUtilAndroid implements MicrophoneUtil {
   // late ffi.Pointer<ffi.Pointer<ffi.Float>> audioData;
   @override
-  StreamController<Uint8List> addListenAudioStreamController =
+  StreamController<SendingDataToDart> addListenAudioStreamController =
       StreamController();
 
   @override
-  Stream<Uint8List>? micStream;
+  Stream<SendingDataToDart>? micStream;
 
   List<double>? waveSamples;
   List<double>? intensitySamples;
@@ -35,7 +36,12 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
     micStream = addListenAudioStreamController.stream.asBroadcastStream();
 
     _recorder.audioStream.listen((data) {
-      addListenAudioStreamController.add(data);
+      SendingDataToDart sendingDataToDart = SendingDataToDart(
+          int16list: Int16List.fromList(data),
+          elapseTime: 0,
+          maxTime: 0,
+          minTime: 0);
+      addListenAudioStreamController.add(sendingDataToDart);
     });
 
     await Future.wait([

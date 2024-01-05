@@ -21,7 +21,7 @@ class _DebugTheDataDetailState extends State<DebugTheDataDetail> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Packet Detail of render data(audio and serial) on Graph",
+              "Packet Detail of render data(audio serial) on Graph",
               style: SoftwareTextStyle().kWtMediumTextStyle,
             ),
             Text(
@@ -29,11 +29,11 @@ class _DebugTheDataDetailState extends State<DebugTheDataDetail> {
               style: SoftwareTextStyle().kWtMediumTextStyle,
             ),
             Text(
-              "Min TIme = ${debugTimeList.minTime} microsecond",
+              "Min Time = ${debugTimeList.minTime} microsecond",
               style: SoftwareTextStyle().kWtMediumTextStyle,
             ),
             Text(
-              "Mxn TIme = ${debugTimeList.maxTime} microsecond",
+              "Max Time = ${debugTimeList.maxTime} microsecond",
               style: SoftwareTextStyle().kWtMediumTextStyle,
             ),
           ],

@@ -28,13 +28,6 @@
 #define FUNCTION_ATTRIBUTE __declspec(dllexport)
 #endif
 
-long long getTime()
-{
-    auto now = std::chrono::high_resolution_clock::now();
-    auto duration = now.time_since_epoch();
-    return std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
-}
-
 class MyAudioSink
 {
 public:
@@ -45,15 +38,18 @@ public:
         readIndex = 0;
         dataCount = 0;
     }
+    std::chrono::steady_clock::time_point start_time;
 
     ~MyAudioSink()
     {
         delete[] sinkData;
     }
-    bool isAudioCheck;
 
     HRESULT CopyData(BYTE *pData, UINT32 numFramesAvailable, BOOL *bDone)
     {
+
+        start_time = std::chrono::steady_clock::now();
+
         isCopyingData = true;
 
         uint32_t numSamples = numFramesAvailable * 2;
@@ -121,12 +117,14 @@ public:
     {
         if (isCopyingData)
             return -5;
-        /*
-        For timing the Loop
-        */
-        // long long _ts = getTime();
-        // std::cout << "DisplayData timestamp in microseconds: " << _ts - lastTs << std::endl;
-        // lastTs = _ts;
+        // auto start_time = std::chrono::high_resolution_clock::now();
+
+        // /*
+        // For timing the Loop
+        // */
+        // // long long _ts = getTime();
+        // // std::cout << "DisplayData timestamp in microseconds: " << _ts - lastTs << std::endl;
+        // // lastTs = _ts;
 
         if (dataCount >= packetReadSize && outData)
         {
@@ -181,7 +179,6 @@ private:
 
     size_t data_chunk_pos;
     size_t file_length;
-
     // sample format
     WORD wFormatTag;
     WORD nChannels;

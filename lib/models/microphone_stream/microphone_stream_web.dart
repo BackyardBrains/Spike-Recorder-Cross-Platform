@@ -3,17 +3,19 @@ import 'dart:typed_data';
 import 'microphone_stream_check.dart';
 import 'dart:js' as js;
 
+import 'package:native_add/model/sending_data.dart';
+
 MicrophoneUtil getMicrophoneStreams() => MicrophoneUtilWeb();
 
 class MicrophoneUtilWeb implements MicrophoneUtil {
   Int16List? _micDataBuffer;
 
   @override
-  StreamController<Uint8List> addListenAudioStreamController =
+  StreamController<SendingDataToDart> addListenAudioStreamController =
       StreamController.broadcast();
 
   @override
-  Stream<Uint8List>? micStream;
+  Stream<SendingDataToDart>? micStream;
 
   @override
   Future<void> init() async {
@@ -39,7 +41,7 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
       // Convert Int16List to Uint8List
 
       // Add Uint8List to the stream
-      addListenAudioStreamController.add(_micDataBuffer!.buffer.asUint8List());
+      // addListenAudioStreamController.add(_micDataBuffer!.buffer.asUint8List());
     } catch (error) {
       print("Error in onDataReceived: $error");
     }

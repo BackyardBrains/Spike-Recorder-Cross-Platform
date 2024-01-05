@@ -109,7 +109,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
           if (isAudioListen) {
             timeTaken.start();
-            _preprocessingBuffer.addBytes(event);
+            _preprocessingBuffer.addBytes(Uint8List.fromList(event.int16list));
           }
         });
       });

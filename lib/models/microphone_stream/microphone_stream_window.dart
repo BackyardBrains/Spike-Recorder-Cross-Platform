@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:native_add/model/sending_data.dart';
+
 import 'microphone_stream_check.dart';
 // ignore: library_prefixes
+
 import 'package:native_add/mic_listening_isolate.dart' as native_MicListen;
 
 class MicrophoneUtilWindow implements MicrophoneUtil {
   @override
-  Stream<Uint8List>? micStream;
+  Stream<SendingDataToDart>? micStream;
 
   @override
-  StreamController<Uint8List> addListenAudioStreamController =
+  StreamController<SendingDataToDart> addListenAudioStreamController =
       StreamController();
 
   // List<int> intList = List<int>.generate(2000, (index) => index);

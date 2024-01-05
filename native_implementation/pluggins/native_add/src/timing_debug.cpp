@@ -21,12 +21,12 @@ void TimingDebug::noteTime()
         totalElapsedTime += elapsedTime;
     }
     previousTimeStamp = time;
-    std::cout << "elapsed time: " << elapsedTime << std::endl;
-    std::cout << "fetch time: " << time << std::endl;
-    std::cout << "Elapsed Time: " << totalElapsedTime << std::endl;
-    std::cout << "previous Time: " << previousTimeStamp << std::endl;
-    std::cout << "maxTime: " << getMaxTime() << std::endl;
-    std::cout << "minTime: " << getMinTime() << std::endl;
+    // std::cout << "elapsed time: " << elapsedTime << std::endl;
+    // std::cout << "fetch time: " << time << std::endl;
+    // std::cout << "Elapsed Time: " << totalElapsedTime << std::endl;
+    // std::cout << "previous Time: " << previousTimeStamp << std::endl;
+    // std::cout << "maxTime: " << getMaxTime() << std::endl;
+    // std::cout << "minTime: " << getMinTime() << std::endl;
 
     setMinTime(elapsedTime);
     setMaxTime(elapsedTime);
@@ -52,9 +52,8 @@ void TimingDebug::setMaxTime(long long latestTime)
 void TimingDebug::setAvgTime(long long latestTime)
 {
     count++;
-
     averageTime = totalElapsedTime / count;
-    std::cout << "Average Time: " << averageTime << std::endl;
+    // std::cout << "Average Time: " << averageTime << std::endl;
 }
 
 // void TimingDebug::reset()

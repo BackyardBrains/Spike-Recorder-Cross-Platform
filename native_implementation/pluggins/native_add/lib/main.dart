@@ -28,7 +28,7 @@ typedef AddDataToSampleBuffer = double Function(ffi.Pointer<ffi.Int16>, int);
 typedef GetEnvelopDataFromSampleBuffer = double Function(
     int offset, int len, int skip, ffi.Pointer<ffi.Int16> src);
 
-typedef GetAudioElapseTime = int Function();
+typedef GetAudioAvgTime = int Function();
 typedef GetAudioMinTime = int Function();
 
 typedef GetAudioMaxTime = int Function();
@@ -87,7 +87,7 @@ class NativeAddBindings {
 
 // getAudioElapseData
   int getElapseAudio() {
-    return getAudioElapseTime();
+    return getAudioAverageTime();
   }
 
   int getMinAudio() {
@@ -98,7 +98,7 @@ class NativeAddBindings {
     return getAudioMaxTime();
   }
 
-  late final GetAudioElapseTime getAudioElapseTime =
+  late final GetAudioAvgTime getAudioAverageTime =
       _lookup<ffi.NativeFunction<ffi.Int Function()>>('getAvg').asFunction();
 
   late final GetAudioMaxTime getAudioMaxTime =

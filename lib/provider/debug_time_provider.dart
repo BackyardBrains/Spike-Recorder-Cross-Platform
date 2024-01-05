@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:spikerbox_architecture/models/audio_detail_model.dart';
 
 class DebugTimeProvider extends ChangeNotifier {
   int _totalTime = 0;
@@ -12,6 +13,24 @@ class DebugTimeProvider extends ChangeNotifier {
   int get averageTime => _averageTime;
   int get minTime => _minTime;
   int get maxTime => _maxTime;
+
+//* audioDetail constant
+
+  // int _audioAvgTime = 0;
+  // int _audioMaxTime = 0;
+  // int _audioMinTime = 0;
+
+  AudioDetail? _audioDetail;
+
+  AudioDetail get audioDetail => _audioDetail!;
+
+  setAudioDetail(AudioDetail audioDetail) {
+    _audioDetail = audioDetail;
+    notifyListeners();
+  }
+  // int get audioAvgTime => _audioAvgTime;
+  // int get audioMaxTime => _audioMaxTime;
+  // int get audioMinTIme => _audioMinTime;
 
 // *   provider for  render data in calculation  on the graph
   addGraphTime(
@@ -61,8 +80,6 @@ class DebugTimeProvider extends ChangeNotifier {
   }
 
   //*
-
-
 
   addMicrophoneTiming() {}
 }

@@ -5,6 +5,7 @@ import 'package:sound_stream_now/sound_stream_now.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'package:native_add/model/sending_data.dart';
+import 'package:spikerbox_architecture/models/debugging.dart';
 import 'microphone_stream_check.dart';
 
 class MicrophoneUtilAndroid implements MicrophoneUtil {
@@ -19,6 +20,8 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
   List<double>? waveSamples;
   List<double>? intensitySamples;
   Stream<Uint8List>? stream;
+  int _counter = 0;
+  Stopwatch stopwatch = Stopwatch();
   late StreamSubscription<Uint8List>? listen;
 
   final RecorderStream _recorder = RecorderStream();
@@ -34,8 +37,12 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
     // });
 
     micStream = addListenAudioStreamController.stream.asBroadcastStream();
-
+    stopwatch.start();
     _recorder.audioStream.listen((data) {
+      _counter++;
+      Debugging.printing(
+          "the time taken ${stopwatch.elapsedMilliseconds} and packet size ${data.length}");
+      stopwatch.reset();
       SendingDataToDart sendingDataToDart = SendingDataToDart(
           int16list: Int16List.fromList(data),
           elapseTime: 0,

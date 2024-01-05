@@ -17,3 +17,4 @@ export 'data_pattern_util.dart';
 export 'sample_buffer.dart';
 export 'enum/notch_check_filter.dart';
 export 'device_com_listen.dart';
+export 'audio_detail_model.dart';

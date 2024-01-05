@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'microphone_stream_check.dart';
 import 'dart:js' as js;
 
-import 'package:native_add/model/sending_data.dart';
+import 'package:native_add/model/model.dart';
 
 MicrophoneUtil getMicrophoneStreams() => MicrophoneUtilWeb();
 

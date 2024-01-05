@@ -47,6 +47,8 @@ HRESULT RecordAudioStream(MyAudioSink *pMySink)
     IAudioCaptureClient *pCaptureClient = NULL;
     WAVEFORMATEX *pwfx = NULL;
     UINT32 packetLength = 0;
+    int totalTime = 0;
+
     BOOL bDone = FALSE;
     BYTE *pData;
     DWORD flags;
@@ -152,10 +154,22 @@ HRESULT RecordAudioStream(MyAudioSink *pMySink)
     // Each loop fills about half of the shared buffer.
     while (bDone == FALSE)
     {
+        auto start = std::chrono::high_resolution_clock::now();
+        // auto start = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+        // std::cout << "start :" < < < < std::endl;
         // Sleep for half the buffer duration.
         // Sleep(hnsActualDuration / REFTIMES_PER_MILLISEC / 2);
 
         hr = pCaptureClient->GetNextPacketSize(&packetLength);
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+        // totalTime+ =
+
+        // if()
+        // std::cout << "Time taken by GetNextPacketSize: " << duration.count() << " microSecond" << std::endl;
+        // std::cout << "packet length :" << packetLength << std::endl;
         EXIT_ON_ERROR(hr)
 
         while (packetLength != 0)

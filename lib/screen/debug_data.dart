@@ -20,26 +20,44 @@ class _DebugTheDataDetailState extends State<DebugTheDataDetail> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Packet Detail of render data(audio serial) on Graph",
-              style: SoftwareTextStyle().kWtMediumTextStyle,
+            const _TextWidget(
+              text: "Packet Detail of render data(audio serial) on Graph",
             ),
-            Text(
-              "Average Time = ${debugTimeList.averageTime} microsecond /per packet",
-              style: SoftwareTextStyle().kWtMediumTextStyle,
+            _TextWidget(
+              text:
+                  "Average Time = ${debugTimeList.averageTime} microsecond /per packet",
             ),
-            Text(
-              "Min Time = ${debugTimeList.minTime} microsecond",
-              style: SoftwareTextStyle().kWtMediumTextStyle,
+            _TextWidget(
+              text: "Min Time = ${debugTimeList.minTime} microsecond",
             ),
-            Text(
-              "Max Time = ${debugTimeList.maxTime} microsecond",
-              style: SoftwareTextStyle().kWtMediumTextStyle,
+            _TextWidget(
+              text: "Max Time = ${debugTimeList.maxTime} microsecond",
             ),
+            // _TextWidget(
+            //     text:
+            //         "Audio Avg Time = ${debugTimeList.audioDetail.avgTime.toString()}"),
+            // _TextWidget(
+            //     text:
+            //         "Audio Max Time = ${debugTimeList.audioDetail.maxTime.toString()}"),
+            // _TextWidget(
+            //     text:
+            //         "Audio Min Time = ${debugTimeList.audioDetail.minTime.toString()}")
           ],
         );
       }
       return const SizedBox.shrink();
     });
+  }
+}
+
+class _TextWidget extends StatelessWidget {
+  const _TextWidget({super.key, required this.text});
+  final String text;
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: SoftwareTextStyle().kWtMediumTextStyle,
+    );
   }
 }

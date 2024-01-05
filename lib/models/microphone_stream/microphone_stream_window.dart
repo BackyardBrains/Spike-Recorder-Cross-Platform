@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:native_add/model/sending_data.dart';
+import 'package:native_add/model/model.dart';
 
 import 'microphone_stream_check.dart';
 // ignore: library_prefixes

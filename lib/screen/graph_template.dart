@@ -108,9 +108,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
           // isAudioListen = value;
 
           if (isAudioListen) {
-            timeTaken.start();
             _preprocessingBuffer.addBytes(Uint8List.fromList(event.int16list));
           }
+          AudioDetail audioDetail = AudioDetail(
+              avgTime: event.elapseTime,
+              maxTime: event.maxTime,
+              minTime: event.minTime);
+          context.read<DebugTimeProvider>().setAudioDetail(audioDetail);
         });
       });
     });
@@ -126,7 +130,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
     Timer.periodic(const Duration(milliseconds: timeMs), (timer) {
       bool dummyDataStatus = context.read<DataStatusProvider>().isSampleDataOn;
       if (dummyDataStatus) {
-        timeTaken.start();
         _preprocessingBuffer.addBytes(_sampleData);
       }
     });
@@ -139,7 +142,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     localPlugin.spawnHelperIsolate().then(
       (value) {
+        timeTaken.start();
         localPlugin.postFilterStream?.listen((event) {
+          if (isDebugging) {
+            context
+                .read<DebugTimeProvider>()
+                .addGraphTime(timeTaken.elapsedMicroseconds);
+            timeTaken.reset();
+          }
+
           _preGraphBuffer.addBytes(event);
         });
       },
@@ -154,12 +165,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         DataStatusProvider dataStatusProvider =
             context.read<DataStatusProvider>();
         isDebugging = dataStatusProvider.isDebugging;
-        if (isDebugging) {
-          context
-              .read<DebugTimeProvider>()
-              .addGraphTime(timeTaken.elapsedMicroseconds);
-        }
-        timeTaken.reset();
+
         Uint16List newDataPoints;
         Int16List int16list;
         List<int> newPoints;
@@ -281,7 +287,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           // Debugging.printing("bytes drop detected");
         }
       }
-      timeTaken.start();
+
       _preprocessingBuffer.addBytes(Uint8List.fromList(frameCheckedData));
     }, onDeviceMessage: (Uint8List msg) async {
       String responseMessage =

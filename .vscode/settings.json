@@ -134,6 +134,7 @@
         "STOPBITS",
         "sublist",
         "syncfusion",
-        "WAVEFORMATEX"
+        "WAVEFORMATEX",
+        "WAVEFORMATEXTENSIBLE"
     ]
 }

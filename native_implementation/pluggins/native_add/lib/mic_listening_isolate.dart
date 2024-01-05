@@ -169,22 +169,26 @@ Future<MicAck> listenMicOfAudio() async {
 }
 
 Future<void> continuouslyCheckMicData(SendPort isolateToMainMic) async {
-  int counter = 0;
-
+  // int counter = 0;
   final Duration pollDuration = Platform.isWindows
       ? const Duration(milliseconds: 10)
       : const Duration(microseconds: 100);
-
   bool isFetchingData = false;
   Stopwatch stopwatch = Stopwatch();
+
+  stopwatch.start();
   Timer.periodic(pollDuration, (timer) {
-    stopwatch.start();
+    // counter++;
     if (isFetchingData) return;
     isFetchingData = true;
     double isCheck = _bindingsMic.isAudioCaptureData(_micPointer);
-    if (isCheck == 1.0) {
-      Int16List int16list = _micPointer.asTypedList(_bufferLength);
 
+    if (isCheck == 1.0) {
+      print("stopwatch.elapsedMilliseconds: ${stopwatch.elapsedMilliseconds}, _bufferLength: ${_bufferLength/2}");
+      stopwatch.elapsedMilliseconds;
+      stopwatch.reset();
+      Int16List int16list = _micPointer.asTypedList(_bufferLength);
+      // counter++;
       // isolateToMainMic.send(int16list);
       // MicDataWithDetail micDataWithDetail = MicDataWithDetail(
       //     micData: int16list,
@@ -200,9 +204,8 @@ Future<void> continuouslyCheckMicData(SendPort isolateToMainMic) async {
           minTime: minTime);
       isolateToMainMic.send(sendingDataToDart);
 
-      // print("the stop watch ${stopwatch.elapsedMilliseconds} and $isCheck");
+      print("the stop watch ${stopwatch.elapsedMilliseconds} and ");
     }
-    stopwatch.reset();
     isFetchingData = false;
   });
 }

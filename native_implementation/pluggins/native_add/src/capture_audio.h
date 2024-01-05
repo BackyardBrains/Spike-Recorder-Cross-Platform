@@ -4,7 +4,6 @@
 #include <iostream>
 #include <vector>
 #include <queue>
-#include <windows.h>
 #include <audioclient.h>
 #include <mmdeviceapi.h>
 #include <fstream>

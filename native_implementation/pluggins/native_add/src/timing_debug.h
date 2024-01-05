@@ -2,20 +2,9 @@
 #define BACKYARDBRAINS_TIMINGBUFFER_H
 
 #include <iostream>
-#include <vector>
-#include <queue>
-#include <windows.h>
-#include <audioclient.h>
-#include <mmdeviceapi.h>
-#include <fstream>
-#include <iostream>
-#include <cmath>
-#include <thread>
-#include <algorithm>
-#include <cstdint>
+//
 
 #include <chrono>
-#include "capture_audio.h"
 
 #ifdef __cplusplus
 #define EXTERNC extern "C"

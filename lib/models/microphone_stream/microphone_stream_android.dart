@@ -21,6 +21,10 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
   List<double>? intensitySamples;
   Stream<Uint8List>? stream;
   int _counter = 0;
+  int totalTimeAudio = 0;
+  int maxTimeAudio = 0;
+  int minTimeAudio = int.parse('9223372036854775807');
+  int avgTimeAudio = 0;
   Stopwatch stopwatch = Stopwatch();
   late StreamSubscription<Uint8List>? listen;
 
@@ -39,21 +43,26 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
     micStream = addListenAudioStreamController.stream.asBroadcastStream();
     stopwatch.start();
     _recorder.audioStream.listen((data) {
-      _counter++;
       Debugging.printing(
           "the time taken ${stopwatch.elapsedMilliseconds} and packet size ${data.length}");
+
+      int elapsedTime = stopwatch.elapsedMilliseconds;
+
+      addElapsedTime(elapsedTime);
+
+      Debugging.printing(
+          "the avg time $avgTimeAudio maxTime $maxTimeAudio ,minTIme $minTimeAudio");
       stopwatch.reset();
       SendingDataToDart sendingDataToDart = SendingDataToDart(
           int16list: Int16List.fromList(data),
-          elapseTime: 0,
-          maxTime: 0,
-          minTime: 0);
+          averageTime: avgTimeAudio,
+          maxTime: maxTimeAudio,
+          minTime: minTimeAudio);
       addListenAudioStreamController.add(sendingDataToDart);
     });
 
     await Future.wait([
-      _recorder.initialize(showLogs: true),
-      // _player.initialize(),
+      _recorder.initialize(showLogs: true, sampleRate: 44100),
     ]);
     _recorder.audioStream.asBroadcastStream();
 
@@ -74,6 +83,31 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
       // user manually enable it in the system settings.
       openAppSettings();
     }
+  }
+
+  void setMaxTime(int latestTime) {
+    if (maxTimeAudio < latestTime) {
+      maxTimeAudio = latestTime;
+    }
+  }
+
+  int setMinTime(int latestTime) {
+    if (latestTime < minTimeAudio) {
+      minTimeAudio = latestTime;
+    }
+    return minTimeAudio;
+  }
+
+  void averageCalculateTime(int latestTime) {
+    _counter++;
+    totalTimeAudio += latestTime;
+    avgTimeAudio = (totalTimeAudio ~/ _counter);
+  }
+
+  void addElapsedTime(int latestTime) {
+    setMaxTime(latestTime);
+    setMinTime(latestTime);
+    averageCalculateTime(latestTime);
   }
 
   Future<void> checkPointerValue() async {}

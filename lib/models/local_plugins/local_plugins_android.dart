@@ -28,7 +28,7 @@ class LocalPluginAndroid implements LocalPlugin {
   int skipCount = 44100 * 120 ~/ 2000;
 
   @override
-  void setEnvelopConfigure(int duration) {
+  void setEnvelopConfigure(int duration, int sampleRateProvider) {
     // _envelopingConfig[0].setConfig(bufferSize: (44100 ~/ 1000) * duration);
     sampleLength = (44100 * duration) ~/ 1000;
     skipCount = sampleLength ~/ 2000;

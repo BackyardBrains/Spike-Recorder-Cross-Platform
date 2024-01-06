@@ -33,15 +33,15 @@ class _DebugTheDataDetailState extends State<DebugTheDataDetail> {
             _TextWidget(
               text: "Max Time = ${debugTimeList.maxTime} microsecond",
             ),
-            // _TextWidget(
-            //     text:
-            //         "Audio Avg Time = ${debugTimeList.audioDetail.avgTime.toString()}"),
-            // _TextWidget(
-            //     text:
-            //         "Audio Max Time = ${debugTimeList.audioDetail.maxTime.toString()}"),
-            // _TextWidget(
-            //     text:
-            //         "Audio Min Time = ${debugTimeList.audioDetail.minTime.toString()}")
+            _TextWidget(
+                text:
+                    "Audio Avg Time = ${debugTimeList.audioDetail.avgTime.toString()}"),
+            _TextWidget(
+                text:
+                    "Audio Max Time = ${debugTimeList.audioDetail.maxTime.toString()}"),
+            _TextWidget(
+                text:
+                    "Audio Min Time = ${debugTimeList.audioDetail.minTime.toString()}")
           ],
         );
       }

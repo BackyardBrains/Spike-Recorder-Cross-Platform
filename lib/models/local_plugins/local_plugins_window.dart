@@ -37,9 +37,10 @@ class LocalPluginWindow implements LocalPlugin {
   int skipCount = 44100 * 120 ~/ 2000;
 
   @override
-  void setEnvelopConfigure(int duration) {
+  void setEnvelopConfigure(int duration, int sampleRateProvider) {
+    print("the sample rate is $sampleRateProvider");
     // _envelopingConfig[0].setConfig(bufferSize: (44100 ~/ 1000) * duration);
-    sampleLength = (44100 * duration) ~/ 1000;
+    sampleLength = (sampleRateProvider * duration) ~/ 1000;
     skipCount = sampleLength ~/ 2000;
     // print("the sampleLength is $sampleLength and skip Count is ${skipCount}");
   }
@@ -77,7 +78,6 @@ class LocalPluginWindow implements LocalPlugin {
 
     Int16List listToFilter = array.buffer.asInt16List();
 
-    
     Uint8List? filterElement = await native_add.filterArrayElements(
         array: listToFilter,
         length: listToFilter.length,

@@ -22,7 +22,7 @@ self.onmessage = async function (eventFromMain) {
                 let ptrDataArray = Module._malloc(packetSize * Module.HEAP16.BYTES_PER_ELEMENT);
                 let dataArrayStart = ptrDataArray / Module.HEAP16.BYTES_PER_ELEMENT;
                 let dataBuffer = Module.HEAP16.subarray(dataArrayStart, (dataArrayStart + packetSize));
-
+                console.log("Buffer Length:", dataBuffer.length);
                 if (i == 0) {
                     ptrDataArrayChannel1 = ptrDataArray;
                 }

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:native_add/native_add.dart' as native_add;
 import 'package:flutter/material.dart';
 import 'package:spikerbox_architecture/models/global_buffer.dart';
 
@@ -9,7 +8,7 @@ class GraphDataProvider extends ChangeNotifier {
   int delay = 0;
   static const int _graphBufferLength = 4000;
   // int bufferDuration = 30;
-
+  int? _sampleRateValue = 0;
   double _scale = 1.0;
   int _startIndex = 0;
   int _endIndex = _graphBufferLength - 1;
@@ -36,8 +35,11 @@ class GraphDataProvider extends ChangeNotifier {
 
   /// Initializes the incoming data stream [_inputGraphStream]
   /// Initializes the stream to output data to graph [_outputGraphStream]
-  void setStreamOfData(Stream<Uint8List> graphStreamData) {
+  void setStreamOfData(
+      Stream<Uint8List> graphStreamData, int sampleRateProvider) {
     _inputGraphStream = graphStreamData;
+    _sampleRateValue = sampleRateProvider;
+    print("the sample rate is $sampleRateProvider");
 
     _outputGraphStream = _outputGraphStreamController.stream
         .asBroadcastStream()
@@ -167,7 +169,7 @@ class GraphDataProvider extends ChangeNotifier {
     /// In milliseconds
     int durationToDisplay = (_scale * 120 * 1000).toInt();
     // print("Duration ${durationToDisplay}");
-    localPlugin.setEnvelopConfigure(durationToDisplay);
+    localPlugin.setEnvelopConfigure(durationToDisplay, _sampleRateValue!);
 
     timeOnGraph = durationToDisplay;
 

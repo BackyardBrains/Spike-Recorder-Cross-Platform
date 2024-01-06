@@ -184,8 +184,9 @@ Future<void> continuouslyCheckMicData(SendPort isolateToMainMic) async {
     double isCheck = _bindingsMic.isAudioCaptureData(_micPointer);
 
     if (isCheck == 1.0) {
-      print("stopwatch.elapsedMilliseconds: ${stopwatch.elapsedMilliseconds}, _bufferLength: ${_bufferLength/2}");
-      stopwatch.elapsedMilliseconds;
+      // print(
+      //     "stopwatch.elapsedMilliseconds: ${stopwatch.elapsedMilliseconds}, _bufferLength: ${_bufferLength / 2}");
+
       stopwatch.reset();
       Int16List int16list = _micPointer.asTypedList(_bufferLength);
       // counter++;
@@ -194,17 +195,15 @@ Future<void> continuouslyCheckMicData(SendPort isolateToMainMic) async {
       //     micData: int16list,
       //     upComingDataTiming: stopwatch.elapsedMilliseconds);
 //  sending data to worker
-      int elapse = _bindingsMic.getElapseAudio();
+      int elapse = _bindingsMic.getAvgAudio();
       int minTime = _bindingsMic.getMinAudio();
       int maxTime = _bindingsMic.getMaxAudio();
       SendingDataToDart sendingDataToDart = SendingDataToDart(
           int16list: int16list,
-          elapseTime: elapse,
+          averageTime: elapse,
           maxTime: maxTime,
           minTime: minTime);
       isolateToMainMic.send(sendingDataToDart);
-
-      print("the stop watch ${stopwatch.elapsedMilliseconds} and ");
     }
     isFetchingData = false;
   });

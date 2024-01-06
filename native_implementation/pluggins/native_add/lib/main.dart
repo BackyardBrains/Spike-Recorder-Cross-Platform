@@ -86,7 +86,7 @@ class NativeAddBindings {
   }
 
 // getAudioElapseData
-  int getElapseAudio() {
+  int getAvgAudio() {
     return getAudioAverageTime();
   }
 

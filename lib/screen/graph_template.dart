@@ -111,7 +111,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             _preprocessingBuffer.addBytes(Uint8List.fromList(event.int16list));
           }
           AudioDetail audioDetail = AudioDetail(
-              avgTime: event.elapseTime,
+              avgTime: event.averageTime,
               maxTime: event.maxTime,
               minTime: event.minTime);
           context.read<DebugTimeProvider>().setAudioDetail(audioDetail);
@@ -144,6 +144,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       (value) {
         timeTaken.start();
         localPlugin.postFilterStream?.listen((event) {
+          print("upcoming event is ${event.sublist(1, 20)}");
           if (isDebugging) {
             context
                 .read<DebugTimeProvider>()
@@ -151,7 +152,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
             timeTaken.reset();
           }
 
-          _preGraphBuffer.addBytes(event);
+          handleEnvelopingPlaFormWise(
+            event,
+          );
+          // _preGraphBuffer.addBytes(event);
         });
       },
     );
@@ -245,9 +249,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _channelBytes = widget.constantProvider.getChannelCount() * 2;
 
     _graphStream = _graphStreamController.stream.asBroadcastStream();
-    final provider = Provider.of<GraphDataProvider>(context, listen: false);
 
-    provider.setStreamOfData(_graphStream);
+    final provider = Provider.of<GraphDataProvider>(context, listen: false);
+    final sampleRateProvider =
+        Provider.of<SampleRateProvider>(context, listen: false);
+
+    provider.setStreamOfData(_graphStream, sampleRateProvider.sampleRate);
+
     _messageIdentifier = MessageIdentifier(onDeviceData: (Uint8List dt) {
       List<int> devData = dt;
 
@@ -338,17 +346,19 @@ class _GraphTemplateState extends State<GraphTemplate> {
       chunkReadSize: kGraphUpdateCount * 2,
       onDataAvailable: (Uint8List dataFromBuffer) {
         if (_toPauseGraph) {
-          switch (widget.constantProvider.getChannelCount()) {
-            case 1:
-              _graphStreamController.add(dataFromBuffer);
-              break;
+          if (kIsWeb) {
+            switch (widget.constantProvider.getChannelCount()) {
+              case 1:
+                _graphStreamController.add(dataFromBuffer);
+                break;
 
-            case 2:
+              case 2:
 
-              // TODO: only first channel data is being passed, ie, the first two bytes
-              // _graphStreamController
-              //     .add(ChannelUtil.dropEveryOtherTwoBytes(dataFromBuffer));
-              break;
+                // TODO: only first channel data is being passed, ie, the first two bytes
+                // _graphStreamController
+                //     .add(ChannelUtil.dropEveryOtherTwoBytes(dataFromBuffer));
+                break;
+            }
           }
         }
       },
@@ -410,6 +420,31 @@ class _GraphTemplateState extends State<GraphTemplate> {
     int index = listOfDevices.indexWhere((element) => element == getResponse);
     if (index == -1) return null;
     return listOfDevices[index];
+  }
+
+  void handleEnvelopingPlaFormWise(Uint8List dataFromBuffer) {
+    if (kIsWeb) {
+      _preGraphBuffer.addBytes(dataFromBuffer);
+    } else {
+      print("the data after enveloping ${dataFromBuffer.length}");
+      if (_toPauseGraph) {
+        print(
+            "the constant provider is ${widget.constantProvider.getChannelCount()}");
+        print("the data is added are ${dataFromBuffer.sublist(1, 50)}");
+        switch (widget.constantProvider.getChannelCount()) {
+          case 1:
+            _graphStreamController.add(dataFromBuffer);
+            break;
+
+          case 2:
+
+            // TODO: only first channel data is being passed, ie, the first two bytes
+            // _graphStreamController
+            //     .add(ChannelUtil.dropEveryOtherTwoBytes(dataFromBuffer));
+            break;
+        }
+      }
+    }
   }
 
   String portName = "";

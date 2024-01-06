@@ -15,7 +15,7 @@ class MyAudioProcessor extends AudioWorkletProcessor {
 
     process(inputs, outputs, parameters) {
         const input = inputs[0];
-        
+
         // Check for valid audio data before accessing it
         if (input && input.length > 0) {
             for (let sample of input[0]) {

@@ -30,9 +30,10 @@ async function startListeningToMicrophone() {
             // Read samples from the shared buffer when it's ready
             const currentTime = performance.now();
             const interval = currentTime - lastDataReceivedTime;
-
-
+            console.log("timeTaken : ", interval);
+            console.log("Current time : ", currentTime);
             lastDataReceivedTime = currentTime;
+
             window.onDataReceived();
         } else {
             console.log("Message from Audio Processor: ", event.data);

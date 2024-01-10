@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:spikerbox_architecture/models/global_buffer.dart';
 
@@ -8,7 +9,7 @@ class GraphDataProvider extends ChangeNotifier {
   int delay = 0;
   static const int _graphBufferLength = 4000;
   // int bufferDuration = 30;
-  int? _sampleRateValue = 0;
+
   double _scale = 1.0;
   int _startIndex = 0;
   int _endIndex = _graphBufferLength - 1;
@@ -20,7 +21,7 @@ class GraphDataProvider extends ChangeNotifier {
 
   int get sampleOnGraph => samplesInCurrentView;
 
-  int timeOnGraph = 120000;
+  int timeOnGraph = kIsWeb ? 1000 : 120000;
 
   final Int16List _entireGraphBuffer =
       Int16List.fromList(List.generate(_graphBufferLength, (index) => 0));
@@ -35,11 +36,8 @@ class GraphDataProvider extends ChangeNotifier {
 
   /// Initializes the incoming data stream [_inputGraphStream]
   /// Initializes the stream to output data to graph [_outputGraphStream]
-  void setStreamOfData(
-      Stream<Uint8List> graphStreamData, int sampleRateProvider) {
+  void setStreamOfData(Stream<Uint8List> graphStreamData) {
     _inputGraphStream = graphStreamData;
-    _sampleRateValue = sampleRateProvider;
-    print("the sample rate is $sampleRateProvider");
 
     _outputGraphStream = _outputGraphStreamController.stream
         .asBroadcastStream()
@@ -165,13 +163,36 @@ class GraphDataProvider extends ChangeNotifier {
   void setScrollIndex(double delta) {
     _scale += delta * -0.0001;
     _scale = _scale.clamp(0.001, 1);
+    if (kIsWeb) {
+      int tempSamplesInCurrentView = (_graphBufferLength * _scale).floor();
 
-    /// In milliseconds
-    int durationToDisplay = (_scale * 120 * 1000).toInt();
-    // print("Duration ${durationToDisplay}");
-    localPlugin.setEnvelopConfigure(durationToDisplay, _sampleRateValue!);
+      // Samples should be more than 100
+      tempSamplesInCurrentView =
+          tempSamplesInCurrentView > 100 ? tempSamplesInCurrentView : 100;
 
-    timeOnGraph = durationToDisplay;
+      // Samples should be more than 10%
+      tempSamplesInCurrentView =
+          tempSamplesInCurrentView > (_graphBufferLength * 0.1)
+              ? tempSamplesInCurrentView
+              : (_graphBufferLength * 0.1).floor();
+
+      samplesInCurrentView = (_endIndex) - tempSamplesInCurrentView < 0
+          ? (_endIndex)
+          : tempSamplesInCurrentView;
+      _startIndex = (_endIndex) - samplesInCurrentView;
+
+      _scale = (samplesInCurrentView / _graphBufferLength).clamp(0, 1);
+      int durationToDisplay = (_scale * 1 * 1000).toInt();
+      timeOnGraph = durationToDisplay;
+      // timeCalculate(samplesInCurrentView);
+    } else {
+      /// In milliseconds
+      int durationToDisplay = (_scale * 120 * 1000).toInt();
+      // print("Duration ${durationToDisplay}");
+      localPlugin.setEnvelopConfigure(durationToDisplay);
+
+      timeOnGraph = durationToDisplay;
+    }
 
     updateGraph();
 

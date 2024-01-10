@@ -153,5 +153,5 @@ class LocalPluginWeb implements LocalPlugin {
   }
 
   @override
-  void setEnvelopConfigure(int duration, int sampleRateProvider) {}
+  void setEnvelopConfigure(int duration) {}
 }

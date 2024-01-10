@@ -12,7 +12,6 @@ import 'model/sending_data.dart';
 Isolate? _helperIsolateMic;
 SendPort? _helperIsolateSendPortMic;
 
-StreamController<Uint8List>? micDataController;
 const String _libName = 'native_add';
 
 //  main isolate for window mic
@@ -65,16 +64,17 @@ class _IsolateResponseForMic {
 final Map<int, Completer<MicAck>> _isolateResultsOfMic =
     <int, Completer<MicAck>>{};
 
-Future<void> mainIsolateForMic(
-    StreamController<SendingDataToDart> micDataController) async {
+Future<void> mainIsolateForMic(StreamController<Uint8List> micDataController,
+    StreamController<PacketAddDetailModel> packetAddCalculateDetail) async {
   if (_helperIsolateMic == null) {
-    _helperIsolateSendPortMic =
-        await mainIsolateForMicHelperStart(micDataController);
+    _helperIsolateSendPortMic = await mainIsolateForMicHelperStart(
+        micDataController, packetAddCalculateDetail);
   }
 }
 
 Future<SendPort> mainIsolateForMicHelperStart(
-    StreamController<SendingDataToDart> micDataController) async {
+    StreamController<Uint8List> micDataController,
+    StreamController<PacketAddDetailModel> packetAddCalculateDetail) async {
   final Completer<SendPort> completerSendPortForMic = Completer<SendPort>();
 
   final ReceivePort response = ReceivePort();
@@ -106,12 +106,13 @@ Future<SendPort> mainIsolateForMicHelperStart(
 
       return;
     }
-
-    //
-    //
-    //
     if (message is SendingDataToDart) {
-      micDataController.add(message);
+      micDataController.add(message.asInt16List.buffer.asUint8List());
+      PacketAddDetailModel packetAddDetailModel = PacketAddDetailModel(
+          averageTime: message.averageTime,
+          maxTime: message.maxTime,
+          minTime: message.minTime);
+      packetAddCalculateDetail.add(packetAddDetailModel);
     } else {
       throw UnsupportedError(
           'Unsupported message type: ${message.runtimeType}');
@@ -189,17 +190,19 @@ Future<void> continuouslyCheckMicData(SendPort isolateToMainMic) async {
 
       stopwatch.reset();
       Int16List int16list = _micPointer.asTypedList(_bufferLength);
+
       // counter++;
       // isolateToMainMic.send(int16list);
       // MicDataWithDetail micDataWithDetail = MicDataWithDetail(
       //     micData: int16list,
       //     upComingDataTiming: stopwatch.elapsedMilliseconds);
 //  sending data to worker
+      // Uint8List uint8list = Uint8List.fromList(int16list);
       int elapse = _bindingsMic.getAvgAudio();
       int minTime = _bindingsMic.getMinAudio();
       int maxTime = _bindingsMic.getMaxAudio();
       SendingDataToDart sendingDataToDart = SendingDataToDart(
-          int16list: int16list,
+          asInt16List: int16list,
           averageTime: elapse,
           maxTime: maxTime,
           minTime: minTime);

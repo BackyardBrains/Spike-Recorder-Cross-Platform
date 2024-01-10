@@ -75,6 +75,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     });
   }
 
+  bool isAudioListen = false;
   Stopwatch timeTaken = Stopwatch();
   int dummyCount = 0;
 
@@ -102,20 +103,25 @@ class _GraphTemplateState extends State<GraphTemplate> {
       microphoneUtil.init().then((value) {
         microphoneUtil.micStream!.listen((event) {
           // print("the length of ${event.length}");
-          bool isAudioListen =
-              context.read<DataStatusProvider>().isMicrophoneData;
+          isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
           // print("the event is $event");
           // isAudioListen = value;
 
           if (isAudioListen) {
-            _preprocessingBuffer.addBytes(Uint8List.fromList(event.int16list));
+            _preprocessingBuffer.addBytes(event);
           }
-          AudioDetail audioDetail = AudioDetail(
-              avgTime: event.averageTime,
-              maxTime: event.maxTime,
-              minTime: event.minTime);
-          context.read<DebugTimeProvider>().setAudioDetail(audioDetail);
         });
+        if (!kIsWeb) {
+          microphoneUtil.packetAddDetail!.listen((event) {
+            if (isAudioListen) {
+              AudioDetail audioDetail = AudioDetail(
+                  avgTime: event.averageTime,
+                  maxTime: event.maxTime,
+                  minTime: event.minTime);
+              context.read<DebugTimeProvider>().setAudioDetail(audioDetail);
+            }
+          });
+        }
       });
     });
 
@@ -144,7 +150,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
       (value) {
         timeTaken.start();
         localPlugin.postFilterStream?.listen((event) {
-          print("upcoming event is ${event.sublist(1, 20)}");
           if (isDebugging) {
             context
                 .read<DebugTimeProvider>()
@@ -152,9 +157,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
             timeTaken.reset();
           }
 
-          handleEnvelopingPlaFormWise(
-            event,
-          );
+          passingDataToStream(event);
+
           // _preGraphBuffer.addBytes(event);
         });
       },
@@ -249,13 +253,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _channelBytes = widget.constantProvider.getChannelCount() * 2;
 
     _graphStream = _graphStreamController.stream.asBroadcastStream();
-
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
-    final sampleRateProvider =
-        Provider.of<SampleRateProvider>(context, listen: false);
 
-    provider.setStreamOfData(_graphStream, sampleRateProvider.sampleRate);
-
+    provider.setStreamOfData(_graphStream);
     _messageIdentifier = MessageIdentifier(onDeviceData: (Uint8List dt) {
       List<int> devData = dt;
 
@@ -345,20 +345,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _preGraphBuffer = BufferHandler(
       chunkReadSize: kGraphUpdateCount * 2,
       onDataAvailable: (Uint8List dataFromBuffer) {
-        if (_toPauseGraph) {
-          if (kIsWeb) {
-            switch (widget.constantProvider.getChannelCount()) {
-              case 1:
-                _graphStreamController.add(dataFromBuffer);
-                break;
-
-              case 2:
-
-                // TODO: only first channel data is being passed, ie, the first two bytes
-                // _graphStreamController
-                //     .add(ChannelUtil.dropEveryOtherTwoBytes(dataFromBuffer));
-                break;
-            }
+        if (kIsWeb) {
+          switch (widget.constantProvider.getChannelCount()) {
+            case 1:
+              _graphStreamController.add(dataFromBuffer);
+              break;
           }
         }
       },
@@ -422,35 +413,20 @@ class _GraphTemplateState extends State<GraphTemplate> {
     return listOfDevices[index];
   }
 
-  void handleEnvelopingPlaFormWise(Uint8List dataFromBuffer) {
-    if (kIsWeb) {
-      _preGraphBuffer.addBytes(dataFromBuffer);
-    } else {
-      print("the data after enveloping ${dataFromBuffer.length}");
-      if (_toPauseGraph) {
-        print(
-            "the constant provider is ${widget.constantProvider.getChannelCount()}");
-        print("the data is added are ${dataFromBuffer.sublist(1, 50)}");
-        switch (widget.constantProvider.getChannelCount()) {
-          case 1:
-            _graphStreamController.add(dataFromBuffer);
-            break;
-
-          case 2:
-
-            // TODO: only first channel data is being passed, ie, the first two bytes
-            // _graphStreamController
-            //     .add(ChannelUtil.dropEveryOtherTwoBytes(dataFromBuffer));
-            break;
-        }
-      }
-    }
-  }
-
   String portName = "";
   bool isDeviceConnect = false;
   bool isSettingEnable = false;
   bool isDebugging = false;
+
+  void passingDataToStream(Uint8List uint8list) {
+    if (_toPauseGraph) {
+      if (kIsWeb) {
+        _preGraphBuffer.addBytes(uint8list);
+      } else {
+        _graphStreamController.add(uint8list);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

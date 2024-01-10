@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/constant/const_export.dart';
@@ -33,15 +34,21 @@ class _DebugTheDataDetailState extends State<DebugTheDataDetail> {
             _TextWidget(
               text: "Max Time = ${debugTimeList.maxTime} microsecond",
             ),
-            _TextWidget(
-                text:
-                    "Audio Avg Time = ${debugTimeList.audioDetail.avgTime.toString()}"),
-            _TextWidget(
-                text:
-                    "Audio Max Time = ${debugTimeList.audioDetail.maxTime.toString()}"),
-            _TextWidget(
-                text:
-                    "Audio Min Time = ${debugTimeList.audioDetail.minTime.toString()}")
+            !kIsWeb
+                ? Column(
+                    children: [
+                      _TextWidget(
+                          text:
+                              "Audio Avg Time = ${debugTimeList.audioDetail.avgTime.toString()}"),
+                      _TextWidget(
+                          text:
+                              "Audio Max Time = ${debugTimeList.audioDetail.maxTime.toString()}"),
+                      _TextWidget(
+                          text:
+                              "Audio Min Time = ${debugTimeList.audioDetail.minTime.toString()}")
+                    ],
+                  )
+                : SizedBox()
           ],
         );
       }

@@ -32,7 +32,7 @@ OSStatus audioInputCallback(
     AudioBufferList *outOutputData,
     const AudioTimeStamp *inOutputTime,
     void *inClientData)
-{   
+{
     // if (inNow) {
     //     printf("AudioTimeStamp (inNow): mSampleTime: %f samples, mHostTime: %llu host ticks\n", inNow->mSampleTime, inNow->mHostTime);
     // }
@@ -61,7 +61,7 @@ OSStatus audioInputCallback(
 
     // printf("Data Byte Size: %u bytes\n", dataByteSize);
     // printf("\n\n\n");
-    
+
     // Calculate the number of samples in the buffer
     // Assuming that mDataByteSize is the size in bytes of the audio buffer
     // and that each sample is a Float32 (4 bytes)
@@ -72,8 +72,8 @@ OSStatus audioInputCallback(
     // }
 
     // Create a new float* in heap
-    Float32* myArray = (Float32*)malloc(sizeof(Float32)*numSamples);
-    memcpy((void*)myArray,(void*)inInputData->mBuffers[0].mData,dataByteSize);
+    Float32 *myArray = (Float32 *)malloc(sizeof(Float32) * numSamples);
+    memcpy((void *)myArray, (void *)inInputData->mBuffers[0].mData, dataByteSize);
 
     // Call MyAudioSink's method to handle the data
     macAudioSink.CopyData(myArray, numSamples, nullptr);
@@ -84,30 +84,43 @@ OSStatus audioInputCallback(
     return noErr;
 }
 
-const char* AudioFormatIDToString(AudioFormatID format) {
-    switch (format) {
-        case kAudioFormatLinearPCM: return "lpcm";
-        case kAudioFormatAC3: return "ac-3";
-        // Add cases for each format
-        default: return "Unknown Format";
+const char *AudioFormatIDToString(AudioFormatID format)
+{
+    switch (format)
+    {
+    case kAudioFormatLinearPCM:
+        return "lpcm";
+    case kAudioFormatAC3:
+        return "ac-3";
+    // Add cases for each format
+    default:
+        return "Unknown Format";
     }
 }
 
-std::string AudioFormatFlagsToString(AudioFormatFlags flags) {
+std::string AudioFormatFlagsToString(AudioFormatFlags flags)
+{
     std::string result;
-    if (flags & kAudioFormatFlagIsFloat) result += "Float, ";
-    if (flags & kAudioFormatFlagIsBigEndian) result += "BigEndian, ";
-    if (flags & kAudioFormatFlagIsSignedInteger) result += "SignedInteger, ";
-    if (flags & kAudioFormatFlagIsPacked) result += "Packed, ";
-    if (flags & kAudioFormatFlagIsAlignedHigh) result += "AlignedHigh, ";
-    if (flags & kAudioFormatFlagIsNonInterleaved) result += "NonInterleaved, ";
-    if (flags & kAudioFormatFlagIsNonMixable) result += "NonMixable, ";
-    if (flags == kAudioFormatFlagsAreAllClear) return "All Flags Clear";
-    if (result.empty()) return "No Flags Set";
+    if (flags & kAudioFormatFlagIsFloat)
+        result += "Float, ";
+    if (flags & kAudioFormatFlagIsBigEndian)
+        result += "BigEndian, ";
+    if (flags & kAudioFormatFlagIsSignedInteger)
+        result += "SignedInteger, ";
+    if (flags & kAudioFormatFlagIsPacked)
+        result += "Packed, ";
+    if (flags & kAudioFormatFlagIsAlignedHigh)
+        result += "AlignedHigh, ";
+    if (flags & kAudioFormatFlagIsNonInterleaved)
+        result += "NonInterleaved, ";
+    if (flags & kAudioFormatFlagIsNonMixable)
+        result += "NonMixable, ";
+    if (flags == kAudioFormatFlagsAreAllClear)
+        return "All Flags Clear";
+    if (result.empty())
+        return "No Flags Set";
     return result.substr(0, result.size() - 2); // Remove trailing comma and space
 }
-
-
 
 #ifdef __cplusplus
 extern "C"

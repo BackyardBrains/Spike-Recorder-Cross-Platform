@@ -45,5 +45,5 @@ abstract class LocalPlugin {
     return false;
   }
 
-  void setEnvelopConfigure(int duration, int sampleRateProvider) {}
+  void setEnvelopConfigure(int duration) {}
 }

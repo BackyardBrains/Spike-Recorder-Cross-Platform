@@ -11,11 +11,18 @@ import 'microphone_stream_check.dart';
 class MicrophoneUtilAndroid implements MicrophoneUtil {
   // late ffi.Pointer<ffi.Pointer<ffi.Float>> audioData;
   @override
-  StreamController<SendingDataToDart> addListenAudioStreamController =
+  StreamController<Uint8List> addListenAudioStreamController =
       StreamController();
 
   @override
-  Stream<SendingDataToDart>? micStream;
+  Stream<Uint8List>? micStream;
+
+  @override
+  Stream<PacketAddDetailModel>? packetAddDetail;
+
+  @override
+  StreamController<PacketAddDetailModel> addPacketDetailCalculate =
+      StreamController();
 
   List<double>? waveSamples;
   List<double>? intensitySamples;
@@ -39,6 +46,7 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
     // _recorderStatus = _recorder.status.listen((status) {
     //   status == SoundStreamStatus.Playing;
     // });
+    packetAddDetail = addPacketDetailCalculate.stream.asBroadcastStream();
 
     micStream = addListenAudioStreamController.stream.asBroadcastStream();
     stopwatch.start();
@@ -47,18 +55,15 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
           "the time taken ${stopwatch.elapsedMilliseconds} and packet size ${data.length}");
 
       int elapsedTime = stopwatch.elapsedMilliseconds;
-
       addElapsedTime(elapsedTime);
-
-      Debugging.printing(
-          "the avg time $avgTimeAudio maxTime $maxTimeAudio ,minTIme $minTimeAudio");
       stopwatch.reset();
-      SendingDataToDart sendingDataToDart = SendingDataToDart(
-          int16list: Int16List.fromList(data),
+      PacketAddDetailModel packetAddDetailModel = PacketAddDetailModel(
           averageTime: avgTimeAudio,
           maxTime: maxTimeAudio,
           minTime: minTimeAudio);
-      addListenAudioStreamController.add(sendingDataToDart);
+      addPacketDetailCalculate.add(packetAddDetailModel);
+
+      addListenAudioStreamController.add(data);
     });
 
     await Future.wait([

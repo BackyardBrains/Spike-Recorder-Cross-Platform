@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:native_add/model/model.dart';
 import 'package:spikerbox_architecture/models/microphone_stream/microphone_stream.dart'
@@ -8,9 +9,14 @@ import 'package:spikerbox_architecture/models/microphone_stream/microphone_strea
 abstract class MicrophoneUtil {
   factory MicrophoneUtil() => getMicrophoneStreams();
 
-  final StreamController<SendingDataToDart> addListenAudioStreamController =
+  final StreamController<Uint8List> addListenAudioStreamController =
       StreamController();
-  Stream<SendingDataToDart>? micStream;
+  Stream<Uint8List>? micStream;
+
+  final StreamController<PacketAddDetailModel> addPacketDetailCalculate =
+      StreamController();
+
+  Stream<PacketAddDetailModel>? packetAddDetail;
 
   Future<void> init() async {}
 

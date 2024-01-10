@@ -11,15 +11,23 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
   Int16List? _micDataBuffer;
 
   @override
-  StreamController<SendingDataToDart> addListenAudioStreamController =
-      StreamController.broadcast();
+  StreamController<Uint8List> addListenAudioStreamController =
+      StreamController();
 
   @override
-  Stream<SendingDataToDart>? micStream;
+  Stream<PacketAddDetailModel>? packetAddDetail;
+
+  @override
+  StreamController<PacketAddDetailModel> addPacketDetailCalculate =
+      StreamController();
+
+  @override
+  Stream<Uint8List>? micStream;
 
   @override
   Future<void> init() async {
-    micStream = addListenAudioStreamController.stream;
+    packetAddDetail = addPacketDetailCalculate.stream.asBroadcastStream();
+    micStream = addListenAudioStreamController.stream.asBroadcastStream();
     js.context['onDataBufferAllocated'] = onDataBufferAllocated;
     js.context['onDataReceived'] = onDataReceived;
     Future.delayed(const Duration(seconds: 1), () {
@@ -38,16 +46,11 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
         return;
       }
 
-      SendingDataToDart sendingDataToDart = SendingDataToDart(
-          int16list: Int16List.fromList(_micDataBuffer!.buffer.asUint8List()),
-          averageTime: 0,
-          maxTime: 0,
-          minTime: 0);
-
       // Convert Int16List to Uint8List
 
       // Add Uint8List to the stream
-      addListenAudioStreamController.add(sendingDataToDart);
+      addListenAudioStreamController
+          .add(Uint8List.fromList(_micDataBuffer!.buffer.asUint8List()));
     } catch (error) {
       print("Error in onDataReceived: $error");
     }

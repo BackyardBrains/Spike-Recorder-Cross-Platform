@@ -107,6 +107,17 @@ self.onmessage = async function (eventFromMain) {
                 console.log("notch filter is running " + response);
             }
 
+
+            // Module.ccall(
+            //     'addDataToSampleBuffer',
+            //     'number', // Assuming the function returns a number (pointer)
+            //     ['number', 'number'], // Argument types: int16_t, short*, int32_t
+            //     [is50Hertz, eventFromMain.data.channelIdx, ptrDataArrayChannelWise[eventFromMain.data.channelIdx], eventFromMain.data.sampleCount]
+
+            // );
+
+
+
             postMessage({
                 message: "onWebApplyFilter",
                 channelIdx: eventFromMain.data.channelIdx,

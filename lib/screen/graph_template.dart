@@ -101,6 +101,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     Future.delayed(const Duration(seconds: 2)).then((value) {
       microphoneUtil.init().then((value) {
+        int sampleRate = context.read<SampleRateProvider>().sampleRate;
+        int duration = 120 * 1000;
+        localPlugin.setEnvelopConfigure(duration, sampleRate);
+
         microphoneUtil.micStream!.listen((event) {
           // print("the length of ${event.length}");
           isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
@@ -145,7 +149,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
         filterType: FilterType.highPassFilter,
         channelCount: channelCountBuffer,
         isFilterOn: false);
-
     localPlugin.spawnHelperIsolate().then(
       (value) {
         timeTaken.start();

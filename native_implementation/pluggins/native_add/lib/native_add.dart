@@ -28,6 +28,9 @@ int maxValue = 0;
 int minValue = 0;
 int offset = 0;
 
+int sampleLength = 44100 * 120;
+int skipCount = 44100 * 120 ~/ 2000;
+
 // TODO: Remove, for testing only
 // int channelIndex = 0;
 
@@ -56,6 +59,11 @@ final List<EnvelopingConfig> _envelopingConfig = List.generate(
 );
 
 int is50Hertz = 0;
+
+void setEnvelopConfig(int bufferSize, int pixelCount) {
+  _envelopingConfig[0]
+      .setConfig(bufferSize: bufferSize, pixelCount: pixelCount);
+}
 
 Future<void> spawnHelperIsolate() async {
   if (_helperIsolate == null) {

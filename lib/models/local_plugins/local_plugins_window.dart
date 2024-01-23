@@ -37,10 +37,11 @@ class LocalPluginWindow implements LocalPlugin {
   int skipCount = 44100 * 120 ~/ 2000;
 
   @override
-  void setEnvelopConfigure(int duration) {
-    // _envelopingConfig[0].setConfig(bufferSize: (44100 ~/ 1000) * duration);
-    sampleLength = (44100 * duration) ~/ 1000;
+  void setEnvelopConfigure(int duration, int sampleRate) {
+    sampleLength = (sampleRate * duration) ~/ 1000;
     skipCount = sampleLength ~/ 2000;
+
+    native_add.setEnvelopConfig((sampleRate ~/ 1000) * duration, skipCount);
     // print("the sampleLength is $sampleLength and skip Count is ${skipCount}");
   }
 

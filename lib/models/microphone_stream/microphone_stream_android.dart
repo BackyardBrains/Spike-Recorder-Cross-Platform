@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'package:native_add/model/sending_data.dart';
 import 'package:spikerbox_architecture/models/debugging.dart';
+import 'package:spikerbox_architecture/models/models.dart';
 import 'microphone_stream_check.dart';
 
 class MicrophoneUtilAndroid implements MicrophoneUtil {
@@ -67,7 +68,7 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
     });
 
     await Future.wait([
-      _recorder.initialize(showLogs: true, sampleRate: 44100),
+      _recorder.initialize(showLogs: true, sampleRate: androidMicSampleRate),
     ]);
     _recorder.audioStream.asBroadcastStream();
 

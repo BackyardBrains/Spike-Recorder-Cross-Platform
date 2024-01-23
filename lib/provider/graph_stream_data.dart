@@ -160,7 +160,7 @@ class GraphDataProvider extends ChangeNotifier {
 
   //   notifyListeners();
   // }
-  void setScrollIndex(double delta) {
+  void setScrollIndex(double delta, int sampleRate) {
     _scale += delta * -0.0001;
     _scale = _scale.clamp(0.001, 1);
     if (kIsWeb) {
@@ -189,7 +189,7 @@ class GraphDataProvider extends ChangeNotifier {
       /// In milliseconds
       int durationToDisplay = (_scale * 120 * 1000).toInt();
       // print("Duration ${durationToDisplay}");
-      localPlugin.setEnvelopConfigure(durationToDisplay);
+      localPlugin.setEnvelopConfigure(durationToDisplay, sampleRate);
 
       timeOnGraph = durationToDisplay;
     }

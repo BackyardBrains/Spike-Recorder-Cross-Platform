@@ -1,16 +1,16 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:native_add/model/model.dart';
-import 'package:spikerbox_architecture/models/local_plugins/local_plugins_check.dart';
 import 'package:native_add/native_add.dart' as native_add;
 import 'package:spikerbox_architecture/models/models.dart';
+import 'package:spikerbox_architecture/provider/provider_export.dart';
 
 class LocalPluginAndroid implements LocalPlugin {
   final List<BufferHandlerOnDemand?> _bufferHandlerOnDemand =
       List.filled(channelCountBuffer, null);
 
   @override
-  Future<void> spawnHelperIsolate() async {
+  Future<void> spawnHelperIsolate(EnvelopConfig envelopConfig) async {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
 
     await native_add.spawnHelperIsolate();
@@ -18,21 +18,22 @@ class LocalPluginAndroid implements LocalPlugin {
       _bufferHandlerOnDemand[i] = BufferHandlerOnDemand(
         chunkReadSize: 4000,
         onDataAvailable: (Uint8List newList) {
-          onPacketAvailable(newList, i);
+          onPacketAvailable(newList, i, envelopConfig);
         },
       );
     }
   }
 
-  int sampleLength = 44100 * 120;
-  int skipCount = 44100 * 120 ~/ 2000;
+  @override
+  void setEnvelop(SampleRateProvider sampleRateProvider, int duration) {
+    int bufferSize = (sampleRateProvider.sampleRate ~/ 1000) * duration;
+  }
 
   @override
-  void setEnvelopConfigure(int duration, int sampleRate) {
+  void setEnvelopConfigure(int duration, SampleRateProvider sampleRate,
+      EnvelopConfig envelopConfig) {
     // _envelopingConfig[0].setConfig(bufferSize: (44100 ~/ 1000) * duration);
-    sampleLength = (sampleRate * duration) ~/ 1000;
-    skipCount = sampleLength ~/ 2000;
-    // print("the sampleLength is $sampleLength and skip Count is ${skipCount}");
+    envelopConfig.changeSampleLength(sampleRate, duration);
   }
 
   @override
@@ -71,7 +72,8 @@ class LocalPluginAndroid implements LocalPlugin {
       StreamController<Uint8List>();
 
   /// When another packet is available for processing from buffer
-  void onPacketAvailable(Uint8List array, int channelIndex) async {
+  void onPacketAvailable(
+      Uint8List array, int channelIndex, EnvelopConfig envelopConfig) async {
     _bufferHandlerOnDemand[channelIndex]?.toFetchBytes = false;
 
     Int16List listToFilter = array.buffer.asInt16List();
@@ -79,8 +81,8 @@ class LocalPluginAndroid implements LocalPlugin {
         array: listToFilter,
         length: listToFilter.length,
         channelIndex: channelIndex,
-        sampleLength: sampleLength,
-        skipCount: skipCount);
+        upComingSampleLength: envelopConfig.sampleLength,
+        upComingSkipCount: envelopConfig.skipCount);
 
     // TODO: currently data of all channels being added to the same stream
     postFilterStreamController.add(filterElement);

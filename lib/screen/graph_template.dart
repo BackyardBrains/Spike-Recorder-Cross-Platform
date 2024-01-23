@@ -101,10 +101,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     Future.delayed(const Duration(seconds: 2)).then((value) {
       microphoneUtil.init().then((value) {
-        int sampleRate = context.read<SampleRateProvider>().sampleRate;
-        int duration = 120 * 1000;
-        localPlugin.setEnvelopConfigure(duration, sampleRate);
-
         microphoneUtil.micStream!.listen((event) {
           // print("the length of ${event.length}");
           isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
@@ -149,7 +145,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
         filterType: FilterType.highPassFilter,
         channelCount: channelCountBuffer,
         isFilterOn: false);
-    localPlugin.spawnHelperIsolate().then(
+    EnvelopConfig envelopConfig = context.read<EnvelopConfig>();
+    localPlugin.spawnHelperIsolate(envelopConfig).then(
       (value) {
         timeTaken.start();
         localPlugin.postFilterStream?.listen((event) {
@@ -635,10 +632,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   void setBufferSetting(int sampleRate) {
-    print("the sample Rate is $sampleRate");
     final myDataProvider =
         Provider.of<SampleRateProvider>(context, listen: false);
     myDataProvider.setSampleRate(sampleRate);
+
+    int duration = 120 * 1000;
+    SampleRateProvider sampleRateProvider = context.read<SampleRateProvider>();
+
+    localPlugin.setEnvelop(sampleRateProvider, duration);
 
     // final dataStatusProvider =
     //     Provider.of<GraphDataProvider>(context, listen: false);

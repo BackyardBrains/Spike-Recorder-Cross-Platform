@@ -19,13 +19,15 @@ class SoundWaveView extends StatefulWidget {
 class _SoundWaveViewState extends State<SoundWaveView> {
   @override
   Widget build(BuildContext context) {
-    int sampleRate = context.read<SampleRateProvider>().sampleRate;
+    SampleRateProvider sampleRate = context.read<SampleRateProvider>();
+
+    EnvelopConfig envelopConfig = context.read<EnvelopConfig>();
     print("sample rate is $sampleRate");
     return Listener(
       onPointerSignal: (PointerSignalEvent event) {
         if (event is PointerScrollEvent) {
           Provider.of<GraphDataProvider>(context, listen: false)
-              .setScrollIndex(event.scrollDelta.dy, sampleRate);
+              .setScrollIndex(event.scrollDelta.dy, sampleRate, envelopConfig);
         }
       },
       child: GestureDetector(
@@ -48,7 +50,7 @@ class _SoundWaveViewState extends State<SoundWaveView> {
           //   return;
           // }
           Provider.of<GraphDataProvider>(context, listen: false)
-              .setScrollIndex(scale * 10, sampleRate);
+              .setScrollIndex(scale * 10, sampleRate, envelopConfig);
         },
         child: const SpikerBoxUi(),
       ),

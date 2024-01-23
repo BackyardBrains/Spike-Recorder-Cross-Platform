@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:spikerbox_architecture/models/global_buffer.dart';
+import 'package:spikerbox_architecture/provider/enveloping_config_provider.dart';
+import 'package:spikerbox_architecture/provider/provider_export.dart';
 
 class GraphDataProvider extends ChangeNotifier {
   int delay = 0;
@@ -160,7 +162,8 @@ class GraphDataProvider extends ChangeNotifier {
 
   //   notifyListeners();
   // }
-  void setScrollIndex(double delta, int sampleRate) {
+  void setScrollIndex(double delta, SampleRateProvider sampleRate,
+      EnvelopConfig envelopConfig) {
     _scale += delta * -0.0001;
     _scale = _scale.clamp(0.001, 1);
     if (kIsWeb) {
@@ -189,7 +192,8 @@ class GraphDataProvider extends ChangeNotifier {
       /// In milliseconds
       int durationToDisplay = (_scale * 120 * 1000).toInt();
       // print("Duration ${durationToDisplay}");
-      localPlugin.setEnvelopConfigure(durationToDisplay, sampleRate);
+      localPlugin.setEnvelopConfigure(
+          durationToDisplay, sampleRate, envelopConfig);
 
       timeOnGraph = durationToDisplay;
     }

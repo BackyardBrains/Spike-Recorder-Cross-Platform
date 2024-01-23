@@ -267,10 +267,12 @@ Future<Uint8List> filterArrayElements({
   required List<int> array,
   required int length,
   required int channelIndex,
-  required int sampleLength,
-  required int skipCount,
+  required int upComingSampleLength,
+  required int upComingSkipCount,
 }) async {
   final int requestId = _nextRequestId++;
+  sampleLength = upComingSampleLength;
+  skipCount = upComingSkipCount;
 
   final _IsolateRequest request = _IsolateRequest(
       requestId, skipCount, sampleLength, array, length, channelIndex);

@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:native_add/model/model.dart';
 import 'package:spikerbox_architecture/models/models.dart';
+import 'package:spikerbox_architecture/provider/provider_export.dart';
 import 'dart:js' as js;
+
+import '../../provider/enveloping_config_provider.dart';
 
 LocalPlugin getLocalPlugins() => LocalPluginWeb();
 
@@ -21,13 +24,13 @@ class LocalPluginWeb implements LocalPlugin {
   ///
   /// Sets up buffer also
   @override
-  Future<void> spawnHelperIsolate() async {
+  Future<void> spawnHelperIsolate(EnvelopConfig envelopConfig) async {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
     for (int i = 0; i < channelCountBuffer; i++) {
       _bufferHandlerOnDemand[i] = BufferHandlerOnDemand(
         chunkReadSize: 4000,
         onDataAvailable: (Uint8List newList) {
-          onPacketAvailable(newList, i);
+          onPacketAvailable(newList, i, envelopConfig);
         },
       );
     }
@@ -90,11 +93,17 @@ class LocalPluginWeb implements LocalPlugin {
   Stream<Uint8List>? postFilterStream;
 
   @override
+  void setEnvelop(SampleRateProvider sampleRateProvider, int duration) {
+    int bufferSize = (sampleRateProvider.sampleRate ~/ 1000) * duration;
+  }
+
+  @override
   StreamController<Uint8List> postFilterStreamController =
       StreamController<Uint8List>();
 
   /// When another packet is available for processing from buffer
-  void onPacketAvailable(Uint8List packet, int channelIndex) {
+  void onPacketAvailable(
+      Uint8List packet, int channelIndex, EnvelopConfig envelopConfig) {
     _bufferHandlerOnDemand[channelIndex]?.toFetchBytes = false;
     Int16List listFromBuffer = packet.buffer.asInt16List();
     if (_dataBuffer[channelIndex]!.isEmpty) {
@@ -153,5 +162,6 @@ class LocalPluginWeb implements LocalPlugin {
   }
 
   @override
-  void setEnvelopConfigure(int duration, int sampleRate) {}
+  void setEnvelopConfigure(int duration, SampleRateProvider sampleRate,
+      EnvelopConfig envelopConfig) {}
 }

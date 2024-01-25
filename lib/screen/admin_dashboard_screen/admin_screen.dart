@@ -73,6 +73,18 @@ List<DownLoadTheFile> downLoadFileList = [
       fileName: "ProtoType 1.0.2",
       url:
           "https://drive.google.com/drive/folders/1PXQ3vmGlxn9hg_FmtFfB7YnyPqBotF5b?usp=sharing"),
+  DownLoadTheFile(
+      fileName: "ProtoType 1.0.3",
+      url:
+          "https://drive.google.com/drive/folders/1ISIxMw_xNV9jM9x97wX8mDGyAo2ps2ps?usp=drive_link"),
+  DownLoadTheFile(
+      fileName: "ProtoType 1.0.4",
+      url:
+          "https://drive.google.com/drive/folders/1x71LOjk7PvVJSbm1onTHw7-QcTR7k9E1?usp=drive_link"),
+  DownLoadTheFile(
+      fileName: "ProtoType 1.0.5",
+      url:
+          "https://drive.google.com/drive/folders/158jBuVS_pUXBYdp00pC8OWNjdSl-krYc?usp=drive_link"),
 ];
 
 class DownLoadTheFile {

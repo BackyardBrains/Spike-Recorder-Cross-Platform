@@ -41,19 +41,15 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
   }
 
   void onDataReceived() {
-    try {
-      if (_micDataBuffer == null) {
-        return;
-      }
-
-      // Convert Int16List to Uint8List
-
-      // Add Uint8List to the stream
-      addListenAudioStreamController
-          .add(Uint8List.fromList(_micDataBuffer!.buffer.asUint8List()));
-    } catch (error) {
-      print("Error in onDataReceived: $error");
+    if (_micDataBuffer == null) {
+      return;
     }
+
+    // Convert Int16List to Uint8List
+
+    // Add Uint8List to the stream
+    Uint8List uList = Uint8List.fromList(_micDataBuffer!.buffer.asUint8List());
+    addListenAudioStreamController.add(uList);
   }
 
   @override

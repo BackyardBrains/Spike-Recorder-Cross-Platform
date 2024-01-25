@@ -111,17 +111,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
             _preprocessingBuffer.addBytes(event);
           }
         });
-        if (!kIsWeb) {
-          microphoneUtil.packetAddDetail!.listen((event) {
-            if (isAudioListen) {
-              AudioDetail audioDetail = AudioDetail(
-                  avgTime: event.averageTime,
-                  maxTime: event.maxTime,
-                  minTime: event.minTime);
-              context.read<DebugTimeProvider>().setAudioDetail(audioDetail);
-            }
-          });
-        }
+        // if (!kIsWeb) {
+        //   microphoneUtil.packetAddDetail!.listen((event) {
+        //     if (isAudioListen) {
+        //       AudioDetail audioDetail = AudioDetail(
+        //           avgTime: event.averageTime,
+        //           maxTime: event.maxTime,
+        //           minTime: event.minTime);
+        //       context.read<DebugTimeProvider>().setAudioDetail(audioDetail);
+        //     }
+        //   });
+        // }
       });
     });
 
@@ -204,7 +204,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
             newPoints[i] = a;
           }
         } else if (isEnableAudio) {
+          print("the list bytes of ${listBytes.length}");
           int16list = dataToSamples(listBytes);
+          print("the length is ${int16list.length}");
           newPoints = List.filled(int16list.length, 0);
 
           for (int i = 0; i < newPoints.length; i++) {
@@ -420,11 +422,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void passingDataToStream(Uint8List uint8list) {
     if (_toPauseGraph) {
-      if (kIsWeb) {
-        _preGraphBuffer.addBytes(uint8list);
-      } else {
-        _graphStreamController.add(uint8list);
-      }
+      // if (kIsWeb) {
+      //   _preGraphBuffer.addBytes(uint8list);
+      // } else {
+      _graphStreamController.add(uint8list);
+      // }
     }
   }
 

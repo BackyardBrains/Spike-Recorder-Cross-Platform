@@ -28,8 +28,9 @@ class LocalPluginWindow implements LocalPlugin {
       {required List<int> array,
       required int arrayLength,
       required int channelIdx}) async {
-    _bufferHandlerOnDemand[channelIdx]
-        ?.addBytes(Int16List.fromList(array).buffer.asUint8List());
+    Int16List iList = Int16List.fromList(array);
+
+    _bufferHandlerOnDemand[channelIdx]?.addBytes(iList.buffer.asUint8List());
     return;
   }
 
@@ -39,7 +40,7 @@ class LocalPluginWindow implements LocalPlugin {
   @override
   void setEnvelopConfigure(int duration) {
     // _envelopingConfig[0].setConfig(bufferSize: (44100 ~/ 1000) * duration);
-    sampleLength = (44100 * duration) ~/ 1000;
+    sampleLength = (48000 * duration) ~/ 1000;
     skipCount = sampleLength ~/ 2000;
     // print("the sampleLength is $sampleLength and skip Count is ${skipCount}");
   }
@@ -76,6 +77,7 @@ class LocalPluginWindow implements LocalPlugin {
     _bufferHandlerOnDemand[channelIndex]?.toFetchBytes = false;
 
     Int16List listToFilter = array.buffer.asInt16List();
+    print("the int16 list ${listToFilter.length}");
     Uint8List? filterElement = await native_add.filterArrayElements(
         array: listToFilter,
         length: listToFilter.length,

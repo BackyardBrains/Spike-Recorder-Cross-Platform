@@ -75,6 +75,7 @@ class LocalPluginAndroid implements LocalPlugin {
     _bufferHandlerOnDemand[channelIndex]?.toFetchBytes = false;
 
     Int16List listToFilter = array.buffer.asInt16List();
+
     Uint8List? filterElement = await native_add.filterArrayElements(
         array: listToFilter,
         length: listToFilter.length,

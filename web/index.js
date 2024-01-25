@@ -25,6 +25,8 @@ function initializeModule() {
       );
     }
     if (event.data.message === "onWebApplyFilter") {
+
+
       window.onProcessingDone(event.data.channelIdx);
     }
 
@@ -106,7 +108,11 @@ function sendToWorkerApplyFilter(
   sampleCount,
   toApplyHighPass,
   toApplyLowPass,
-  toApplyNotch
+  toApplyNotch,
+  bufferLength,
+  skipCount
+
+
 ) {
   // Create an object to hold the message data
   const messageData = {
@@ -116,6 +122,8 @@ function sendToWorkerApplyFilter(
     toApplyNotch: toApplyNotch,
     channelIdx: channelIdx,
     sampleCount: sampleCount,
+    bufferLength: bufferLength,
+    skipCount: skipCount
   };
 
   // Send the message to the web worker

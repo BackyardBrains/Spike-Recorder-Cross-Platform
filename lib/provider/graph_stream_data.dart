@@ -20,7 +20,7 @@ class GraphDataProvider extends ChangeNotifier {
 
   int get sampleOnGraph => samplesInCurrentView;
 
-  int timeOnGraph = kIsWeb ? 1000 : 120000;
+  int timeOnGraph = 120000;
 
   final Int16List _entireGraphBuffer =
       Int16List.fromList(List.generate(_graphBufferLength, (index) => 0));
@@ -162,36 +162,36 @@ class GraphDataProvider extends ChangeNotifier {
   void setScrollIndex(double delta) {
     _scale += delta * -0.0001;
     _scale = _scale.clamp(0.001, 1);
-    if (kIsWeb) {
-      int tempSamplesInCurrentView = (_graphBufferLength * _scale).floor();
+    // if (kIsWeb) {
+    //   int tempSamplesInCurrentView = (_graphBufferLength * _scale).floor();
 
-      // Samples should be more than 100
-      tempSamplesInCurrentView =
-          tempSamplesInCurrentView > 100 ? tempSamplesInCurrentView : 100;
+    //   // Samples should be more than 100
+    //   tempSamplesInCurrentView =
+    //       tempSamplesInCurrentView > 100 ? tempSamplesInCurrentView : 100;
 
-      // Samples should be more than 10%
-      tempSamplesInCurrentView =
-          tempSamplesInCurrentView > (_graphBufferLength * 0.1)
-              ? tempSamplesInCurrentView
-              : (_graphBufferLength * 0.1).floor();
+    //   // Samples should be more than 10%
+    //   tempSamplesInCurrentView =
+    //       tempSamplesInCurrentView > (_graphBufferLength * 0.1)
+    //           ? tempSamplesInCurrentView
+    //           : (_graphBufferLength * 0.1).floor();
 
-      samplesInCurrentView = (_endIndex) - tempSamplesInCurrentView < 0
-          ? (_endIndex)
-          : tempSamplesInCurrentView;
-      _startIndex = (_endIndex) - samplesInCurrentView;
+    //   samplesInCurrentView = (_endIndex) - tempSamplesInCurrentView < 0
+    //       ? (_endIndex)
+    //       : tempSamplesInCurrentView;
+    //   _startIndex = (_endIndex) - samplesInCurrentView;
 
-      _scale = (samplesInCurrentView / _graphBufferLength).clamp(0, 1);
-      int durationToDisplay = (_scale * 1 * 1000).toInt();
-      timeOnGraph = durationToDisplay;
-      // timeCalculate(samplesInCurrentView);
-    } else {
-      /// In milliseconds
-      int durationToDisplay = (_scale * 120 * 1000).toInt();
-      // print("Duration ${durationToDisplay}");
-      localPlugin.setEnvelopConfigure(durationToDisplay);
+    //   _scale = (samplesInCurrentView / _graphBufferLength).clamp(0, 1);
+    //   int durationToDisplay = (_scale * 1 * 1000).toInt();
+    //   timeOnGraph = durationToDisplay;
+    //   // timeCalculate(samplesInCurrentView);
+    // } else {
+    /// In milliseconds
+    int durationToDisplay = (_scale * 120 * 1000).toInt();
+    // print("Duration ${durationToDisplay}");
+    localPlugin.setEnvelopConfigure(durationToDisplay);
 
-      timeOnGraph = durationToDisplay;
-    }
+    timeOnGraph = durationToDisplay;
+    // }
 
     updateGraph();
 

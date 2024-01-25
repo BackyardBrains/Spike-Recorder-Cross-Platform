@@ -195,11 +195,14 @@ Future<SendPort> _mHelperIsolateSendPort = () async {
             _bindings.applyNotchPassFilter(is50Hertz, data.channelIndex,
                 _mPointer[data.channelIndex], data.dataLength);
           }
-
+          print("the data length is ${data.dataLength}");
           _bindings.addDataToSampleBuffer(
               _mPointer[data.channelIndex], data.dataLength);
 
           positionSinceBeginning += data.dataLength;
+
+          print(
+              "the position  + $positionSinceBeginning + skipCount  + ${data.skipCount} + pointer length +  ${_envelopingConfig[data.channelIndex].envelopingBuffer}");
 
           // printTheValue(sampleLength, skipCount);
           // print(
@@ -263,7 +266,6 @@ Future<Uint8List> filterArrayElements({
   required int skipCount,
 }) async {
   final int requestId = _nextRequestId++;
-
   final _IsolateRequest request = _IsolateRequest(
       requestId, skipCount, sampleLength, array, length, channelIndex);
   final Completer<Uint8List> completer = Completer<Uint8List>();

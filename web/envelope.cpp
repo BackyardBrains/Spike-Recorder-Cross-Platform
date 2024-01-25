@@ -1,8 +1,22 @@
-#include "envelope.h"
+#include <emscripten/bind.h>
+#include <emscripten/val.h>
+#include <emscripten.h>
+using namespace emscripten;
+
+#ifdef __cplusplus
+#define EXTERNC extern "C"
+#else
+#define EXTERNC
+#endif
+
+#include <iostream>
+#include <vector>
+#include <random>
+#include "sample_buffer.cpp"
 
 SampleBuffer sampleBuffer;
 
-EXTERNC FUNCTION_ATTRIBUTE double addDataToSampleBuffer(int16_t *src, int len)
+EXTERNC FUNCTION_ATTRIBUTE double addDataToSampleBuffer(int16_t *src, int64_t len)
 {
     // int64_t offset, int64_t len  required parameter
     sampleBuffer.addData(src, len);
@@ -19,8 +33,15 @@ static int64_t snapTo(int64_t val, int64_t increments)
     return val;
 }
 
-EXTERNC FUNCTION_ATTRIBUTE double getDataFromSampleBuffer(int offset, int len, int skip, int16_t *src)
+EXTERNC FUNCTION_ATTRIBUTE double getDataFromSampleBuffer(int32_t offset, int32_t len, int32_t skip, int16_t *src)
 {
+
+    std::cout << "offset " << offset << std::endl;
+    std::cout << "len " << offset << std::endl;
+
+    std::cout << "skip " << offset << std::endl;
+
+    std::cout << "offset " << src.len << std::endl;
     // std::cout << "get data is calling" << std::endl;
     // int64_t offset, int64_t len, int skip   *required  parameter
     const int64_t pos2 = offset + len;

@@ -5,7 +5,11 @@ let ptrDataArrayChannelWise = [];
 let dataBufferChannelWise = [];
 
 // Should be same as the length of packet sent from Dart
-const packetSize = 2000;
+const packetSize = 4000;
+// const envelopingBuffer = 44100 * 120;
+let positionSinceBeginning = 0;
+
+const _channelCount = 6;
 
 let ptrDataArrayChannel1;
 let is50Hertz = 0;
@@ -22,7 +26,6 @@ self.onmessage = async function (eventFromMain) {
                 let ptrDataArray = Module._malloc(packetSize * Module.HEAP16.BYTES_PER_ELEMENT);
                 let dataArrayStart = ptrDataArray / Module.HEAP16.BYTES_PER_ELEMENT;
                 let dataBuffer = Module.HEAP16.subarray(dataArrayStart, (dataArrayStart + packetSize));
-                console.log("Buffer Length:", dataBuffer.length);
                 if (i == 0) {
                     ptrDataArrayChannel1 = ptrDataArray;
                 }
@@ -31,6 +34,7 @@ self.onmessage = async function (eventFromMain) {
                     dataBuffer[j] = 10 * j;
                 }
 
+                // console.log("the pointer length is " + ptrDataArray.bufferLength);
                 ptrDataArrayChannelWise.push(ptrDataArray);
                 dataArrayStartChannelWise.push(dataArrayStart);
                 dataBufferChannelWise.push(dataBuffer);
@@ -54,8 +58,6 @@ self.onmessage = async function (eventFromMain) {
             break;
 
         case "webInitLowPassFilter":
-
-
             channelCount = eventFromMain.data.channelCount;
             sampleRate = eventFromMain.data.sampleRate;
             cutOffFrequency = eventFromMain.data.cutOffFrequency;
@@ -108,16 +110,22 @@ self.onmessage = async function (eventFromMain) {
             }
 
 
-            // Module.ccall(
-            //     'addDataToSampleBuffer',
-            //     'number', // Assuming the function returns a number (pointer)
-            //     ['number', 'number'], // Argument types: int16_t, short*, int32_t
-            //     [is50Hertz, eventFromMain.data.channelIdx, ptrDataArrayChannelWise[eventFromMain.data.channelIdx], eventFromMain.data.sampleCount]
+            // console.log("the sample count " + eventFromMain.data.sampleCount)
+            Module.ccall(
+                'addDataToSampleBuffer',
+                'number', // Assuming the function returns a number (pointer)
+                ['number', 'number'], // Argument types: int16_t, short*, int32_t
+                [ptrDataArrayChannelWise[eventFromMain.data.channelIdx], eventFromMain.data.sampleCount]
 
-            // );
-
-
-
+            );
+            positionSinceBeginning += eventFromMain.data.sampleCount;
+            // console.log("the pointer length is " + ptrDataArray.bufferLength);
+            Module.ccall(
+                'getDataFromSampleBuffer',
+                'number',
+                ['number', 'number', 'number', 'number'],
+                [positionSinceBeginning - eventFromMain.data.bufferLength, eventFromMain.data.bufferLength, eventFromMain.data.skipCount, ptrDataArrayChannelWise[eventFromMain.data.channelIdx]]
+            );
             postMessage({
                 message: "onWebApplyFilter",
                 channelIdx: eventFromMain.data.channelIdx,

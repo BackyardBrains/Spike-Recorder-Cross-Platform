@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:native_add/model/model.dart';
 import 'package:spikerbox_architecture/models/models.dart';
+import 'package:spikerbox_architecture/provider/provider_export.dart';
 import 'dart:js' as js;
+
+import '../../provider/enveloping_config_provider.dart';
 
 LocalPlugin getLocalPlugins() => LocalPluginWeb();
 
@@ -10,8 +13,6 @@ class LocalPluginWeb implements LocalPlugin {
   FilterSetup? _highPassFilterSetup;
   FilterSetup? _lowPassFilterSetup;
   FilterSetup? _notchFilterSetup;
-  int bufferLength = 44100 * 120;
-  int skipCount = 44100 * 120 ~/ 2000;
 
   static final List<Int16List?> _dataBuffer =
       List.generate(channelCountBuffer, (index) => null);
@@ -23,13 +24,13 @@ class LocalPluginWeb implements LocalPlugin {
   ///
   /// Sets up buffer also
   @override
-  Future<void> spawnHelperIsolate() async {
+  Future<void> spawnHelperIsolate(EnvelopConfig envelopConfig) async {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
     for (int i = 0; i < channelCountBuffer; i++) {
       _bufferHandlerOnDemand[i] = BufferHandlerOnDemand(
         chunkReadSize: 4000,
         onDataAvailable: (Uint8List newList) {
-          onPacketAvailable(newList, i);
+          onPacketAvailable(newList, i, envelopConfig);
         },
       );
     }
@@ -97,11 +98,12 @@ class LocalPluginWeb implements LocalPlugin {
       StreamController<Uint8List>();
 
   /// When another packet is available for processing from buffer
-  void onPacketAvailable(Uint8List packet, int channelIndex) {
+  void onPacketAvailable(
+      Uint8List packet, int channelIndex, EnvelopConfig envelopConfig) {
     _bufferHandlerOnDemand[channelIndex]?.toFetchBytes = false;
 
     Int16List listFromBuffer = packet.buffer.asInt16List();
-    print("the int16 list ${listFromBuffer.length}");
+
     if (_dataBuffer[channelIndex]!.isEmpty) {
       _bufferHandlerOnDemand[channelIndex]?.toFetchBytes = true;
       _bufferHandlerOnDemand[channelIndex]?.requestData();
@@ -136,8 +138,8 @@ class LocalPluginWeb implements LocalPlugin {
       toApplyHighPass,
       toApplyLowPass,
       toApplyNotch,
-      bufferLength,
-      skipCount,
+      envelopConfig.sampleLength,
+      envelopConfig.skipCount,
     ]);
   }
 
@@ -161,10 +163,7 @@ class LocalPluginWeb implements LocalPlugin {
   }
 
   @override
-  void setEnvelopConfigure(int duration) {
-    // _envelopingConfig[0].setConfig(bufferSize: (44100 ~/ 1000) * duration);
-    bufferLength = (44100 * duration) ~/ 1000;
-    skipCount = bufferLength ~/ 2000;
-    // print("the sampleLength is $sampleLength and skip Count is ${skipCount}");
+  void setEnvelopConfigure(int duration, EnvelopConfig envelopConfig) {
+    envelopConfig.changeSampleLengthAndSkipCount(duration);
   }
 }

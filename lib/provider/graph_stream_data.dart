@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/models/global_buffer.dart';
+import 'package:spikerbox_architecture/provider/provider_export.dart';
 
 class GraphDataProvider extends ChangeNotifier {
   int delay = 0;
@@ -159,7 +161,7 @@ class GraphDataProvider extends ChangeNotifier {
 
   //   notifyListeners();
   // }
-  void setScrollIndex(double delta) {
+  void setScrollIndex(double delta, EnvelopConfig envelopConfig) {
     _scale += delta * -0.0001;
     _scale = _scale.clamp(0.001, 1);
     // if (kIsWeb) {
@@ -188,8 +190,9 @@ class GraphDataProvider extends ChangeNotifier {
     /// In milliseconds
     int durationToDisplay = (_scale * 120 * 1000).toInt();
     // print("Duration ${durationToDisplay}");
-    localPlugin.setEnvelopConfigure(durationToDisplay);
-
+    // EnvelopConfig envelopConfigProvider =
+    //     Provider.of<EnvelopConfig>(context, listen: false);
+    envelopConfig.changeSampleLengthAndSkipCount(durationToDisplay);
     timeOnGraph = durationToDisplay;
     // }
 

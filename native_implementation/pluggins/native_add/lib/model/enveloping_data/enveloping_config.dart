@@ -63,8 +63,12 @@ class EnvelopingConfig {
   int get skipCount => _skipCount;
 
   int _setSkipPoints() {
+    if (_pixelCount == 0) {
+      // Handle the case where _pixelCount is zero to avoid division by zero.
+      return 0; // or some default value based on your requirements
+    }
+
     _skipCount = _samplesToFetch ~/ _pixelCount;
-    print("Configuring for skipCount: $_skipCount");
     return _skipCount;
   }
 }

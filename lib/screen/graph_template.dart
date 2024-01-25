@@ -145,8 +145,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
         filterType: FilterType.highPassFilter,
         channelCount: channelCountBuffer,
         isFilterOn: false);
-
-    localPlugin.spawnHelperIsolate().then(
+    EnvelopConfig envelopConfig = context.read<EnvelopConfig>();
+    localPlugin.spawnHelperIsolate(envelopConfig).then(
       (value) {
         timeTaken.start();
         localPlugin.postFilterStream?.listen((event) {
@@ -157,7 +157,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
             timeTaken.reset();
           }
 
-          passingDataToStream(event);
+          passingDataToStream(
+            event,
+          );
 
           // _preGraphBuffer.addBytes(event);
         });
@@ -204,9 +206,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
             newPoints[i] = a;
           }
         } else if (isEnableAudio) {
-          print("the list bytes of ${listBytes.length}");
           int16list = dataToSamples(listBytes);
-          print("the length is ${int16list.length}");
+
           newPoints = List.filled(int16list.length, 0);
 
           for (int i = 0; i < newPoints.length; i++) {
@@ -422,11 +423,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void passingDataToStream(Uint8List uint8list) {
     if (_toPauseGraph) {
-      // if (kIsWeb) {
-      //   _preGraphBuffer.addBytes(uint8list);
-      // } else {
-      _graphStreamController.add(uint8list);
-      // }
+      switch (widget.constantProvider.getChannelCount()) {
+        case 1:
+          _graphStreamController.add(uint8list);
+          break;
+
+        case 2:
+          // TODO: only first channel data is being passed, ie, the first two bytes
+          _graphStreamController
+              .add(ChannelUtil.dropEveryOtherTwoBytes(uint8list));
+          break;
+      }
     }
   }
 
@@ -537,7 +544,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       SampleRateProvider sampleRateProvider =
           context.read<SampleRateProvider>();
 
-      serialUtil.getAvailablePorts(widget.constantProvider.getBaudRate());
+      await serialUtil.getAvailablePorts(widget.constantProvider.getBaudRate());
       if (serialUtil.availablePorts.isEmpty) {
         return;
       }
@@ -557,6 +564,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
       bool isComMatch = areListsEqual(_availablePorts, filteredPorts);
       _availablePorts = filteredPorts;
 // All time getting true
+      if (!mounted) {
+        return;
+      }
       context
           .read<DataStatusProvider>()
           .setMicrophoneDataStatus(_availablePorts.isEmpty);
@@ -634,10 +644,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   void setBufferSetting(int sampleRate) {
-    print("the sample Rate is $sampleRate");
     final myDataProvider =
         Provider.of<SampleRateProvider>(context, listen: false);
+    EnvelopConfig envelopConfig =
+        Provider.of<EnvelopConfig>(context, listen: false);
+
     myDataProvider.setSampleRate(sampleRate);
+
+    int duration = 120 * 1000;
+
+    print("the sample rate before enveloping  ${sampleRate} and duration  ");
+    envelopConfig.firstTimeSet(sampleRate, duration);
 
     // final dataStatusProvider =
     //     Provider.of<GraphDataProvider>(context, listen: false);
@@ -662,12 +679,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
     await listenPort?.cancel();
     Stopwatch stopwatch = Stopwatch();
     listenPort = getData?.listen((event) {
+      print("the event is coming $event");
       stopwatch.start();
       if (!dummyDataStatus && !isAudioListen) {
         preEscapeSequenceBuffer.addBytes(event);
         // print(
         //     "the time taken is ${stopwatch.elapsedMilliseconds}and the length ${event.length}");
-
+        print("the device status is $isDeviceConnect");
         if (!isDeviceConnect) {
           serialUtil.writeToPort(
               bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),

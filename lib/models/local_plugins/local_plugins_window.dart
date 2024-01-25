@@ -3,13 +3,15 @@ import 'dart:typed_data';
 import 'package:native_add/model/model.dart';
 import 'package:native_add/native_add.dart' as native_add;
 import 'package:spikerbox_architecture/models/models.dart';
+import 'package:spikerbox_architecture/provider/provider_export.dart';
 
 class LocalPluginWindow implements LocalPlugin {
+  EnvelopConfig envelopConfig = EnvelopConfig();
   final List<BufferHandlerOnDemand?> _bufferHandlerOnDemand =
       List.filled(channelCountBuffer, null);
 
   @override
-  Future<void> spawnHelperIsolate() async {
+  Future<void> spawnHelperIsolate(EnvelopConfig envelopConfig) async {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
 
     await native_add.spawnHelperIsolate();
@@ -17,7 +19,7 @@ class LocalPluginWindow implements LocalPlugin {
       _bufferHandlerOnDemand[i] = BufferHandlerOnDemand(
         chunkReadSize: 4000,
         onDataAvailable: (Uint8List newList) {
-          onPacketAvailable(newList, i);
+          onPacketAvailable(newList, i, envelopConfig);
         },
       );
     }
@@ -32,17 +34,6 @@ class LocalPluginWindow implements LocalPlugin {
 
     _bufferHandlerOnDemand[channelIdx]?.addBytes(iList.buffer.asUint8List());
     return;
-  }
-
-  int sampleLength = 44100 * 120;
-  int skipCount = 44100 * 120 ~/ 2000;
-
-  @override
-  void setEnvelopConfigure(int duration) {
-    // _envelopingConfig[0].setConfig(bufferSize: (44100 ~/ 1000) * duration);
-    sampleLength = (48000 * duration) ~/ 1000;
-    skipCount = sampleLength ~/ 2000;
-    // print("the sampleLength is $sampleLength and skip Count is ${skipCount}");
   }
 
   @override
@@ -73,17 +64,18 @@ class LocalPluginWindow implements LocalPlugin {
       StreamController<Uint8List>();
 
   /// When another packet is available for processing from buffer
-  void onPacketAvailable(Uint8List array, int channelIndex) async {
+  void onPacketAvailable(
+      Uint8List array, int channelIndex, EnvelopConfig envelopConfig) async {
     _bufferHandlerOnDemand[channelIndex]?.toFetchBytes = false;
 
     Int16List listToFilter = array.buffer.asInt16List();
-    print("the int16 list ${listToFilter.length}");
+
     Uint8List? filterElement = await native_add.filterArrayElements(
         array: listToFilter,
         length: listToFilter.length,
         channelIndex: channelIndex,
-        sampleLength: sampleLength,
-        skipCount: skipCount);
+        upComingSampleLength: envelopConfig.sampleLength,
+        upComingSkipCount: envelopConfig.skipCount);
 
     // print("The filter element is ${filterElement.length}");
     // TODO: currently data of all channels being added to the same stream

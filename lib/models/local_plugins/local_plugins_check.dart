@@ -5,6 +5,9 @@ import 'package:spikerbox_architecture/models/local_plugins/local_plugins.dart'
     if (dart.library.io) 'package:spikerbox_architecture/models/local_plugins/local_plugins_native.dart'
     if (dart.library.html) 'package:spikerbox_architecture/models/local_plugins/local_plugins_web.dart';
 
+import '../../provider/enveloping_config_provider.dart';
+import '../../provider/sample_rate_provider.dart';
+
 abstract class LocalPlugin {
   factory LocalPlugin() => getLocalPlugins();
 
@@ -17,7 +20,7 @@ abstract class LocalPlugin {
   /// Spawns helper Isolate on windows, macOS, android, iOS
   ///
   /// Spawns helper Web Worker on Web
-  Future<void> spawnHelperIsolate() async {}
+  Future<void> spawnHelperIsolate(EnvelopConfig envelopConfig) async {}
 
   /// Add packet to circular buffer for filtering
   ///
@@ -44,6 +47,4 @@ abstract class LocalPlugin {
   Future<bool> initNotchFilters(FilterSetup filterBaseSettingsModel) async {
     return false;
   }
-
-  void setEnvelopConfigure(int duration) {}
 }

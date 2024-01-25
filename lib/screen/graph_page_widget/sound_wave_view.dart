@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'package:spikerbox_architecture/provider/isgraphplay_provider.dart';
+import 'package:spikerbox_architecture/provider/provider_export.dart';
 import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
 import 'package:spikerbox_architecture/widget/spiker_box_button.dart';
 
@@ -18,11 +19,13 @@ class SoundWaveView extends StatefulWidget {
 class _SoundWaveViewState extends State<SoundWaveView> {
   @override
   Widget build(BuildContext context) {
+    EnvelopConfig envelopConfig = context.read<EnvelopConfig>();
+
     return Listener(
       onPointerSignal: (PointerSignalEvent event) {
         if (event is PointerScrollEvent) {
           Provider.of<GraphDataProvider>(context, listen: false)
-              .setScrollIndex(event.scrollDelta.dy);
+              .setScrollIndex(event.scrollDelta.dy, envelopConfig);
         }
       },
       child: GestureDetector(
@@ -45,7 +48,7 @@ class _SoundWaveViewState extends State<SoundWaveView> {
           //   return;
           // }
           Provider.of<GraphDataProvider>(context, listen: false)
-              .setScrollIndex(scale * 10);
+              .setScrollIndex(scale * 10, envelopConfig);
         },
         child: const SpikerBoxUi(),
       ),

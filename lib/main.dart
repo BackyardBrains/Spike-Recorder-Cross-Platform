@@ -33,6 +33,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => SampleRateProvider()),
         ChangeNotifierProvider(create: (_) => CustomRangeSliderProvider()),
         ChangeNotifierProvider(create: (_) => DebugTimeProvider()),
+        ChangeNotifierProvider(create: (_) => EnvelopConfig()),
       ],
       child: const MyApp(),
     ),

@@ -97,7 +97,6 @@ HRESULT RecordAudioStream(MyAudioSink *pMySink)
     {
     case WAVE_FORMAT_PCM:
         std::cout << "WAVE_FORMAT_PCM" << std::endl;
-
         break;
 
     case WAVE_FORMAT_IEEE_FLOAT:

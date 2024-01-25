@@ -6,3 +6,4 @@
 #include "../../src/notch_filter.cpp"
 #include "../../src/sample_buffer.cpp"
 #include "../../src/envelope.cpp"
+#include "../../src/timing_debug.cpp"

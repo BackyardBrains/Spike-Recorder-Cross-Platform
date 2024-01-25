@@ -1,3 +1,4 @@
+
 #ifdef __cplusplus
 #define EXTERNC extern "C"
 #else
@@ -9,12 +10,12 @@
 #elif defined(_MSC_VER)
 #define FUNCTION_ATTRIBUTE __declspec(dllexport)
 #endif
-#include "timing_debug.h"
 
 extern "C"
 {
 #include <CoreAudio/CoreAudio.h>
 }
+#include "timing_debug.h"
 #include <cstdio>
 #include <unistd.h> // for sleep function in C++
 #include <string>

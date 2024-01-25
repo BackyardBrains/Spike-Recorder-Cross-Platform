@@ -45,7 +45,7 @@ HRESULT RecordAudioStream(MyAudioSink *pMySink)
     IMMDevice *pDevice = NULL;
     IAudioClient *pAudioClient = NULL;
     IAudioCaptureClient *pCaptureClient = NULL;
-    WAVEFORMATEX *pwfx = NULL;
+    WAVEFORMATEX *pwfx = new WAVEFORMATEX;
     UINT32 packetLength = 0;
     int totalTime = 0;
 
@@ -141,6 +141,12 @@ HRESULT RecordAudioStream(MyAudioSink *pMySink)
     // Notify the audio sink which format to use.
     hr = pMySink->SetFormat(pwfx);
     EXIT_ON_ERROR(hr)
+    // hr = pwfx->nSamplesPerSec = 44100;
+    // std::cout << "error on sample set " << hr << std::endl;
+
+    EXIT_ON_ERROR(hr)
+    hr = pwfx->nSamplesPerSec;
+    std::cout << "sampling rate  after set: " << hr << std::endl;
 
     // Calculate the actual duration of the allocated buffer.
     hnsActualDuration = (double)REFTIMES_PER_SEC *
@@ -219,6 +225,13 @@ Exit:
     return hr;
 }
 
+void SetSampleRate(WAVEFORMATEX *pwfx, DWORD newSampleRate)
+{
+    if (pwfx)
+    {
+        pwfx->nSamplesPerSec = newSampleRate;
+    }
+}
 // HRESULT RecordAudioStream(MyAudioSink *pMySink);
 
 HRESULT RecordAudioStream(MyAudioSink *pMySink);

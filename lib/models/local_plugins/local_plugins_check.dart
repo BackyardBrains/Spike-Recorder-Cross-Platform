@@ -6,7 +6,6 @@ import 'package:spikerbox_architecture/models/local_plugins/local_plugins.dart'
     if (dart.library.html) 'package:spikerbox_architecture/models/local_plugins/local_plugins_web.dart';
 
 import '../../provider/enveloping_config_provider.dart';
-import '../../provider/sample_rate_provider.dart';
 
 abstract class LocalPlugin {
   factory LocalPlugin() => getLocalPlugins();

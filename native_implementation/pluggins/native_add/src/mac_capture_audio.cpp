@@ -9,6 +9,7 @@
 #elif defined(_MSC_VER)
 #define FUNCTION_ATTRIBUTE __declspec(dllexport)
 #endif
+#include "timing_debug.h"
 
 extern "C"
 {
@@ -22,6 +23,7 @@ extern "C"
 #include "mac_audio_sink.cpp" // Replace with your actual header file
 
 MacAudioSink macAudioSink;
+TimingDebug timing_Debug;
 
 // Define a callback function to handle input audio data
 OSStatus audioInputCallback(
@@ -243,6 +245,7 @@ extern "C"
         // std::cout <<  "result in cpp : " << result << std::endl;
         if (result >= 0.0)
         {
+            timing_Debug.noteTime();
             return 1.0;
         }
         return 0.0;
@@ -267,6 +270,22 @@ extern "C"
         }
 
         return 1;
+    }
+
+    EXTERNC FUNCTION_ATTRIBUTE int getAvg()
+    {
+
+        return timing_Debug.getAvg();
+    }
+    EXTERNC FUNCTION_ATTRIBUTE int getMin()
+    {
+
+        return timing_Debug.getMinTime();
+    }
+    EXTERNC FUNCTION_ATTRIBUTE int getMax()
+    {
+
+        return timing_Debug.getMaxTime();
     }
 
 #ifdef __cplusplus

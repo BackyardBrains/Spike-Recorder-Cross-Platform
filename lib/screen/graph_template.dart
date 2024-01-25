@@ -546,10 +546,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       await serialUtil.getAvailablePorts(widget.constantProvider.getBaudRate());
       if (serialUtil.availablePorts.isEmpty) {
-        return;
-      }
-      if (serialUtil.availablePorts.isEmpty) {
         isDeviceConnect = false;
+        return;
       }
 
       List<String> filteredPorts;
@@ -679,13 +677,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
     await listenPort?.cancel();
     Stopwatch stopwatch = Stopwatch();
     listenPort = getData?.listen((event) {
-      print("the event is coming $event");
       stopwatch.start();
       if (!dummyDataStatus && !isAudioListen) {
         preEscapeSequenceBuffer.addBytes(event);
         // print(
         //     "the time taken is ${stopwatch.elapsedMilliseconds}and the length ${event.length}");
-        print("the device status is $isDeviceConnect");
+
         if (!isDeviceConnect) {
           serialUtil.writeToPort(
               bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),

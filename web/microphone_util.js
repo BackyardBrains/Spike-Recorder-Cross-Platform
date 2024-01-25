@@ -44,6 +44,12 @@ async function startListeningToMicrophone() {
     const desiredSampleRate = 44100; // 44.1 kHz
 
     // Get microphone stream with the desired sample rate
+    const supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
+    if (supportedConstraints.audio && supportedConstraints.audio.sampleRate) {
+        console.log(`Supported sample rates: ${supportedConstraints.audio.sampleRate}`);
+    } else {
+        console.log('Sample rate not supported.');
+    }
     const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
             sampleRate: desiredSampleRate
@@ -59,7 +65,7 @@ async function startListeningToMicrophone() {
     console.log("Microphone sample rate: ", trackSettings.sampleRate);
 
 
-    console.log("Microphone sample rate: ", trackSettings);
+
     const source = audioContext.createMediaStreamSource(stream);
 
     // Connect source to our processor and then to the context's destination

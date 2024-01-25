@@ -52,7 +52,6 @@ void SampleBuffer::addData(const int16_t *src, int64_t len)
         {
             const int skipCount = (1 << j); // this is 2,4,8,....,2^21 = 2097152
             const int envelopeIndex = (j - 1);
-
             // This envelopeSampleIndex has same value for skipCount consecutive samples.
             // So for every level of envelope resolution (envelopeIndex) we find max and min sample
             // on interval of skipCount consecutive samples and store as one value of envelope

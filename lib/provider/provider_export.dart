@@ -1,3 +1,4 @@
+export 'custom_slider_provider.dart';
 export 'devices_provider.dart';
 export 'graph_gain_provider.dart';
 export 'graph_stream_data.dart';

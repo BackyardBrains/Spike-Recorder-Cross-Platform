@@ -10,7 +10,7 @@ class LocalPluginAndroid implements LocalPlugin {
       List.filled(channelCountBuffer, null);
 
   @override
-  Future<void> spawnHelperIsolate(EnvelopConfig envelopConfig) async {
+  Future<void> spawnHelperIsolate(EnvelopConfigProvider envelopConfig) async {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
 
     await native_add.spawnHelperIsolate();
@@ -60,8 +60,8 @@ class LocalPluginAndroid implements LocalPlugin {
       StreamController<Uint8List>();
 
   /// When another packet is available for processing from buffer
-  void onPacketAvailable(
-      Uint8List array, int channelIndex, EnvelopConfig envelopConfig) async {
+  void onPacketAvailable(Uint8List array, int channelIndex,
+      EnvelopConfigProvider envelopConfig) async {
     _bufferHandlerOnDemand[channelIndex]?.toFetchBytes = false;
 
     Int16List listToFilter = array.buffer.asInt16List();
@@ -83,5 +83,10 @@ class LocalPluginAndroid implements LocalPlugin {
   void onProcessingDone(dynamic channelIdx) {
     _bufferHandlerOnDemand[channelIdx]?.toFetchBytes = true;
     _bufferHandlerOnDemand[channelIdx]?.requestData();
+  }
+
+  @override
+  Future<void> resetPositioning() async {
+    await native_add.positionSinceBeginningSet();
   }
 }

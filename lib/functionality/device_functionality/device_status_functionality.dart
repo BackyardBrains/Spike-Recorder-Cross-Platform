@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:spikerbox_architecture/models/models.dart';
-
-import '../../models/global_buffer.dart';
 import '../../provider/provider_export.dart';
 
 class DeviceStatusFunctionality {

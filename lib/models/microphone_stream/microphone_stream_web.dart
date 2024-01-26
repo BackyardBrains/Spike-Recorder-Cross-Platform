@@ -9,6 +9,7 @@ MicrophoneUtil getMicrophoneStreams() => MicrophoneUtilWeb();
 
 class MicrophoneUtilWeb implements MicrophoneUtil {
   Int16List? _micDataBuffer;
+  int sampleRateFromWeb = 0;
 
   @override
   StreamController<Uint8List> addListenAudioStreamController =
@@ -30,9 +31,20 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
     micStream = addListenAudioStreamController.stream.asBroadcastStream();
     js.context['onDataBufferAllocated'] = onDataBufferAllocated;
     js.context['onDataReceived'] = onDataReceived;
+    js.context['getSampleRate'] = getSampleRate;
     Future.delayed(const Duration(seconds: 1), () {
       js.context.callMethod('startListeningToMicrophone', []);
     });
+  }
+
+  @override
+  void resetTheClass() {
+    // native_MicListen.resetClassInstance();
+  }
+
+  void getSampleRate(int sampleRate) {
+    sampleRateFromWeb = sampleRate;
+    print("the sample rate from the web $sampleRate");
   }
 
   /// Called only once in the beginning to send address of buffer to dart

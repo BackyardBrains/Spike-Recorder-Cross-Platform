@@ -12,10 +12,14 @@ abstract class MicrophoneUtil {
   final StreamController<Uint8List> addListenAudioStreamController =
       StreamController();
   Stream<Uint8List>? micStream;
+  int sampleRateFromWeb = 0;
 
   final StreamController<PacketAddDetailModel> addPacketDetailCalculate =
       StreamController();
 
+  void resetTheClass() {
+    // native_MicListen.resetClassInstance();
+  }
   Stream<PacketAddDetailModel>? packetAddDetail;
 
   Future<void> init() async {}

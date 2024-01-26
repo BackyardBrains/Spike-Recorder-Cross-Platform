@@ -141,8 +141,8 @@ HRESULT RecordAudioStream(MyAudioSink *pMySink)
     // Notify the audio sink which format to use.
     hr = pMySink->SetFormat(pwfx);
     EXIT_ON_ERROR(hr)
-    // hr = pwfx->nSamplesPerSec = 44100;
-    // std::cout << "error on sample set " << hr << std::endl;
+    hr = pwfx->nSamplesPerSec = 44100;
+    std::cout << "error on sample set " << hr << std::endl;
 
     EXIT_ON_ERROR(hr)
     hr = pwfx->nSamplesPerSec;

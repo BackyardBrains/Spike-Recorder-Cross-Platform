@@ -5,14 +5,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:native_add/model/enveloping_data/enveloping_config.dart';
 import 'package:native_add/model/model.dart';
 import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/constant/const_export.dart';
 import 'package:spikerbox_architecture/functionality/functionality_export.dart';
 import 'package:spikerbox_architecture/message_identifier.dart';
-import 'package:spikerbox_architecture/models/global_buffer.dart';
 import 'package:spikerbox_architecture/models/models.dart';
-import 'package:spikerbox_architecture/screen/setting_buttons.dart';
+import 'package:spikerbox_architecture/screen/screen_export.dart';
 import 'package:spikerbox_architecture/screen/setting_page.dart';
 import '../provider/provider_export.dart';
 import 'graph_page_widget/sound_wave_view.dart';
@@ -31,7 +31,6 @@ class GraphTemplate extends StatefulWidget {
 
 class _GraphTemplateState extends State<GraphTemplate> {
   List<String> _availablePorts = [];
-
   MicrophoneUtil microphoneUtil = MicrophoneUtil();
   final StreamController<Uint8List> _graphStreamController = StreamController();
   late Stream<Uint8List> _graphStream;
@@ -40,7 +39,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   /// Converting bytes to uint as per custom protocol
   late BitwiseUtil _bitwiseUtil;
-
   DeviceStatusFunctionality deviceStatusFunctionality =
       DeviceStatusFunctionality();
 
@@ -75,6 +73,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     });
   }
 
+  bool sampleRateSet = false;
   bool isAudioListen = false;
   Stopwatch timeTaken = Stopwatch();
   int dummyCount = 0;
@@ -82,9 +81,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   @override
   void initState() {
     super.initState();
-    if (kIsWeb) {
-      setBufferSetting(webMicSampleRate);
-    } else {
+    if (!kIsWeb) {
       SchedulerBinding.instance.addPostFrameCallback((_) async {
         setSampleRate();
       });
@@ -102,6 +99,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
     Future.delayed(const Duration(seconds: 2)).then((value) {
       microphoneUtil.init().then((value) {
         microphoneUtil.micStream!.listen((event) {
+          if (!sampleRateSet) {
+            setBufferSetting(webMicSampleRate);
+            sampleRateSet = true;
+          }
+
           // print("the length of ${event.length}");
           isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
           // print("the event is $event");
@@ -145,7 +147,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         filterType: FilterType.highPassFilter,
         channelCount: channelCountBuffer,
         isFilterOn: false);
-    EnvelopConfig envelopConfig = context.read<EnvelopConfig>();
+    EnvelopConfigProvider envelopConfig = context.read<EnvelopConfigProvider>();
     localPlugin.spawnHelperIsolate(envelopConfig).then(
       (value) {
         timeTaken.start();
@@ -324,6 +326,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
               .setBitData(int.parse(value.sampleResolution.toString()));
           Provider.of<SampleRateProvider>(context, listen: false)
               .setSampleRate(int.parse(value.maxSampleRate.toString()));
+          EnvelopConfigProvider envelopConfig =
+              Provider.of<EnvelopConfigProvider>(context, listen: false);
+          envelopConfig.firstTimeSet(
+              int.parse(value.maxSampleRate.toString()), 120000);
           // Provider.of<GraphDataProvider>(context, listen: false)
           //     .setBufferLength(int.parse(value.maxSampleRate.toString()));
 
@@ -356,6 +362,111 @@ class _GraphTemplateState extends State<GraphTemplate> {
           }
         }
       },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    double pixelCount = MediaQuery.of(context).size.width;
+    setPixel(pixelCount.toInt());
+    return Scaffold(
+      backgroundColor: SoftwareColors.kBackGroundColor,
+      body: const _AdaptiveArea(
+        child1: _GraphArea(),
+        child3: SettingPage(),
+        child2:
+
+//            ElevatedButton(
+//               onPressed: () async {
+//                 final sampleRate =
+//                     Provider.of<SampleRateProvider>(context, listen: false)
+//                         .sampleRate;
+//                 microphoneUtil.resetTheClass();
+// // ignore: deprecated_member_use
+//                 await localPlugin.resetPositioning();
+
+//                 // EnvelopConfig envelopConfig =
+//                 //     Provider.of<EnvelopConfig>(context, listen: false);
+//                 // envelopConfig.firstTimeSet(sampleRate, 120000);
+//               },
+//               child: const Text("reset class"))
+            SettingButtons(),
+      ),
+      floatingActionButton: kIsWeb
+          ? FloatingActionButton.extended(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  side: const BorderSide(width: 2, color: Colors.grey)),
+              backgroundColor: SoftwareColors.kButtonBackGroundColor,
+              onPressed: () async {
+                SerialUtil? _serialUtil = SerialUtil();
+                try {
+                  int baudRate = context.read<ConstantProvider>().getBaudRate();
+                  await listenPort?.cancel();
+
+                  await _serialUtil.getAvailablePorts(baudRate);
+                  _availablePorts = _serialUtil.availablePorts;
+                  print("the serial ports is $_availablePorts");
+                  if (!mounted) return;
+                  Provider.of<PortScanProvider>(context, listen: false)
+                      .setPortScanList(_availablePorts);
+                  context
+                      .read<DataStatusProvider>()
+                      .setMicrophoneDataStatus(false);
+
+                  // await _serialUtil.openPortToListen(
+                  //     _availablePorts.first, baudRate);
+
+                  if (!mounted) return;
+                  bool dummyDataStatus =
+                      context.read<DataStatusProvider>().isSampleDataOn;
+                  bool isAudioListen =
+                      context.read<DataStatusProvider>().isMicrophoneData;
+                  // _serialUtil.deviceConnectWithPort();
+                  listenPort = _serialUtil.dataStream?.listen((event) {
+                    if (!dummyDataStatus && !isAudioListen) {
+                      preEscapeSequenceBuffer.addBytes(event);
+                      if (!isDeviceConnect) {
+                        serialUtil.writeToPort(
+                            bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
+                            address: _availablePorts.last);
+                        isDeviceConnect = true;
+                      }
+
+                      if (isDataIdentified) {
+                        // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
+                        // stopwatch.reset();
+                      } else {
+                        Uint8List? firstFrameData = frameDetect.addData(event);
+
+                        if (firstFrameData != null) {
+                          preEscapeSequenceBuffer.addBytes(firstFrameData);
+                          isDataIdentified = true;
+                        }
+                      }
+                    }
+                  });
+                } catch (e) {
+                  Debugging.printing("Opening port failed:\n$e");
+                }
+
+                // setState(() {});
+              },
+              label: Row(
+                children: [
+                  Text(
+                    "Scan port",
+                    style: SoftwareTextStyle().kBkMediumTextStyle,
+                  ),
+                  Icon(
+                    Icons.refresh,
+                    color: SoftwareColors.kButtonColor,
+                  )
+                ],
+              ),
+            )
+          : Container(),
     );
   }
 
@@ -437,91 +548,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: SoftwareColors.kBackGroundColor,
-      body: const _AdaptiveArea(
-        child1: _GraphArea(),
-        child3: SettingPage(),
-        child2: SettingButtons(),
-      ),
-      floatingActionButton: kIsWeb
-          ? FloatingActionButton.extended(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22),
-                  side: const BorderSide(width: 2, color: Colors.grey)),
-              backgroundColor: SoftwareColors.kButtonBackGroundColor,
-              onPressed: () async {
-                SerialUtil? _serialUtil = SerialUtil();
-                try {
-                  int baudRate = context.read<ConstantProvider>().getBaudRate();
-                  await listenPort?.cancel();
+  void setPixel(int pixelCount) {
+    EnvelopConfigProvider envelopConfig =
+        Provider.of<EnvelopConfigProvider>(context, listen: false);
+    EnvelopingConfig envelopConfigFromLocalPackage = EnvelopingConfig();
 
-                  await _serialUtil.getAvailablePorts(baudRate);
-                  _availablePorts = _serialUtil.availablePorts;
-                  print("the serial ports is $_availablePorts");
-                  if (!mounted) return;
-                  Provider.of<PortScanProvider>(context, listen: false)
-                      .setPortScanList(_availablePorts);
-                  context
-                      .read<DataStatusProvider>()
-                      .setMicrophoneDataStatus(false);
-
-                  // await _serialUtil.openPortToListen(
-                  //     _availablePorts.first, baudRate);
-
-                  if (!mounted) return;
-                  bool dummyDataStatus =
-                      context.read<DataStatusProvider>().isSampleDataOn;
-                  bool isAudioListen =
-                      context.read<DataStatusProvider>().isMicrophoneData;
-                  // _serialUtil.deviceConnectWithPort();
-                  listenPort = _serialUtil.dataStream?.listen((event) {
-                    if (!dummyDataStatus && !isAudioListen) {
-                      preEscapeSequenceBuffer.addBytes(event);
-                      if (!isDeviceConnect) {
-                        serialUtil.writeToPort(
-                            bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
-                            address: _availablePorts.last);
-                        isDeviceConnect = true;
-                      }
-
-                      if (isDataIdentified) {
-                        // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
-                        // stopwatch.reset();
-                      } else {
-                        Uint8List? firstFrameData = frameDetect.addData(event);
-
-                        if (firstFrameData != null) {
-                          preEscapeSequenceBuffer.addBytes(firstFrameData);
-                          isDataIdentified = true;
-                        }
-                      }
-                    }
-                  });
-                } catch (e) {
-                  Debugging.printing("Opening port failed:\n$e");
-                }
-
-                // setState(() {});
-              },
-              label: Row(
-                children: [
-                  Text(
-                    "Scan port",
-                    style: SoftwareTextStyle().kBkMediumTextStyle,
-                  ),
-                  Icon(
-                    Icons.refresh,
-                    color: SoftwareColors.kButtonColor,
-                  )
-                ],
-              ),
-            )
-          : Container(),
-    );
+    envelopConfigFromLocalPackage.setConfig(
+        pixelCount: pixelCount, bufferSize: envelopConfig.bufferSize);
   }
 
   void deviceConnectedStream() {
@@ -644,10 +677,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void setBufferSetting(int sampleRate) {
     final myDataProvider =
         Provider.of<SampleRateProvider>(context, listen: false);
-    EnvelopConfig envelopConfig =
-        Provider.of<EnvelopConfig>(context, listen: false);
+    EnvelopConfigProvider envelopConfig =
+        Provider.of<EnvelopConfigProvider>(context, listen: false);
 
-    myDataProvider.setSampleRate(sampleRate);
+    if (microphoneUtil.sampleRateFromWeb != 0) {
+      print(("the sampleRate set is ${microphoneUtil.sampleRateFromWeb}"));
+      myDataProvider.setSampleRate(microphoneUtil.sampleRateFromWeb);
+    } else {
+      myDataProvider.setSampleRate(sampleRate);
+    }
 
     int duration = 120 * 1000;
 
@@ -676,6 +714,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     await listenPort?.cancel();
     Stopwatch stopwatch = Stopwatch();
+
     listenPort = getData?.listen((event) {
       stopwatch.start();
       if (!dummyDataStatus && !isAudioListen) {
@@ -687,6 +726,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           serialUtil.writeToPort(
               bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
               address: listOfPort.last);
+
           isDeviceConnect = true;
         }
         if (isDataIdentified) {

@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:provider/provider.dart';
-import 'package:spikerbox_architecture/models/global_buffer.dart';
 import 'package:spikerbox_architecture/provider/provider_export.dart';
 
 class GraphDataProvider extends ChangeNotifier {
@@ -74,7 +72,7 @@ class GraphDataProvider extends ChangeNotifier {
   void inputListener(Uint8List input) {
     // print("the input  ${input.length}");
     Int16List int16List = input.buffer.asInt16List();
-    int valueCount = int16List.length;
+    // int valueCount = int16List.length;
     delay++;
     // if (delay == 1000) {
     //   print("dsf");
@@ -161,7 +159,7 @@ class GraphDataProvider extends ChangeNotifier {
 
   //   notifyListeners();
   // }
-  void setScrollIndex(double delta, EnvelopConfig envelopConfig) {
+  void setScrollIndex(double delta, EnvelopConfigProvider envelopConfig) {
     _scale += delta * -0.0001;
     _scale = _scale.clamp(0.001, 1);
     // if (kIsWeb) {

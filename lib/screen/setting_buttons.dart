@@ -49,6 +49,7 @@ class _SettingButtonsState extends State<SettingButtons> {
                 //   width: 10,
                 // ),
                 SpikerBoxButton(
+                  iconColor: Colors.blue,
                   onTapButton: () {},
                   iconData: Icons.graphic_eq_outlined,
                 ),
@@ -78,7 +79,7 @@ class _SettingButtonsState extends State<SettingButtons> {
                                     onTapButton: () async {
                                       DataStatusProvider dataStatus =
                                           context.read<DataStatusProvider>();
-                                   
+
                                       bool dummyDataStatus =
                                           dataStatus.isSampleDataOn;
                                       bool isAudioListen =

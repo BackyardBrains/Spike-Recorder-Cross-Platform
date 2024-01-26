@@ -6,12 +6,12 @@ import 'package:spikerbox_architecture/models/models.dart';
 import 'package:spikerbox_architecture/provider/provider_export.dart';
 
 class LocalPluginWindow implements LocalPlugin {
-  EnvelopConfig envelopConfig = EnvelopConfig();
+  EnvelopConfigProvider envelopConfig = EnvelopConfigProvider();
   final List<BufferHandlerOnDemand?> _bufferHandlerOnDemand =
       List.filled(channelCountBuffer, null);
 
   @override
-  Future<void> spawnHelperIsolate(EnvelopConfig envelopConfig) async {
+  Future<void> spawnHelperIsolate(EnvelopConfigProvider envelopConfig) async {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
 
     await native_add.spawnHelperIsolate();
@@ -23,6 +23,11 @@ class LocalPluginWindow implements LocalPlugin {
         },
       );
     }
+  }
+
+  @override
+  Future<void> resetPositioning() async {
+    await native_add.positionSinceBeginningSet();
   }
 
   @override
@@ -64,8 +69,8 @@ class LocalPluginWindow implements LocalPlugin {
       StreamController<Uint8List>();
 
   /// When another packet is available for processing from buffer
-  void onPacketAvailable(
-      Uint8List array, int channelIndex, EnvelopConfig envelopConfig) async {
+  void onPacketAvailable(Uint8List array, int channelIndex,
+      EnvelopConfigProvider envelopConfig) async {
     _bufferHandlerOnDemand[channelIndex]?.toFetchBytes = false;
 
     Int16List listToFilter = array.buffer.asInt16List();

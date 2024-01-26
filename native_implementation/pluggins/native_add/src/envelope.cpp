@@ -120,3 +120,11 @@ EXTERNC FUNCTION_ATTRIBUTE double getDataFromSampleBuffer(int offset, int len, i
 
 //     return 1.0;
 // }
+
+EXTERNC FUNCTION_ATTRIBUTE double resetClassInstance()
+{
+    // int64_t offset, int64_t len  required parameter
+    sampleBuffer.reset();
+
+    return 1.0;
+}

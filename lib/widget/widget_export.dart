@@ -5,5 +5,6 @@ export 'draggable_widget.dart';
 export 'custom_slider_widget.dart';
 export 'show_dialog.dart';
 export 'spiker_box_button.dart';
+export 'theme_colors.dart';
 export 'water_droplet.dart';
 export 'white_checkbox_widget.dart';

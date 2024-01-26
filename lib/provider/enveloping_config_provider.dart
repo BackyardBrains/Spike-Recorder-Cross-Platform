@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 
-class EnvelopConfig extends ChangeNotifier {
+class EnvelopConfigProvider extends ChangeNotifier {
   int _sampleLength = 0;
   int _skipCount = 0;
-  final int _bufferSize = (44100 ~/ 1000) * 120;
+  int _bufferSize = 0;
 
   int get bufferSize => _bufferSize;
   int get sampleLength => _sampleLength;
@@ -14,6 +14,7 @@ class EnvelopConfig extends ChangeNotifier {
     _sampleRate = upComingSampleRate;
     changeSampleLengthOnScroll(duration);
     changeSkipCountOnScroll(duration);
+    changeBufferOnWidgetContext(duration);
   }
 
   void changeSampleLengthOnScroll(int duration) {
@@ -25,6 +26,12 @@ class EnvelopConfig extends ChangeNotifier {
   void changeSkipCountOnScroll(int duration) {
     int setSkipCount = _sampleLength ~/ 2000;
     _skipCount = setSkipCount;
+    notifyListeners();
+  }
+
+  void changeBufferOnWidgetContext(int duration) {
+    int newBufferSize = (_sampleRate ~/ 1000) * duration;
+    _bufferSize = newBufferSize;
     notifyListeners();
   }
 

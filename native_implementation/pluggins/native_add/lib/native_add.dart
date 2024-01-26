@@ -10,7 +10,6 @@ CoreFoundation.framework
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ffi' as ffi;
 import 'package:native_add/main.dart';
@@ -27,6 +26,7 @@ SendPort? _helperIsolateSendPort;
 int maxValue = 0;
 int minValue = 0;
 int offset = 0;
+double screenWidthInPhysicalPixels = 0;
 
 // TODO: Remove, for testing only
 // int channelIndex = 0;
@@ -50,6 +50,15 @@ final List<ffi.Pointer<ffi.Int16>> _mPointer = List.generate(
   ),
 );
 
+// double getScreenWidthInPhysicalPixels() {
+//   final physicalSize = ui.window.physicalSize;
+//   double devicePixelRatio = ui.window.devicePixelRatio;
+
+//   screenWidthInPhysicalPixels = physicalSize.width * devicePixelRatio;
+//   print("the pixel count is $screenWidthInPhysicalPixels");
+//   return screenWidthInPhysicalPixels;
+// }
+
 final List<EnvelopingConfig> _envelopingConfig = List.generate(
   _channelCount,
   (index) => EnvelopingConfig(),
@@ -57,15 +66,9 @@ final List<EnvelopingConfig> _envelopingConfig = List.generate(
 
 int is50Hertz = 0;
 
-void setEnvelopConfig(int bufferSize, int pixelCount) {
-  _envelopingConfig[0]
-      .setConfig(bufferSize: bufferSize, pixelCount: pixelCount);
-}
-
 Future<void> spawnHelperIsolate() async {
   if (_helperIsolate == null) {
     _helperIsolateSendPort = await _mHelperIsolateSendPort;
-    print("Helper isolate spawned");
   }
 }
 
@@ -98,15 +101,10 @@ class _IsolateRequest {
   final int sampleLength;
   final int channelIndex;
   final int skipCount;
+  final bool isSetPosition;
 
-  const _IsolateRequest(
-    this.id,
-    this.skipCount,
-    this.sampleLength,
-    this.dataArray,
-    this.dataLength,
-    this.channelIndex,
-  );
+  const _IsolateRequest(this.id, this.skipCount, this.sampleLength,
+      this.dataArray, this.dataLength, this.channelIndex, this.isSetPosition);
 }
 
 /// Typically sent from one isolate to another.
@@ -203,7 +201,13 @@ Future<SendPort> _mHelperIsolateSendPort = () async {
           _bindings.addDataToSampleBuffer(
               _mPointer[data.channelIndex], data.dataLength);
 
-          positionSinceBeginning += data.dataLength;
+          if (data.isSetPosition == true) {
+            print("the isSet Position is${data.isSetPosition}");
+
+            positionSinceBeginning = 0;
+          } else {
+            positionSinceBeginning += data.dataLength;
+          }
 
           // printTheValue(sampleLength, skipCount);
           // print(
@@ -250,6 +254,14 @@ Future<SendPort> _mHelperIsolateSendPort = () async {
 int tempBufferSize = 0;
 int tempSkipCount = 0;
 
+// Below function is used to reset
+
+Future<void> positionSinceBeginningSet() async {
+  isResetPosition = true;
+  await Future.delayed(const Duration(milliseconds: 100));
+  isResetPosition = false;
+}
+
 /// Set values int the native buffer
 void _setValuesInSharedBuffer(
     List<int> data, int valueCount, int channelIndex) {
@@ -257,6 +269,8 @@ void _setValuesInSharedBuffer(
   bytes.setAll(0, data);
   return;
 }
+
+bool isResetPosition = false;
 
 /// Called for every packet
 Future<Uint8List> filterArrayElements({
@@ -268,8 +282,9 @@ Future<Uint8List> filterArrayElements({
 }) async {
   final int requestId = _nextRequestId++;
 
+  final setPosition = isResetPosition;
   final _IsolateRequest request = _IsolateRequest(requestId, upComingSkipCount,
-      upComingSampleLength, array, length, channelIndex);
+      upComingSampleLength, array, length, channelIndex, setPosition);
   final Completer<Uint8List> completer = Completer<Uint8List>();
   _isolateResults[requestId] = completer;
 

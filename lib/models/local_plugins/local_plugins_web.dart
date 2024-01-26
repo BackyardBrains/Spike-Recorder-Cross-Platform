@@ -24,7 +24,7 @@ class LocalPluginWeb implements LocalPlugin {
   ///
   /// Sets up buffer also
   @override
-  Future<void> spawnHelperIsolate(EnvelopConfig envelopConfig) async {
+  Future<void> spawnHelperIsolate(EnvelopConfigProvider envelopConfig) async {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
     for (int i = 0; i < channelCountBuffer; i++) {
       _bufferHandlerOnDemand[i] = BufferHandlerOnDemand(
@@ -99,7 +99,7 @@ class LocalPluginWeb implements LocalPlugin {
 
   /// When another packet is available for processing from buffer
   void onPacketAvailable(
-      Uint8List packet, int channelIndex, EnvelopConfig envelopConfig) {
+      Uint8List packet, int channelIndex, EnvelopConfigProvider envelopConfig) {
     _bufferHandlerOnDemand[channelIndex]?.toFetchBytes = false;
 
     Int16List listFromBuffer = packet.buffer.asInt16List();
@@ -163,7 +163,7 @@ class LocalPluginWeb implements LocalPlugin {
   }
 
   @override
-  void setEnvelopConfigure(int duration, EnvelopConfig envelopConfig) {
-    envelopConfig.changeSampleLengthAndSkipCount(duration);
+  Future<void> resetPositioning() async {
+    // await native_add.positionSinceBeginningSet();
   }
 }

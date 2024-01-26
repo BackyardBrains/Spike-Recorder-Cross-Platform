@@ -1,12 +1,8 @@
-import 'dart:math';
 import 'package:flutter_audio_waveforms/flutter_audio_waveforms.dart'
     as WavForm;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:spikerbox_architecture/provider/graph_gain_provider.dart';
-import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
-import 'package:spikerbox_architecture/provider/isgraphplay_provider.dart';
-import 'package:spikerbox_architecture/provider/vertical_dragprovider.dart';
+import 'package:spikerbox_architecture/provider/provider_export.dart';
 
 import '../constant/const_export.dart';
 import '../widget/widget_export.dart';

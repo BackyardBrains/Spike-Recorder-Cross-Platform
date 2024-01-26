@@ -5,7 +5,6 @@ import 'package:sound_stream_now/sound_stream_now.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'package:native_add/model/sending_data.dart';
-import 'package:spikerbox_architecture/models/debugging.dart';
 import 'package:spikerbox_architecture/models/models.dart';
 import 'microphone_stream_check.dart';
 
@@ -16,6 +15,9 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
       StreamController();
 
   @override
+  int sampleRateFromWeb = 0;
+
+  @override
   Stream<Uint8List>? micStream;
 
   @override
@@ -24,6 +26,10 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
   @override
   StreamController<PacketAddDetailModel> addPacketDetailCalculate =
       StreamController();
+  @override
+  void resetTheClass() {
+    // native_MicListen.resetClassInstance();
+  }
 
   List<double>? waveSamples;
   List<double>? intensitySamples;

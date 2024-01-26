@@ -12,6 +12,9 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
   Stream<Uint8List>? micStream;
 
   @override
+  int sampleRateFromWeb = 0;
+
+  @override
   Stream<PacketAddDetailModel>? packetAddDetail;
 
   @override
@@ -24,6 +27,10 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
 
   // List<int> intList = List<int>.generate(2000, (index) => index);
   Int16List? data;
+  @override
+  void resetTheClass() {
+    native_MicListen.resetClassInstance();
+  }
 
   @override
   Future<void> init() async {

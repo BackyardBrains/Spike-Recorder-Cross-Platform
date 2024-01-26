@@ -72,6 +72,10 @@ Future<void> mainIsolateForMic(StreamController<Uint8List> micDataController,
   }
 }
 
+void resetClassInstance() {
+  _bindingsMic.resetSampleBuffer();
+}
+
 Future<SendPort> mainIsolateForMicHelperStart(
     StreamController<Uint8List> micDataController,
     StreamController<PacketAddDetailModel> packetAddCalculateDetail) async {

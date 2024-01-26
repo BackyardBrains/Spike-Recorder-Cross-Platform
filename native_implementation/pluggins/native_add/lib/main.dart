@@ -33,6 +33,8 @@ typedef GetAudioMinTime = int Function();
 
 typedef GetAudioMaxTime = int Function();
 
+typedef GetClassReset = double Function();
+
 /*
 *
 *
@@ -108,6 +110,14 @@ class NativeAddBindings {
       _lookup<ffi.NativeFunction<ffi.Int Function()>>('getMax').asFunction();
 
 //
+
+  double resetSampleBuffer() {
+    return resetSampleBufferClass();
+  }
+
+  late final GetClassReset resetSampleBufferClass =
+      _lookup<ffi.NativeFunction<ffi.Double Function()>>('resetClassInstance')
+          .asFunction();
 
   late final CheckAudioData _isAudioCapture = _lookup<
           ffi.NativeFunction<

@@ -19,7 +19,7 @@ abstract class LocalPlugin {
   /// Spawns helper Isolate on windows, macOS, android, iOS
   ///
   /// Spawns helper Web Worker on Web
-  Future<void> spawnHelperIsolate(EnvelopConfig envelopConfig) async {}
+  Future<void> spawnHelperIsolate(EnvelopConfigProvider envelopConfig) async {}
 
   /// Add packet to circular buffer for filtering
   ///
@@ -45,5 +45,9 @@ abstract class LocalPlugin {
 
   Future<bool> initNotchFilters(FilterSetup filterBaseSettingsModel) async {
     return false;
+  }
+
+  Future<void> resetPositioning() async {
+    // await native_add.positionSinceBeginningSet();
   }
 }

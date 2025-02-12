@@ -81,8 +81,8 @@ class _ChartViewState extends State<ChartView> {
       borderWidth: 0,
       borderColor: Colors.white,
       enableSideBySideSeriesPlacement: true,
-      primaryXAxis: null,
-      primaryYAxis: null,
+      primaryXAxis: NumericAxis(),
+      primaryYAxis: NumericAxis(),
 
       // primaryXAxis: CategoryAxis(isVisible: true),
       // primaryYAxis: CategoryAxis(isVisible: true),

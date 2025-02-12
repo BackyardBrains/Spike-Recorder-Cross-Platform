@@ -42,15 +42,15 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.6
-  syncfusion_flutter_charts: ^21.1.36
+  syncfusion_flutter_charts: ^28.2.4+1
   http: ^1.1.0
   isolated_worker: ^0.1.1
   usb_serial: ^0.5.1
   permission_handler: ^11.0.0
-  flutter_libserialport: ^0.3.0
+  flutter_libserialport: ^0.5.0
   serial: ^0.0.4
-  squadron: ^5.1.6
-  isolate_manager: ^4.1.1
+  squadron: ^6.2.0
+  isolate_manager: ^5.7.2+1
   wasm_interop: ^2.0.1
   provider: ^6.0.5
   path_provider: ^2.1.1
@@ -59,7 +59,7 @@ dependencies:
   just_audio: ^0.9.35
   audio_session: ^0.1.16
   # flutter_soloud: ^1.2.4
-  fps_widget: 1.0.1+1
+  fps_widget: ^1.0.1+2
   mic_stream: ^0.7.1+2
   sound_stream_now: ^1.0.0
   serial_communication: ^0.0.2
@@ -85,7 +85,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^2.0.3
+  flutter_lints: ^5.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

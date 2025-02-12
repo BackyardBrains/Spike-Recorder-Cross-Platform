@@ -79,6 +79,7 @@ Future<SendPort> mainIsolateForMicHelperStart(
     if (message is SendPort) {
       // The helper isolate sent us the port on which we can sent it requests.
       completerSendPortForMic.complete(message);
+
       return;
     }
 

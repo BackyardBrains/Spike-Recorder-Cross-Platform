@@ -58,7 +58,7 @@ SPEC CHECKSUMS:
   just_audio: 4e391f57b79cad2b0674030a00453ca5ce817eed
   libserialport: 1cb25e66ef3c92a8e59c2ea3820302c3fa2268cd
   mic_stream: d36b1d2fa5ea7124a5ecf4cefded06f7fc00391f
-  native_add: d7e8202e55f5b1ea12b5c5c3f657304b6f1435bb
+  native_add: 7c4358838ffb3e9fa8937799a3004a28842025df
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
   url_launcher_macos: 0fba8ddabfc33ce0a9afe7c5fef5aab3d8d2d673
 

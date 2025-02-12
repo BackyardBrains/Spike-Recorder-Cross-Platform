@@ -26,7 +26,12 @@
 		33CC10F32044A3C60003C045 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F22044A3C60003C045 /* Assets.xcassets */; };
 		33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F42044A3C60003C045 /* MainMenu.xib */; };
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
-		9335FF1E79BFF4F3EBB82FBE /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA5786BB42BECE2B6F2F4F3C /* Pods_Runner.framework */; };
+		858566CD2D5CDF4D00FFC637 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 858566C52D5CDD9000FFC637 /* AudioToolbox.framework */; };
+		858566CF2D5CDF4E00FFC637 /* AudioUnit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 858566C72D5CDD9700FFC637 /* AudioUnit.framework */; };
+		858566D12D5CDF4F00FFC637 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 858566C92D5CDDA400FFC637 /* CoreAudio.framework */; };
+		858566D32D5CDF5100FFC637 /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 858566CB2D5CDDB300FFC637 /* CoreFoundation.framework */; };
+		858566D52D5CDF5200FFC637 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA5786BB42BECE2B6F2F4F3C /* Pods_Runner.framework */; };
+		858566D62D5CDF5200FFC637 /* Pods_Runner.framework in Bundle Framework */ = {isa = PBXBuildFile; fileRef = AA5786BB42BECE2B6F2F4F3C /* Pods_Runner.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,6 +51,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
+				858566D62D5CDF5200FFC637 /* Pods_Runner.framework in Bundle Framework */,
 			);
 			name = "Bundle Framework";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -71,6 +77,10 @@
 		3BC9372A77E8B0FD0A6585A5 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		53CE1C2989F0B89593907F8F /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		858566C52D5CDD9000FFC637 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
+		858566C72D5CDD9700FFC637 /* AudioUnit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioUnit.framework; path = System/Library/Frameworks/AudioUnit.framework; sourceTree = SDKROOT; };
+		858566C92D5CDDA400FFC637 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
+		858566CB2D5CDDB300FFC637 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		AA5786BB42BECE2B6F2F4F3C /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -80,7 +90,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9335FF1E79BFF4F3EBB82FBE /* Pods_Runner.framework in Frameworks */,
+				858566D52D5CDF5200FFC637 /* Pods_Runner.framework in Frameworks */,
+				858566D32D5CDF5100FFC637 /* CoreFoundation.framework in Frameworks */,
+				858566CF2D5CDF4E00FFC637 /* AudioUnit.framework in Frameworks */,
+				858566CD2D5CDF4D00FFC637 /* AudioToolbox.framework in Frameworks */,
+				858566D12D5CDF4F00FFC637 /* CoreAudio.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -165,6 +179,10 @@
 		8BA38346EB56FACAF04AF99D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				858566CB2D5CDDB300FFC637 /* CoreFoundation.framework */,
+				858566C92D5CDDA400FFC637 /* CoreAudio.framework */,
+				858566C72D5CDD9700FFC637 /* AudioUnit.framework */,
+				858566C52D5CDD9000FFC637 /* AudioToolbox.framework */,
 				AA5786BB42BECE2B6F2F4F3C /* Pods_Runner.framework */,
 			);
 			name = Frameworks;

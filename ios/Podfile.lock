@@ -4,6 +4,7 @@ PODS:
   - Flutter (1.0.0)
   - just_audio (0.0.1):
     - Flutter
+    - FlutterMacOS
   - mic_stream (0.0.1):
     - Flutter
   - native_add (0.0.1):
@@ -11,7 +12,7 @@ PODS:
   - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
-  - permission_handler_apple (9.1.1):
+  - permission_handler_apple (9.3.0):
     - Flutter
   - sound_stream_now (0.0.1):
     - Flutter
@@ -21,7 +22,7 @@ PODS:
 DEPENDENCIES:
   - audio_session (from `.symlinks/plugins/audio_session/ios`)
   - Flutter (from `Flutter`)
-  - just_audio (from `.symlinks/plugins/just_audio/ios`)
+  - just_audio (from `.symlinks/plugins/just_audio/darwin`)
   - mic_stream (from `.symlinks/plugins/mic_stream/ios`)
   - native_add (from `.symlinks/plugins/native_add/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
@@ -35,7 +36,7 @@ EXTERNAL SOURCES:
   Flutter:
     :path: Flutter
   just_audio:
-    :path: ".symlinks/plugins/just_audio/ios"
+    :path: ".symlinks/plugins/just_audio/darwin"
   mic_stream:
     :path: ".symlinks/plugins/mic_stream/ios"
   native_add:
@@ -50,16 +51,16 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
-  audio_session: 4f3e461722055d21515cf3261b64c973c062f345
-  Flutter: f04841e97a9d0b0a8025694d0796dd46242b2854
-  just_audio: baa7252489dbcf47a4c7cc9ca663e9661c99aafa
+  audio_session: 19e9480dbdd4e5f6c4543826b2e8b0e4ab6145fe
+  Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  just_audio: a42c63806f16995daf5b219ae1d679deb76e6a79
   mic_stream: 28787bfcfcfc68e17fad15050baf5929f1d10901
   native_add: c340be14b972e1ee448a7024e985825dc2107bac
-  path_provider_foundation: 29f094ae23ebbca9d3d0cec13889cd9060c0e943
-  permission_handler_apple: e76247795d700c14ea09e3a2d8855d41ee80a2e6
+  path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
+  permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
   sound_stream_now: dc25979946047a4d0e8191d8b2024887493178a5
-  url_launcher_ios: 08a3dfac5fb39e8759aeb0abbd5d9480f30fc8b4
+  url_launcher_ios: 5334b05cef931de560670eeae103fd3e431ac3fe
 
-PODFILE CHECKSUM: 7916b536330fb1256d3210860ed18b6f0876e69e
+PODFILE CHECKSUM: 5ca07cf6785cddfcbe5432f9f1d5729eed3228c8
 
-COCOAPODS: 1.14.2
+COCOAPODS: 1.15.2

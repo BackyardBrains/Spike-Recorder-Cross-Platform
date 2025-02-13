@@ -19,6 +19,8 @@ rootProject.allprojects {
     repositories {
         google()
         mavenCentral()
+        jcenter()
+        maven { url 'https://jitpack.io' }
     }
 }
 
@@ -48,7 +50,7 @@ android {
     externalNativeBuild {
         cmake {
             path "../src/CMakeLists.txt"
-             version "3.10.2"
+            version "3.18.1"
 
             // The default CMake version for the Android Gradle Plugin is 3.10.2.
             // https://developer.android.com/studio/projects/install-ndk#vanilla_cmake
@@ -68,4 +70,17 @@ android {
     defaultConfig {
         minSdkVersion 16
     }
+
+    configurations.all {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == "com.github.felHR85" &&
+                details.requested.name == "UsbSerial") {
+                details.useVersion "6.0.3"
+            }
+        }
+    }
+}
+
+dependencies {
+    implementation 'com.github.felHR85:UsbSerial:6.0.3'
 }

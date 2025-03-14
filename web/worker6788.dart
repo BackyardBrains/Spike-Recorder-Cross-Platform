@@ -3,12 +3,29 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:js' as js;
 
-import 'package:isolate_contactor/src/utils/exception.dart';
+// import 'package:isolate_contactor/src/utils/exception.dart';
 import 'package:js/js.dart' as pjs;
 import 'package:js/js_util.dart' as js_util;
 
 @pjs.JS('self')
 external dynamic get globalScopeSelf;
+
+
+// Define a custom exception class similar to IsolateException
+class IsolateException implements Exception {
+  final Object error;
+  final StackTrace stack;
+
+  IsolateException(this.error, this.stack);
+
+  Map<String, dynamic> toJson() => {
+        'error': error.toString(),
+        'stackTrace': stack.toString(),
+      };
+
+  @override
+  String toString() => 'IsolateException: $error';
+}
 
 /// dart compile js worker.dart -o worker.js -O4
 

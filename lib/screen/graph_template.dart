@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/constant/const_export.dart';
 import 'package:spikerbox_architecture/message_identifier.dart';
 import 'package:spikerbox_architecture/models/models.dart';
+import 'package:spikerbox_architecture/models/processing_utils/processing_util.dart';
 import 'package:spikerbox_architecture/screen/setting_page.dart';
 import '../provider/provider_export.dart';
 import '../widget/widget_export.dart';
@@ -82,6 +83,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   static const int timeMs = _sampleGeneratedCount ~/ dummySamplingRate * 1000;
   late final Uint8List _sampleData;
   List<SerialPortDataModel> allDevices = [];
+
+  late ProcessingUtil processingUtil;
 
   @override
   void didUpdateWidget(covariant GraphTemplate oldWidget) {
@@ -172,6 +175,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
   @override
   void initState() {
     super.initState();
+
+    // Initialize ProcessingUtil
+    processingUtil = createProcessingUtil();
+
     SchedulerBinding.instance.addPostFrameCallback((timeStamp) async {
       setSampleRate();
     });
@@ -185,21 +192,24 @@ class _GraphTemplateState extends State<GraphTemplate> {
         channelCount: channelCountBuffer,
         isFilterOn: false);
 
-    Future.delayed(const Duration(seconds: 2)).then((value) {
-      microphoneUtil.init().then((value) {
-        microphoneUtil.micStream!.listen((event) {
-          bool isAudioListen =
-              context.read<DataStatusProvider>().isMicrophoneData;
-          // print("the event is $event");
-          // isAudioListen = value;
+    Future.delayed(const Duration(seconds: 2)).then((value) async {
+      // Initialize both utils
+      await Future.wait([
+        microphoneUtil.init(),
+      ]);
 
-          if (isAudioListen) {
-            _preprocessingBuffer.addBytes(event);
-          }
-        });
+      microphoneUtil.micStream!.listen((event) {
+        bool isAudioListen =
+            context.read<DataStatusProvider>().isMicrophoneData;
+
+        //processingUtil.processNewData(event);
+        if (isAudioListen) {
+          _preprocessingBuffer.addBytes(event);
+          //processingUtil.processNewData(event);
+        }
       });
     });
-
+    processingUtil.init();
     // TODO: remove dummy data
     _sampleData = GenerateSampleData.sineWaveUint14(
             samplingRate: dummySamplingRate,
@@ -418,6 +428,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
         }
       },
     );
+  }
+
+  @override
+  void dispose() {
+    (processingUtil as ProcessingUtilImpl).dispose();
+    super.dispose();
   }
 
   static Int16List dataToSamples(Uint8List data) {

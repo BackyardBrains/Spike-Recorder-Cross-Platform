@@ -23,7 +23,7 @@
             ]
           },
             
-        
+          { "name": "Flutter for macOS", "type": "dart", "request": "launch", "program": "lib/main.dart", "args": [ "-d", "macos" ] },
         {
             "name": "Launch Chrome",
             "request": "launch",

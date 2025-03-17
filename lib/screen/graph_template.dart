@@ -17,11 +17,7 @@ import 'graph_page_widget/sound_wave_view.dart';
 import 'package:spikerbox_architecture/models/microphone_stream/microphone_stream_check.dart';
 
 class GraphTemplate extends StatefulWidget {
-  const GraphTemplate(
-      {super.key,
-      required this.bitsData,
-      required this.channelCount,
-      required this.baudRate});
+  const GraphTemplate({super.key, required this.bitsData, required this.channelCount, required this.baudRate});
 
   final int bitsData;
   final int channelCount;
@@ -89,8 +85,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   @override
   void didUpdateWidget(covariant GraphTemplate oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _frameDetect =
-        FrameDetect(channelCount: widget.channelCount, minimumBytesToCheck: 50);
+    _frameDetect = FrameDetect(channelCount: widget.channelCount, minimumBytesToCheck: 50);
     _bitwiseUtil = BitwiseUtil(bitCount: widget.bitsData);
     _channelBytes = widget.channelCount * 2;
   }
@@ -106,10 +101,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       List<String> filteredPorts;
       if (Platform.isMacOS) {
-        filteredPorts = _serialUtil.availablePorts
-            .where((port) =>
-                port.contains('usbmodem') || port.contains('usbserial'))
-            .toList();
+        filteredPorts = _serialUtil.availablePorts.where((port) => port.contains('usbmodem') || port.contains('usbserial')).toList();
       } else {
         filteredPorts = _serialUtil.availablePorts;
       }
@@ -118,16 +110,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       _availablePorts = filteredPorts;
 
-      context
-          .read<DataStatusProvider>()
-          .setMicrophoneDataStatus(_availablePorts.isEmpty);
+      context.read<DataStatusProvider>().setMicrophoneDataStatus(_availablePorts.isEmpty);
 
       if (!isComMatch) {
-        Provider.of<PortScanProvider>(context, listen: false)
-            .setPortScanList(_availablePorts);
+        Provider.of<PortScanProvider>(context, listen: false).setPortScanList(_availablePorts);
 
-        Provider.of<ConstantProvider>(context, listen: false)
-            .setBaudRate(baudRate);
+        Provider.of<ConstantProvider>(context, listen: false).setBaudRate(baudRate);
         allDevices = context.read<SerialDataProvider>().getAllPortDetail;
         await portListOnConnect();
       }
@@ -149,8 +137,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   void setSampleRate() {
-    final myDataProvider =
-        Provider.of<SampleRateProvider>(context, listen: false);
+    final myDataProvider = Provider.of<SampleRateProvider>(context, listen: false);
 
     if (kIsWeb) {
       if (!mounted) return;
@@ -185,12 +172,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     if (!kIsWeb) {
       _startPortCheck();
     }
-    filterBaseSettingsModel = const FilterSetup(
-        filterConfiguration:
-            FilterConfiguration(cutOffFrequency: 1000, sampleRate: 10000),
-        filterType: FilterType.highPassFilter,
-        channelCount: channelCountBuffer,
-        isFilterOn: false);
+    filterBaseSettingsModel = const FilterSetup(filterConfiguration: FilterConfiguration(cutOffFrequency: 1000, sampleRate: 10000), filterType: FilterType.highPassFilter, channelCount: channelCountBuffer, isFilterOn: false);
 
     Future.delayed(const Duration(seconds: 2)).then((value) async {
       // Initialize both utils
@@ -198,25 +180,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
         microphoneUtil.init(),
       ]);
 
+      await processingUtil.init();
+
       microphoneUtil.micStream!.listen((event) {
-        bool isAudioListen =
-            context.read<DataStatusProvider>().isMicrophoneData;
+        bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
 
         //processingUtil.processNewData(event);
         if (isAudioListen) {
           _preprocessingBuffer.addBytes(event);
-          //processingUtil.processNewData(event);
+          processingUtil.processMicrophoneData(event);
         }
       });
     });
-    processingUtil.init();
+
     // TODO: remove dummy data
-    _sampleData = GenerateSampleData.sineWaveUint14(
-            samplingRate: dummySamplingRate,
-            frequencies: [50, 1000],
-            samplesGenerated: _sampleGeneratedCount)
-        .buffer
-        .asUint8List();
+    _sampleData = GenerateSampleData.sineWaveUint14(samplingRate: dummySamplingRate, frequencies: [50, 1000], samplesGenerated: _sampleGeneratedCount).buffer.asUint8List();
 
     Timer.periodic(const Duration(milliseconds: timeMs), (timer) {
       bool dummyDataStatus = context.read<DataStatusProvider>().isSampleDataOn;
@@ -242,10 +220,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
         Uint16List newDataPoints;
         Int16List int16list;
         List<int> newPoints;
-        bool dummyDataStatus =
-            context.read<DataStatusProvider>().isSampleDataOn;
-        bool isEnableAudio =
-            context.read<DataStatusProvider>().isMicrophoneData;
+        bool dummyDataStatus = context.read<DataStatusProvider>().isSampleDataOn;
+        bool isEnableAudio = context.read<DataStatusProvider>().isMicrophoneData;
         if (dummyDataStatus) {
           newDataPoints = listBytes.buffer.asUint16List();
           newPoints = List.filled(newDataPoints.length, 0);
@@ -283,8 +259,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           //   newDataPoints[i] = int16list[i] + 32768;
           // }
         } else {
-          int bitData = Provider.of<ConstantProvider>(context, listen: false)
-              .getBitData();
+          int bitData = Provider.of<ConstantProvider>(context, listen: false).getBitData();
           Uint8List transformedData = _bitwiseUtil.convertToValue(listBytes);
           newDataPoints = transformedData.buffer.asUint16List();
           newPoints = List.filled(newDataPoints.length, 0);
@@ -319,8 +294,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       },
     );
 
-    _frameDetect =
-        FrameDetect(channelCount: widget.channelCount, minimumBytesToCheck: 50);
+    _frameDetect = FrameDetect(channelCount: widget.channelCount, minimumBytesToCheck: 50);
     _bitwiseUtil = BitwiseUtil(bitCount: widget.bitsData);
     _channelBytes = widget.channelCount * 2;
 
@@ -369,8 +343,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
       _preprocessingBuffer.addBytes(Uint8List.fromList(frameCheckedData));
     }, onDeviceMessage: (Uint8List msg) async {
-      String responseMessage =
-          MessageValueSet.fromUint8ListCommand(message: msg).value;
+      String responseMessage = MessageValueSet.fromUint8ListCommand(message: msg).value;
       String? devices = checkConnectedDevices(responseMessage);
 
       if (devices == null) {
@@ -383,23 +356,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
         if (value != null) {
           foundDevices = value.uniqueName ?? "";
 
-          Provider.of<ConstantProvider>(context, listen: false)
-              .setBaudRate(foundDevices == "HHIBOX" ? 500000 : 222222);
-          Provider.of<ConstantProvider>(context, listen: false)
-              .setChannelCount(int.parse(value.maxNumberOfChannels.toString()));
-          Provider.of<ConstantProvider>(context, listen: false)
-              .setBitData(int.parse(value.sampleResolution.toString()));
-          Provider.of<SampleRateProvider>(context, listen: false)
-              .setSampleRate(int.parse(value.maxSampleRate.toString()));
+          Provider.of<ConstantProvider>(context, listen: false).setBaudRate(foundDevices == "HHIBOX" ? 500000 : 222222);
+          Provider.of<ConstantProvider>(context, listen: false).setChannelCount(int.parse(value.maxNumberOfChannels.toString()));
+          Provider.of<ConstantProvider>(context, listen: false).setBitData(int.parse(value.sampleResolution.toString()));
+          Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(int.parse(value.maxSampleRate.toString()));
 
           connectedDevices.add(foundDevices);
-          SerialPortDataModel serialData = SerialPortDataModel(
-              portCom: portName, deviceDetect: foundDevices);
+          SerialPortDataModel serialData = SerialPortDataModel(portCom: portName, deviceDetect: foundDevices);
           context.read<SerialDataProvider>().setPortOfDevices(serialData);
         }
       });
-      Debugging.printing(
-          "Message received from Spikerbox: \n\tbytes : $msg\n\tstring: ${String.fromCharCodes(msg)}");
+      Debugging.printing("Message received from Spikerbox: \n\tbytes : $msg\n\tstring: ${String.fromCharCodes(msg)}");
     });
 
     _preEscapeSequenceBuffer = BufferHandler(
@@ -421,8 +388,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             case 2:
 
               // TODO: only first channel data is being passed, ie, the first two bytes
-              _graphStreamController
-                  .add(ChannelUtil.dropEveryOtherTwoBytes(dataFromBuffer));
+              _graphStreamController.add(ChannelUtil.dropEveryOtherTwoBytes(dataFromBuffer));
               break;
           }
         }
@@ -476,17 +442,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   final TextEditingController cutOffController = TextEditingController();
 
   String? checkConnectedDevices(String getResponse) {
-    List<String> listOfDevices = [
-      "PLANTSS;",
-      "MUSCLESS;",
-      "HEARTSS;",
-      "HBLEOSB;",
-      "HUMANSB;",
-      "MSBPCDC;",
-      "NSBPCDC;",
-      "NRNSBPRO;",
-      "HHIBOX;"
-    ];
+    List<String> listOfDevices = ["PLANTSS;", "MUSCLESS;", "HEARTSS;", "HBLEOSB;", "HUMANSB;", "MSBPCDC;", "NSBPCDC;", "NRNSBPRO;", "HHIBOX;"];
 
     int index = listOfDevices.indexWhere((element) => element == getResponse);
     if (index == -1) return null;
@@ -513,9 +469,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               Row(children: [
                 SpikerBoxButton(
                     onTapButton: () {
-                      context
-                          .read<SoftwareConfigProvider>()
-                          .settingStatus(false);
+                      context.read<SoftwareConfigProvider>().settingStatus(false);
                     },
                     iconData: Icons.settings),
                 // const SizedBox(
@@ -535,9 +489,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     children: [
                       CustomSliderBarButton(
                         isMicrophoneEnable: (bool isMicrophoneEnable) {
-                          context
-                              .read<DataStatusProvider>()
-                              .setMicrophoneDataStatus(isMicrophoneEnable);
+                          context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
                         },
                         onHighPassFilterSetup: (FilterSetup filterSetup) {
                           localPlugin.initHighPassFilters(filterSetup);
@@ -546,9 +498,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           localPlugin.initLowPassFilters(filterSetup);
                         },
                         onSampleChange: (bool isSampleDataOn) {
-                          context
-                              .read<DataStatusProvider>()
-                              .setSampleDataStatus(isSampleDataOn);
+                          context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
                           // _toGenerateDummyData =
                           //     isSampleDataOn;
                         },
@@ -559,14 +509,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       const SizedBox(
                         height: 10,
                       ),
-                      NotchPassFilterWidget(
-                          onTapNotchFrequency: (notchFilterSettings) {
-                        print(
-                            "the notch filter setting is ${notchFilterSettings.toJson()}");
+                      NotchPassFilterWidget(onTapNotchFrequency: (notchFilterSettings) {
+                        print("the notch filter setting is ${notchFilterSettings.toJson()}");
 
-                        context
-                            .read<DataStatusProvider>()
-                            .setNotchPassFilterSetting(notchFilterSettings);
+                        context.read<DataStatusProvider>().setNotchPassFilterSetting(notchFilterSettings);
                         localPlugin.initNotchPassFilters(notchFilterSettings);
                       }),
                       const SizedBox(
@@ -582,36 +528,23 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                 child: SingleChildScrollView(
                                   child: Column(
                                     children: [
-                                      FilterProcessWidget(isMicrophoneEnable:
-                                          (bool isMicrophoneEnable) {
+                                      FilterProcessWidget(isMicrophoneEnable: (bool isMicrophoneEnable) {
                                         // _toEnableMicrophone =
                                         //     isMicrophoneEnable;
 
-                                        context
-                                            .read<DataStatusProvider>()
-                                            .setMicrophoneDataStatus(
-                                                isMicrophoneEnable);
-                                      }, onHighPassFilterSetup:
-                                          (FilterSetup filterSetup) {
-                                        localPlugin
-                                            .initHighPassFilters(filterSetup);
-                                      }, onLowPassFilterSetup:
-                                          (FilterSetup filterSetup) {
-                                        localPlugin
-                                            .initLowPassFilters(filterSetup);
+                                        context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
+                                      }, onHighPassFilterSetup: (FilterSetup filterSetup) {
+                                        localPlugin.initHighPassFilters(filterSetup);
+                                      }, onLowPassFilterSetup: (FilterSetup filterSetup) {
+                                        localPlugin.initLowPassFilters(filterSetup);
                                       }, onSampleChange: (bool isSampleDataOn) {
-                                        context
-                                            .read<DataStatusProvider>()
-                                            .setSampleDataStatus(
-                                                isSampleDataOn);
+                                        context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
                                         // _toGenerateDummyData =
                                         //     isSampleDataOn;
                                       }),
                                       DropdownButtonFormField<int>(
-                                        dropdownColor: SoftwareColors
-                                            .kDropDownBackGroundColor,
-                                        style: SoftwareTextStyle()
-                                            .kWtMediumTextStyle,
+                                        dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                        style: SoftwareTextStyle().kWtMediumTextStyle,
                                         items: _dataBit
                                             .map(
                                               (e) => DropdownMenuItem(
@@ -623,19 +556,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                             )
                                             .toList(),
                                         onChanged: (int? bitDataSelect) {
-                                          context
-                                              .read<ConstantProvider>()
-                                              .setBitData(bitDataSelect!);
+                                          context.read<ConstantProvider>().setBitData(bitDataSelect!);
                                         },
-                                        value: context
-                                            .read<ConstantProvider>()
-                                            .getBitData(),
+                                        value: context.read<ConstantProvider>().getBitData(),
                                       ),
                                       DropdownButtonFormField(
-                                        dropdownColor: SoftwareColors
-                                            .kDropDownBackGroundColor,
-                                        style: SoftwareTextStyle()
-                                            .kWtMediumTextStyle,
+                                        dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                        style: SoftwareTextStyle().kWtMediumTextStyle,
                                         items: _baudRate
                                             .map(
                                               (e) => DropdownMenuItem(
@@ -647,19 +574,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                             )
                                             .toList(),
                                         onChanged: (baudRateSelect) {
-                                          context
-                                              .read<ConstantProvider>()
-                                              .setBaudRate(baudRateSelect!);
+                                          context.read<ConstantProvider>().setBaudRate(baudRateSelect!);
                                         },
-                                        value: context
-                                            .read<ConstantProvider>()
-                                            .getBaudRate(),
+                                        value: context.read<ConstantProvider>().getBaudRate(),
                                       ),
                                       DropdownButtonFormField(
-                                        dropdownColor: SoftwareColors
-                                            .kDropDownBackGroundColor,
-                                        style: SoftwareTextStyle()
-                                            .kWtMediumTextStyle,
+                                        dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                        style: SoftwareTextStyle().kWtMediumTextStyle,
                                         items: _channelCount
                                             .map(
                                               (e) => DropdownMenuItem(
@@ -671,14 +592,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                             )
                                             .toList(),
                                         onChanged: (int? channelCountSelect) {
-                                          context
-                                              .read<ConstantProvider>()
-                                              .setChannelCount(
-                                                  channelCountSelect!);
+                                          context.read<ConstantProvider>().setChannelCount(channelCountSelect!);
                                         },
-                                        value: context
-                                            .read<ConstantProvider>()
-                                            .getChannelCount(),
+                                        value: context.read<ConstantProvider>().getChannelCount(),
                                       ),
                                     ],
                                   ),
@@ -686,8 +602,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                               ),
                               Expanded(
                                 flex: 1,
-                                child: Consumer<PortScanProvider>(
-                                    builder: (context, portList, snapshot) {
+                                child: Consumer<PortScanProvider>(builder: (context, portList, snapshot) {
                                   return _PortsArea(
                                     deviceName: _deviceName,
                                     availablePorts: portList.availablePorts,
@@ -748,13 +663,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       // }
                                     },
                                     onWrite: (String add) async {
-                                      MessageValueSet? selectedCommand =
-                                          await showCommandPopUp(add);
+                                      MessageValueSet? selectedCommand = await showCommandPopUp(add);
                                       if (selectedCommand != null) {
-                                        _serialUtil.writeToPort(
-                                            bytesMessage:
-                                                selectedCommand.cmdAsBytes(),
-                                            address: add);
+                                        _serialUtil.writeToPort(bytesMessage: selectedCommand.cmdAsBytes(), address: add);
                                       }
                                     },
                                   );
@@ -783,9 +694,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     children: [
                       SpikerBoxButton(
                           onTapButton: () async {
-                            context
-                                .read<SoftwareConfigProvider>()
-                                .settingStatus(true);
+                            context.read<SoftwareConfigProvider>().settingStatus(true);
                           },
                           iconData: Icons.settings),
                       const SizedBox(
@@ -807,8 +716,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           stream: connectDeviceList(),
                           builder: (context, snapshot) {
                             if (snapshot.hasData) {
-                              List<ComDataWithBoard> listOfBoard =
-                                  snapshot.data!;
+                              List<ComDataWithBoard> listOfBoard = snapshot.data!;
 
                               return SizedBox(
                                 height: 50,
@@ -820,31 +728,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                     itemBuilder: (context, index) {
                                       return GestureDetector(
                                         onTap: () {
-                                          Provider.of<ConstantProvider>(context,
-                                                  listen: false)
-                                              .setBaudRate(int.parse(
-                                                  listOfBoard[index]
-                                                      .connectDevices
-                                                      .maxSampleRate
-                                                      .toString()));
-                                          Provider.of<ConstantProvider>(context,
-                                                  listen: false)
-                                              .setChannelCount(int.parse(
-                                                  listOfBoard[index]
-                                                      .connectDevices
-                                                      .maxNumberOfChannels
-                                                      .toString()));
-                                          Provider.of<ConstantProvider>(context,
-                                                  listen: false)
-                                              .setBitData(int.parse(
-                                                  listOfBoard[index]
-                                                      .connectDevices
-                                                      .sampleResolution
-                                                      .toString()));
+                                          Provider.of<ConstantProvider>(context, listen: false).setBaudRate(int.parse(listOfBoard[index].connectDevices.maxSampleRate.toString()));
+                                          Provider.of<ConstantProvider>(context, listen: false).setChannelCount(int.parse(listOfBoard[index].connectDevices.maxNumberOfChannels.toString()));
+                                          Provider.of<ConstantProvider>(context, listen: false).setBitData(int.parse(listOfBoard[index].connectDevices.sampleResolution.toString()));
                                         },
-                                        child: SpikerBoxButton(
-                                            onTapButton: () {},
-                                            iconData: Icons.usb),
+                                        child: SpikerBoxButton(onTapButton: () {}, iconData: Icons.usb),
                                       );
                                     }),
                               );
@@ -871,8 +759,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               ),
               BottomButtons(
                 pauseButton: (bool isPlay) {
-                  Provider.of<GraphResumePlayProvider>(context, listen: false)
-                      .setGraphResumePlay(isPlay);
+                  Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(isPlay);
                   _toPauseGraph = isPlay;
                 },
               ),
@@ -881,9 +768,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       floatingActionButton: kIsWeb
           ? FloatingActionButton.extended(
               elevation: 2,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22),
-                  side: const BorderSide(width: 2, color: Colors.grey)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: const BorderSide(width: 2, color: Colors.grey)),
               backgroundColor: SoftwareColors.kButtonBackGroundColor,
               onPressed: () async {
                 try {
@@ -891,28 +776,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   await _serialUtil.getAvailablePorts(baudRate);
                   _availablePorts = _serialUtil.availablePorts;
                   if (!mounted) return;
-                  Provider.of<PortScanProvider>(context, listen: false)
-                      .setPortScanList(_availablePorts);
-                  context
-                      .read<DataStatusProvider>()
-                      .setMicrophoneDataStatus(false);
+                  Provider.of<PortScanProvider>(context, listen: false).setPortScanList(_availablePorts);
+                  context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
 
                   // await _serialUtil.openPortToListen(
                   //     _availablePorts.first, baudRate);
 
                   if (!mounted) return;
-                  bool dummyDataStatus =
-                      context.read<DataStatusProvider>().isSampleDataOn;
-                  bool isAudioListen =
-                      context.read<DataStatusProvider>().isMicrophoneData;
+                  bool dummyDataStatus = context.read<DataStatusProvider>().isSampleDataOn;
+                  bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
 
                   _serialUtil.dataStream?.listen((event) {
                     if (!dummyDataStatus && !isAudioListen) {
                       _preEscapeSequenceBuffer.addBytes(event);
                       if (isDeviceConnect) {
-                        _serialUtil.writeToPort(
-                            bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
-                            address: _availablePorts.last);
+                        _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: _availablePorts.last);
 
                         isDeviceConnect = false;
                       }
@@ -956,12 +834,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   Stream<List<ComDataWithBoard>>? connectDeviceList() {
     // Create a stream controller to manage the stream
-    StreamController<List<ComDataWithBoard>> deviceListStream =
-        StreamController<List<ComDataWithBoard>>();
+    StreamController<List<ComDataWithBoard>> deviceListStream = StreamController<List<ComDataWithBoard>>();
 
     // Obtain the stream from the stream controller
-    Stream<List<ComDataWithBoard>>? deviceList =
-        deviceListStream.stream.asBroadcastStream();
+    Stream<List<ComDataWithBoard>>? deviceList = deviceListStream.stream.asBroadcastStream();
 
     // Stream<List<ComDataWithBoard>>? deviceList;
     // Call the asynchronous function to get all device lists
@@ -975,8 +851,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         }).toList();
 
         // Add the filtered list to the stream
-        List<ComDataWithBoard> deviceDataWithCom =
-            createComDataWithBoardList(connectedBoards, allDevices);
+        List<ComDataWithBoard> deviceDataWithCom = createComDataWithBoardList(connectedBoards, allDevices);
         deviceListStream.add(deviceDataWithCom);
 
         // Print the stream (optional)
@@ -989,15 +864,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
     return deviceList;
   }
 
-  List<ComDataWithBoard> createComDataWithBoardList(
-      List<Board> connectedBoards, List<SerialPortDataModel> allDevices) {
+  List<ComDataWithBoard> createComDataWithBoardList(List<Board> connectedBoards, List<SerialPortDataModel> allDevices) {
     List<ComDataWithBoard> result = [];
 
     for (SerialPortDataModel device in allDevices) {
       Board matchingBoard = connectedBoards.firstWhere(
         (board) => board.uniqueName == device.deviceDetect,
-        orElse: () => Board(
-            /* Default values or handle the case when no match is found */),
+        orElse: () => Board(/* Default values or handle the case when no match is found */),
       );
 
       ComDataWithBoard comDataWithBoard = ComDataWithBoard(
@@ -1013,14 +886,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   Future<void> portListOnConnect() async {
     DataStatusProvider dataStatus = context.read<DataStatusProvider>();
-    List<String> listOfPort =
-        Provider.of<PortScanProvider>(context, listen: false).availablePorts;
+    List<String> listOfPort = Provider.of<PortScanProvider>(context, listen: false).availablePorts;
     int baudRate = context.read<ConstantProvider>().getBaudRate();
     if (listOfPort.isEmpty) {
       return;
     }
-    Stream<Uint8List>? getData =
-        await _serialUtil.openPortToListen(listOfPort.last, baudRate);
+    Stream<Uint8List>? getData = await _serialUtil.openPortToListen(listOfPort.last, baudRate);
 
     bool dummyDataStatus = dataStatus.isSampleDataOn;
     bool isAudioListen = dataStatus.isMicrophoneData;
@@ -1035,9 +906,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         //     "the time taken is ${stopwatch.elapsedMilliseconds}and the length ${event.length}");
         stopwatch.reset();
         if (isDeviceConnect) {
-          _serialUtil.writeToPort(
-              bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
-              address: listOfPort.last);
+          _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: listOfPort.last);
 
           isDeviceConnect = false;
         }
@@ -1079,8 +948,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               items: items,
               onChanged: (MessageValueSet? dropDownChanges) {
                 setState(() {
-                  selectedValue = dropDownChanges
-                      as MessageValueSet; // Update selected value
+                  selectedValue = dropDownChanges as MessageValueSet; // Update selected value
                 });
               },
               value: selectedValue, // Use the selected value
@@ -1134,18 +1002,12 @@ class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
   void initState() {
     super.initState();
 
-    _notchPassFilterSettings = FilterSetup(
-        filterConfiguration: FilterConfiguration(
-            cutOffFrequency: 50, sampleRate: _sampleRate.toInt()),
-        filterType: FilterType.notchFilter,
-        channelCount: channelCountBuffer,
-        isFilterOn: false);
+    _notchPassFilterSettings = FilterSetup(filterConfiguration: FilterConfiguration(cutOffFrequency: 50, sampleRate: _sampleRate.toInt()), filterType: FilterType.notchFilter, channelCount: channelCountBuffer, isFilterOn: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<SampleRateProvider, DataStatusProvider>(
-        builder: (context, sampleRate, dataStatus, snapshot) {
+    return Consumer2<SampleRateProvider, DataStatusProvider>(builder: (context, sampleRate, dataStatus, snapshot) {
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1170,12 +1032,7 @@ class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
                     isNotch50 = value!;
                   }
                   dataStatus.set50HertzStatus(value);
-                  _notchPassFilterSettings = _notchPassFilterSettings.copyWith(
-                      filterType: FilterType.notchFilter,
-                      isFilterOn: value,
-                      filterConfiguration: FilterConfiguration(
-                          cutOffFrequency: 50,
-                          sampleRate: sampleRate.sampleRate));
+                  _notchPassFilterSettings = _notchPassFilterSettings.copyWith(filterType: FilterType.notchFilter, isFilterOn: value, filterConfiguration: FilterConfiguration(cutOffFrequency: 50, sampleRate: sampleRate.sampleRate));
                   widget.onTapNotchFrequency(_notchPassFilterSettings);
                 },
               ),
@@ -1200,12 +1057,7 @@ class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
                     isNotch60 = value!;
                   }
                   dataStatus.set60HertzStatus(value);
-                  _notchPassFilterSettings = _notchPassFilterSettings.copyWith(
-                      filterType: FilterType.notchFilter,
-                      isFilterOn: value,
-                      filterConfiguration: FilterConfiguration(
-                          cutOffFrequency: 60,
-                          sampleRate: sampleRate.sampleRate));
+                  _notchPassFilterSettings = _notchPassFilterSettings.copyWith(filterType: FilterType.notchFilter, isFilterOn: value, filterConfiguration: FilterConfiguration(cutOffFrequency: 60, sampleRate: sampleRate.sampleRate));
                   widget.onTapNotchFrequency(_notchPassFilterSettings);
                 },
               ),
@@ -1219,8 +1071,7 @@ class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
 
 // ignore: must_be_immutable
 class WhiteColorCheckBox extends StatefulWidget {
-  WhiteColorCheckBox(
-      {required this.valueStatus, super.key, required this.onChanged});
+  WhiteColorCheckBox({required this.valueStatus, super.key, required this.onChanged});
 
   bool? valueStatus;
   final Function(bool?) onChanged;
@@ -1261,8 +1112,7 @@ class SetFrequencyWidget extends StatelessWidget {
           style: SoftwareTextStyle().kWtMediumTextStyle,
         ),
         DecoratedBox(
-            decoration: BoxDecoration(
-                border: Border.all(width: 1, color: Colors.white)),
+            decoration: BoxDecoration(border: Border.all(width: 1, color: Colors.white)),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 2),
               child: Text(
@@ -1276,8 +1126,7 @@ class SetFrequencyWidget extends StatelessWidget {
 }
 
 class _AdaptiveArea extends StatefulWidget {
-  const _AdaptiveArea(
-      {required this.child1, required this.child3, required this.child2});
+  const _AdaptiveArea({required this.child1, required this.child3, required this.child2});
 
   final Widget child1;
   final Widget child2;
@@ -1290,8 +1139,7 @@ class _AdaptiveArea extends StatefulWidget {
 class _AdaptiveAreaState extends State<_AdaptiveArea> {
   @override
   Widget build(BuildContext context) {
-    return Consumer<SoftwareConfigProvider>(
-        builder: (context, softwareSetting, snapshot) {
+    return Consumer<SoftwareConfigProvider>(builder: (context, softwareSetting, snapshot) {
       return SizedBox.expand(
         child: Stack(
           children: [
@@ -1304,8 +1152,7 @@ class _AdaptiveAreaState extends State<_AdaptiveArea> {
                 ? Container(
                     color: Colors.black54.withOpacity(0.9),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 15),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
                       child: widget.child3,
                     ),
                   )
@@ -1342,11 +1189,7 @@ class _GraphAreaState extends State<_GraphArea> {
 }
 
 class _PortsArea extends StatelessWidget {
-  const _PortsArea(
-      {required this.deviceName,
-      required this.availablePorts,
-      required this.onReceive,
-      required this.onWrite});
+  const _PortsArea({required this.deviceName, required this.availablePorts, required this.onReceive, required this.onWrite});
 
   final ValueNotifier<String?> deviceName;
   final List<String> availablePorts;
@@ -1364,8 +1207,7 @@ class _PortsArea extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Text(address,
-                      style: SoftwareTextStyle().kWtMediumTextStyle),
+                  child: Text(address, style: SoftwareTextStyle().kWtMediumTextStyle),
                 ),
                 // Flexible(
                 //   child: SizedBox(
@@ -1434,11 +1276,9 @@ class _FilterProcessWidgetState extends State<FilterProcessWidget> {
   MicrophoneUtil microphoneUtil = MicrophoneUtil();
   bool _isSampleDataOn = false;
   bool _isMicrophoneEnable = false;
-  final TextEditingController _lowSampleRateController =
-      TextEditingController();
+  final TextEditingController _lowSampleRateController = TextEditingController();
   final TextEditingController _lowCutOffController = TextEditingController();
-  final TextEditingController _highSampleRateController =
-      TextEditingController();
+  final TextEditingController _highSampleRateController = TextEditingController();
   final TextEditingController _highCutOffController = TextEditingController();
 
   @override
@@ -1457,8 +1297,7 @@ class _FilterProcessWidgetState extends State<FilterProcessWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<DataStatusProvider>(
-        builder: (context, dataStatus, snapshot) {
+    return Consumer<DataStatusProvider>(builder: (context, dataStatus, snapshot) {
       return Column(
         children: [
           Row(
@@ -1473,8 +1312,7 @@ class _FilterProcessWidgetState extends State<FilterProcessWidget> {
                       widget.isMicrophoneEnable(_isMicrophoneEnable);
                     }
                   });
-                  Provider.of<SampleRateProvider>(context, listen: false)
-                      .setSampleRate(dummySamplingRate);
+                  Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(dummySamplingRate);
                   widget.onSampleChange(_isSampleDataOn);
                 },
               ),

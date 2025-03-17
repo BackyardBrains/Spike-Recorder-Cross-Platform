@@ -23,22 +23,24 @@ class ProcessingUtilImpl implements ProcessingUtil {
   static const int defaultSampleRate = 44100;
 
   @override
-  Future<void> init() async {
-    if (_isInitialized) return;
+  Future<bool> init() async {
+    if (_isInitialized) return true;
 
     // Initialize C++ processing
     final result = ProcessingBindings.instance.init();
     if (result != 0) {
-      throw Exception('Failed to initialize processing: $result');
+      print('Failed to initialize processing: $result');
+      return false;
     }
-
+    
     // Set default sample rate
-    final sampleRateResult =
-        ProcessingBindings.instance.setSampleRate(defaultSampleRate);
+    final sampleRateResult = 
+        ProcessingBindings.instance.setSampleRate(44100);
     if (sampleRateResult != 0) {
-      throw Exception('Failed to set sample rate: $sampleRateResult');
+      print('Failed to set sample rate: $sampleRateResult');
+      return false;
     }
-
+    
     // Create receive port for main isolate to receive messages from processing isolate
     portProcessingIsolateToMain = ReceivePort();
 
@@ -74,15 +76,56 @@ class ProcessingUtilImpl implements ProcessingUtil {
     await completer.future;
 
     _isInitialized = true;
+    return true;
   }
 
   @override
-  Future<void> processNewData(dynamic data) async {
+  List<Int16List> processMicrophoneData(Uint8List data) {
     if (!_isInitialized) {
       throw StateError('ProcessingUtil not initialized. Call init() first.');
     }
 
-    portMainToProcessingIsolate?.send(ProcessingMessage('newData', data));
+    // Allocate memory for output parameters
+    final outSamplesPtr = calloc<Pointer<Int16>>();
+    final outSampleCountsPtr = calloc<Int32>();
+    
+    try {
+      // Prepare input data pointer
+      final inDataPtr = calloc<Uint8>(data.length);
+      for (int i = 0; i < data.length; i++) {
+        inDataPtr[i] = data[i];
+      }
+      
+      // Process the microphone data
+      final result = ProcessingBindings.instance.processMicrophoneStream(
+        outSamplesPtr,
+        outSampleCountsPtr,
+        inDataPtr,
+        data.length
+      );
+      
+      // Free input data memory
+      calloc.free(inDataPtr);
+      
+      if (result != 0) {
+        throw Exception('Failed to process microphone data: $result');
+      }
+      
+      // Get the number of samples in the result
+      final sampleCount = outSampleCountsPtr.value;
+      
+      // Convert to Dart list
+      final resultSamples = Int16List(sampleCount);
+      for (int i = 0; i < sampleCount; i++) {
+        resultSamples[i] = outSamplesPtr.value[i];
+      }
+      
+      return [resultSamples]; // Return as list of channels
+    } finally {
+      // Free allocated memory
+      calloc.free(outSamplesPtr);
+      calloc.free(outSampleCountsPtr);
+    }
   }
 
   // Get the stream of processed data
@@ -158,5 +201,5 @@ dynamic _processData(dynamic data) {
   }
 }
 
-// Export the implementation
+// Factory function to create an instance
 ProcessingUtil createProcessingUtil() => ProcessingUtilImpl();

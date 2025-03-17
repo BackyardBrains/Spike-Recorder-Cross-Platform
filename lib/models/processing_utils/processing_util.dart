@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-// Export the platform-specific implementation
+// Conditional export based on platform
 export 'processing_util_native.dart'
     if (dart.library.html) 'processing_util_web.dart';
 
-// This is the base abstract class that defines the interface
+// The abstract interface all implementations must follow
 abstract class ProcessingUtil {
-  Future<void> init();
-  Future<void> processNewData(dynamic data);
+  Future<bool> init();
+  List<Int16List> processMicrophoneData(Uint8List data);
 }

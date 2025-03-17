@@ -29,9 +29,15 @@ typedef ProcessingSetNotchFilterNative = Int32 Function(Float centerFreq);
 typedef ProcessingSetNotchFilter = int Function(double centerFreq);
 
 typedef ProcessingProcessMicrophoneStreamNative = Int32 Function(
-    Pointer<Uint8> outData, Pointer<Uint8> inData, Int32 length);
+    Pointer<Pointer<Int16>> outSamples, 
+    Pointer<Int32> outSampleCounts,
+    Pointer<Uint8> inData, 
+    Int32 length);
 typedef ProcessingProcessMicrophoneStream = int Function(
-    Pointer<Uint8> outData, Pointer<Uint8> inData, int length);
+    Pointer<Pointer<Int16>> outSamples, 
+    Pointer<Int32> outSampleCounts,
+    Pointer<Uint8> inData, 
+    int length);
 
 typedef ProcessingFilterDataNative = Int32 Function(
     Pointer<Double> data, Int32 length);

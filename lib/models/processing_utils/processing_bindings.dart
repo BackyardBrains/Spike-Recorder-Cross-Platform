@@ -193,9 +193,7 @@ class ProcessingBindings {
         ProcessingSetSelectedChannelNative,
         ProcessingSetSelectedChannel>('processing_set_selected_channel');
 
-    setBandFilter = _lib!
-        .lookupFunction<ProcessingSetBandFilterNative, ProcessingSetBandFilter>(
-            'processing_set_band_filter');
+    setBandFilter = _lib!.lookupFunction<ProcessingSetBandFilterNative, ProcessingSetBandFilter>('processing_set_band_filter');
 
     setNotchFilter = _lib!.lookupFunction<ProcessingSetNotchFilterNative,
         ProcessingSetNotchFilter>('processing_set_notch_filter');

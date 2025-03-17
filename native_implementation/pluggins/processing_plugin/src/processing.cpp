@@ -843,3 +843,68 @@ void processing_cleanup() {
     cleanup_processors();
     initialized = false;
 }
+
+int32_t processing_set_band_filter(float low_cut_off_freq, float high_cut_off_freq) {
+    if (!initialized) {
+        return -1;  // Not initialized
+    }
+    
+    try {
+        // Store values in internal state
+        current_low_cut_off_freq = low_cut_off_freq;
+        current_high_cut_off_freq = high_cut_off_freq;
+        
+        // Apply to all processors (same as in byb-lib.cpp)
+        if (amModulationProcessor) {
+            amModulationProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+        }
+        
+        if (sampleStreamProcessor) {
+            sampleStreamProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+        }
+        
+        if (thresholdProcessor) {
+            thresholdProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+        }
+        
+        if (fftProcessor) {
+            fftProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+        }
+        
+        return 0;  // Success
+    } catch (...) {
+        return -3;  // Processing error
+    }
+}
+
+int32_t processing_set_notch_filter(float center_freq) {
+    if (!initialized) {
+        return -1;  // Not initialized
+    }
+    
+    try {
+        // Store value in internal state
+        current_notch_filter_freq = center_freq;
+        
+        // Apply to all processors (same as in byb-lib.cpp)
+        if (amModulationProcessor) {
+            amModulationProcessor->setNotchFilter(center_freq);
+        }
+        
+        if (sampleStreamProcessor) {
+            sampleStreamProcessor->setNotchFilter(center_freq);
+        }
+        
+        if (thresholdProcessor) {
+            thresholdProcessor->setNotchFilter(center_freq);
+        }
+        
+        if (fftProcessor) {
+            fftProcessor->setNotchFilter(center_freq);
+        }
+        
+        return 0;  // Success
+    } catch (...) {
+        return -3;  // Processing error
+    }
+}

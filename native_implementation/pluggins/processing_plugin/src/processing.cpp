@@ -324,11 +324,11 @@ int32_t processing_process_playback_stream(int16_t** out_samples, int32_t* out_s
     }
 }
 
-float processing_calculate_rms(const int16_t* data, int32_t length) {
+float processing_rms(const int16_t* data, int32_t length) {
     if (!initialized || !data || length <= 0) {
         return 0.0f;
     }
-
+    
     try {
         return backyardbrains::utils::AnalysisUtils::RMS(const_cast<short*>(data), length);
     } catch (...) {
@@ -906,5 +906,19 @@ int32_t processing_set_notch_filter(float center_freq) {
         return 0;  // Success
     } catch (...) {
         return -3;  // Processing error
+    }
+}
+
+int32_t processing_map(float* out_data, const float* in_data, int32_t length,
+                      float in_min, float in_max, float out_min, float out_max) {
+    if (!initialized || !out_data || !in_data || length <= 0) {
+        return -1;
+    }
+    
+    try {
+        backyardbrains::utils::AnalysisUtils::map(const_cast<float*>(in_data), out_data, length, in_min, in_max, out_min, out_max);
+        return 0;
+    } catch (...) {
+        return -3;
     }
 }

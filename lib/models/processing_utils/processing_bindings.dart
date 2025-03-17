@@ -64,9 +64,21 @@ typedef ProcessingMap = int Function(
     double outMax);
 
 typedef ProcessingProcessFftNative = Int32 Function(
-    Pointer<Float> outData, Pointer<Float> inData, Int32 length);
+    Pointer<Pointer<Float>> outData,
+    Int32 windowCount,
+    Pointer<Int32> windowCounter,
+    Pointer<Int32> frequencyCounter,
+    Pointer<Pointer<Int16>> inSamples,
+    Pointer<Int32> inSampleCounts
+);
 typedef ProcessingProcessFft = int Function(
-    Pointer<Float> outData, Pointer<Float> inData, int length);
+    Pointer<Pointer<Float>> outData,
+    int windowCount,
+    Pointer<Int32> windowCounter,
+    Pointer<Int32> frequencyCounter,
+    Pointer<Pointer<Int16>> inSamples,
+    Pointer<Int32> inSampleCounts
+);
 
 typedef ProcessingResetFftNormalizationNative = Void Function();
 typedef ProcessingResetFftNormalization = void Function();
@@ -203,15 +215,13 @@ class ProcessingBindings {
             ProcessingProcessMicrophoneStream>(
         'processing_process_microphone_stream');
 
-    filterData = _lib!
-        .lookupFunction<ProcessingFilterDataNative, ProcessingFilterData>(
-            'processing_filter_data');
+    // filterData = _lib!
+    //     .lookupFunction<ProcessingFilterDataNative, ProcessingFilterData>(
+    //         'processing_filter_data');
 
-    rms = _lib!
-        .lookupFunction<ProcessingRmsNative, ProcessingRms>('processing_rms');
+    rms = _lib!.lookupFunction<ProcessingRmsNative, ProcessingRms>('processing_rms');
 
-    map = _lib!
-        .lookupFunction<ProcessingMapNative, ProcessingMap>('processing_map');
+    map = _lib!.lookupFunction<ProcessingMapNative, ProcessingMap>('processing_map');
 
     processFft = _lib!
         .lookupFunction<ProcessingProcessFftNative, ProcessingProcessFft>(

@@ -64,18 +64,16 @@ typedef ProcessingMap = int Function(
     double outMax);
 
 typedef ProcessingProcessFftNative = Int32 Function(
-    Pointer<Pointer<Float>> outData,
-    Int32 windowCount,
-    Pointer<Int32> windowCounter,
-    Pointer<Int32> frequencyCounter,
+    Pointer<Pointer<Float>> outFft,
+    Pointer<Int32> outWindowCount,
+    Pointer<Int32> outWindowSize,
     Pointer<Pointer<Int16>> inSamples,
     Pointer<Int32> inSampleCounts
 );
 typedef ProcessingProcessFft = int Function(
-    Pointer<Pointer<Float>> outData,
-    int windowCount,
-    Pointer<Int32> windowCounter,
-    Pointer<Int32> frequencyCounter,
+    Pointer<Pointer<Float>> outFft,
+    Pointer<Int32> outWindowCount,
+    Pointer<Int32> outWindowSize,
     Pointer<Pointer<Int16>> inSamples,
     Pointer<Int32> inSampleCounts
 );
@@ -111,12 +109,18 @@ typedef ProcessingPauseThresholdNative = Void Function();
 typedef ProcessingPauseThreshold = void Function();
 
 typedef ProcessingProcessThresholdNative = Int32 Function(
-    Pointer<Float> outData,
-    Pointer<Float> inData,
-    Int32 length,
-    Int32 averageSamples);
-typedef ProcessingProcessThreshold = int Function(Pointer<Float> outData,
-    Pointer<Float> inData, int length, int averageSamples);
+    Pointer<Pointer<Int16>> outSamples,
+    Pointer<Int32> outSampleCounts,
+    Pointer<Pointer<Int16>> inSamples,
+    Pointer<Int32> inSampleCounts,
+    Bool averageSamples);
+
+typedef ProcessingProcessThreshold = int Function(
+    Pointer<Pointer<Int16>> outSamples,
+    Pointer<Int32> outSampleCounts,
+    Pointer<Pointer<Int16>> inSamples,
+    Pointer<Int32> inSampleCounts,
+    bool averageSamples);
 
 typedef ProcessingSetBpmProcessingNative = Void Function(Int32 processBpm);
 typedef ProcessingSetBpmProcessing = void Function(int processBpm);
@@ -260,17 +264,13 @@ class ProcessingBindings {
         .lookupFunction<ProcessingSetThresholdNative, ProcessingSetThreshold>(
             'processing_set_threshold');
 
-    resetThreshold = _lib!.lookupFunction<ProcessingResetThresholdNative,
-        ProcessingResetThreshold>('processing_reset_threshold');
+    resetThreshold = _lib!.lookupFunction<ProcessingResetThresholdNative, ProcessingResetThreshold>('processing_reset_threshold');
 
-    resumeThreshold = _lib!.lookupFunction<ProcessingResumeThresholdNative,
-        ProcessingResumeThreshold>('processing_resume_threshold');
+    resumeThreshold = _lib!.lookupFunction<ProcessingResumeThresholdNative, ProcessingResumeThreshold>('processing_resume_threshold');
 
-    pauseThreshold = _lib!.lookupFunction<ProcessingPauseThresholdNative,
-        ProcessingPauseThreshold>('processing_pause_threshold');
+    pauseThreshold = _lib!.lookupFunction<ProcessingPauseThresholdNative, ProcessingPauseThreshold>('processing_pause_threshold');
 
-    processThreshold = _lib!.lookupFunction<ProcessingProcessThresholdNative,
-        ProcessingProcessThreshold>('processing_process_threshold');
+    processThreshold = _lib!.lookupFunction<ProcessingProcessThresholdNative, ProcessingProcessThreshold>('processing_process_threshold');
 
     setBpmProcessing = _lib!.lookupFunction<ProcessingSetBpmProcessingNative,
         ProcessingSetBpmProcessing>('processing_set_bpm_processing');

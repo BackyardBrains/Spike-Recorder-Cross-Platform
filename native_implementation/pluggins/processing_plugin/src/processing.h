@@ -33,6 +33,7 @@ extern "C" {
 #define PROCESSING_MIN_FILTER_CUTOFF 0.0f
 #define PROCESSING_MAX_FILTER_CUTOFF 5000.0f
 #define PROCESSING_DEFAULT_AVERAGED_SAMPLE_COUNT 10
+#define PROCESSING_MAX_FFT_WINDOWS 100  // Maximum number of FFT windows to process
 
 // Basic initialization and configuration
 int32_t processing_init();
@@ -93,11 +94,14 @@ int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_
 void processing_set_bpm_processing(bool process_bpm);
 
 // Drawing utilities
-int32_t processing_prepare_for_signal_drawing(float* out_vertices, float* out_colors,
-                                            int32_t* out_vertex_count, int32_t* out_color_count,
-                                            const int16_t** in_samples, int32_t in_frame_count,
-                                            const int32_t* in_event_indices, int32_t in_event_count,
-                                            int32_t draw_start_index, int32_t draw_end_index,
+int32_t processing_prepare_for_signal_drawing(float* out_signal,
+                                            int32_t* out_events,
+                                            float** in_signal,
+                                            int32_t in_frame_count,
+                                            int32_t* in_event_indices,
+                                            int32_t in_event_count,
+                                            int32_t draw_start_index,
+                                            int32_t draw_end_index,
                                             int32_t draw_surface_width);
 
 // Event analysis

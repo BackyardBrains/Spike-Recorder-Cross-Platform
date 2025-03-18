@@ -359,19 +359,19 @@ int32_t processing_normalize_signal(float* out_data, const int16_t* in_data, int
     }
 }
 
-int32_t processing_process_fft(float** out_data, int32_t window_count, int32_t* window_counter,
-                             int32_t* frequency_counter, const int16_t** in_samples,
+int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
+                             int32_t* out_window_size, const int16_t** in_samples,
                              const int32_t* in_sample_counts) {
-    if (!initialized || !out_data || !window_counter || !frequency_counter || !in_samples || !in_sample_counts) {
+    if (!initialized || !out_fft || !out_window_count || !out_window_size || !in_samples || !in_sample_counts) {
         return -1;
     }
 
     try {
         fftProcessor->process(
-            out_data,
-            window_count,
-            *window_counter,
-            *frequency_counter,
+            out_fft,
+            PROCESSING_MAX_FFT_WINDOWS,  // Maximum window count
+            *out_window_count,
+            *out_window_size,
             current_channel_count,
             reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
             const_cast<int*>(in_sample_counts)
@@ -453,21 +453,33 @@ void processing_pause_threshold() {
 
 int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_counts,
                                    const int16_t** in_samples, const int32_t* in_sample_counts,
-                                   const int32_t* event_indices, const int32_t* events,
-                                   int32_t event_count) {
+                                   bool average_samples) {
     if (!initialized || !out_samples || !out_sample_counts || !in_samples || !in_sample_counts) {
         return -1;
     }
 
     try {
+        if (!average_samples) {
+            thresholdProcessor->appendIncomingSamples(
+                reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
+                const_cast<int*>(in_sample_counts)
+            );
+            return 0;
+        }
+
+        // For averaging samples, we need to pass empty arrays for events since they're not used
+        int* empty_event_indices = nullptr;
+        int* empty_events = nullptr;
+        int empty_event_count = 0;
+
         thresholdProcessor->process(
             reinterpret_cast<short**>(const_cast<int16_t**>(out_samples)),
             const_cast<int*>(out_sample_counts),
             reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
             const_cast<int*>(in_sample_counts),
-            const_cast<int*>(event_indices),
-            const_cast<int*>(events),
-            event_count
+            empty_event_indices,
+            empty_events,
+            empty_event_count
         );
         return 0;
     } catch (...) {
@@ -917,6 +929,69 @@ int32_t processing_map(float* out_data, const float* in_data, int32_t length,
     
     try {
         backyardbrains::utils::AnalysisUtils::map(const_cast<float*>(in_data), out_data, length, in_min, in_max, out_min, out_max);
+        return 0;
+    } catch (...) {
+        return -3;
+    }
+}
+
+int32_t processing_prepare_for_signal_drawing(float* out_signal,
+                                            int32_t* out_events,
+                                            float** in_signal,
+                                            int32_t in_frame_count,
+                                            int32_t* in_event_indices,
+                                            int32_t in_event_count,
+                                            int32_t draw_start_index,
+                                            int32_t draw_end_index,
+                                            int32_t draw_surface_width) {
+    if (!initialized || !out_signal || !out_events || !in_signal || 
+        in_frame_count <= 0 || draw_surface_width <= 0) {
+        return -1;
+    }
+
+    try {
+        // Calculate maximum sample count (same as in JNI implementation)
+        int32_t max_sample_count = draw_surface_width * 5;  // x5 when enveloping (from testing)
+        int32_t max_event_count = 100;
+
+        // Convert float samples to short for DrawingUtils
+        auto** in_samples = new short*[1];  // Assuming 1 channel for now
+        in_samples[0] = new short[in_frame_count];
+        for (int i = 0; i < in_frame_count; i++) {
+            in_samples[0][i] = static_cast<short>(in_signal[0][i]);
+        }
+
+        // Prepare arrays for drawing
+        float* out_vertices = new float[max_sample_count];
+        int32_t out_vertex_count = 0;
+        float* out_event_indices = new float[max_event_count];
+        int32_t out_event_count = 0;
+
+        // Call DrawingUtils to prepare the signal for drawing
+        backyardbrains::utils::DrawingUtils::prepareSignalForDrawing(
+            &out_vertices,  // Output vertices array
+            &out_vertex_count,  // Output vertex count
+            out_event_indices,  // Output event indices array
+            out_event_count,  // Output event count
+            in_samples,  // Input samples array
+            1,  // Channel count (assuming 1 channel for now)
+            in_event_indices,  // Input event indices
+            in_event_count,  // Input event count
+            draw_start_index,  // Draw start index
+            draw_end_index,  // Draw end index
+            draw_surface_width  // Draw surface width
+        );
+
+        // Copy results to output arrays
+        std::memcpy(out_signal, out_vertices, out_vertex_count * sizeof(float));
+        std::memcpy(out_events, out_event_indices, out_event_count * sizeof(float));
+
+        // Clean up
+        delete[] out_vertices;
+        delete[] out_event_indices;
+        delete[] in_samples[0];
+        delete[] in_samples;
+
         return 0;
     } catch (...) {
         return -3;

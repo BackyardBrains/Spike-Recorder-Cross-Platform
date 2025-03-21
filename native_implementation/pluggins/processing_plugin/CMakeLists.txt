@@ -17,6 +17,7 @@ endif()
 
 # Create a list of source files
 set(SOURCE_FILES
+    src/DebuggingLogBYB.cpp
     src/processing.cpp
     src/dr_wav.cpp
     src/Processor.cpp

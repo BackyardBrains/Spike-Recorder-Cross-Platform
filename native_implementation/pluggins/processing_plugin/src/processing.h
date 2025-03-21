@@ -1,6 +1,8 @@
 #ifndef PROCESSING_H
 #define PROCESSING_H
 
+
+
 #include <stdint.h>
 #include "FilterBase.h"
 #include "LowPassFilter.h"
@@ -21,6 +23,7 @@
 #include "AverageSpikeAnalysis.h"
 #include "AnalysisUtils.h"
 #include "EventUtils.h"
+
 
 #ifdef __cplusplus
 extern "C" {

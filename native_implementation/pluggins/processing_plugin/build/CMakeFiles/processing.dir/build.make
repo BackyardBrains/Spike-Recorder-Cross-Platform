@@ -72,10 +72,24 @@ include CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/codegen:
 .PHONY : CMakeFiles/processing.dir/codegen
 
+CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.o: CMakeFiles/processing.dir/flags.make
+CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/DebuggingLogBYB.cpp
+CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.o"
+	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.o -MF CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.o.d -o CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/DebuggingLogBYB.cpp
+
+CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.i"
+	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/DebuggingLogBYB.cpp > CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.i
+
+CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.s"
+	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/DebuggingLogBYB.cpp -o CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.s
+
 CMakeFiles/processing.dir/src/processing.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/processing.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/processing.cpp
 CMakeFiles/processing.dir/src/processing.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/processing.dir/src/processing.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/processing.dir/src/processing.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/processing.cpp.o -MF CMakeFiles/processing.dir/src/processing.cpp.o.d -o CMakeFiles/processing.dir/src/processing.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/processing.cpp
 
 CMakeFiles/processing.dir/src/processing.cpp.i: cmake_force
@@ -89,7 +103,7 @@ CMakeFiles/processing.dir/src/processing.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/dr_wav.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/dr_wav.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/dr_wav.cpp
 CMakeFiles/processing.dir/src/dr_wav.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/processing.dir/src/dr_wav.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/processing.dir/src/dr_wav.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/dr_wav.cpp.o -MF CMakeFiles/processing.dir/src/dr_wav.cpp.o.d -o CMakeFiles/processing.dir/src/dr_wav.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/dr_wav.cpp
 
 CMakeFiles/processing.dir/src/dr_wav.cpp.i: cmake_force
@@ -103,7 +117,7 @@ CMakeFiles/processing.dir/src/dr_wav.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/Processor.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/Processor.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/Processor.cpp
 CMakeFiles/processing.dir/src/Processor.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/processing.dir/src/Processor.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/processing.dir/src/Processor.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/Processor.cpp.o -MF CMakeFiles/processing.dir/src/Processor.cpp.o.d -o CMakeFiles/processing.dir/src/Processor.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/Processor.cpp
 
 CMakeFiles/processing.dir/src/Processor.cpp.i: cmake_force
@@ -117,7 +131,7 @@ CMakeFiles/processing.dir/src/Processor.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/SignalUtils.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/SignalUtils.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/SignalUtils.cpp
 CMakeFiles/processing.dir/src/SignalUtils.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/processing.dir/src/SignalUtils.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/processing.dir/src/SignalUtils.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/SignalUtils.cpp.o -MF CMakeFiles/processing.dir/src/SignalUtils.cpp.o.d -o CMakeFiles/processing.dir/src/SignalUtils.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/SignalUtils.cpp
 
 CMakeFiles/processing.dir/src/SignalUtils.cpp.i: cmake_force
@@ -131,7 +145,7 @@ CMakeFiles/processing.dir/src/SignalUtils.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/SpikeAnalysis.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/SpikeAnalysis.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/SpikeAnalysis.cpp
 CMakeFiles/processing.dir/src/SpikeAnalysis.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/processing.dir/src/SpikeAnalysis.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/processing.dir/src/SpikeAnalysis.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/SpikeAnalysis.cpp.o -MF CMakeFiles/processing.dir/src/SpikeAnalysis.cpp.o.d -o CMakeFiles/processing.dir/src/SpikeAnalysis.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/SpikeAnalysis.cpp
 
 CMakeFiles/processing.dir/src/SpikeAnalysis.cpp.i: cmake_force
@@ -145,7 +159,7 @@ CMakeFiles/processing.dir/src/SpikeAnalysis.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/ThresholdProcessor.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/ThresholdProcessor.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/ThresholdProcessor.cpp
 CMakeFiles/processing.dir/src/ThresholdProcessor.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/processing.dir/src/ThresholdProcessor.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/processing.dir/src/ThresholdProcessor.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/ThresholdProcessor.cpp.o -MF CMakeFiles/processing.dir/src/ThresholdProcessor.cpp.o.d -o CMakeFiles/processing.dir/src/ThresholdProcessor.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/ThresholdProcessor.cpp
 
 CMakeFiles/processing.dir/src/ThresholdProcessor.cpp.i: cmake_force
@@ -159,7 +173,7 @@ CMakeFiles/processing.dir/src/ThresholdProcessor.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/HeartbeatHelper.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/HeartbeatHelper.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/HeartbeatHelper.cpp
 CMakeFiles/processing.dir/src/HeartbeatHelper.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/processing.dir/src/HeartbeatHelper.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/processing.dir/src/HeartbeatHelper.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/HeartbeatHelper.cpp.o -MF CMakeFiles/processing.dir/src/HeartbeatHelper.cpp.o.d -o CMakeFiles/processing.dir/src/HeartbeatHelper.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/HeartbeatHelper.cpp
 
 CMakeFiles/processing.dir/src/HeartbeatHelper.cpp.i: cmake_force
@@ -173,7 +187,7 @@ CMakeFiles/processing.dir/src/HeartbeatHelper.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/HighPassFilter.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/HighPassFilter.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/HighPassFilter.cpp
 CMakeFiles/processing.dir/src/HighPassFilter.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/processing.dir/src/HighPassFilter.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/processing.dir/src/HighPassFilter.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/HighPassFilter.cpp.o -MF CMakeFiles/processing.dir/src/HighPassFilter.cpp.o.d -o CMakeFiles/processing.dir/src/HighPassFilter.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/HighPassFilter.cpp
 
 CMakeFiles/processing.dir/src/HighPassFilter.cpp.i: cmake_force
@@ -187,7 +201,7 @@ CMakeFiles/processing.dir/src/HighPassFilter.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/IsiAnalysis.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/IsiAnalysis.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/IsiAnalysis.cpp
 CMakeFiles/processing.dir/src/IsiAnalysis.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/processing.dir/src/IsiAnalysis.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/processing.dir/src/IsiAnalysis.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/IsiAnalysis.cpp.o -MF CMakeFiles/processing.dir/src/IsiAnalysis.cpp.o.d -o CMakeFiles/processing.dir/src/IsiAnalysis.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/IsiAnalysis.cpp
 
 CMakeFiles/processing.dir/src/IsiAnalysis.cpp.i: cmake_force
@@ -201,7 +215,7 @@ CMakeFiles/processing.dir/src/IsiAnalysis.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/LowPassFilter.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/LowPassFilter.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/LowPassFilter.cpp
 CMakeFiles/processing.dir/src/LowPassFilter.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/processing.dir/src/LowPassFilter.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/processing.dir/src/LowPassFilter.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/LowPassFilter.cpp.o -MF CMakeFiles/processing.dir/src/LowPassFilter.cpp.o.d -o CMakeFiles/processing.dir/src/LowPassFilter.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/LowPassFilter.cpp
 
 CMakeFiles/processing.dir/src/LowPassFilter.cpp.i: cmake_force
@@ -215,7 +229,7 @@ CMakeFiles/processing.dir/src/LowPassFilter.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/NotchFilter.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/NotchFilter.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/NotchFilter.cpp
 CMakeFiles/processing.dir/src/NotchFilter.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/processing.dir/src/NotchFilter.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/processing.dir/src/NotchFilter.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/NotchFilter.cpp.o -MF CMakeFiles/processing.dir/src/NotchFilter.cpp.o.d -o CMakeFiles/processing.dir/src/NotchFilter.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/NotchFilter.cpp
 
 CMakeFiles/processing.dir/src/NotchFilter.cpp.i: cmake_force
@@ -229,7 +243,7 @@ CMakeFiles/processing.dir/src/NotchFilter.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/SampleStreamProcessor.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/SampleStreamProcessor.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/SampleStreamProcessor.cpp
 CMakeFiles/processing.dir/src/SampleStreamProcessor.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/processing.dir/src/SampleStreamProcessor.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/processing.dir/src/SampleStreamProcessor.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/SampleStreamProcessor.cpp.o -MF CMakeFiles/processing.dir/src/SampleStreamProcessor.cpp.o.d -o CMakeFiles/processing.dir/src/SampleStreamProcessor.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/SampleStreamProcessor.cpp
 
 CMakeFiles/processing.dir/src/SampleStreamProcessor.cpp.i: cmake_force
@@ -243,7 +257,7 @@ CMakeFiles/processing.dir/src/SampleStreamProcessor.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/SampleStreamUtils.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/SampleStreamUtils.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/SampleStreamUtils.cpp
 CMakeFiles/processing.dir/src/SampleStreamUtils.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/processing.dir/src/SampleStreamUtils.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/processing.dir/src/SampleStreamUtils.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/SampleStreamUtils.cpp.o -MF CMakeFiles/processing.dir/src/SampleStreamUtils.cpp.o.d -o CMakeFiles/processing.dir/src/SampleStreamUtils.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/SampleStreamUtils.cpp
 
 CMakeFiles/processing.dir/src/SampleStreamUtils.cpp.i: cmake_force
@@ -257,7 +271,7 @@ CMakeFiles/processing.dir/src/SampleStreamUtils.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/AudioFFT.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/AudioFFT.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/AudioFFT.cpp
 CMakeFiles/processing.dir/src/AudioFFT.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/processing.dir/src/AudioFFT.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/processing.dir/src/AudioFFT.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/AudioFFT.cpp.o -MF CMakeFiles/processing.dir/src/AudioFFT.cpp.o.d -o CMakeFiles/processing.dir/src/AudioFFT.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/AudioFFT.cpp
 
 CMakeFiles/processing.dir/src/AudioFFT.cpp.i: cmake_force
@@ -271,7 +285,7 @@ CMakeFiles/processing.dir/src/AudioFFT.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/AutocorrelationAnalysis.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/AutocorrelationAnalysis.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/AutocorrelationAnalysis.cpp
 CMakeFiles/processing.dir/src/AutocorrelationAnalysis.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/processing.dir/src/AutocorrelationAnalysis.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/processing.dir/src/AutocorrelationAnalysis.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/AutocorrelationAnalysis.cpp.o -MF CMakeFiles/processing.dir/src/AutocorrelationAnalysis.cpp.o.d -o CMakeFiles/processing.dir/src/AutocorrelationAnalysis.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/AutocorrelationAnalysis.cpp
 
 CMakeFiles/processing.dir/src/AutocorrelationAnalysis.cpp.i: cmake_force
@@ -285,7 +299,7 @@ CMakeFiles/processing.dir/src/AutocorrelationAnalysis.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/AverageSpikeAnalysis.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/AverageSpikeAnalysis.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/AverageSpikeAnalysis.cpp
 CMakeFiles/processing.dir/src/AverageSpikeAnalysis.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/processing.dir/src/AverageSpikeAnalysis.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/processing.dir/src/AverageSpikeAnalysis.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/AverageSpikeAnalysis.cpp.o -MF CMakeFiles/processing.dir/src/AverageSpikeAnalysis.cpp.o.d -o CMakeFiles/processing.dir/src/AverageSpikeAnalysis.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/AverageSpikeAnalysis.cpp
 
 CMakeFiles/processing.dir/src/AverageSpikeAnalysis.cpp.i: cmake_force
@@ -299,7 +313,7 @@ CMakeFiles/processing.dir/src/AverageSpikeAnalysis.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/CrossCorrelationAnalysis.cpp
 CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.o -MF CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.o.d -o CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/CrossCorrelationAnalysis.cpp
 
 CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.i: cmake_force
@@ -313,7 +327,7 @@ CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/DrawingUtils.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/DrawingUtils.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/DrawingUtils.cpp
 CMakeFiles/processing.dir/src/DrawingUtils.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/processing.dir/src/DrawingUtils.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object CMakeFiles/processing.dir/src/DrawingUtils.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/DrawingUtils.cpp.o -MF CMakeFiles/processing.dir/src/DrawingUtils.cpp.o.d -o CMakeFiles/processing.dir/src/DrawingUtils.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/DrawingUtils.cpp
 
 CMakeFiles/processing.dir/src/DrawingUtils.cpp.i: cmake_force
@@ -327,7 +341,7 @@ CMakeFiles/processing.dir/src/DrawingUtils.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/EventTriggeredAverageAnalysis.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/EventTriggeredAverageAnalysis.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/EventTriggeredAverageAnalysis.cpp
 CMakeFiles/processing.dir/src/EventTriggeredAverageAnalysis.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object CMakeFiles/processing.dir/src/EventTriggeredAverageAnalysis.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object CMakeFiles/processing.dir/src/EventTriggeredAverageAnalysis.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/EventTriggeredAverageAnalysis.cpp.o -MF CMakeFiles/processing.dir/src/EventTriggeredAverageAnalysis.cpp.o.d -o CMakeFiles/processing.dir/src/EventTriggeredAverageAnalysis.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/EventTriggeredAverageAnalysis.cpp
 
 CMakeFiles/processing.dir/src/EventTriggeredAverageAnalysis.cpp.i: cmake_force
@@ -341,7 +355,7 @@ CMakeFiles/processing.dir/src/EventTriggeredAverageAnalysis.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/EventUtils.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/EventUtils.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/EventUtils.cpp
 CMakeFiles/processing.dir/src/EventUtils.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object CMakeFiles/processing.dir/src/EventUtils.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building CXX object CMakeFiles/processing.dir/src/EventUtils.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/EventUtils.cpp.o -MF CMakeFiles/processing.dir/src/EventUtils.cpp.o.d -o CMakeFiles/processing.dir/src/EventUtils.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/EventUtils.cpp
 
 CMakeFiles/processing.dir/src/EventUtils.cpp.i: cmake_force
@@ -355,7 +369,7 @@ CMakeFiles/processing.dir/src/EventUtils.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/FftProcessor.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/FftProcessor.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/FftProcessor.cpp
 CMakeFiles/processing.dir/src/FftProcessor.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building CXX object CMakeFiles/processing.dir/src/FftProcessor.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Building CXX object CMakeFiles/processing.dir/src/FftProcessor.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/FftProcessor.cpp.o -MF CMakeFiles/processing.dir/src/FftProcessor.cpp.o.d -o CMakeFiles/processing.dir/src/FftProcessor.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/FftProcessor.cpp
 
 CMakeFiles/processing.dir/src/FftProcessor.cpp.i: cmake_force
@@ -369,7 +383,7 @@ CMakeFiles/processing.dir/src/FftProcessor.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/FilterBase.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/FilterBase.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/FilterBase.cpp
 CMakeFiles/processing.dir/src/FilterBase.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Building CXX object CMakeFiles/processing.dir/src/FilterBase.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_23) "Building CXX object CMakeFiles/processing.dir/src/FilterBase.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/FilterBase.cpp.o -MF CMakeFiles/processing.dir/src/FilterBase.cpp.o.d -o CMakeFiles/processing.dir/src/FilterBase.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/FilterBase.cpp
 
 CMakeFiles/processing.dir/src/FilterBase.cpp.i: cmake_force
@@ -383,7 +397,7 @@ CMakeFiles/processing.dir/src/FilterBase.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/AmModulationProcessor.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/AmModulationProcessor.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/AmModulationProcessor.cpp
 CMakeFiles/processing.dir/src/AmModulationProcessor.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_23) "Building CXX object CMakeFiles/processing.dir/src/AmModulationProcessor.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_24) "Building CXX object CMakeFiles/processing.dir/src/AmModulationProcessor.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/AmModulationProcessor.cpp.o -MF CMakeFiles/processing.dir/src/AmModulationProcessor.cpp.o.d -o CMakeFiles/processing.dir/src/AmModulationProcessor.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/AmModulationProcessor.cpp
 
 CMakeFiles/processing.dir/src/AmModulationProcessor.cpp.i: cmake_force
@@ -397,7 +411,7 @@ CMakeFiles/processing.dir/src/AmModulationProcessor.cpp.s: cmake_force
 CMakeFiles/processing.dir/src/AnalysisUtils.cpp.o: CMakeFiles/processing.dir/flags.make
 CMakeFiles/processing.dir/src/AnalysisUtils.cpp.o: /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/AnalysisUtils.cpp
 CMakeFiles/processing.dir/src/AnalysisUtils.cpp.o: CMakeFiles/processing.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_24) "Building CXX object CMakeFiles/processing.dir/src/AnalysisUtils.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_25) "Building CXX object CMakeFiles/processing.dir/src/AnalysisUtils.cpp.o"
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/processing.dir/src/AnalysisUtils.cpp.o -MF CMakeFiles/processing.dir/src/AnalysisUtils.cpp.o.d -o CMakeFiles/processing.dir/src/AnalysisUtils.cpp.o -c /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/AnalysisUtils.cpp
 
 CMakeFiles/processing.dir/src/AnalysisUtils.cpp.i: cmake_force
@@ -410,6 +424,7 @@ CMakeFiles/processing.dir/src/AnalysisUtils.cpp.s: cmake_force
 
 # Object files for target processing
 processing_OBJECTS = \
+"CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.o" \
 "CMakeFiles/processing.dir/src/processing.cpp.o" \
 "CMakeFiles/processing.dir/src/dr_wav.cpp.o" \
 "CMakeFiles/processing.dir/src/Processor.cpp.o" \
@@ -438,6 +453,7 @@ processing_OBJECTS = \
 # External object files for target processing
 processing_EXTERNAL_OBJECTS =
 
+libprocessing.dylib: CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.o
 libprocessing.dylib: CMakeFiles/processing.dir/src/processing.cpp.o
 libprocessing.dylib: CMakeFiles/processing.dir/src/dr_wav.cpp.o
 libprocessing.dylib: CMakeFiles/processing.dir/src/Processor.cpp.o
@@ -464,7 +480,7 @@ libprocessing.dylib: CMakeFiles/processing.dir/src/AmModulationProcessor.cpp.o
 libprocessing.dylib: CMakeFiles/processing.dir/src/AnalysisUtils.cpp.o
 libprocessing.dylib: CMakeFiles/processing.dir/build.make
 libprocessing.dylib: CMakeFiles/processing.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_25) "Linking CXX shared library libprocessing.dylib"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_26) "Linking CXX shared library libprocessing.dylib"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/processing.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

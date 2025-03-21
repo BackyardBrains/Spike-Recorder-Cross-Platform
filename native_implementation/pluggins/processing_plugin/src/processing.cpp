@@ -4,6 +4,7 @@
 #include <cstring>
 #include <algorithm>
 #include <sys/time.h>
+#include "DebuggingLogBYB.h"
 
 using namespace backyardbrains::filters;
 using namespace backyardbrains::processing;
@@ -101,39 +102,41 @@ private:
 
 // Helper functions
 static void initialize_processors() {
-    if (!eventListener) {
-        eventListener = new EventListener();
-    }
-    if (!amModulationProcessor) {
-        amModulationProcessor = new AmModulationProcessor();
-    }
-    if (!sampleStreamProcessor) {
-        sampleStreamProcessor = new SampleStreamProcessor(eventListener);
-    }
-    if (!thresholdProcessor) {
-        thresholdProcessor = new ThresholdProcessor(new HeartbeatListener());
-    }
-    if (!fftProcessor) {
-        fftProcessor = new FftProcessor();
-    }
-    if (!eventTriggeredAverageAnalysis) {
-        eventTriggeredAverageAnalysis = new EventTriggeredAverageAnalysis();
-    }
-    if (!spikeAnalysis) {
-        spikeAnalysis = new SpikeAnalysis();
-    }
-    if (!autocorrelationAnalysis) {
-        autocorrelationAnalysis = new AutocorrelationAnalysis();
-    }
-    if (!isiAnalysis) {
-        isiAnalysis = new IsiAnalysis();
-    }
-    if (!averageSpikeAnalysis) {
-        averageSpikeAnalysis = new AverageSpikeAnalysis();
-    }
-    if (!crossCorrelationAnalysis) {
-        crossCorrelationAnalysis = new CrossCorrelationAnalysis();
-    }
+
+      log_debug("Debug init 2");
+      if (!eventListener) {
+            eventListener = new EventListener();
+      }
+      if (!amModulationProcessor) {
+            amModulationProcessor = new AmModulationProcessor();
+      }
+      if (!sampleStreamProcessor) {
+            sampleStreamProcessor = new SampleStreamProcessor(eventListener);
+      }
+      if (!thresholdProcessor) {
+            thresholdProcessor = new ThresholdProcessor(new HeartbeatListener());
+      }
+      if (!fftProcessor) {
+            fftProcessor = new FftProcessor();
+      }
+      if (!eventTriggeredAverageAnalysis) {
+            eventTriggeredAverageAnalysis = new EventTriggeredAverageAnalysis();
+      }
+      if (!spikeAnalysis) {
+            spikeAnalysis = new SpikeAnalysis();
+      }
+      if (!autocorrelationAnalysis) {
+            autocorrelationAnalysis = new AutocorrelationAnalysis();
+      }
+      if (!isiAnalysis) {
+            isiAnalysis = new IsiAnalysis();
+      }
+      if (!averageSpikeAnalysis) {
+            averageSpikeAnalysis = new AverageSpikeAnalysis();
+      }
+      if (!crossCorrelationAnalysis) {
+            crossCorrelationAnalysis = new CrossCorrelationAnalysis();
+      }
 }
 
 static void cleanup_processors() {
@@ -167,7 +170,7 @@ int32_t processing_init() {
     if (initialized) {
         return 0;
     }
-    
+    log_debug("Debug init");
     try {
         // Initialize default settings
         current_sample_rate = PROCESSING_DEFAULT_SAMPLE_RATE;
@@ -293,8 +296,52 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
 
 int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out_sample_counts,
                                            const uint8_t* in_data, int32_t length) {
-    // For microphone stream, use hardware type 0 (default)
-    return processing_process_sample_stream(out_samples, out_sample_counts, in_data, length, 0);
+
+      if (!initialized || !out_samples || !out_sample_counts || !in_data || length <= 0) {
+            return -1;
+      }
+      log_debug("Processing microphone data: length=%d", length);
+      log_debug("Processing microphone data 2");
+      try {
+            // Calculate sample count based on bits per sample
+            int32_t sample_count = length * 8 / current_bits_per_sample;
+            int32_t frame_count = sample_count / current_channel_count;
+
+            log_debug("Processing microphone data: frame_count=%d", frame_count);
+            log_debug("Processing microphone data: sample_count=%d", sample_count);
+            // Store the AM modulation state before processing
+            bool is_receiving_am_signal_before = amModulationProcessor->isReceivingAmSignal();
+
+            // Process the audio data through AM modulation processor
+            // Note: amModulationProcessor expects interleaved samples as input 
+            // and will handle deinterleaving internally
+            log_debug("Processing before am modulation");
+
+             // Allocate array of pointers for each channel (like in byb-lib.cpp)
+            int16_t** channel_samples = new int16_t*[current_channel_count];
+            for (int i = 0; i < current_channel_count; i++) {
+                  channel_samples[i] = new int16_t[frame_count]{0};
+            }
+            amModulationProcessor->process(
+                  reinterpret_cast<short*>(const_cast<uint8_t*>(in_data)),
+                  out_samples,
+                  sample_count,
+                  frame_count
+            );
+            log_debug("Processing after am modulation");
+            // Check if AM modulation state changed (for potential callbacks)
+            bool is_receiving_am_signal_after = amModulationProcessor->isReceivingAmSignal();
+            log_debug("Processing after is receiving am signal");
+            // Set output sample counts for all channels
+            for (int i = 0; i < current_channel_count; i++) {
+                  out_sample_counts[i] = frame_count;
+            }
+            log_debug("Processing after set sample counts");
+            return 0;
+      } catch (...) {
+            log_debug("Exception ");
+            return -3;
+      }
 }
 
 int32_t processing_process_playback_stream(int16_t** out_samples, int32_t* out_sample_counts,

@@ -1055,4 +1055,5 @@ CMakeFiles/processing.dir/src/processing.cpp.o: \
   /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AverageSpikeAnalysis.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/sys/time.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/sys/_types/_timeval64.h \
-  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/sys/_select.h
+  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/sys/_select.h \
+  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/DebuggingLogBYB.h

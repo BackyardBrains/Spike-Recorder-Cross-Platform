@@ -11,6 +11,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/processing.dir/src/AverageSpikeAnalysis.cpp.o.d"
   "CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.o"
   "CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.o.d"
+  "CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.o"
+  "CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.o.d"
   "CMakeFiles/processing.dir/src/DrawingUtils.cpp.o"
   "CMakeFiles/processing.dir/src/DrawingUtils.cpp.o.d"
   "CMakeFiles/processing.dir/src/EventTriggeredAverageAnalysis.cpp.o"

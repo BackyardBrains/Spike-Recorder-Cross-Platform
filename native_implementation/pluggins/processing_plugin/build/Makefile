@@ -273,6 +273,30 @@ src/CrossCorrelationAnalysis.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/processing.dir/build.make CMakeFiles/processing.dir/src/CrossCorrelationAnalysis.cpp.s
 .PHONY : src/CrossCorrelationAnalysis.cpp.s
 
+src/DebuggingLogBYB.o: src/DebuggingLogBYB.cpp.o
+.PHONY : src/DebuggingLogBYB.o
+
+# target to build an object file
+src/DebuggingLogBYB.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/processing.dir/build.make CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.o
+.PHONY : src/DebuggingLogBYB.cpp.o
+
+src/DebuggingLogBYB.i: src/DebuggingLogBYB.cpp.i
+.PHONY : src/DebuggingLogBYB.i
+
+# target to preprocess a source file
+src/DebuggingLogBYB.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/processing.dir/build.make CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.i
+.PHONY : src/DebuggingLogBYB.cpp.i
+
+src/DebuggingLogBYB.s: src/DebuggingLogBYB.cpp.s
+.PHONY : src/DebuggingLogBYB.s
+
+# target to generate assembly for a file
+src/DebuggingLogBYB.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/processing.dir/build.make CMakeFiles/processing.dir/src/DebuggingLogBYB.cpp.s
+.PHONY : src/DebuggingLogBYB.cpp.s
+
 src/DrawingUtils.o: src/DrawingUtils.cpp.o
 .PHONY : src/DrawingUtils.o
 
@@ -732,6 +756,9 @@ help:
 	@echo "... src/CrossCorrelationAnalysis.o"
 	@echo "... src/CrossCorrelationAnalysis.i"
 	@echo "... src/CrossCorrelationAnalysis.s"
+	@echo "... src/DebuggingLogBYB.o"
+	@echo "... src/DebuggingLogBYB.i"
+	@echo "... src/DebuggingLogBYB.s"
 	@echo "... src/DrawingUtils.o"
 	@echo "... src/DrawingUtils.i"
 	@echo "... src/DrawingUtils.s"

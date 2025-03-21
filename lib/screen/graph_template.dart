@@ -188,7 +188,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
         //processingUtil.processNewData(event);
         if (isAudioListen) {
           _preprocessingBuffer.addBytes(event);
-          processingUtil.processMicrophoneData(event);
+          List<Int16List> processedData = processingUtil.processMicrophoneData(event);
+          print('Processed microphone data: ${processedData.length} channels');
+          // for (int i = 0; i < processedData.length; i++) {
+          //   print('Channel $i: First 5 samples: ${processedData[i].take(5).toList()}');
+          // }
         }
       });
     });

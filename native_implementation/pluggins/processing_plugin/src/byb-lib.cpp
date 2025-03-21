@@ -721,7 +721,7 @@ Java_com_backyardbrains_utils_JniUtils_isAudioStreamAmModulated(JNIEnv *env, jcl
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_backyardbrains_utils_JniUtils_processMicrophoneStream(JNIEnv *env, jclass type,
+(JNIEnv *env, jclass type,
                                                                jobject out,
                                                                jbyteArray inBytes, jint length) {
     jint channelCount = env->GetIntField(out, sdChannelCountFid);
@@ -778,7 +778,7 @@ Java_com_backyardbrains_utils_JniUtils_processMicrophoneStream(JNIEnv *env, jcla
     delete[] deinterleavedSampleCounts;
 }
 
-extern "C" JNIEXPORT void JNICALL
+extern "C" JNIEXJava_com_backyardbrains_utils_JniUtils_processMicrophoneStreamPORT void JNICALL
 Java_com_backyardbrains_utils_JniUtils_processPlaybackStream(JNIEnv *env, jclass type, jobject out,
                                                              jbyteArray inBytes,
                                                              jint length, jintArray inEventIndices,

@@ -36,8 +36,7 @@ namespace backyardbrains {
                                             int hardwareType) {
 //            batchCounter++;
 
-            if (prevChannelCount !=
-                channelCount) { // number of channels changed during processing of previous batch
+            if (prevChannelCount != channelCount) { // number of channels changed during processing of previous batch
                 frameStarted = false;
                 sampleStarted = false;
                 currentChannel = 0;

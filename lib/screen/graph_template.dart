@@ -181,6 +181,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       ]);
 
       await processingUtil.init();
+      //init microphone stream  
+      await processingUtil.initializeMicrophone(widget.channelCount, 44100);
 
       microphoneUtil.micStream!.listen((event) {
         bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;

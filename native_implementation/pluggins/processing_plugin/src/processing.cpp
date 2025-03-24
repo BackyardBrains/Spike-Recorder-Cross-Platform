@@ -317,18 +317,32 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
             // and will handle deinterleaving internally
             log_debug("Processing before am modulation");
 
-             // Allocate array of pointers for each channel (like in byb-lib.cpp)
+            // Allocate array of pointers for each channel (like in byb-lib.cpp)
             int16_t** channel_samples = new int16_t*[current_channel_count];
             for (int i = 0; i < current_channel_count; i++) {
                   channel_samples[i] = new int16_t[frame_count]{0};
             }
+            
+            // Pass channel_samples to amModulationProcessor, not out_samples
             amModulationProcessor->process(
                   reinterpret_cast<short*>(const_cast<uint8_t*>(in_data)),
-                  out_samples,
+                  channel_samples,  // FIXED: Use channel_samples instead of out_samples
                   sample_count,
                   frame_count
             );
             log_debug("Processing after am modulation");
+            
+            // Copy processed data from channel_samples to out_samples
+            for (int i = 0; i < current_channel_count; i++) {
+                  std::copy(channel_samples[i], channel_samples[i] + frame_count, out_samples[i]);
+            }
+            
+            // Clean up channel_samples to avoid memory leaks
+            for (int i = 0; i < current_channel_count; i++) {
+                  delete[] channel_samples[i];
+            }
+            delete[] channel_samples;
+            
             // Check if AM modulation state changed (for potential callbacks)
             bool is_receiving_am_signal_after = amModulationProcessor->isReceivingAmSignal();
             log_debug("Processing after is receiving am signal");

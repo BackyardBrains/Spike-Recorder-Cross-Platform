@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ffi';
 
 // Conditional export based on platform
 export 'processing_util_native.dart'
@@ -11,7 +12,7 @@ abstract class ProcessingUtil {
   static const double MAX_DISPLAY_SECONDS = 10.0;
   
   // Data buffer to store processed audio data (channels × samples)
-  List<Int16List>? currentDataBuffer;
+  Pointer<Pointer<Int16>>? currentDataBuffer;
   
   Future<bool> init();
   

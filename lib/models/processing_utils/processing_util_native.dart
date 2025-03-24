@@ -7,136 +7,206 @@ import 'processing_util.dart';
 import 'processing_bindings.dart';
 
 // Message class for communication between isolates
-class ProcessingMessage {
-  final String type;
-  final dynamic data;
+class ProcessingMessage 
+{
+	final String type;
+	final dynamic data;
 
-  ProcessingMessage(this.type, this.data);
+	ProcessingMessage(this.type, this.data);
 }
 
-class ProcessingUtilImpl implements ProcessingUtil {
-  Isolate? _processingIsolate;
-  SendPort? portMainToProcessingIsolate;
-  ReceivePort? portProcessingIsolateToMain;
-  final _dataController = StreamController<dynamic>.broadcast();
-  bool _isInitialized = false;
-  static const int defaultSampleRate = 44100;
+class ProcessingUtilImpl implements ProcessingUtil 
+{
 
-  @override
-  Future<bool> init() async {
-	if (_isInitialized) return true;
+	Isolate? _processingIsolate;
+	SendPort? portMainToProcessingIsolate;
+	ReceivePort? portProcessingIsolateToMain;
+	final _dataController = StreamController<dynamic>.broadcast();
+	bool _isInitialized = false;
+	int _sampleRate = 44100;
+	int _channelCount = 1;
 
-	// Initialize C++ processing
-	final result = ProcessingBindings.instance.init();
-	if (result != 0) {
-		print('Failed to initialize processing: $result');
-		return false;
-	}
+  	// Implementation of the data buffer
+	@override
+	Pointer<Pointer<Int16>>? currentDataBuffer;
 
-	// Set default sample rate
-	final sampleRateResult = ProcessingBindings.instance.setSampleRate(44100);
-	if (sampleRateResult != 0) {
-		print('Failed to set sample rate: $sampleRateResult');
-		return false;
-	}
+  	@override
+  	Future<bool> init() async {
+		if (_isInitialized) return true;
 
-	// Create receive port for main isolate to receive messages from processing isolate
-	portProcessingIsolateToMain = ReceivePort();
-
-	// Create a completer to wait for the SendPort
-	final completer = Completer<SendPort>();
-
-	// Set up a single listener for all messages from the processing isolate
-	portProcessingIsolateToMain!.listen((message) {
-		if (!completer.isCompleted && message is SendPort) {
-		// First message is the SendPort from the processing isolate
-		portMainToProcessingIsolate = message;
-		completer.complete(message);
-		} else if (message is ProcessingMessage) {
-		// Process subsequent messages
-		switch (message.type) {
-		case 'processedData':
-			_dataController.add(message.data);
-			break;
-		case 'error':
-			_dataController.addError(message.data);
-			break;
+		// Initialize C++ processing
+		final result = ProcessingBindings.instance.init();
+		if (result != 0) {
+			print('Failed to initialize processing: $result');
+			return false;
 		}
+
+		// Set default sample rate
+		final sampleRateResult = ProcessingBindings.instance.setSampleRate(44100);
+		if (sampleRateResult != 0) {
+			print('Failed to set sample rate: $sampleRateResult');
+			return false;
 		}
-	});
 
-	// Spawn the processing isolate
-	_processingIsolate = await Isolate.spawn(
-		_processingIsolateFunction,
-		portProcessingIsolateToMain!.sendPort,
-	);
+		// Create receive port for main isolate to receive messages from processing isolate
+		portProcessingIsolateToMain = ReceivePort();
 
-	// Wait for the SendPort to be received before continuing
-	await completer.future;
+		// Create a completer to wait for the SendPort
+		final completer = Completer<SendPort>();
 
-	_isInitialized = true;
-	return true;
+		// Set up a single listener for all messages from the processing isolate
+		portProcessingIsolateToMain!.listen((message) {
+			if (!completer.isCompleted && message is SendPort) {
+			// First message is the SendPort from the processing isolate
+			portMainToProcessingIsolate = message;
+			completer.complete(message);
+			} else if (message is ProcessingMessage) {
+			// Process subsequent messages
+			switch (message.type) {
+			case 'processedData':
+				_dataController.add(message.data);
+				break;
+			case 'error':
+				_dataController.addError(message.data);
+				break;
+			}
+			}
+		});
+
+		// Spawn the processing isolate
+		_processingIsolate = await Isolate.spawn(
+			_processingIsolateFunction,
+			portProcessingIsolateToMain!.sendPort,
+		);
+
+		// Wait for the SendPort to be received before continuing
+		await completer.future;
+
+		_isInitialized = true;
+		return true;
 	}
 
 	@override
+	Future<bool> initializeMicrophone(int channelCount, int sampleRate) async 
+	{
+		if (!_isInitialized) {
+			await init();
+		}
+		//todo: check if the currentDataBuffer is already initialized. If yes free memory before reinitializing
+		if (currentDataBuffer != null) {
+			for (int i = 0; i < _channelCount; i++) {
+				calloc.free((currentDataBuffer!.value + i).cast<Pointer<Int16>>().value);
+			}
+			calloc.free(currentDataBuffer!.value);
+			calloc.free(currentDataBuffer!);
+		}
+		// Update local properties
+		_channelCount = channelCount;
+		_sampleRate = sampleRate;
+
+		// Set channel count and sample rate in C++ processing
+		final channelResult = ProcessingBindings.instance.setChannelCount(channelCount);
+		if (channelResult != 0) {
+			print('Failed to set channel count: $channelResult');
+			return false;
+		}
+
+		final sampleRateResult = ProcessingBindings.instance.setSampleRate(sampleRate);
+		if (sampleRateResult != 0) {
+			print('Failed to set sample rate: $sampleRate');
+			return false;
+		}
+
+		// Pre-allocate the buffer memory
+		final int sampleCount = (ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRate).toInt();
+		
+		// Allocate array of pointers for each channel
+		final channelArrayPtr = calloc<Pointer<Int16>>(channelCount);
+		currentDataBuffer = channelArrayPtr.cast<Pointer<Int16>>();
+		
+		// Allocate memory for each channel
+		for (int i = 0; i < channelCount; i++) {
+			channelArrayPtr[i] = calloc<Int16>(sampleCount);
+		}
+
+		print('Microphone initialized with $channelCount channels at $sampleRate Hz');
+		print('Buffer size: $channelCount channels × $sampleCount samples');
+		
+		return true;
+	}
+
+
+		@override
 	List<Int16List> processMicrophoneData(Uint8List data) {
-			if (!_isInitialized) {
-				throw StateError('ProcessingUtil not initialized. Call init() first.');
+		if (!_isInitialized) {
+			throw StateError('ProcessingUtil not initialized. Call init() first.');
+		}
+
+		final outSampleCountsPtr = calloc<Int32>();
+
+		try {
+			// Prepare input data pointer
+			final inDataPtr = calloc<Uint8>(data.length);
+			for (int i = 0; i < data.length; i++) {
+				inDataPtr[i] = data[i];
 			}
 
-			// Allocate memory for output parameters
-			final outSamplesPtr = calloc<Pointer<Int16>>();
-			final outSampleCountsPtr = calloc<Int32>();
+			// Process the microphone data using pre-allocated buffer
+			final result = ProcessingBindings.instance.processMicrophoneStream(
+				currentDataBuffer!, 
+				outSampleCountsPtr, 
+				inDataPtr, 
+				data.length
+			);
 
-			try {
-				// Prepare input data pointer
-				final inDataPtr = calloc<Uint8>(data.length);
-				for (int i = 0; i < data.length; i++) {
-					inDataPtr[i] = data[i];
-				}
+			// Free input data memory
+			calloc.free(inDataPtr);
 
-				// Process the microphone data
-				final result = ProcessingBindings.instance.processMicrophoneStream(outSamplesPtr, outSampleCountsPtr, inDataPtr, data.length);
-
-				// Free input data memory
-				calloc.free(inDataPtr);
-
-				if (result != 0) {
-					throw Exception('Failed to process microphone data: $result');
-				}
-
-				// Get the number of samples in the result
-				final sampleCount = outSampleCountsPtr.value;
-
-				// Convert to Dart list
-				final resultSamples = Int16List(sampleCount);
-				for (int i = 0; i < sampleCount; i++) {
-					resultSamples[i] = outSamplesPtr.value[i];
-				}
-
-				return [resultSamples]; // Return as list of channels
-			} finally {
-				// Free allocated memory
-				calloc.free(outSamplesPtr);
-				calloc.free(outSampleCountsPtr);
+			if (result != 0) {
+				throw Exception('Failed to process microphone data: $result');
 			}
-      }
 
-  // Get the stream of processed data
-  Stream<dynamic> get processedDataStream => _dataController.stream;
+			// Create Dart view of the native memory
+			final sampleCount = outSampleCountsPtr.value;
+			final bufferViews = List<Int16List>.generate(
+				_channelCount,
+				(i) => (currentDataBuffer!.value + i).cast<Int16>().asTypedList(sampleCount)
+			);
 
-  // Cleanup resources
-  Future<void> dispose() async {
+			return bufferViews;
+		} finally {
+			calloc.free(outSampleCountsPtr);
+		}
+	}
+
+	// Get the stream of processed data
+	Stream<dynamic> get processedDataStream => _dataController.stream;
+
+  	// Cleanup resources
+	Future<void> dispose() async 
+	{
 		_processingIsolate?.kill();
 		portProcessingIsolateToMain?.close();
 		await _dataController.close();
+		
+		// Free allocated memory
+		if (currentDataBuffer != null) {
+			for (int i = 0; i < _channelCount; i++) {
+				calloc.free((currentDataBuffer!.value + i).cast<Pointer<Int16>>().value);
+			}
+			calloc.free(currentDataBuffer!.value);
+			calloc.free(currentDataBuffer!);
+			currentDataBuffer = null;
+		}
+		
 		ProcessingBindings.instance.cleanup();
 		_isInitialized = false;
-  }
+	}
 }
 
 // This function runs in the processing isolate
-void _processingIsolateFunction(SendPort portToMain) {
+void _processingIsolateFunction(SendPort portToMain) 
+{
 	// Create receive port for processing isolate to receive messages from main
 	final portFromMain = ReceivePort();
 
@@ -163,7 +233,8 @@ void _processingIsolateFunction(SendPort portToMain) {
 }
 
 // Process data using C++ implementation
-dynamic _processData(dynamic data) {
+dynamic _processData(dynamic data) 
+{
 	if (data is List<double>) {
 	final length = data.length;
 	final pointer = calloc<Double>(length);

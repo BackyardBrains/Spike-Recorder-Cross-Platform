@@ -75,12 +75,7 @@ class NativeAddBindings {
     // Perform your operations here
   }
 
-  late final CheckAudioData _isAudioCapture = _lookup<
-          ffi.NativeFunction<
-              ffi.Double Function(
-                ffi.Pointer<ffi.Int16>,
-              )>>('isCheckData')
-      .asFunction();
+  late final CheckAudioData _isAudioCapture = _lookup< ffi.NativeFunction<  ffi.Double Function( ffi.Pointer<ffi.Int16>, )>>('isCheckData').asFunction();
 
   /// Call initHighPassFilter to initialise or set filter configuration
   double initHighPassFilter(

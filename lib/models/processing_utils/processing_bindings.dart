@@ -192,74 +192,43 @@ class ProcessingBindings {
   }
 
   void _initBindings() {
-    init = _lib!.lookupFunction<ProcessingInitNative, ProcessingInit>(
-        'processing_init');
+    init = _lib!.lookupFunction<ProcessingInitNative, ProcessingInit>('processing_init');
 
-    setSampleRate = _lib!
-        .lookupFunction<ProcessingSetSampleRateNative, ProcessingSetSampleRate>(
-            'processing_set_sample_rate');
+    setSampleRate = _lib!.lookupFunction<ProcessingSetSampleRateNative, ProcessingSetSampleRate>('processing_set_sample_rate');
 
-    setChannelCount = _lib!.lookupFunction<ProcessingSetChannelCountNative,
-        ProcessingSetChannelCount>('processing_set_channel_count');
+    setChannelCount = _lib!.lookupFunction<ProcessingSetChannelCountNative, ProcessingSetChannelCount>('processing_set_channel_count');
 
-    setBitsPerSample = _lib!.lookupFunction<ProcessingSetBitsPerSampleNative,
-        ProcessingSetBitsPerSample>('processing_set_bits_per_sample');
+    setBitsPerSample = _lib!.lookupFunction<ProcessingSetBitsPerSampleNative, ProcessingSetBitsPerSample>('processing_set_bits_per_sample');
 
-    setSelectedChannel = _lib!.lookupFunction<
-        ProcessingSetSelectedChannelNative,
-        ProcessingSetSelectedChannel>('processing_set_selected_channel');
+    setSelectedChannel = _lib!.lookupFunction<ProcessingSetSelectedChannelNative, ProcessingSetSelectedChannel>('processing_set_selected_channel');
 
     setBandFilter = _lib!.lookupFunction<ProcessingSetBandFilterNative, ProcessingSetBandFilter>('processing_set_band_filter');
 
-    setNotchFilter = _lib!.lookupFunction<ProcessingSetNotchFilterNative,
-        ProcessingSetNotchFilter>('processing_set_notch_filter');
+    setNotchFilter = _lib!.lookupFunction<ProcessingSetNotchFilterNative,ProcessingSetNotchFilter>('processing_set_notch_filter');
 
     processMicrophoneStream = _lib!.lookupFunction<ProcessingProcessMicrophoneStreamNative,ProcessingProcessMicrophoneStream>('processing_process_microphone_stream');
 
-    // filterData = _lib!
-    //     .lookupFunction<ProcessingFilterDataNative, ProcessingFilterData>(
-    //         'processing_filter_data');
+    // filterData = _lib!.lookupFunction<ProcessingFilterDataNative, ProcessingFilterData>('processing_filter_data');
 
     rms = _lib!.lookupFunction<ProcessingRmsNative, ProcessingRms>('processing_rms');
 
     map = _lib!.lookupFunction<ProcessingMapNative, ProcessingMap>('processing_map');
 
-    processFft = _lib!
-        .lookupFunction<ProcessingProcessFftNative, ProcessingProcessFft>(
-            'processing_process_fft');
+    processFft = _lib!.lookupFunction<ProcessingProcessFftNative, ProcessingProcessFft>('processing_process_fft');
 
-    resetFftNormalization = _lib!.lookupFunction<
-        ProcessingResetFftNormalizationNative,
-        ProcessingResetFftNormalization>('processing_reset_fft_normalization');
+    resetFftNormalization = _lib!.lookupFunction<ProcessingResetFftNormalizationNative, ProcessingResetFftNormalization>('processing_reset_fft_normalization');
 
-    isAudioStreamAmModulated = _lib!.lookupFunction<
-            ProcessingIsAudioStreamAmModulatedNative,
-            ProcessingIsAudioStreamAmModulated>(
-        'processing_is_audio_stream_am_modulated');
+    isAudioStreamAmModulated = _lib!.lookupFunction<ProcessingIsAudioStreamAmModulatedNative, ProcessingIsAudioStreamAmModulated>('processing_is_audio_stream_am_modulated');
 
-    getAveragedSampleCount = _lib!.lookupFunction<
-            ProcessingGetAveragedSampleCountNative,
-            ProcessingGetAveragedSampleCount>(
-        'processing_get_averaged_sample_count');
+    getAveragedSampleCount = _lib!.lookupFunction<ProcessingGetAveragedSampleCountNative, ProcessingGetAveragedSampleCount>('processing_get_averaged_sample_count');
 
-    setAveragedSampleCount = _lib!.lookupFunction<
-            ProcessingSetAveragedSampleCountNative,
-            ProcessingSetAveragedSampleCount>(
-        'processing_set_averaged_sample_count');
+    setAveragedSampleCount = _lib!.lookupFunction<ProcessingSetAveragedSampleCountNative, ProcessingSetAveragedSampleCount>('processing_set_averaged_sample_count');
 
-    getAveragingTriggerType = _lib!.lookupFunction<
-            ProcessingGetAveragingTriggerTypeNative,
-            ProcessingGetAveragingTriggerType>(
-        'processing_get_averaging_trigger_type');
+    getAveragingTriggerType = _lib!.lookupFunction<ProcessingGetAveragingTriggerTypeNative, ProcessingGetAveragingTriggerType>('processing_get_averaging_trigger_type');
 
-    setAveragingTriggerType = _lib!.lookupFunction<
-            ProcessingSetAveragingTriggerTypeNative,
-            ProcessingSetAveragingTriggerType>(
-        'processing_set_averaging_trigger_type');
+    setAveragingTriggerType = _lib!.lookupFunction<ProcessingSetAveragingTriggerTypeNative, ProcessingSetAveragingTriggerType>('processing_set_averaging_trigger_type');
 
-    setThreshold = _lib!
-        .lookupFunction<ProcessingSetThresholdNative, ProcessingSetThreshold>(
-            'processing_set_threshold');
+    setThreshold = _lib!.lookupFunction<ProcessingSetThresholdNative, ProcessingSetThreshold>('processing_set_threshold');
 
     resetThreshold = _lib!.lookupFunction<ProcessingResetThresholdNative, ProcessingResetThreshold>('processing_reset_threshold');
 
@@ -269,16 +238,11 @@ class ProcessingBindings {
 
     processThreshold = _lib!.lookupFunction<ProcessingProcessThresholdNative, ProcessingProcessThreshold>('processing_process_threshold');
 
-    setBpmProcessing = _lib!.lookupFunction<ProcessingSetBpmProcessingNative,
-        ProcessingSetBpmProcessing>('processing_set_bpm_processing');
+    setBpmProcessing = _lib!.lookupFunction<ProcessingSetBpmProcessingNative, ProcessingSetBpmProcessing>('processing_set_bpm_processing');
 
-    prepareForSignalDrawing = _lib!.lookupFunction<
-            ProcessingPrepareForSignalDrawingNative,
-            ProcessingPrepareForSignalDrawing>(
-        'processing_prepare_for_signal_drawing');
+    prepareForSignalDrawing = _lib!.lookupFunction<ProcessingPrepareForSignalDrawingNative, ProcessingPrepareForSignalDrawing>('processing_prepare_for_signal_drawing');
 
-    cleanup = _lib!.lookupFunction<ProcessingCleanupNative, ProcessingCleanup>(
-        'processing_cleanup');
+    cleanup = _lib!.lookupFunction<ProcessingCleanupNative, ProcessingCleanup>('processing_cleanup');
   }
 
   static DynamicLibrary _loadLibrary() {

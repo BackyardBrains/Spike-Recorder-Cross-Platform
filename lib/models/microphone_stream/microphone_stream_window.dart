@@ -9,8 +9,7 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
   Stream<Uint8List>? micStream;
 
   @override
-  StreamController<Uint8List> addListenAudioStreamController =
-      StreamController();
+  StreamController<Uint8List> addListenAudioStreamController =  StreamController();
 
   // List<int> intList = List<int>.generate(2000, (index) => index);
   Int16List? data;

@@ -133,10 +133,7 @@ class DraggableGraph extends StatefulWidget {
 class _DraggableGraphState extends State<DraggableGraph> {
   @override
   Widget build(BuildContext context) {
-    Stream<List<double>> dataStream =
-        Provider.of<GraphDataProvider>(context, listen: false)
-                .outputGraphStream ??
-            const Stream.empty();
+    Stream<List<double>> dataStream = Provider.of<GraphDataProvider>(context, listen: false).outputGraphStream ?? const Stream.empty();
     return LayoutBuilder(builder: (context, constraints) {
       return Consumer<GraphGainProvider>(
           builder: (context, graphGainProvider, _) {

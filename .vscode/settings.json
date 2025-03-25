@@ -94,7 +94,10 @@
       "cstdarg": "cpp",
       "cwctype": "cpp",
       "string_view": "cpp",
-      "regex": "cpp"
+      "regex": "cpp",
+      "execution": "cpp",
+      "print": "cpp",
+      "stack": "cpp"
 },
     "C_Cpp.errorSquiggles": "disabled",
     "cmake.sourceDirectory": "/Users/pulkitarora/Desktop/Flutter applications/spikerbox_flutter/linux",
@@ -133,5 +136,37 @@
         "sublist",
         "syncfusion",
         "WAVEFORMATEX"
-    ]
+    ],
+      // "editor.tokenColorCustomizations": {
+
+      //       "textMateRules": [
+      //             {
+      //                 "scope": "entity.name.function",
+      //                 "settings": {
+      //                     "foreground": "#9ec9d2",
+      //                 }
+      //             },
+      //             {
+      //             "scope": "entity.name.type.enum",
+      //             "settings": {
+      //                   "foreground": "#dbdcf8"
+      //             }
+      //             },
+      //             {
+      //             "scope": "entity.name.type",
+      //             "settings": {
+      //                   "foreground": "#dbdcf8"
+      //             }
+      //             },
+      //             {
+      //             "scope": "entity.name.type.interface",
+      //             "settings": {
+      //                   "foreground": "#dbdcf8"
+      //             }
+      //             }
+                  
+      //       ]
+      // }
+     
+    
 }

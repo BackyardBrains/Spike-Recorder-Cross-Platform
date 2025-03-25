@@ -16,31 +16,31 @@ class GraphDataProvider extends ChangeNotifier {
 
   int get sampleOnGraph => samplesInCurrentView;
 
-  final Int16List _entireGraphBuffer =
-      Int16List.fromList(List.generate(_graphBufferLength, (index) => 0));
+  final Int16List _entireGraphBuffer = Int16List.fromList(List.generate(_graphBufferLength, (index) => 0));
 
   Stream<Uint8List>? _inputGraphStream;
 
   Stream<List<double>>? _outputGraphStream;
-  final StreamController<Uint8List> _outputGraphStreamController =
-      StreamController.broadcast();
+  final StreamController<Uint8List> _outputGraphStreamController = StreamController.broadcast();
 
   Stream<List<double>>? get outputGraphStream => _outputGraphStream;
 
   /// Initializes the incoming data stream [_inputGraphStream]
   /// Initializes the stream to output data to graph [_outputGraphStream]
-  void setStreamOfData(Stream<Uint8List> graphStreamData) {
-    _inputGraphStream = graphStreamData;
-    _outputGraphStream = _outputGraphStreamController.stream
-        .asBroadcastStream()
-        .transform(myStreamTransformer());
+  void setStreamOfData(Stream<Uint8List> graphStreamData) 
+  {
+      _inputGraphStream = graphStreamData;
+      _outputGraphStream = _outputGraphStreamController.stream
+            .asBroadcastStream()
+            .transform(myStreamTransformer());
 
-    _inputGraphStream!.listen(inputListener);
+      _inputGraphStream!.listen(inputListener);
   }
 
-  setTimer(int setTime) {
-    _timer = setTime;
-    notifyListeners();
+  setTimer(int setTime) 
+  {
+      _timer = setTime;
+      notifyListeners();
   }
 
   /// Transforms the data from Int16 list (as Uint8List) to List<double>

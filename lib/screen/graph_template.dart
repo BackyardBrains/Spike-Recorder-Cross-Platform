@@ -165,7 +165,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     // Initialize ProcessingUtil
     processingUtil = createProcessingUtil();
-
+    
+    final provider = Provider.of<GraphDataProvider>(context, listen: false);
+    
+    // Initialize stream and set provider
+    _graphStream = _graphStreamController.stream.asBroadcastStream();
+    provider.setStreamOfData(_graphStream);
+    
     SchedulerBinding.instance.addPostFrameCallback((timeStamp) async {
       setSampleRate();
     });
@@ -192,6 +198,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
           _preprocessingBuffer.addBytes(event);
           List<Int16List> processedData = processingUtil.processMicrophoneData(event);
           print('Processed microphone data: ${processedData.length} channels');
+          if (processedData.isNotEmpty) {
+              Uint8List graphData = processedData[0].buffer.asUint8List();
+              provider.inputListener(graphData);
+          }
           // for (int i = 0; i < processedData.length; i++) {
           //   print('Channel $i: First 5 samples: ${processedData[i].take(5).toList()}');
           // }
@@ -304,10 +314,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _bitwiseUtil = BitwiseUtil(bitCount: widget.bitsData);
     _channelBytes = widget.channelCount * 2;
 
-    _graphStream = _graphStreamController.stream.asBroadcastStream();
-    final provider = Provider.of<GraphDataProvider>(context, listen: false);
-
-    provider.setStreamOfData(_graphStream);
     _messageIdentifier = MessageIdentifier(onDeviceData: (Uint8List dt) {
       List<int> devData = dt;
 

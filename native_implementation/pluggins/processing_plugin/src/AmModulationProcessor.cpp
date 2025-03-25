@@ -75,36 +75,37 @@ namespace backyardbrains {
         void
         AmModulationProcessor::process(const short *inSamples, short **outSamples, const int sampleCount, const int frameCount) 
         {
-            log_debug("Processing am modulation");
+            //log_debug("Processing am modulation - debug flutter);
             auto channelCount = getChannelCount();
             auto **deinterleavedSignal = new short *[channelCount];
             for (int i = 0; i < channelCount; i++) {
                 deinterleavedSignal[i] = new short[frameCount];
             }
-            log_debug("Processing deinterleave signal");
+            
             backyardbrains::utils::SignalUtils::deinterleaveSignal(deinterleavedSignal, inSamples, sampleCount,
                                                                    channelCount);
 
             auto *amBuffer = new short[frameCount];
             // always use only first channel for detection
             std::copy(deinterleavedSignal[0], deinterleavedSignal[0] + frameCount, amBuffer);
-            log_debug("Processing am detection low pass filter");
+
+            
             amDetectionLowPassFilter.filter(amBuffer, frameCount);
             for (int i = 0; i < frameCount; i++) {
                 rmsOfOriginalSignal = static_cast<float>(0.0001f * pow(amBuffer[i], 2.0f) +
                                                          0.9999f * rmsOfOriginalSignal);
             }
-            log_debug("Processing am detection notch filter");
+            
             amDetectionNotchFilter.filter(amBuffer, frameCount);
             for (int i = 0; i < frameCount; i++) {
                 rmsOfNotchedAMSignal = static_cast<float>(0.0001f * pow(amBuffer[i], 2.0f) +
                                                           0.9999f * rmsOfNotchedAMSignal);
             }
-            log_debug("Processing am modulation");
+            
             delete[] amBuffer;
 
             if (sqrtf(rmsOfOriginalSignal) / sqrtf(rmsOfNotchedAMSignal) > 5) {
-                log_debug("Processing am modulation true");
+                
                 if (!receivingAmSignal) receivingAmSignal = true;
 
                 for (int i = 0; i < channelCount; i++) {
@@ -133,7 +134,7 @@ namespace backyardbrains {
 
                 return;
             } else {
-                log_debug("Processing am modulation false");
+                
                 for (int i = 0; i < channelCount; i++) {
                     std::copy(deinterleavedSignal[i], deinterleavedSignal[i] + frameCount, outSamples[i]);
 
@@ -147,7 +148,7 @@ namespace backyardbrains {
                 }
                 delete[] deinterleavedSignal;
             }
-            log_debug("Processing am modulation end");
+            
             if (receivingAmSignal) receivingAmSignal = false;
         }
     }

@@ -62,12 +62,11 @@ class _IsolateResponseForMic {
 final Map<int, Completer<MicAck>> _isolateResultsOfMic =
     <int, Completer<MicAck>>{};
 
-Future<void> mainIsolateForMic(
-    StreamController<Uint8List> micDataController) async {
-  if (_helperIsolateMic == null) {
-    _helperIsolateSendPortMic =
-        await mainIsolateForMicHelperStart(micDataController);
-  }
+Future<void> mainIsolateForMic(StreamController<Uint8List> micDataController) async 
+{
+      if (_helperIsolateMic == null) {
+          _helperIsolateSendPortMic = await mainIsolateForMicHelperStart(micDataController);
+      }
 }
 
 Future<SendPort> mainIsolateForMicHelperStart(

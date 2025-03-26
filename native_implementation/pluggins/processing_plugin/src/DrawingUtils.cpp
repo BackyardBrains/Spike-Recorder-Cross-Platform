@@ -25,7 +25,7 @@ namespace backyardbrains {
                 outEventIndices[i] *= xStep;
             for (int i = 0; i < channelCount; i++) {
                 for (int j = 0; j < outSampleCounts[i]; j++) {
-                    outSamples[i][sampleIndex++] = xStep * j;
+                    //outSamples[i][sampleIndex++] = xStep * j;
                     outSamples[i][sampleIndex++] = (float) envelopedSamples[i][j];
                 }
                 outSampleCounts[i] = sampleIndex;

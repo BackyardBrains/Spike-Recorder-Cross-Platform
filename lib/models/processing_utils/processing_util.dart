@@ -22,7 +22,7 @@ abstract class ProcessingUtil {
 
   // Prepare signal data for drawing
   int prepareForSignalDrawingProcess(
-    Pointer<Pointer<Float>> outSamples,
+    Pointer<Pointer<Int16>> outSamples,
     Pointer<Int32> outSampleCounts,
     Pointer<Float> outEventIndices,
     Pointer<Int32> outEventCount,

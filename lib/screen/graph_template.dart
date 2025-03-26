@@ -220,9 +220,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
               Int32List outEvents = Int32List(100); // Max 100 events
               
               // Allocate memory for output samples (array of float arrays)
-              final outSamplesPtr = calloc<Pointer<Float>>(widget.channelCount);
+              final outSamplesPtr = calloc<Pointer<Int16>>(widget.channelCount);
               for (int i = 0; i < widget.channelCount; i++) {
-                  outSamplesPtr[i] = calloc<Float>(drawSurfaceWidth * 5); // 5x for envelope
+                  outSamplesPtr[i] = calloc<Int16>(drawSurfaceWidth * 5); // 5x for envelope
               }
 
               // Allocate memory for sample counts
@@ -256,10 +256,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       int sampleCount = outSampleCountsPtr.value;
                       
                       // Copy the prepared signal data
-                      for (int i = 0; i < widget.channelCount; i++) {
-                          Float32List channelData = outSamplesPtr[i].asTypedList(sampleCount);
+                      
+                      //for (int i = 0; i < widget.channelCount; i++) {
+                      Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
                           // Use the channelData as needed
-                      }
+                      //}
+
+                      Uint8List uint8Data = Uint8List.view(channelData.buffer);
+                      provider.inputListener(uint8Data);
                       //provider.inputListener(channelData);
                       // Get the number of events
                       int eventCount = outEventCountPtr.value;

@@ -99,7 +99,7 @@ void processing_set_bpm_processing(bool process_bpm);
 // Drawing utilities
 
 int32_t processing_prepare_for_signal_drawing(
-    float** out_samples, 
+    int16_t** out_samples, 
     int32_t* out_sample_counts,
     float* out_event_indices, 
     int32_t* out_event_count,

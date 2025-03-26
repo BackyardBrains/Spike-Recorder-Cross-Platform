@@ -30,7 +30,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
   
   @override
-    int prepareForSignalDrawingProcess( Pointer<Pointer<Float>> outSamples,
+    int prepareForSignalDrawingProcess( Pointer<Pointer<Int16>> outSamples,
                                         Pointer<Int32> outSampleCounts,
                                         Pointer<Float> outEventIndices,
                                         Pointer<Int32> outEventCount,

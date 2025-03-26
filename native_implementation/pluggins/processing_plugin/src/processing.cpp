@@ -698,33 +698,40 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
         // Get the channel count from our global state
         int32_t channel_count = current_channel_count;
         
-        // Create a temporary buffer to hold samples from the circular buffer
+        // Calculate sample count
         int32_t sample_count = to_sample - from_sample + 1;
+        int32_t sample_out_count= draw_surface_width * 5;//experimentally found
+        
+        // Create temporary buffers
         auto** temp_samples = new int16_t*[channel_count];
+        auto** float_samples = new float*[channel_count];
         for (int i = 0; i < channel_count; i++) {
             temp_samples[i] = new int16_t[sample_count];
+            float_samples[i] = new float[sample_out_count];
         }
         
         // Retrieve data from the circular buffer
         if (circularBuffer != nullptr) {
             circularBuffer->getDataForDrawing(temp_samples, from_sample, to_sample);
         } else {
-            // Return error if no circular buffer is available
+            // Clean up and return error if no circular buffer is available
             for (int i = 0; i < channel_count; i++) {
                 delete[] temp_samples[i];
+                delete[] float_samples[i];
             }
             delete[] temp_samples;
+            delete[] float_samples;
             return -2;
         }
 
         // Call DrawingUtils to prepare the signal for drawing
         int outEventCount = 0;
         backyardbrains::utils::DrawingUtils::prepareSignalForDrawing(
-            out_samples,
+            float_samples,
             out_sample_counts,
             out_event_indices,
             outEventCount,
-            reinterpret_cast<short**>(temp_samples),  // Use data from circular buffer
+            reinterpret_cast<short**>(temp_samples),
             channel_count,
             const_cast<int*>(in_event_indices),
             in_event_count,
@@ -733,11 +740,20 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
             draw_surface_width
         );
         
-        // Clean up temporary buffer
+        // Copy float data back to output samples
+        for (int i = 0; i < channel_count; i++) {
+            for (int j = 0; j < out_sample_counts[i]; j++) {
+                out_samples[i][j] = static_cast<int16_t>(float_samples[i][j]);
+            }
+        }
+        
+        // Clean up temporary buffers
         for (int i = 0; i < channel_count; i++) {
             delete[] temp_samples[i];
+            delete[] float_samples[i];
         }
         delete[] temp_samples;
+        delete[] float_samples;
         
         *out_event_count = outEventCount;
         return 0;

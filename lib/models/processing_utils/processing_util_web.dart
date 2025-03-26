@@ -28,6 +28,22 @@ class ProcessingUtilImpl implements ProcessingUtil {
     // Return empty list as mock data
     return [Int16List(0)];
   }
+  
+  @override
+    int prepareForSignalDrawingProcess( Pointer<Pointer<Float>> outSamples,
+                                        Pointer<Int32> outSampleCounts,
+                                        Pointer<Float> outEventIndices,
+                                        Pointer<Int32> outEventCount,
+                                        Pointer<Int32> inEventIndices,
+                                        int inEventCount,
+                                        int fromSample,
+                                        int toSample,
+                                        int drawSurfaceWidth)
+  {
+    // Simple mock implementation for web
+    // Just return success code
+    return 0;
+  }
 }
 
 // Factory function to create an instance

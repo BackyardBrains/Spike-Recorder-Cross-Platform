@@ -126,25 +126,27 @@ typedef ProcessingSetBpmProcessingNative = Void Function(Int32 processBpm);
 typedef ProcessingSetBpmProcessing = void Function(int processBpm);
 
 typedef ProcessingPrepareForSignalDrawingNative = Int32 Function(
-    Pointer<Float> outSignal,
-    Pointer<Int32> outEvents,
-    Pointer<Pointer<Float>> inSignal,
-    Int32 inFrameCount,
+    Pointer<Pointer<Float>> outSamples,
+    Pointer<Int32> outSampleCounts,
+    Pointer<Float> outEventIndices,
+    Pointer<Int32> outEventCount,
     Pointer<Int32> inEventIndices,
     Int32 inEventCount,
-    Int32 drawStartIndex,
-    Int32 drawEndIndex,
-    Int32 drawSurfaceWidth);
+    Int32 fromSample,
+    Int32 toSample,
+    Int32 drawSurfaceWidth
+);
 typedef ProcessingPrepareForSignalDrawing = int Function(
-    Pointer<Float> outSignal,
-    Pointer<Int32> outEvents,
-    Pointer<Pointer<Float>> inSignal,
-    int inFrameCount,
+    Pointer<Pointer<Float>> outSamples,
+    Pointer<Int32> outSampleCounts,
+    Pointer<Float> outEventIndices,
+    Pointer<Int32> outEventCount,
     Pointer<Int32> inEventIndices,
     int inEventCount,
-    int drawStartIndex,
-    int drawEndIndex,
-    int drawSurfaceWidth);
+    int fromSample,
+    int toSample,
+    int drawSurfaceWidth
+);
 
 typedef ProcessingCleanupNative = Void Function();
 typedef ProcessingCleanup = void Function();

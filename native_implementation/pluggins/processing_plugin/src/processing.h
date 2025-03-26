@@ -97,15 +97,17 @@ int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_
 void processing_set_bpm_processing(bool process_bpm);
 
 // Drawing utilities
-int32_t processing_prepare_for_signal_drawing(float* out_signal,
-                                            int32_t* out_events,
-                                            float** in_signal,
-                                            int32_t in_frame_count,
-                                            int32_t* in_event_indices,
-                                            int32_t in_event_count,
-                                            int32_t draw_start_index,
-                                            int32_t draw_end_index,
-                                            int32_t draw_surface_width);
+
+int32_t processing_prepare_for_signal_drawing(
+    float** out_samples, 
+    int32_t* out_sample_counts,
+    float* out_event_indices, 
+    int32_t* out_event_count,
+    const int32_t* in_event_indices, 
+    int32_t in_event_count,
+    int32_t from_sample, 
+    int32_t to_sample,
+    int32_t draw_surface_width);
 
 // Event analysis
 int32_t processing_parse_events(const char* file_path, float sample_rate,

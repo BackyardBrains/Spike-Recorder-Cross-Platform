@@ -137,6 +137,12 @@
         "syncfusion",
         "WAVEFORMATEX"
     ],
+   
+      "workbench.colorCustomizations": {
+          "tab.activeBackground": "#77777b",
+          "tab.inactiveBackground": "#2e2f32"
+      }
+  
       // "editor.tokenColorCustomizations": {
 
       //       "textMateRules": [

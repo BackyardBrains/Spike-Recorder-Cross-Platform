@@ -13,6 +13,7 @@ using namespace backyardbrains::utils;
 
 // Constants
 static constexpr int32_t PROCESSING_MAX_EVENTS = 100;  // Same as MAX_EVENTS in SampleStreamProcessor
+static constexpr int32_t MAX_NUMBER_OF_SECONDS = 10;  // 10 seconds of buffer
 
 // Internal state variables
 static bool initialized = false;
@@ -43,16 +44,123 @@ static IsiAnalysis* isiAnalysis = nullptr;
 static AverageSpikeAnalysis* averageSpikeAnalysis = nullptr;
 static CrossCorrelationAnalysis* crossCorrelationAnalysis = nullptr;
 
+//Class for multichannel circular buffer with int16_t samples
+//It has headIndex and tailIndex
+//it has setup function that initialize channel buffers based on sample rate and channel count
+//number of samples for each channel is sample rate * MAX_NUMBER_OF_SECONDS (default is 10 seconds)
+class CircularBuffer {
+      public:
+            CircularBuffer(int sampleRate, int channelCount) {
+                  this->sampleRate = sampleRate;
+                  this->channelCount = channelCount;
+                  this->buffer = nullptr; // Initialize to nullptr before setup
+                  
+                  // Call setup directly in the constructor
+                  this->setup(sampleRate, channelCount);
+            }
+            
+            void setup(int sampleRate, int channelCount) {
+                  //check if buffer is already initialized, if yes release the memory
+                  if (this->buffer != nullptr) {
+                        for (int i = 0; i < this->channelCount; i++) {
+                              delete[] this->buffer[i];
+                        }
+                        delete[] this->buffer;
+                  }
+                  
+                  //check if sample rate is valid
+                  this->sampleRate = sampleRate;
+                  this->channelCount = channelCount;
+                  this->bufferSize = sampleRate * MAX_NUMBER_OF_SECONDS;
+                  this->buffer = new int16_t*[channelCount];
+                  for (int i = 0; i < channelCount; i++) {
+                        this->buffer[i] = new int16_t[bufferSize];
+                  }
+            }
+
+            // Add data to circular buffer
+            void addData(int16_t** samples, int32_t sampleCount) {
+                  if (buffer == nullptr || sampleCount <= 0) {
+                        return;
+                  }
+                  
+                  // Add samples to buffer for each channel
+                  for (int chan = 0; chan < channelCount; chan++) {
+                        for (int i = 0; i < sampleCount; i++) {
+                              // Store sample at current head position
+                              buffer[chan][headIndex] = samples[chan][i];
+                              
+                              // Move head forward, wrapping around if needed
+                              headIndex = (headIndex + 1) % bufferSize;
+                              
+                              // If head catches up to tail, move tail forward
+                              if (headIndex == tailIndex) {
+                                    tailIndex = (tailIndex + 1) % bufferSize;
+                              }
+                        }
+                  }
+            }
+            
+            // Get the most recent N samples
+            void getRecentSamples(int16_t** outputBuffer, int32_t numSamples) {
+                  if (buffer == nullptr || numSamples <= 0) {
+                        return;
+                  }
+                  
+                  // Calculate starting position (going backward from head)
+                  int32_t startPos = (headIndex - numSamples + bufferSize) % bufferSize;
+                  
+                  // Copy samples to output buffer
+                  for (int chan = 0; chan < channelCount; chan++) {
+                        for (int i = 0; i < numSamples; i++) {
+                              int32_t bufferPos = (startPos + i) % bufferSize;
+                              outputBuffer[chan][i] = buffer[chan][bufferPos];
+                        }
+                  }
+            }
+
+            // Add this method to the CircularBuffer class
+            void getDataForDrawing(int16_t** outputBuffer, int32_t fromSample, int32_t toSample) {
+                  if (buffer == nullptr) {
+                        return;
+                  }
+                  
+                  // Calculate number of samples requested
+                  int32_t sampleCount = toSample - fromSample + 1;
+                  if (sampleCount <= 0) {
+                        return;
+                  }
+                  
+                  // Prepare the data (either from the actual position or wrapping around)
+                  for (int chan = 0; chan < channelCount; chan++) {
+                        for (int i = 0; i < sampleCount; i++) {
+                              int32_t bufferPos = (headIndex - (toSample - i) + bufferSize) % bufferSize;
+                              outputBuffer[chan][i] = buffer[chan][bufferPos];
+                        }
+                  }
+            }
+      private:
+            int sampleRate;
+            int channelCount;
+            int bufferSize;
+            int16_t** buffer;
+            int32_t headIndex; // Position to write next sample
+            int32_t tailIndex; // Oldest valid sample position
+};
+
+//create a new static instance of CircularBuffer
+static CircularBuffer* circularBuffer = nullptr;
+
 
 class HeartbeatListener : public backyardbrains::utils::OnHeartbeatListener {
-public:
-    HeartbeatListener() = default;
+      public:
+            HeartbeatListener() = default;
 
-    ~HeartbeatListener() = default;
+            ~HeartbeatListener() = default;
 
-    void onHeartbeat(int bmp) override {
-      //   backyardbrains::utils::JniHelper::invokeStaticVoid(vm, "onHeartbeat", "(I)V", bmp);
-    }
+            void onHeartbeat(int bmp) override {
+                  //   backyardbrains::utils::JniHelper::invokeStaticVoid(vm, "onHeartbeat", "(I)V", bmp);
+            }
 };
 
 class EventListener : public backyardbrains::utils::OnEventListenerListener {
@@ -189,6 +297,11 @@ int32_t processing_init() {
         // Initialize processors
         initialize_processors();
         
+        // Initialize the circular buffer
+        if (circularBuffer == nullptr) {
+            circularBuffer = new CircularBuffer(current_sample_rate, current_channel_count);
+        }
+        
         initialized = true;
         return 0;
     } catch (...) {
@@ -209,6 +322,12 @@ int32_t processing_set_sample_rate(int32_t sample_rate) {
         current_sample_rate = sample_rate;
         sampleStreamProcessor->setSampleRate(sample_rate);
         fftProcessor->setSampleRate(sample_rate);
+        
+        // Re-setup the circular buffer when sample rate changes
+        if (circularBuffer != nullptr) {
+            circularBuffer->setup(current_sample_rate, current_channel_count);
+        }
+        
         return 0;
     } catch (...) {
         return -3;
@@ -228,6 +347,12 @@ int32_t processing_set_channel_count(int32_t channel_count) {
         current_channel_count = channel_count;
         sampleStreamProcessor->setChannelCount(channel_count);
         fftProcessor->setChannelCount(channel_count);
+        
+        // Re-setup the circular buffer when channel count changes
+        if (circularBuffer != nullptr) {
+            circularBuffer->setup(current_sample_rate, current_channel_count);
+        }
+        
         return 0;
     } catch (...) {
         return -3;
@@ -296,7 +421,6 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
 
 int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out_sample_counts,
                                            const uint8_t* in_data, int32_t length) {
-
       if (!initialized || !out_samples || !out_sample_counts || !in_data || length <= 0) {
             return -1;
       }
@@ -326,11 +450,16 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
             // Pass channel_samples to amModulationProcessor, not out_samples
             amModulationProcessor->process(
                   reinterpret_cast<short*>(const_cast<uint8_t*>(in_data)),
-                  channel_samples,  // FIXED: Use channel_samples instead of out_samples
+                  channel_samples,  // Use channel_samples instead of out_samples
                   sample_count,
                   frame_count
             );
             log_debug("Processing after am modulation");
+            
+            // Add processed data to circular buffer
+            if (circularBuffer != nullptr) {
+                  circularBuffer->addData(channel_samples, frame_count);
+            }
             
             // Copy processed data from channel_samples to out_samples
             for (int i = 0; i < current_channel_count; i++) {
@@ -555,25 +684,47 @@ void processing_set_bpm_processing(bool process_bpm) {
     }
 }
 
-int32_t processing_prepare_signal_for_drawing(float** out_samples, int32_t* out_sample_counts,
+int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* out_sample_counts,
                                            float* out_event_indices, int32_t* out_event_count,
-                                           const int16_t** in_samples, int32_t channel_count,
                                            const int32_t* in_event_indices, int32_t in_event_count,
                                            int32_t from_sample, int32_t to_sample,
                                            int32_t draw_surface_width) {
     if (!initialized || !out_samples || !out_sample_counts || !out_event_indices || !out_event_count ||
-        !in_samples || !in_event_indices || channel_count <= 0 || draw_surface_width <= 0) {
+        !in_event_indices || draw_surface_width <= 0) {
         return -1;
     }
 
     try {
+        // Get the channel count from our global state
+        int32_t channel_count = current_channel_count;
+        
+        // Create a temporary buffer to hold samples from the circular buffer
+        int32_t sample_count = to_sample - from_sample + 1;
+        auto** temp_samples = new int16_t*[channel_count];
+        for (int i = 0; i < channel_count; i++) {
+            temp_samples[i] = new int16_t[sample_count];
+        }
+        
+        // Retrieve data from the circular buffer
+        if (circularBuffer != nullptr) {
+            circularBuffer->getDataForDrawing(temp_samples, from_sample, to_sample);
+        } else {
+            // Return error if no circular buffer is available
+            for (int i = 0; i < channel_count; i++) {
+                delete[] temp_samples[i];
+            }
+            delete[] temp_samples;
+            return -2;
+        }
+
+        // Call DrawingUtils to prepare the signal for drawing
         int outEventCount = 0;
         backyardbrains::utils::DrawingUtils::prepareSignalForDrawing(
             out_samples,
             out_sample_counts,
             out_event_indices,
             outEventCount,
-            reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
+            reinterpret_cast<short**>(temp_samples),  // Use data from circular buffer
             channel_count,
             const_cast<int*>(in_event_indices),
             in_event_count,
@@ -581,6 +732,13 @@ int32_t processing_prepare_signal_for_drawing(float** out_samples, int32_t* out_
             to_sample,
             draw_surface_width
         );
+        
+        // Clean up temporary buffer
+        for (int i = 0; i < channel_count; i++) {
+            delete[] temp_samples[i];
+        }
+        delete[] temp_samples;
+        
         *out_event_count = outEventCount;
         return 0;
     } catch (...) {
@@ -914,6 +1072,13 @@ void processing_average_spike_analysis(const char* file_path,
 
 void processing_cleanup() {
     cleanup_processors();
+    
+    // Clean up the circular buffer
+    if (circularBuffer != nullptr) {
+        delete circularBuffer;
+        circularBuffer = nullptr;
+    }
+    
     initialized = false;
 }
 
@@ -990,69 +1155,6 @@ int32_t processing_map(float* out_data, const float* in_data, int32_t length,
     
     try {
         backyardbrains::utils::AnalysisUtils::map(const_cast<float*>(in_data), out_data, length, in_min, in_max, out_min, out_max);
-        return 0;
-    } catch (...) {
-        return -3;
-    }
-}
-
-int32_t processing_prepare_for_signal_drawing(float* out_signal,
-                                            int32_t* out_events,
-                                            float** in_signal,
-                                            int32_t in_frame_count,
-                                            int32_t* in_event_indices,
-                                            int32_t in_event_count,
-                                            int32_t draw_start_index,
-                                            int32_t draw_end_index,
-                                            int32_t draw_surface_width) {
-    if (!initialized || !out_signal || !out_events || !in_signal || 
-        in_frame_count <= 0 || draw_surface_width <= 0) {
-        return -1;
-    }
-
-    try {
-        // Calculate maximum sample count (same as in JNI implementation)
-        int32_t max_sample_count = draw_surface_width * 5;  // x5 when enveloping (from testing)
-        int32_t max_event_count = 100;
-
-        // Convert float samples to short for DrawingUtils
-        auto** in_samples = new short*[1];  // Assuming 1 channel for now
-        in_samples[0] = new short[in_frame_count];
-        for (int i = 0; i < in_frame_count; i++) {
-            in_samples[0][i] = static_cast<short>(in_signal[0][i]);
-        }
-
-        // Prepare arrays for drawing
-        float* out_vertices = new float[max_sample_count];
-        int32_t out_vertex_count = 0;
-        float* out_event_indices = new float[max_event_count];
-        int32_t out_event_count = 0;
-
-        // Call DrawingUtils to prepare the signal for drawing
-        backyardbrains::utils::DrawingUtils::prepareSignalForDrawing(
-            &out_vertices,  // Output vertices array
-            &out_vertex_count,  // Output vertex count
-            out_event_indices,  // Output event indices array
-            out_event_count,  // Output event count
-            in_samples,  // Input samples array
-            1,  // Channel count (assuming 1 channel for now)
-            in_event_indices,  // Input event indices
-            in_event_count,  // Input event count
-            draw_start_index,  // Draw start index
-            draw_end_index,  // Draw end index
-            draw_surface_width  // Draw surface width
-        );
-
-        // Copy results to output arrays
-        std::memcpy(out_signal, out_vertices, out_vertex_count * sizeof(float));
-        std::memcpy(out_events, out_event_indices, out_event_count * sizeof(float));
-
-        // Clean up
-        delete[] out_vertices;
-        delete[] out_event_indices;
-        delete[] in_samples[0];
-        delete[] in_samples;
-
         return 0;
     } catch (...) {
         return -3;

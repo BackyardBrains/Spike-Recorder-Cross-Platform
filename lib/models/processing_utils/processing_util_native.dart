@@ -179,6 +179,42 @@ class ProcessingUtilImpl implements ProcessingUtil
 		}
 	}
 
+	@override
+	int prepareForSignalDrawingProcess( Pointer<Pointer<Float>> outSamples,
+                                          Pointer<Int32> outSampleCounts,
+                                          Pointer<Float> outEventIndices,
+                                          Pointer<Int32> outEventCount,
+                                          Pointer<Int32> inEventIndices,
+                                          int inEventCount,
+                                          int fromSample,
+                                          int toSample,
+                                          int drawSurfaceWidth)
+	{
+		if (!_isInitialized) {
+			throw StateError('ProcessingUtil not initialized. Call init() first.');
+		}
+		
+		try {
+			// Call the native function with correct parameters
+			final result = ProcessingBindings.instance.prepareForSignalDrawing(
+				outSamples,
+                        outSampleCounts,
+				outEventIndices,
+				outEventCount,
+				inEventIndices,
+                        inEventCount,
+				fromSample,
+				toSample,
+				drawSurfaceWidth
+			);
+			
+			return result;
+		} catch (e) {
+			print('Error in prepareForSignalDrawing: $e');
+			return -1;
+		}
+	}
+
 	// Get the stream of processed data
 	Stream<dynamic> get processedDataStream => _dataController.stream;
 

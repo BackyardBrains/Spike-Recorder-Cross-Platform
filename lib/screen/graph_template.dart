@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ffi';
+import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -193,18 +195,92 @@ class _GraphTemplateState extends State<GraphTemplate> {
       microphoneUtil.micStream!.listen((event) {
         bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
 
-        //processingUtil.processNewData(event);
+        //
         if (isAudioListen) {
-          _preprocessingBuffer.addBytes(event);
+          //_preprocessingBuffer.addBytes(event);
           List<Int16List> processedData = processingUtil.processMicrophoneData(event);
           print('Processed microphone data: ${processedData.length} channels');
           if (processedData.isNotEmpty) {
-              Uint8List graphData = processedData[0].buffer.asUint8List();
-              provider.inputListener(graphData);
+              // Convert Int16List to Float data for signal drawing
+              int frameCount = processedData[0].length;
+              List<Float32List> floatSignalData = [];
+              
+              // Convert each channel's data to float
+              for (int i = 0; i < processedData.length; i++) {
+                Float32List floatData = Float32List(frameCount);
+                for (int j = 0; j < frameCount; j++) {
+                  floatData[j] = processedData[i][j].toDouble();
+                }
+                floatSignalData.add(floatData);
+              }
+              
+              // Prepare for drawing - focusing on the first channel for now
+              int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+              Float32List outSignal = Float32List(drawSurfaceWidth * 5); // 5x for envelope
+              Int32List outEvents = Int32List(100); // Max 100 events
+              
+              // Allocate memory for output samples (array of float arrays)
+              final outSamplesPtr = calloc<Pointer<Float>>(widget.channelCount);
+              for (int i = 0; i < widget.channelCount; i++) {
+                  outSamplesPtr[i] = calloc<Float>(drawSurfaceWidth * 5); // 5x for envelope
+              }
+
+              // Allocate memory for sample counts
+              final outSampleCountsPtr = calloc<Int32>(widget.channelCount);
+
+              // Allocate memory for event indices (assuming max 100 events)
+              final outEventIndicesPtr = calloc<Float>(100);
+
+              // Allocate memory for event count
+              final outEventCountPtr = calloc<Int32>(1);
+
+              // Allocate and prepare input event indices
+              final inEventIndicesPtr = calloc<Int32>(0); // No events yet
+
+              try {
+                  int result = processingUtil.prepareForSignalDrawingProcess(
+                      outSamplesPtr,           // Pointer<Pointer<Float>>
+                      outSampleCountsPtr,      // Pointer<Int32>
+                      outEventIndicesPtr,      // Pointer<Float>
+                      outEventCountPtr,        // Pointer<Int32>
+                      inEventIndicesPtr,       // Pointer<Int32>
+                      0,                       // int (inEventCount)
+                      0,                       // int (fromSample)
+                      (8.0 * 44100).toInt(),  // int (toSample)
+                      drawSurfaceWidth         // int
+                  );
+
+                  if (result == 0) {
+                      // Copy the results back to Dart
+                      // Get the number of samples from outSampleCountsPtr
+                      int sampleCount = outSampleCountsPtr.value;
+                      
+                      // Copy the prepared signal data
+                      for (int i = 0; i < widget.channelCount; i++) {
+                          Float32List channelData = outSamplesPtr[i].asTypedList(sampleCount);
+                          // Use the channelData as needed
+                      }
+                      //provider.inputListener(channelData);
+                      // Get the number of events
+                      int eventCount = outEventCountPtr.value;
+                      if (eventCount > 0) {
+                          // Copy event indices if needed
+                          Float32List eventIndices = outEventIndicesPtr.asTypedList(eventCount);
+                          // Use eventIndices as needed
+                      }
+                  }
+              } finally {
+                  // Clean up allocated memory
+                  for (int i = 0; i < widget.channelCount; i++) {
+                      calloc.free(outSamplesPtr[i]);
+                  }
+                  calloc.free(outSamplesPtr);
+                  calloc.free(outSampleCountsPtr);
+                  calloc.free(outEventIndicesPtr);
+                  calloc.free(outEventCountPtr);
+                  calloc.free(inEventIndicesPtr);
+              }
           }
-          // for (int i = 0; i < processedData.length; i++) {
-          //   print('Channel $i: First 5 samples: ${processedData[i].take(5).toList()}');
-          // }
         }
       });
     });

@@ -75,6 +75,9 @@ class CircularBuffer {
                   this->buffer = new int16_t*[channelCount];
                   for (int i = 0; i < channelCount; i++) {
                         this->buffer[i] = new int16_t[bufferSize];
+                        for (int j = 0; j < bufferSize; j++) {
+                              this->buffer[i][j] = 0;
+                        }
                   }
             }
 
@@ -425,7 +428,7 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
             return -1;
       }
       log_debug("Processing microphone data: length=%d", length);
-      log_debug("Processing microphone data 2");
+
       try {
             // Calculate sample count based on bits per sample
             int32_t sample_count = length * 8 / current_bits_per_sample;
@@ -439,7 +442,6 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
             // Process the audio data through AM modulation processor
             // Note: amModulationProcessor expects interleaved samples as input 
             // and will handle deinterleaving internally
-            log_debug("Processing before am modulation");
 
             // Allocate array of pointers for each channel (like in byb-lib.cpp)
             int16_t** channel_samples = new int16_t*[current_channel_count];
@@ -454,7 +456,6 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
                   sample_count,
                   frame_count
             );
-            log_debug("Processing after am modulation");
             
             // Add processed data to circular buffer
             if (circularBuffer != nullptr) {
@@ -474,12 +475,12 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
             
             // Check if AM modulation state changed (for potential callbacks)
             bool is_receiving_am_signal_after = amModulationProcessor->isReceivingAmSignal();
-            log_debug("Processing after is receiving am signal");
+
             // Set output sample counts for all channels
             for (int i = 0; i < current_channel_count; i++) {
                   out_sample_counts[i] = frame_count;
             }
-            log_debug("Processing after set sample counts");
+
             return 0;
       } catch (...) {
             log_debug("Exception ");
@@ -709,10 +710,13 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
             temp_samples[i] = new int16_t[sample_count];
             float_samples[i] = new float[sample_out_count];
         }
-        
+
+        log_debug("Processing sample_out_count=%d, sample_count=%d", sample_out_count, sample_count);
         // Retrieve data from the circular buffer
         if (circularBuffer != nullptr) {
+            
             circularBuffer->getDataForDrawing(temp_samples, from_sample, to_sample);
+            log_debug("Circular: from_sample=%d, to_sample=%d", from_sample, to_sample);
         } else {
             // Clean up and return error if no circular buffer is available
             for (int i = 0; i < channel_count; i++) {

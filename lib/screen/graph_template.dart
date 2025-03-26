@@ -259,8 +259,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       
                       //for (int i = 0; i < widget.channelCount; i++) {
                       Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
-                          // Use the channelData as needed
-                      //}
+                      print("Sample count: $sampleCount");
+                      print("first sample: ${channelData[0]}");
+
+                      
+                      //se log with this:
+                      // cat /tmp/flutter_native_crash.log  
+                      
 
                       Uint8List uint8Data = Uint8List.view(channelData.buffer);
                       provider.inputListener(uint8Data);

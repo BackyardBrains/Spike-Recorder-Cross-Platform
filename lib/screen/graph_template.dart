@@ -35,7 +35,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
   MicrophoneUtil microphoneUtil = MicrophoneUtil();
   final double _sliderValue = 25;
   double startValue = 0;
-  double endValue = 22000;
+  final double endValue = 22000;
+  final int _sampleRate = 44100;
+  double displayTimeMs = 10000;
+
   late Ticker ticker;
   final StreamController<Uint8List> _graphStreamController = StreamController();
   late Stream<Uint8List> _graphStream;
@@ -190,7 +193,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       await processingUtil.init();
       //init microphone stream  
-      await processingUtil.initializeMicrophone(widget.channelCount, 44100);
+      await processingUtil.initializeMicrophone(widget.channelCount, _sampleRate);
 
       microphoneUtil.micStream!.listen((event) {
         bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
@@ -199,7 +202,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         if (isAudioListen) {
           //_preprocessingBuffer.addBytes(event);
           List<Int16List> processedData = processingUtil.processMicrophoneData(event);
-          print('Processed microphone data: ${processedData.length} channels');
+          //print('Processed microphone data: ${processedData.length} channels');
           if (processedData.isNotEmpty) {
               // Convert Int16List to Float data for signal drawing
               int frameCount = processedData[0].length;
@@ -238,6 +241,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               final inEventIndicesPtr = calloc<Int32>(0); // No events yet
 
               try {
+                
                   int result = processingUtil.prepareForSignalDrawingProcess(
                       outSamplesPtr,           // Pointer<Pointer<Float>>
                       outSampleCountsPtr,      // Pointer<Int32>
@@ -246,7 +250,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       inEventIndicesPtr,       // Pointer<Int32>
                       0,                       // int (inEventCount)
                       0,                       // int (fromSample)
-                      (8.0 * 44100).toInt(),  // int (toSample)
+                      (displayTimeMs*0.001 * _sampleRate).toInt(),  // int (toSample)
                       drawSurfaceWidth         // int
                   );
 
@@ -254,13 +258,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       // Copy the results back to Dart
                       // Get the number of samples from outSampleCountsPtr
                       int sampleCount = outSampleCountsPtr.value;
-                      
+                      print("sampleCount: $sampleCount");
                       // Copy the prepared signal data
                       
                       //for (int i = 0; i < widget.channelCount; i++) {
                       Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
-                      print("Sample count: $sampleCount");
-                      print("first sample: ${channelData[0]}");
+                      //print("Sample count: $sampleCount");
+                      //print("first sample: ${channelData[0]}");
 
                       
                       //se log with this:
@@ -491,6 +495,18 @@ class _GraphTemplateState extends State<GraphTemplate> {
         }
       },
     );
+
+    final providerScroll = Provider.of<GraphDataProvider>(context, listen: false);
+    providerScroll.zoomEvents.listen((scrollDelta) {
+      setState(() {
+        if (scrollDelta > 0) {
+          displayTimeMs *= 1.1; // Zoom out
+        } else {
+          displayTimeMs *= 0.9; // Zoom in
+        }
+        displayTimeMs = displayTimeMs.clamp(5.0, 10000.0);
+      });
+    });
   }
 
   @override

@@ -198,11 +198,11 @@ class ProcessingUtilImpl implements ProcessingUtil
 			// Call the native function with correct parameters
 			final result = ProcessingBindings.instance.prepareForSignalDrawing(
 				outSamples,
-                        outSampleCounts,
+        outSampleCounts,
 				outEventIndices,
 				outEventCount,
 				inEventIndices,
-                        inEventCount,
+        inEventCount,
 				fromSample,
 				toSample,
 				drawSurfaceWidth

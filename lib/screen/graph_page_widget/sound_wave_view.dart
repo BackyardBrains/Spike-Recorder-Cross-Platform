@@ -22,30 +22,17 @@ class _SoundWaveViewState extends State<SoundWaveView> {
       onPointerSignal: (PointerSignalEvent event) {
         if (event is PointerScrollEvent) {
           Provider.of<GraphDataProvider>(context, listen: false)
-              .setScrollIndex(event.scrollDelta.dy);
+              .notifyZoomEvent(event.scrollDelta.dy);
         }
       },
       child: GestureDetector(
         onScaleUpdate: (ScaleUpdateDetails details) {
           double scale = details.scale;
-          if (scale > 1) {
-            scale = 1 / scale;
-            // print("the scale is $scale");
-          } else if (scale < 1) {
-            scale = -scale;
-            // print("the scale is decreasing $scale");
+          // Use the same zoom event system for scale gestures
+          if (scale != 1) {
+            Provider.of<GraphDataProvider>(context, listen: false)
+                .notifyZoomEvent(scale > 1 ? -10 : 10); // Convert scale to scroll-like values
           }
-          // For panning left to right
-          // else {
-          //   if (details.focalPointDelta.dx > 0) {
-          //     print("Panning right");
-          //   } else if (details.focalPointDelta.dx < 0) {
-          //     print("Panning left");
-          //   }
-          //   return;
-          // }
-          Provider.of<GraphDataProvider>(context, listen: false)
-              .setScrollIndex(scale * 10);
         },
         child: const SpikerBoxUi(),
       ),

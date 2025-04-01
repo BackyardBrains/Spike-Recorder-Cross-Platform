@@ -1,5 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 
 class DragGraphHorizontally extends StatefulWidget {
   const DragGraphHorizontally({super.key, required this.sliderWidget});
@@ -25,6 +27,24 @@ class _DragGraphHorizontallyState extends State<DragGraphHorizontally> {
   bool isZooming = false;
 
   @override
+  void initState() {
+    super.initState();
+ 
+    Provider.of<GraphDataProvider>(context, listen: false)
+        .displayTimeStream
+        .listen((displayTime) {
+
+      setState(() {
+        curTimeScaleBar = displayTime;
+
+      });
+    },
+    onError: (error) {
+      print("DraggableWidget: Error in displayTimeStream: $error");
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -37,6 +57,8 @@ class _DragGraphHorizontallyState extends State<DragGraphHorizontally> {
         onHorizontalDragEnd: (DragEndDetails dragEndDetails) {},
         child: Listener(
           onPointerSignal: (PointerSignalEvent dragDetails) {
+
+            print("curTimeScaleBar2: $curTimeScaleBar");
             if (dragDetails is PointerScrollEvent) {
               int direction = 0;
 

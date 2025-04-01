@@ -16,6 +16,9 @@ class GraphDataProvider extends ChangeNotifier {
   final _zoomEventController = StreamController<double>.broadcast();
   Stream<double> get zoomEvents => _zoomEventController.stream;
 
+  final _displayTimeController = StreamController<double>.broadcast();
+  Stream<double> get displayTimeStream => _displayTimeController.stream;
+
   Stream<List<double>>? get outputGraphStream => _outputGraphStream;
   int get sampleOnGraph => _samplesOnGraph;
   double getViewPortWidth() => _viewportWidth;
@@ -67,8 +70,17 @@ class GraphDataProvider extends ChangeNotifier {
     _zoomEventController.add(scrollDelta);
   }
 
+  void broadcastDisplayTime(double displayTime) {
+    if (_displayTimeController.isClosed) {
+      print("Warning: displayTimeController is closed!");
+      return;
+    }
+    _displayTimeController.add(displayTime);
+  }
+
   @override
   void dispose() {
+    _displayTimeController.close();
     _zoomEventController.close();
     super.dispose();
   }

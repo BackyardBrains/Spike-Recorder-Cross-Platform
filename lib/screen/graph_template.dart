@@ -258,7 +258,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       // Copy the results back to Dart
                       // Get the number of samples from outSampleCountsPtr
                       int sampleCount = outSampleCountsPtr.value;
-                      print("sampleCount: $sampleCount");
+                      //print("sampleCount: $sampleCount");
                       // Copy the prepared signal data
                       
                       //for (int i = 0; i < widget.channelCount; i++) {
@@ -500,11 +500,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
     providerScroll.zoomEvents.listen((scrollDelta) {
       setState(() {
         if (scrollDelta > 0) {
-          displayTimeMs *= 1.1; // Zoom out
+          displayTimeMs *= 1.1;
         } else {
-          displayTimeMs *= 0.9; // Zoom in
+          displayTimeMs *= 0.9;
         }
         displayTimeMs = displayTimeMs.clamp(5.0, 10000.0);
+        providerScroll.broadcastDisplayTime(displayTimeMs);
       });
     });
   }
@@ -732,48 +733,48 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       //     .read<DataStatusProvider>()
                                       //     .setMicrophoneDataStatus(false);
 
-                                      // if (!mounted) return;
-                                      // bool dummyDataStatus = context
-                                      //     .read<DataStatusProvider>()
-                                      //     .isSampleDataOn;
-                                      // bool isAudioListen = context
-                                      //     .read<DataStatusProvider>()
-                                      //     .isMicrophoneData;
-                                      // try {
-                                      //   _serialUtil.dataStream?.listen((event) {
-                                      //     if (!dummyDataStatus &&
-                                      //         !isAudioListen) {
-                                      //       _preEscapeSequenceBuffer
-                                      //           .addBytes(event);
-                                      //       if (isDeviceConnect) {
-                                      //         _serialUtil.writeToPort(
-                                      //             bytesMessage: UsbCommand
-                                      //                 .hwTypeInquiry
-                                      //                 .cmdAsBytes(),
-                                      //             address: add);
+                                      // // if (!mounted) return;
+                                      // // bool dummyDataStatus = context
+                                      // //     .read<DataStatusProvider>()
+                                      // //     .isSampleDataOn;
+                                      // // bool isAudioListen = context
+                                      // //     .read<DataStatusProvider>()
+                                      // //     .isMicrophoneData;
+                                      // // try {
+                                      // //   _serialUtil.dataStream?.listen((event) {
+                                      // //     if (!dummyDataStatus &&
+                                      // //         !isAudioListen) {
+                                      // //       _preEscapeSequenceBuffer
+                                      // //           .addBytes(event);
+                                      // //       if (isDeviceConnect) {
+                                      // //         _serialUtil.writeToPort(
+                                      // //             bytesMessage: UsbCommand
+                                      // //                 .hwTypeInquiry
+                                      // //                 .cmdAsBytes(),
+                                      // //             address: add);
 
-                                      //         isDeviceConnect = false;
-                                      //       }
-                                      //       if (_isDataIdentified) {
-                                      //         // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
-                                      //         // stopwatch.reset();
-                                      //       } else {
-                                      //         Uint8List? firstFrameData =
-                                      //             _frameDetect.addData(event);
+                                      // //         isDeviceConnect = false;
+                                      // //       }
+                                      // //       if (_isDataIdentified) {
+                                      // //         // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
+                                      // //         // stopwatch.reset();
+                                      // //       } else {
+                                      // //         Uint8List? firstFrameData =
+                                      // //             _frameDetect.addData(event);
 
-                                      //         if (firstFrameData != null) {
-                                      //           _preEscapeSequenceBuffer
-                                      //               .addBytes(firstFrameData);
-                                      //           _isDataIdentified = true;
-                                      //         }
-                                      //       }
-                                      //     }
-                                      //   });
-                                      //   portName = add;
-                                      // } catch (e) {
-                                      //   print(
-                                      //       "the error is $e from serial port");
-                                      // }
+                                      // //         if (firstFrameData != null) {
+                                      // //           _preEscapeSequenceBuffer
+                                      // //               .addBytes(firstFrameData);
+                                      // //           _isDataIdentified = true;
+                                      // //         }
+                                      // //       }
+                                      // //     }
+                                      // //   });
+                                      // //   portName = add;
+                                      // // } catch (e) {
+                                      // //   print(
+                                      // //       "the error is $e from serial port");
+                                      // // }
                                     },
                                     onWrite: (String add) async {
                                       MessageValueSet? selectedCommand = await showCommandPopUp(add);

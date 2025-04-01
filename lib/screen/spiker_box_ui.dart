@@ -55,25 +55,67 @@ class TimeCalculateWidget extends StatefulWidget {
 }
 
 class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
+  // Class-level constants
+  final List<double> scales = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
+  final List<String> scalesStr = ["1ms", "2ms", "5ms", "10ms", "20ms", "50ms", "100ms", "200ms", "500ms", "1s", "2s", "5s", "10s", "20s"];
+  final double widthOfScreen = 800;
+  double widthOfScale = 100;
+
+  String calculateDisplayTime(double? rawTime) {
+    if (rawTime == null) return '10s';
+
+    double value = rawTime / 5;
+    String finalString = '';
+    
+    // Find the appropriate scale
+    for (int i = 1; i < scales.length; i++) {
+      if (value < scales[i]) {
+        finalString = scalesStr[i - 1];
+        widthOfScale = (scales[i - 1] / rawTime) * widthOfScreen;
+        break;
+      }
+    }
+
+    // If no scale was found (value is larger than all scales), use the last scale
+    if (finalString.isEmpty) {
+      finalString = scalesStr.last;
+      widthOfScale = (scales.last / value) * widthOfScreen;
+    }
+
+    return finalString;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Consumer<GraphDataProvider>(builder: (context, timerCalculate, _) {
+    return Consumer<GraphDataProvider>(builder: (context, graphDataProvider, _) {
       return Align(
-        alignment: const Alignment(1, 0.7),
+        alignment: const Alignment(0.8, 0.75),
         child: SizedBox(
           height: 40,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                height: 5,
-                width: 300,
-                color: Colors.white,
+              StreamBuilder<double>(
+                stream: graphDataProvider.displayTimeStream,
+                initialData: 10000.0,
+                builder: (context, snapshot) {
+                  return Container(
+                    height: 3,
+                    width: widthOfScale, // Using the calculated width
+                    color: Colors.white,
+                  );
+                },
               ),
-              Text(
-                timerCalculate.sampleOnGraph.toString(),
-                style: SoftwareTextStyle().kWtMediumTextStyle,
+              StreamBuilder<double>(
+                stream: graphDataProvider.displayTimeStream,
+                initialData: 10000.0,
+                builder: (context, snapshot) {
+                  return Text(
+                    calculateDisplayTime(snapshot.data),
+                    style: SoftwareTextStyle().kWtMediumTextStyle,
+                  );
+                },
               ),
             ],
           ),

@@ -44,7 +44,21 @@ class ProcessingUtilImpl implements ProcessingUtil {
     // Just return success code
     return 0;
   }
+
+  @override
+  Future<int> setBandFilter(double lowCutOffFreq, double highCutOffFreq) async {
+    return 0;
+  }
+
+  @override
+  Future<int> setNotchFilter(double centerFreq) async {
+    return 0;
+  }
 }
+
+
+
+
 
 // Factory function to create an instance
 ProcessingUtil createProcessingUtil() => ProcessingUtilImpl();

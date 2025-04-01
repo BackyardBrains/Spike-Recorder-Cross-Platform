@@ -8,12 +8,14 @@ import '../constant/const_export.dart';
 import '../models/constant.dart';
 import '../models/microphone_stream/microphone_stream_check.dart';
 import '../screen/graph_template.dart';
+import '../models/processing_utils/processing_util.dart';
 
 class CustomSliderBarButton extends StatefulWidget {
   const CustomSliderBarButton({
     required this.sliderValue,
     required this.startValue,
     required this.endValue,
+    required this.processingUtil,
     super.key,
     required this.onHighPassFilterSetup,
     required this.onLowPassFilterSetup,
@@ -22,9 +24,9 @@ class CustomSliderBarButton extends StatefulWidget {
   });
 
   final double sliderValue;
-
   final double startValue;
   final double endValue;
+  final ProcessingUtil processingUtil;
   final Function(bool) isMicrophoneEnable;
   final Function(bool) onSampleChange;
   final Function(FilterSetup) onHighPassFilterSetup;
@@ -119,72 +121,16 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                 onChanged: (value) {
                   start = value.start;
                   end = value.end;
+                  
+                  // Update the slider values in provider
                   Provider.of<CustomRangeSliderProvider>(context, listen: false)
                       .setStartValue(start);
-
                   Provider.of<CustomRangeSliderProvider>(context, listen: false)
                       .setEndValue(end);
-                  if (start == 0) {
-                    _highPassFilterSettings = FilterSetup(
-                        filterConfiguration: FilterConfiguration(
-                            cutOffFrequency: start.toInt(),
-                            sampleRate: sampleRate.toInt()),
-                        filterType: FilterType.highPassFilter,
-                        channelCount: channelCountBuffer,
-                        isFilterOn: false);
 
-                    context
-                        .read<DataStatusProvider>()
-                        .setHighPassFilterSetting(_highPassFilterSettings);
-                    widget.onHighPassFilterSetup(_highPassFilterSettings);
-                  } else {
-                    _highPassFilterSettings = FilterSetup(
-                        filterConfiguration: FilterConfiguration(
-                            cutOffFrequency: start.toInt(),
-                            sampleRate: sampleRate.toInt()),
-                        filterType: FilterType.highPassFilter,
-                        channelCount: channelCountBuffer,
-                        isFilterOn: true);
-
-                    context
-                        .read<DataStatusProvider>()
-                        .setHighPassFilterSetting(_highPassFilterSettings);
-                    widget.onHighPassFilterSetup(_highPassFilterSettings);
-                  }
-
-                  if (end == sampleRate) {
-                    Provider.of<CustomRangeSliderProvider>(context,
-                            listen: false)
-                        .setEndValue(end);
-                    _lowPassFilterSettings = FilterSetup(
-                        filterConfiguration: FilterConfiguration(
-                            cutOffFrequency: value.end.toInt(),
-                            sampleRate: sampleRate.toInt()),
-                        filterType: FilterType.lowPassFilter,
-                        channelCount: channelCountBuffer,
-                        isFilterOn: false);
-
-                    context
-                        .read<DataStatusProvider>()
-                        .setLowPassFilterSetting(_lowPassFilterSettings);
-                    widget.onLowPassFilterSetup(_lowPassFilterSettings);
-                  } else {
-                    Provider.of<CustomRangeSliderProvider>(context,
-                            listen: false)
-                        .setEndValue(end);
-                    _lowPassFilterSettings = FilterSetup(
-                        filterConfiguration: FilterConfiguration(
-                            cutOffFrequency: value.end.toInt(),
-                            sampleRate: sampleRate.toInt()),
-                        filterType: FilterType.lowPassFilter,
-                        channelCount: channelCountBuffer,
-                        isFilterOn: true);
-
-                    context
-                        .read<DataStatusProvider>()
-                        .setLowPassFilterSetting(_lowPassFilterSettings);
-                    widget.onLowPassFilterSetup(_lowPassFilterSettings);
-                  }
+                  // Directly set the band filter using processingUtil
+                  widget.processingUtil.setBandFilter(start.toDouble(), end.toDouble());
+                  
                   setState(() {});
                 },
                 min: 0,

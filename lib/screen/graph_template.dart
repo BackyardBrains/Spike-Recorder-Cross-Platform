@@ -195,6 +195,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
       //init microphone stream  
       await processingUtil.initializeMicrophone(widget.channelCount, _sampleRate);
 
+      // Set band filter
+      await processingUtil.setBandFilter(1000, 10000);
+
+      // Set notch filter
+      await processingUtil.setNotchFilter(50);
+
       microphoneUtil.micStream!.listen((event) {
         bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
 
@@ -602,19 +608,18 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   child: Column(
                     children: [
                       CustomSliderBarButton(
+                        processingUtil: processingUtil,
                         isMicrophoneEnable: (bool isMicrophoneEnable) {
                           context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
                         },
                         onHighPassFilterSetup: (FilterSetup filterSetup) {
-                          localPlugin.initHighPassFilters(filterSetup);
+                          // Keep this for backward compatibility if needed
                         },
                         onLowPassFilterSetup: (FilterSetup filterSetup) {
-                          localPlugin.initLowPassFilters(filterSetup);
+                          // Keep this for backward compatibility if needed
                         },
                         onSampleChange: (bool isSampleDataOn) {
                           context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
-                          // _toGenerateDummyData =
-                          //     isSampleDataOn;
                         },
                         startValue: startValue,
                         endValue: endValue,

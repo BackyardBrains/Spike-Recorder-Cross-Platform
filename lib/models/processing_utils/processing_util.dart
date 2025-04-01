@@ -32,4 +32,10 @@ abstract class ProcessingUtil {
     int toSample,
     int drawSurfaceWidth
   );
+
+  // Set band filter
+  Future<int> setBandFilter(double lowCutOffFreq, double highCutOffFreq);
+
+  // Set notch filter
+  Future<int> setNotchFilter(double centerFreq);
 }

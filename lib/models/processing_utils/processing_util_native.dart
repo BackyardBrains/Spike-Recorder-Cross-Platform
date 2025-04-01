@@ -179,6 +179,23 @@ class ProcessingUtilImpl implements ProcessingUtil
 		}
 	}
 
+  @override
+  Future<int> setBandFilter(double lowCutOffFreq, double highCutOffFreq) async {
+    if (!_isInitialized) {
+      await init();
+    }
+    return ProcessingBindings.instance.setBandFilter(lowCutOffFreq, highCutOffFreq);
+  }
+
+  @override
+  Future<int> setNotchFilter(double centerFreq) async {
+    if (!_isInitialized) {
+      await init();
+    }
+    return ProcessingBindings.instance.setNotchFilter(centerFreq);
+  }
+
+  
 	@override
 	int prepareForSignalDrawingProcess( Pointer<Pointer<Int16>> outSamples,
                                           Pointer<Int32> outSampleCounts,

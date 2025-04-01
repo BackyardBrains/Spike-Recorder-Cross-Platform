@@ -101,6 +101,7 @@ namespace backyardbrains {
             lowPassFilter = new LowPassFilterPtr[channelCount];
             highPassFilter = new HighPassFilterPtr[channelCount];
             notchFilter = new NotchFilterPtr[channelCount];
+            log_print("Creating filters lowCutOff: %f, highCutOff: %f, centerFrequency: %f", lowCutOff, highCutOff, centerFrequency);
             for (int i = 0; i < channelCount; i++) {
                 // low pass filters
                 lowPassFilter[i] = new LowPassFilter();

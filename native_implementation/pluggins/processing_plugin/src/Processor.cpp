@@ -101,20 +101,20 @@ namespace backyardbrains {
             lowPassFilter = new LowPassFilterPtr[channelCount];
             highPassFilter = new HighPassFilterPtr[channelCount];
             notchFilter = new NotchFilterPtr[channelCount];
-            log_print("Creating filters lowCutOff: %f, highCutOff: %f, centerFrequency: %f", lowCutOff, highCutOff, centerFrequency);
+            
             for (int i = 0; i < channelCount; i++) {
                 // low pass filters
                 lowPassFilter[i] = new LowPassFilter();
                 lowPassFilter[i]->initWithSamplingRate(sampleRate);
                 if (highCutOff > sampleRate / 2.0f) highCutOff = sampleRate / 2.0f;
                 lowPassFilter[i]->setCornerFrequency(highCutOff);
-                lowPassFilter[i]->setQ(0.5f);
+                lowPassFilter[i]->setQ(0.49f);
                 // high pass filters
                 highPassFilter[i] = new HighPassFilter();
                 highPassFilter[i]->initWithSamplingRate(sampleRate);
                 if (lowCutOff < 0) lowCutOff = 0;
                 highPassFilter[i]->setCornerFrequency(lowCutOff);
-                highPassFilter[i]->setQ(0.5f);
+                highPassFilter[i]->setQ(0.49f);
                 // notch filter
                 notchFilter[i] = new NotchFilter();
                 notchFilter[i]->initWithSamplingRate(sampleRate);

@@ -196,7 +196,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       await processingUtil.initializeMicrophone(widget.channelCount, _sampleRate);
 
       // Set band filter
-      await processingUtil.setBandFilter(1000, 10000);
+      await processingUtil.setBandFilter(-1, -1);
 
       // Set notch filter
       await processingUtil.setNotchFilter(50);

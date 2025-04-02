@@ -1,9 +1,36 @@
+#define BUILDING_DLL
 #include "processing.h"
 #include <cmath>
 #include <vector>
 #include <cstring>
 #include <algorithm>
-#include <sys/time.h>
+#ifdef _WIN32
+    #include <windows.h>
+    #include <time.h>
+
+    // Windows implementation of timeval if not already defined
+  /*  #ifndef _TIMEVAL_DEFINED
+    #define _TIMEVAL_DEFINED
+    struct timeval {
+        long tv_sec;
+        long tv_usec;
+    };
+    #endif*/
+
+    // Windows implementation of timezone if not already defined
+    #ifndef _TIMEZONE_DEFINED
+    #define _TIMEZONE_DEFINED
+    struct timezone {
+        int tz_minuteswest;
+        int tz_dsttime;
+    };
+    #endif
+
+    // Implementation of gettimeofday for Windows
+    int gettimeofday(struct timeval* tp, struct timezone* tzp);
+#else
+    #include <sys/time.h>
+#endif
 #include "DebuggingLogBYB.h"
 
 using namespace backyardbrains::filters;
@@ -44,6 +71,31 @@ static IsiAnalysis* isiAnalysis = nullptr;
 static AverageSpikeAnalysis* averageSpikeAnalysis = nullptr;
 static CrossCorrelationAnalysis* crossCorrelationAnalysis = nullptr;
 
+
+#ifdef _WIN32
+// Windows implementation of gettimeofday
+int gettimeofday(struct timeval* tp, struct timezone* tzp) {
+    // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
+    // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
+    // until 00:00:00 January 1, 1970
+    static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
+
+    SYSTEMTIME system_time;
+    FILETIME file_time;
+    uint64_t time;
+
+    GetSystemTime(&system_time);
+    SystemTimeToFileTime(&system_time, &file_time);
+    time = ((uint64_t)file_time.dwLowDateTime);
+    time += ((uint64_t)file_time.dwHighDateTime) << 32;
+
+    tp->tv_sec = (long)((time - EPOCH) / 10000000L);
+    tp->tv_usec = (long)(system_time.wMilliseconds * 1000);
+    return 0;
+}
+#endif
+
+
 //Class for multichannel circular buffer with int16_t samples
 //It has headIndex and tailIndex
 //it has setup function that initialize channel buffers based on sample rate and channel count
@@ -69,16 +121,21 @@ class CircularBuffer {
                   }
                   
                   //check if sample rate is valid
+                  
                   this->sampleRate = sampleRate;
                   this->channelCount = channelCount;
                   this->bufferSize = sampleRate * MAX_NUMBER_OF_SECONDS;
                   this->buffer = new int16_t*[channelCount];
+                  
                   for (int i = 0; i < channelCount; i++) {
                         this->buffer[i] = new int16_t[bufferSize];
+                        
                         for (int j = 0; j < bufferSize; j++) {
                               this->buffer[i][j] = 0;
                         }
                   }
+                  headIndex = 0;
+                  tailIndex = 0;
             }
 
             // Add data to circular buffer
@@ -86,21 +143,38 @@ class CircularBuffer {
                   if (buffer == nullptr || sampleCount <= 0) {
                         return;
                   }
-                  
+                 
                   // Add samples to buffer for each channel
-                  for (int chan = 0; chan < channelCount; chan++) {
-                        for (int i = 0; i < sampleCount; i++) {
-                              // Store sample at current head position
-                              buffer[chan][headIndex] = samples[chan][i];
+                  try {
+                        for (int chan = 0; chan < channelCount; chan++) {
+                
                               
-                              // Move head forward, wrapping around if needed
-                              headIndex = (headIndex + 1) % bufferSize;
-                              
-                              // If head catches up to tail, move tail forward
-                              if (headIndex == tailIndex) {
-                                    tailIndex = (tailIndex + 1) % bufferSize;
+                              for (int i = 0; i < sampleCount; i++) {
+                                    try {
+                                         
+                                          // Store sample at current head position
+                                          int16_t temp_sample = samples[chan][i];
+                                         
+                                          buffer[chan][headIndex] = temp_sample;
+                                         
+                                          // Move head forward, wrapping around if needed
+                                          headIndex = (headIndex + 1) % bufferSize;
+                                         
+                                          // If head catches up to tail, move tail forward
+                                          if (headIndex == tailIndex) {
+                                               
+                                                tailIndex = (tailIndex + 1) % bufferSize;
+                                          }
+                                    } catch (const std::exception& e) {
+                                          log_debug("Error processing sample %d in channel %d: %s", i, chan, e.what());
+                                          throw; // Re-throw to be caught by outer catch
+                                    }
                               }
                         }
+                  } catch (const std::exception& e) {
+                        log_debug("Critical error in buffer processing: %s", e.what());
+                        log_debug("State: headIndex=%d, tailIndex=%d, bufferSize=%d", headIndex, tailIndex, bufferSize);
+                        throw; // Re-throw if you want the error to propagate up
                   }
             }
             
@@ -214,7 +288,7 @@ private:
 // Helper functions
 static void initialize_processors() {
 
-      log_debug("Debug init 2");
+      log_debug("initialize_processors");
       if (!eventListener) {
             eventListener = new EventListener();
       }
@@ -281,7 +355,7 @@ int32_t processing_init() {
     if (initialized) {
         return 0;
     }
-    log_debug("Debug init");
+    log_debug("Processing init");
     try {
         // Initialize default settings
         current_sample_rate = PROCESSING_DEFAULT_SAMPLE_RATE;
@@ -427,18 +501,17 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
       if (!initialized || !out_samples || !out_sample_counts || !in_data || length <= 0) {
             return -1;
       }
-      log_debug("Processing microphone data: length=%d", length);
+      //log_debug("Processing microphone data: length=%d", length);
 
       try {
             // Calculate sample count based on bits per sample
             int32_t sample_count = length * 8 / current_bits_per_sample;
             int32_t frame_count = sample_count / current_channel_count;
 
-            log_debug("Processing microphone data: frame_count=%d", frame_count);
-            log_debug("Processing microphone data: sample_count=%d", sample_count);
+  
             // Store the AM modulation state before processing
             bool is_receiving_am_signal_before = amModulationProcessor->isReceivingAmSignal();
-
+            
             // Process the audio data through AM modulation processor
             // Note: amModulationProcessor expects interleaved samples as input 
             // and will handle deinterleaving internally
@@ -456,12 +529,12 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
                   sample_count,
                   frame_count
             );
-            
+           
             // Add processed data to circular buffer
             if (circularBuffer != nullptr) {
                   circularBuffer->addData(channel_samples, frame_count);
             }
-            
+           
             // Copy processed data from channel_samples to out_samples
             for (int i = 0; i < current_channel_count; i++) {
                   std::copy(channel_samples[i], channel_samples[i] + frame_count, out_samples[i]);
@@ -480,7 +553,7 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
             for (int i = 0; i < current_channel_count; i++) {
                   out_sample_counts[i] = frame_count;
             }
-
+            
             return 0;
       } catch (...) {
             log_debug("Exception ");
@@ -711,12 +784,12 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
             float_samples[i] = new float[sample_out_count];
         }
 
-        log_debug("Processing sample_out_count=%d, sample_count=%d", sample_out_count, sample_count);
+  
         // Retrieve data from the circular buffer
         if (circularBuffer != nullptr) {
             
             circularBuffer->getDataForDrawing(temp_samples, from_sample, to_sample);
-            log_debug("Circular: from_sample=%d, to_sample=%d", from_sample, to_sample);
+            //log_debug("Circular: from_sample=%d, to_sample=%d", from_sample, to_sample);
         } else {
             // Clean up and return error if no circular buffer is available
             for (int i = 0; i < channel_count; i++) {

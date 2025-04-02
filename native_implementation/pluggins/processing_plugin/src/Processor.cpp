@@ -108,13 +108,13 @@ namespace backyardbrains {
                 lowPassFilter[i]->initWithSamplingRate(sampleRate);
                 if (highCutOff > sampleRate / 2.0f) highCutOff = sampleRate / 2.0f;
                 lowPassFilter[i]->setCornerFrequency(highCutOff);
-                lowPassFilter[i]->setQ(0.49f);
+                lowPassFilter[i]->setQ(0.5f);
                 // high pass filters
                 highPassFilter[i] = new HighPassFilter();
                 highPassFilter[i]->initWithSamplingRate(sampleRate);
                 if (lowCutOff < 0) lowCutOff = 0;
                 highPassFilter[i]->setCornerFrequency(lowCutOff);
-                highPassFilter[i]->setQ(0.49f);
+                highPassFilter[i]->setQ(0.5f);
                 // notch filter
                 notchFilter[i] = new NotchFilter();
                 notchFilter[i]->initWithSamplingRate(sampleRate);

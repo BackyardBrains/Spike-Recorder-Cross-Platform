@@ -267,7 +267,8 @@ class ProcessingBindings {
     print('Project root: $projectRoot');
 
     if (Platform.isWindows) {
-      return 'build/windows/runner/$buildMode/processing_plugin.dll';
+            //return 'build/windows/runner/$buildMode/processing_plugin.dll';
+            return path.join(projectRoot, 'lib', 'native', 'processing.dll');
     } else if (Platform.isMacOS) {
       // Try multiple approaches to find the library
 

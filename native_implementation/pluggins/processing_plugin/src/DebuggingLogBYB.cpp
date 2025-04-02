@@ -1,6 +1,11 @@
 #include "DebuggingLogBYB.h"
-// Choose a logging location accessible on macOS
-#define LOG_PATH "/tmp/flutter_native_crash.log"
+#ifdef _WIN32
+    #define LOG_PATH "C:\\Users\\Public\\flutter_native_crash.log"
+    // Or using environment variable (better):
+    // Windows has a TEMP or TMP environment variable
+#else
+    #define LOG_PATH "/tmp/flutter_native_crash.log"
+#endif
 
 void log_debug(const char* format, ...) {
     static std::ofstream log_file(LOG_PATH, std::ios::app);

@@ -3,7 +3,58 @@
 //
 
 #include "SpikeAnalysis.h"
-#include <sys/time.h>
+#ifdef _WIN32
+    #include <windows.h>
+    #include <time.h>
+
+    // Windows implementation of timeval if not already defined
+    //#ifndef _TIMEVAL_DEFINED
+    //    #define _TIMEVAL_DEFINED
+    //    struct timeval {
+    //        long tv_sec;
+    //        long tv_usec;
+    //    };
+    //#endif
+
+    // Windows implementation of timezone if not already defined
+    #ifndef _TIMEZONE_DEFINED
+    #define _TIMEZONE_DEFINED
+    struct timezone {
+        int tz_minuteswest;
+        int tz_dsttime;
+    };
+    #endif
+
+    // Implementation of gettimeofday for Windows
+    int gettimeofday(struct timeval* tp, struct timezone* tzp);
+#else
+    #include <sys/time.h>
+#endif
+
+
+
+//#ifdef _WIN32
+//// Windows implementation of gettimeofday
+//int gettimeofday(struct timeval* tp, struct timezone* tzp) {
+//    // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
+//    // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
+//    // until 00:00:00 January 1, 1970
+//    static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
+//
+//    SYSTEMTIME system_time;
+//    FILETIME file_time;
+//    uint64_t time;
+//
+//    GetSystemTime(&system_time);
+//    SystemTimeToFileTime(&system_time, &file_time);
+//    time = ((uint64_t)file_time.dwLowDateTime);
+//    time += ((uint64_t)file_time.dwHighDateTime) << 32;
+//
+//    tp->tv_sec = (long)((time - EPOCH) / 10000000L);
+//    tp->tv_usec = (long)(system_time.wMilliseconds * 1000);
+//    return 0;
+//}
+//#endif
 
 namespace backyardbrains {
 

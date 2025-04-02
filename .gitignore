@@ -44,3 +44,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/native_implementation/pluggins/processing_plugin/.vs
+native_implementation/pluggins/processing_plugin/out
+/windows/.vs

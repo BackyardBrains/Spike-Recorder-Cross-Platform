@@ -26,10 +26,10 @@ packages:
     dependency: transitive
     description:
       name: args
-      sha256: bf9f5caeea8d8fe6721a9c358dd8a5c1947b27f1cfaa18b39c301273594919e6
+      sha256: d0481093c50b1da8910eb0bb301626d4d8eb7284aa739614d2b394ee09e3ea04
       url: "https://pub.dev"
     source: hosted
-    version: "2.6.0"
+    version: "2.7.0"
   async:
     dependency: transitive
     description:
@@ -240,18 +240,18 @@ packages:
     dependency: "direct main"
     description:
       name: isolate_manager
-      sha256: "1e60261a5bba4bab5e1f78871c91a284d5de402d340ea33cad39ce81f833070f"
+      sha256: "0ff8401979b8101fec4019d7aedead083780fea152970799f0f3456dfe323e11"
       url: "https://pub.dev"
     source: hosted
-    version: "5.7.3"
+    version: "5.7.5"
   isolate_manager_generator:
     dependency: transitive
     description:
       name: isolate_manager_generator
-      sha256: d912df1b3131d35e016cf19f45ada2168546d1118729a13d64fc8d641a77164f
+      sha256: "6352f7ddeeea1a58700f46ef80fbba14ab4c347f70eb0495109f072e454e206b"
       url: "https://pub.dev"
     source: hosted
-    version: "0.0.1"
+    version: "0.0.12"
   isolated_worker:
     dependency: "direct main"
     description:
@@ -376,10 +376,10 @@ packages:
     dependency: "direct main"
     description:
       name: mic_stream
-      sha256: "1db1ec77bdd8ffc0d1c5cc606398612930312a96462220add5ea24aa9da73210"
+      sha256: cd024113c2e25d32172af483816cef49eb808458ceb3186fa4e3e53353bf13cd
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.1+2"
+    version: "0.7.2"
   native_add:
     dependency: "direct main"
     description:
@@ -399,10 +399,10 @@ packages:
     dependency: transitive
     description:
       name: package_config
-      sha256: "92d4488434b520a62570293fbd33bb556c7d49230791c1b4bbd973baf6d2dc67"
+      sha256: f096c55ebb7deb7e384101542bfba8c52696c1b56fca2eb62827989ef2353bbc
       url: "https://pub.dev"
     source: hosted
-    version: "2.1.1"
+    version: "2.2.0"
   path:
     dependency: transitive
     description:
@@ -423,10 +423,10 @@ packages:
     dependency: transitive
     description:
       name: path_provider_android
-      sha256: "4adf4fd5423ec60a29506c76581bc05854c55e3a0b72d35bb28d661c9686edf2"
+      sha256: "0ca7359dad67fd7063cb2892ab0c0737b2daafd807cf1acecd62374c8fae6c12"
       url: "https://pub.dev"
     source: hosted
-    version: "2.2.15"
+    version: "2.2.16"
   path_provider_foundation:
     dependency: transitive
     description:
@@ -527,18 +527,18 @@ packages:
     dependency: "direct main"
     description:
       name: provider
-      sha256: c8a055ee5ce3fd98d6fc872478b03823ffdb448699c6ebdbbc71d59b596fd48c
+      sha256: "489024f942069c2920c844ee18bb3d467c69e48955a4f32d1677f71be103e310"
       url: "https://pub.dev"
     source: hosted
-    version: "6.1.2"
+    version: "6.1.4"
   pub_semver:
     dependency: transitive
     description:
       name: pub_semver
-      sha256: "7b3cfbf654f3edd0c6298ecd5be782ce997ddf0e00531b9464b55245185bbbbd"
+      sha256: "5bfcf68ca79ef689f8990d1160781b4bad40a3bd5e5218ad4076ddb7f4081585"
       url: "https://pub.dev"
     source: hosted
-    version: "2.1.5"
+    version: "2.2.0"
   rxdart:
     dependency: transitive
     description:
@@ -572,10 +572,10 @@ packages:
     dependency: "direct main"
     description:
       name: sound_stream_now
-      sha256: "2be94b5710a1c91a7153510db51f4662c836f10f6fd5a48666c7aa1c1a2dc002"
+      sha256: edb1fbee11656b3eca9324c0bbc66abd90b1bec62760ba7aafb96112cbde1f59
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.0"
+    version: "1.0.2"
   source_span:
     dependency: transitive
     description:
@@ -628,18 +628,18 @@ packages:
     dependency: "direct main"
     description:
       name: syncfusion_flutter_charts
-      sha256: "61aabae1e5921e485455f273b37919a30a930c9d9d9a89bc5d967a27fb363425"
+      sha256: "8367eb7b9941e33158f34c3e903e19897542b19423f9a91897aaafe4228298ca"
       url: "https://pub.dev"
     source: hosted
-    version: "28.2.7"
+    version: "28.2.12"
   syncfusion_flutter_core:
     dependency: transitive
     description:
       name: syncfusion_flutter_core
-      sha256: "393db014b90865222f8c442dd989a9ba6107bb92bf4d4774257d60a3ee05053f"
+      sha256: f1d2b52697543e13bdefdc62d15868124a265987577f53224a7dbe176c8448f0
       url: "https://pub.dev"
     source: hosted
-    version: "28.2.7"
+    version: "28.2.12"
   term_glyph:
     dependency: transitive
     description:
@@ -676,10 +676,10 @@ packages:
     dependency: transitive
     description:
       name: url_launcher_android
-      sha256: "6fc2f56536ee873eeb867ad176ae15f304ccccc357848b351f6f0d8d4a40d193"
+      sha256: "1d0eae19bd7606ef60fe69ef3b312a437a16549476c42321d5dc1506c9ca3bf4"
       url: "https://pub.dev"
     source: hosted
-    version: "6.3.14"
+    version: "6.3.15"
   url_launcher_ios:
     dependency: transitive
     description:

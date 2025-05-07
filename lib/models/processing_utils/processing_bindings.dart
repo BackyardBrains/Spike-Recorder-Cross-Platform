@@ -1,6 +1,5 @@
 import 'dart:ffi';
 import 'dart:io';
-import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as path;
 
 // FFI type definitions
@@ -27,7 +26,6 @@ typedef ProcessingSetBandFilter = int Function(
 
 typedef ProcessingSetNotchFilterNative = Int32 Function(Float centerFreq);
 typedef ProcessingSetNotchFilter = int Function(double centerFreq);
-
 typedef ProcessingProcessMicrophoneStreamNative = Int32 Function(
     Pointer<Pointer<Int16>> outSamples, 
     Pointer<Int32> outSampleCounts,
@@ -38,6 +36,18 @@ typedef ProcessingProcessMicrophoneStream = int Function(
     Pointer<Int32> outSampleCounts,
     Pointer<Uint8> inData, 
     int length);
+typedef ProcessingProcessSampleStreamNative = Int32 Function(
+    Pointer<Pointer<Int16>> outSamples, 
+    Pointer<Int32> outSampleCounts,
+    Pointer<Uint8> inData, 
+    Int32 length,
+    Int32 deviceType);
+typedef ProcessingProcessSampleStream = int Function(
+    Pointer<Pointer<Int16>> outSamples, 
+    Pointer<Int32> outSampleCounts,
+    Pointer<Uint8> inData, 
+    int length,
+    int deviceType);
 
 typedef ProcessingFilterDataNative = Int32 Function(
     Pointer<Double> data, Int32 length);
@@ -164,6 +174,7 @@ class ProcessingBindings {
   late final ProcessingSetBandFilter setBandFilter;
   late final ProcessingSetNotchFilter setNotchFilter;
   late final ProcessingProcessMicrophoneStream processMicrophoneStream;
+  late final ProcessingProcessSampleStream processSampleStream;
   late final ProcessingFilterData filterData;
   late final ProcessingRms rms;
   late final ProcessingMap map;
@@ -209,6 +220,7 @@ class ProcessingBindings {
     setNotchFilter = _lib!.lookupFunction<ProcessingSetNotchFilterNative,ProcessingSetNotchFilter>('processing_set_notch_filter');
 
     processMicrophoneStream = _lib!.lookupFunction<ProcessingProcessMicrophoneStreamNative,ProcessingProcessMicrophoneStream>('processing_process_microphone_stream');
+    processSampleStream = _lib!.lookupFunction<ProcessingProcessSampleStreamNative,ProcessingProcessSampleStream>('processing_process_sample_stream');
 
     // filterData = _lib!.lookupFunction<ProcessingFilterDataNative, ProcessingFilterData>('processing_filter_data');
 

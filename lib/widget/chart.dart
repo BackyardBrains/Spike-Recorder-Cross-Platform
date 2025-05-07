@@ -2,7 +2,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_charts/charts.dart';
+// import 'package:syncfusion_flutter_charts/charts.dart';
 import 'dart:async';
 
 import '../models/models.dart';
@@ -25,7 +25,7 @@ class _ChartViewState extends State<ChartView> {
   final Random _random = Random();
   int _xCount = _graphPointsLength;
 
-  ChartSeriesController? _controller;
+  // ChartSeriesController? _controller;
 
   @override
   void initState() {
@@ -54,15 +54,15 @@ class _ChartViewState extends State<ChartView> {
       // Add new points to end of buffer
       _dataPoints.addAll(newPoints);
 
-      if (_controller != null) {
-        _controller?.updateDataSource(
-          removedDataIndexes: List.generate(l, (index) => index),
-          addedDataIndexes:
-              List.generate(l, (index) => (_dataPoints.length - l) + index),
-        );
-      } else {
-        Debugging.printing("Chart controller is null");
-      }
+      // if (_controller != null) {
+      //   _controller?.updateDataSource(
+      //     removedDataIndexes: List.generate(l, (index) => index),
+      //     addedDataIndexes:
+      //         List.generate(l, (index) => (_dataPoints.length - l) + index),
+      //   );
+      // } else {
+      //   Debugging.printing("Chart controller is null");
+      // }
     });
   }
 
@@ -77,27 +77,28 @@ class _ChartViewState extends State<ChartView> {
 
   @override
   Widget build(BuildContext context) {
-    return SfCartesianChart(
-      borderWidth: 0,
-      borderColor: Colors.white,
-      enableSideBySideSeriesPlacement: true,
-      primaryXAxis: NumericAxis(),
-      primaryYAxis: NumericAxis(),
+    return Container();
+    // return SfCartesianChart(
+    //   borderWidth: 0,
+    //   borderColor: Colors.white,
+    //   enableSideBySideSeriesPlacement: true,
+    //   primaryXAxis: NumericAxis(),
+    //   primaryYAxis: NumericAxis(),
 
-      // primaryXAxis: CategoryAxis(isVisible: true),
-      // primaryYAxis: CategoryAxis(isVisible: true),
-      series: <FastLineSeries<DataPoint, int>>[
-        FastLineSeries<DataPoint, int>(
-          dataSource: _dataPoints,
-          onRendererCreated: (ChartSeriesController controller) {
-            _controller = controller;
-          },
-          xValueMapper: (DataPoint data, _) => data.x,
-          yValueMapper: (DataPoint data, _) => data.y,
-          animationDuration: 0,
-        ),
-      ],
-    );
+    //   // primaryXAxis: CategoryAxis(isVisible: true),
+    //   // primaryYAxis: CategoryAxis(isVisible: true),
+    //   series: <FastLineSeries<DataPoint, int>>[
+    //     FastLineSeries<DataPoint, int>(
+    //       dataSource: _dataPoints,
+    //       onRendererCreated: (ChartSeriesController controller) {
+    //         _controller = controller;
+    //       },
+    //       xValueMapper: (DataPoint data, _) => data.x,
+    //       yValueMapper: (DataPoint data, _) => data.y,
+    //       animationDuration: 0,
+    //     ),
+    //   ],
+    // );
   }
 }
 

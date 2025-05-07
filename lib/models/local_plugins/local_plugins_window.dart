@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:ffi';
 import 'dart:typed_data';
+import 'package:ffi/ffi.dart';
 import 'package:native_add/model/model.dart';
 import 'package:native_add/native_add.dart' as native_add;
 import 'package:spikerbox_architecture/models/models.dart';
+import 'package:spikerbox_architecture/models/processing_utils/processing_bindings.dart';
+import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 
 class LocalPluginWindow implements LocalPlugin {
   final List<BufferHandlerOnDemand?> _bufferHandlerOnDemand =
@@ -24,7 +28,7 @@ class LocalPluginWindow implements LocalPlugin {
 
   @override
   Future<void> filterArrayElements(
-      {required List<int> array,
+      {required array,
       required int arrayLength,
       required int channelIdx}) async {
     _bufferHandlerOnDemand[channelIdx]
@@ -81,4 +85,13 @@ class LocalPluginWindow implements LocalPlugin {
     _bufferHandlerOnDemand[channelIdx]?.toFetchBytes = true;
     _bufferHandlerOnDemand[channelIdx]?.requestData();
   }
+
+  @override
+  Stream<Uint8List>? postDisplayStream;
+
+  @override
+  StreamController<Uint8List> postDisplayStreamController =
+      StreamController<Uint8List>();
+  
+
 }

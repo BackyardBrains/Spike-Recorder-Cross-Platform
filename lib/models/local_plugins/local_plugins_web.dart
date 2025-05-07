@@ -5,6 +5,8 @@ import 'package:spikerbox_architecture/models/models.dart';
 import 'package:spikerbox_architecture/models/local_plugins/local_plugins_check.dart';
 import 'dart:js' as js;
 
+import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
+
 LocalPlugin getLocalPlugins() => LocalPluginWeb();
 
 class LocalPluginWeb implements LocalPlugin {
@@ -23,6 +25,7 @@ class LocalPluginWeb implements LocalPlugin {
   @override
   Future<void> spawnHelperIsolate() async {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
+    postDisplayStream = postDisplayStreamController.stream.asBroadcastStream();
     for (int i = 0; i < channelCountBuffer; i++) {
       _bufferHandlerOnDemand[i] = BufferHandlerOnDemand(
         chunkReadSize: 4000,
@@ -31,20 +34,23 @@ class LocalPluginWeb implements LocalPlugin {
         },
       );
     }
+    // js.context['sendSerialDataWeb'] = sendSerialData;
     js.context['onDataBufferAllocated'] = onDataBufferAllocated;
     js.context['onProcessingDone'] = onProcessingDone;
+    js.context['onPostDisplay'] = onPostDisplay;
     js.context.callMethod("initializeModule", []);
   }
 
   @override
   Future<void> filterArrayElements(
-      {required List<int> array,
+      {required array,
       required int arrayLength,
       required int channelIdx}) async {
-    Int16List iList = Int16List.fromList(array);
+    // Int16List iList = Int16List.fromList(array);
 
     // Add data to circular buffer
-    _bufferHandlerOnDemand[channelIdx]?.addBytes(iList.buffer.asUint8List());
+    // _bufferHandlerOnDemand[channelIdx]?.addBytes(iList.buffer.asUint8List());
+    _bufferHandlerOnDemand[channelIdx]?.addBytes(array);
     return;
   }
 
@@ -87,15 +93,15 @@ class LocalPluginWeb implements LocalPlugin {
   void onPacketAvailable(Uint8List packet, int channelIndex) {
     _bufferHandlerOnDemand[channelIndex]?.toFetchBytes = false;
     Int16List listFromBuffer = packet.buffer.asInt16List();
-    if (_dataBuffer[channelIndex]!.isEmpty) {
+    if (_dataBuffer.isEmpty) {
       _bufferHandlerOnDemand[channelIndex]?.toFetchBytes = true;
       _bufferHandlerOnDemand[channelIndex]?.requestData();
       return;
     }
 
-    for (int i = 0; i < listFromBuffer.length; i++) {
-      _dataBuffer[channelIndex]![i] = listFromBuffer[i];
-    }
+    // for (int i = 0; i < listFromBuffer.length; i++) {
+    //   _dataBuffer[channelIndex]![i] = listFromBuffer[i];
+    // }
 
     bool toApplyHighPass = false;
     bool toApplyLowPass = false;
@@ -110,13 +116,13 @@ class LocalPluginWeb implements LocalPlugin {
         toApplyLowPass = true;
       }
     }
-    js.context.callMethod("sendToWorkerApplyFilter", [
-      channelIndex,
-      listFromBuffer.length,
-      toApplyHighPass,
-      toApplyLowPass,
-      toApplyNotch,
-    ]);
+    // js.context.callMethod("sendToWorkerApplyFilter", [
+    //   channelIndex,
+    //   listFromBuffer,
+    //   toApplyHighPass,
+    //   toApplyLowPass,
+    //   toApplyNotch,
+    // ]);
   }
 
   /// Called only once in the beginning to send address of buffer to dart
@@ -125,15 +131,48 @@ class LocalPluginWeb implements LocalPlugin {
   }
 
   /// Called from JS when processing completed on a packet
-  void onProcessingDone(int channelIdx) {
-    Int16List returnList = Int16List(_dataBuffer[channelIdx]?.length ?? 0);
-    for (int i = 0; i < returnList.length; i++) {
-      returnList[i] = _dataBuffer[channelIdx]![i];
-    }
+  void onProcessingDone(int channelIdx, buffer) {
+    // Int16List returnList = Int16List(_dataBuffer[channelIdx]?.length ?? 0);
+    // for (int i = 0; i < returnList.length; i++) {
+    //   returnList[i] = _dataBuffer[channelIdx]![i];
+    // }
 
-    postFilterStreamController.add(returnList.buffer.asUint8List());
+    // postFilterStreamController.add(returnList.buffer.asUint8List());
+    postFilterStreamController.add(buffer);
 
     _bufferHandlerOnDemand[channelIdx]?.toFetchBytes = true;
     _bufferHandlerOnDemand[channelIdx]?.requestData();
   }
+
+  void onPostDisplay(int channelCount, channelData) {
+    postDisplayStreamController.sink.add(channelData);
+
+  }
+
+
+
+  Future<int> setBandFilter(double lowCutOffFreq, double highCutOffFreq) async {
+
+    js.context.callMethod("setBandFilterWeb", [lowCutOffFreq, highCutOffFreq]);
+    return 0;
+  }
+
+  Future<int> setNotchFilter(double centerFreq) async {
+    js.context.callMethod("setNotchFilterWeb", [centerFreq]);
+    // setNotchFilterWeb(centerFreq);
+    return 0;
+  }
+  
+  List<Int16List> prepareDisplayMicrophoneData(List<Int16List> processedData, int drawSurfaceWidth, int channelCount, double displayTimeMs, GraphDataProvider provider) {
+    js.context.callMethod("prepareDisplayMicrophoneData", [drawSurfaceWidth, channelCount, displayTimeMs]);
+    return [];
+    // prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, displayTimeMs);
+  }
+  
+  @override
+  Stream<Uint8List>? postDisplayStream;
+  
+  @override
+  StreamController<Uint8List> postDisplayStreamController =
+      StreamController<Uint8List>();
 }

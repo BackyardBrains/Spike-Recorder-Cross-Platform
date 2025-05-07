@@ -5,6 +5,7 @@ import 'package:native_add/model/model.dart';
 import 'package:spikerbox_architecture/models/local_plugins/local_plugins_check.dart';
 import 'package:native_add/native_add.dart' as native_add;
 import 'package:spikerbox_architecture/models/models.dart';
+import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 
 class LocalPluginAndroid implements LocalPlugin {
   final List<BufferHandlerOnDemand?> _bufferHandlerOnDemand =
@@ -32,7 +33,7 @@ class LocalPluginAndroid implements LocalPlugin {
 
   @override
   Future<void> filterArrayElements(
-      {required List<int> array,
+      {required array,
       required int arrayLength,
       required int channelIdx}) async {
     _bufferHandlerOnDemand[channelIdx]
@@ -81,4 +82,25 @@ class LocalPluginAndroid implements LocalPlugin {
     _bufferHandlerOnDemand[channelIdx]?.toFetchBytes = true;
     _bufferHandlerOnDemand[channelIdx]?.requestData();
   }
+
+
+  @override
+  Stream<Uint8List>? postDisplayStream;
+  
+  @override
+  StreamController<Uint8List> postDisplayStreamController =
+      StreamController<Uint8List>();
+  int MAX_DISPLAY_SECONDS = 10000;
+  
+  int channelCount = 1;
+  int sampleRate = 10000;
+  int packetLen = 100000;
+
+  // @override
+  // void initializeSerial(Board board) {
+  //   print("INITIALIZED SERIAL ANDROID");
+  // }
+  // @override
+  // void processSerialData(Uint8List samples, int displayTimeMs, int deviceType, int drawSurfaceWidth, GraphDataProvider provider) {}
+
 }

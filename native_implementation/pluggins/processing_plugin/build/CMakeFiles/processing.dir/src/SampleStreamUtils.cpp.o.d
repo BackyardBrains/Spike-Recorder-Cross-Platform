@@ -1,6 +1,6 @@
 CMakeFiles/processing.dir/src/SampleStreamUtils.cpp.o: \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/SampleStreamUtils.cpp \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SampleStreamUtils.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/SampleStreamUtils.cpp \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SampleStreamUtils.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/string \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__algorithm/max.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__algorithm/comp.h \

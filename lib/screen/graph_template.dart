@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ffi';
-import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -30,6 +28,7 @@ class GraphTemplate extends StatefulWidget {
 }
 
 class _GraphTemplateState extends State<GraphTemplate> {
+  List<String> listOfDevices = ["PLANTSS;", "MUSCLESS;", "HEARTSS;", "HBLEOSB;", "HUMANSB;", "MSBPCDC;", "NSBPCDC;", "NRNSBPRO;", "HHIBOX;"];  
   List<String> _availablePorts = [];
   LocalPlugin localPlugin = LocalPlugin();
   MicrophoneUtil microphoneUtil = MicrophoneUtil();
@@ -118,11 +117,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
       context.read<DataStatusProvider>().setMicrophoneDataStatus(_availablePorts.isEmpty);
 
       if (!isComMatch) {
+        // isDeviceConnect = true; 
+        // isDeviceSelected = false;
+
         Provider.of<PortScanProvider>(context, listen: false).setPortScanList(_availablePorts);
 
         Provider.of<ConstantProvider>(context, listen: false).setBaudRate(baudRate);
         allDevices = context.read<SerialDataProvider>().getAllPortDetail;
-        await portListOnConnect();
+        if (isDeviceConnect) {
+          await portListOnConnect();
+        }
       }
     });
   }
@@ -196,110 +200,24 @@ class _GraphTemplateState extends State<GraphTemplate> {
       await processingUtil.initializeMicrophone(widget.channelCount, _sampleRate);
 
       // Set band filter
-      await processingUtil.setBandFilter(-1, -1);
+      // await processingUtil.setBandFilter(-1, -1);
 
-      // Set notch filter
-      await processingUtil.setNotchFilter(50);
+      // // Set notch filter
+      // await processingUtil.setNotchFilter(50);
+      // print("isAudioListen");
+      // print(microphoneUtil.micStream);
 
       microphoneUtil.micStream!.listen((event) {
         bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
 
         //
         if (isAudioListen) {
+          // print("isAUDIO LISTEN");
           //_preprocessingBuffer.addBytes(event);
           List<Int16List> processedData = processingUtil.processMicrophoneData(event);
-          //print('Processed microphone data: ${processedData.length} channels');
-          if (processedData.isNotEmpty) {
-              // Convert Int16List to Float data for signal drawing
-              int frameCount = processedData[0].length;
-              List<Float32List> floatSignalData = [];
-              
-              // Convert each channel's data to float
-              for (int i = 0; i < processedData.length; i++) {
-                Float32List floatData = Float32List(frameCount);
-                for (int j = 0; j < frameCount; j++) {
-                  floatData[j] = processedData[i][j].toDouble();
-                }
-                floatSignalData.add(floatData);
-              }
-              
-              // Prepare for drawing - focusing on the first channel for now
-              int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
-              Float32List outSignal = Float32List(drawSurfaceWidth * 5); // 5x for envelope
-              Int32List outEvents = Int32List(100); // Max 100 events
-              
-              // Allocate memory for output samples (array of float arrays)
-              final outSamplesPtr = calloc<Pointer<Int16>>(widget.channelCount);
-              for (int i = 0; i < widget.channelCount; i++) {
-                  outSamplesPtr[i] = calloc<Int16>(drawSurfaceWidth * 5); // 5x for envelope
-              }
-
-              // Allocate memory for sample counts
-              final outSampleCountsPtr = calloc<Int32>(widget.channelCount);
-
-              // Allocate memory for event indices (assuming max 100 events)
-              final outEventIndicesPtr = calloc<Float>(100);
-
-              // Allocate memory for event count
-              final outEventCountPtr = calloc<Int32>(1);
-
-              // Allocate and prepare input event indices
-              final inEventIndicesPtr = calloc<Int32>(0); // No events yet
-
-              try {
-                
-                  int result = processingUtil.prepareForSignalDrawingProcess(
-                      outSamplesPtr,           // Pointer<Pointer<Float>>
-                      outSampleCountsPtr,      // Pointer<Int32>
-                      outEventIndicesPtr,      // Pointer<Float>
-                      outEventCountPtr,        // Pointer<Int32>
-                      inEventIndicesPtr,       // Pointer<Int32>
-                      0,                       // int (inEventCount)
-                      0,                       // int (fromSample)
-                      (displayTimeMs*0.001 * _sampleRate).toInt(),  // int (toSample)
-                      drawSurfaceWidth         // int
-                  );
-
-                  if (result == 0) {
-                      // Copy the results back to Dart
-                      // Get the number of samples from outSampleCountsPtr
-                      int sampleCount = outSampleCountsPtr.value;
-                      //print("sampleCount: $sampleCount");
-                      // Copy the prepared signal data
-                      
-                      //for (int i = 0; i < widget.channelCount; i++) {
-                      Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
-                      //print("Sample count: $sampleCount");
-                      //print("first sample: ${channelData[0]}");
-
-                      
-                      //se log with this:
-                      // cat /tmp/flutter_native_crash.log  
-                      
-
-                      Uint8List uint8Data = Uint8List.view(channelData.buffer);
-                      provider.inputListener(uint8Data);
-                      //provider.inputListener(channelData);
-                      // Get the number of events
-                      int eventCount = outEventCountPtr.value;
-                      if (eventCount > 0) {
-                          // Copy event indices if needed
-                          Float32List eventIndices = outEventIndicesPtr.asTypedList(eventCount);
-                          // Use eventIndices as needed
-                      }
-                  }
-              } finally {
-                  // Clean up allocated memory
-                  for (int i = 0; i < widget.channelCount; i++) {
-                      calloc.free(outSamplesPtr[i]);
-                  }
-                  calloc.free(outSamplesPtr);
-                  calloc.free(outSampleCountsPtr);
-                  calloc.free(outEventIndicesPtr);
-                  calloc.free(outEventCountPtr);
-                  calloc.free(inEventIndicesPtr);
-              }
-          }
+          // _preGraphBuffer.addBytes(event);
+          int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+          processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, widget.channelCount, displayTimeMs, provider);
         }
       });
     });
@@ -316,12 +234,31 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     localPlugin.spawnHelperIsolate().then(
       (value) {
-        localPlugin.postFilterStream?.listen((event) {
-          _preGraphBuffer.addBytes(event);
+        localPlugin.postFilterStream?.listen((serialData) {
+          // provider.inputListener(event);
+          bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+          if (!isAudioListen) {
+            // Uint8List arr = Uint8List(1154);
+            // arr.fillRange(0, 1154, 200);
+            // print("serialData123");
+            // print(serialData);
+            if (kIsWeb) {
+              provider.inputListener(serialData);
+            }
+          }
+          // _preGraphBuffer.addBytes(event);
+        });
+        localPlugin.postDisplayStream?.listen((event) {
+          bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+          if (isAudioListen) {
+            // print("AUDIO");
+            // widget.channelCount;h
+            provider.inputListener(event);
+          }
         });
       },
     );
-    localPlugin.initHighPassFilters(filterBaseSettingsModel!);
+    // localPlugin.initHighPassFilters(filterBaseSettingsModel!);
 
     _preprocessingBuffer = BufferHandler(
       chunkReadSize: 2000,
@@ -370,44 +307,48 @@ class _GraphTemplateState extends State<GraphTemplate> {
           //   newDataPoints[i] = int16list[i] + 32768;
           // }
         } else {
-          int bitData = Provider.of<ConstantProvider>(context, listen: false).getBitData();
-          Uint8List transformedData = _bitwiseUtil.convertToValue(listBytes);
-          newDataPoints = transformedData.buffer.asUint16List();
-          newPoints = List.filled(newDataPoints.length, 0);
+        //   int bitData = Provider.of<ConstantProvider>(context, listen: false).getBitData();
+        //   Uint8List transformedData = _bitwiseUtil.convertToValue(listBytes);
+        //   newDataPoints = transformedData.buffer.asUint16List();
+        //   newPoints = List.filled(newDataPoints.length, 0);
 
-          for (int i = 0; i < newPoints.length; i++) {
-            int a = 0;
-            int e = newDataPoints[i];
-            // a = e;
+        //   for (int i = 0; i < newPoints.length; i++) {
+        //     int a = 0;
+        //     int e = newDataPoints[i];
+        //     // a = e;
 
-            switch (bitData) {
-              case 14:
-                a = e - 8192;
-                // print("value of a: $a, e: $e");
-                break;
+        //     switch (bitData) {
+        //       case 14:
+        //         a = e - 8192;
+        //         // print("value of a: $a, e: $e");
+        //         break;
 
-              case 10:
-                a = (e * 30) - 15360; // (value - 512) * 30
-                break;
+        //       case 10:
+        //         a = (e * 30) - 15360; // (value - 512) * 30
+        //         break;
 
-              default:
-                break;
-            }
-            newPoints[i] = a;
-          }
+        //       default:
+        //         break;
+        //     }
+        //     newPoints[i] = a;
+        //   }
+        // }
+
+        
         }
-
-        await localPlugin.filterArrayElements(
-          array: newPoints,
-          arrayLength: newPoints.length,
-          channelIdx: 0,
-        );
+        // await localPlugin.filterArrayElements(
+        //   array: newPoints,
+        //   arrayLength: newPoints.length,
+        //   channelIdx: 0,
+        // );
       },
     );
 
     _frameDetect = FrameDetect(channelCount: widget.channelCount, minimumBytesToCheck: 50);
     _bitwiseUtil = BitwiseUtil(bitCount: widget.bitsData);
     _channelBytes = widget.channelCount * 2;
+
+
 
     _messageIdentifier = MessageIdentifier(onDeviceData: (Uint8List dt) {
       List<int> devData = dt;
@@ -451,17 +392,39 @@ class _GraphTemplateState extends State<GraphTemplate> {
       _preprocessingBuffer.addBytes(Uint8List.fromList(frameCheckedData));
     }, onDeviceMessage: (Uint8List msg) async {
       String responseMessage = MessageValueSet.fromUint8ListCommand(message: msg).value;
+      print("responseMessage :  $responseMessage");
       String? devices = checkConnectedDevices(responseMessage);
 
       if (devices == null) {
         return;
       }
       _deviceName.value = devices;
+      print("devices :   $devices");
+      // if (_deviceName.value != null) {
+      //   deviceType = listOfDevices.indexOf(_deviceName.value!);
+      //   print("deviceType");
+      //   print(deviceType);
+      // }
 
       SetUpFunctionality().setTheDeviceSetting(_deviceName.value).then((value) {
-        String foundDevices = "";
         if (value != null) {
-          foundDevices = value.uniqueName ?? "";
+          String tempDevices = value.uniqueName ?? "";
+          if (foundDevices != "") {
+            if (foundDevices != tempDevices){
+              foundDevices = tempDevices;
+            } else {
+              return;
+            }
+          } else {
+            foundDevices = tempDevices;
+          }
+          print("foundDevices");
+          print(foundDevices);
+          // HARDCODE
+          if (foundDevices == "MUSCLESS") {
+            foundDevices = "HEARTSS";
+          }
+          
 
           Provider.of<ConstantProvider>(context, listen: false).setBaudRate(foundDevices == "HHIBOX" ? 500000 : 222222);
           Provider.of<ConstantProvider>(context, listen: false).setChannelCount(int.parse(value.maxNumberOfChannels.toString()));
@@ -471,14 +434,49 @@ class _GraphTemplateState extends State<GraphTemplate> {
           connectedDevices.add(foundDevices);
           SerialPortDataModel serialData = SerialPortDataModel(portCom: portName, deviceDetect: foundDevices);
           context.read<SerialDataProvider>().setPortOfDevices(serialData);
+          print("isDeviceConnect: ");
+          print(isDeviceConnect);
+          // if (isDeviceConnect) {
+            SetUpFunctionality().getAllDeviceList().then((value) {
+              // Extract the list of boards from the result
+              List<Board> allBoards = value.boards ?? [];
+              // Filter the boards based on some condition (e.g., matching unique names)
+              List<Board> connectedBoards = allBoards.where((board) {
+                return connectedDevices.contains(board.uniqueName);
+              }).toList();
+
+              // Add the filtered list to the stream
+              // List<ComDataWithBoard> listOfBoard = createComDataWithBoardList(connectedBoards, allDevices);
+              // print("listOfBoard");
+              // print(allBoards);
+              // print(listOfBoard);
+              // print(connectedBoards);
+              for (Board board in connectedBoards) {
+                if (board.uniqueName == foundDevices) {
+                  // HARDCODE
+                  isDeviceSelected = true;
+                  deviceType = listOfDevices.indexOf("$foundDevices;") + 1;
+                  print("${board.uniqueName} --- $foundDevices ::: ${board.uniqueName == foundDevices} $deviceType" );
+                  processingUtil.initializeSerial(board);
+                }
+              }
+
+              // Print the stream (optional)
+            });
+          // }
+
         }
       });
       Debugging.printing("Message received from Spikerbox: \n\tbytes : $msg\n\tstring: ${String.fromCharCodes(msg)}");
+  //     Message received from Spikerbox: 
+	// bytes : [72, 87, 84, 58, 72, 85, 77, 65, 78, 83, 66, 59]
+	// string: HWT:HUMANSB;
     });
 
     _preEscapeSequenceBuffer = BufferHandler(
       chunkReadSize: 16,
       onDataAvailable: (Uint8List dataFromBuffer) {
+        // print("message identifier");
         _messageIdentifier.addPacket(dataFromBuffer);
       },
     );
@@ -493,8 +491,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
               break;
 
             case 2:
-
-              // TODO: only first channel data is being passed, ie, the first two bytes
               _graphStreamController.add(ChannelUtil.dropEveryOtherTwoBytes(dataFromBuffer));
               break;
           }
@@ -562,7 +558,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
   final TextEditingController cutOffController = TextEditingController();
 
   String? checkConnectedDevices(String getResponse) {
-    List<String> listOfDevices = ["PLANTSS;", "MUSCLESS;", "HEARTSS;", "HBLEOSB;", "HUMANSB;", "MSBPCDC;", "NSBPCDC;", "NRNSBPRO;", "HHIBOX;"];
 
     int index = listOfDevices.indexWhere((element) => element == getResponse);
     if (index == -1) return null;
@@ -575,7 +570,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   String portName = "";
   bool isDeviceConnect = true;
+  bool isDeviceSelected = false;
   bool isSettingEnable = false;
+  
+  List<ComDataWithBoard>? listOfBoard;
+  
+  String foundDevices = "";
+  
+  int deviceType = -1;
 
   @override
   Widget build(BuildContext context) {
@@ -835,21 +837,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           stream: connectDeviceList(),
                           builder: (context, snapshot) {
                             if (snapshot.hasData) {
-                              List<ComDataWithBoard> listOfBoard = snapshot.data!;
-
+                              listOfBoard = snapshot.data!;
                               return SizedBox(
                                 height: 50,
                                 child: ListView.builder(
                                     padding: EdgeInsets.zero,
                                     scrollDirection: Axis.horizontal,
                                     shrinkWrap: true,
-                                    itemCount: listOfBoard.length,
+                                    itemCount: listOfBoard?.length,
                                     itemBuilder: (context, index) {
                                       return GestureDetector(
                                         onTap: () {
-                                          Provider.of<ConstantProvider>(context, listen: false).setBaudRate(int.parse(listOfBoard[index].connectDevices.maxSampleRate.toString()));
-                                          Provider.of<ConstantProvider>(context, listen: false).setChannelCount(int.parse(listOfBoard[index].connectDevices.maxNumberOfChannels.toString()));
-                                          Provider.of<ConstantProvider>(context, listen: false).setBitData(int.parse(listOfBoard[index].connectDevices.sampleResolution.toString()));
+                                          if (listOfBoard != null) {
+                                            Provider.of<ConstantProvider>(context, listen: false).setBaudRate(int.parse(listOfBoard![index].connectDevices.maxSampleRate.toString()));
+                                            Provider.of<ConstantProvider>(context, listen: false).setChannelCount(int.parse(listOfBoard![index].connectDevices.maxNumberOfChannels.toString()));
+                                            Provider.of<ConstantProvider>(context, listen: false).setBitData(int.parse(listOfBoard![index].connectDevices.sampleResolution.toString()));
+                                          }
                                         },
                                         child: SpikerBoxButton(onTapButton: () {}, iconData: Icons.usb),
                                       );
@@ -904,27 +907,96 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   if (!mounted) return;
                   bool dummyDataStatus = context.read<DataStatusProvider>().isSampleDataOn;
                   bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+                    // HARDCODE STEVANUS
+                    // foundDevices = "HEARTSS";
+                    // SetUpFunctionality().getAllDeviceList().then((value) {
+                    //   // Extract the list of boards from the result
+                    //   List<Board> allBoards = value.boards ?? [];
+                    //   // Filter the boards based on some condition (e.g., matching unique names)
+                    //   List<Board> connectedBoards = allBoards.where((board) {
+                    //     return connectedDevices.contains(board.uniqueName);
+                    //   }).toList();
 
+                    //   // Add the filtered list to the stream
+                    //   // print("listOfBoard");
+                    //   // print(allBoards);
+                    //   for (Board board in allBoards) {
+                    //     // print(board.uniqueName);
+                    //     if (board.uniqueName == foundDevices) {
+                    //       deviceType = listOfDevices.indexOf(foundDevices);
+                    //       processingUtil.initializeSerial(board);
+                    //       // print("deviceType");
+                    //       // print(deviceType);
+                    //     }
+                    //   }
+
+                    //   // Print the stream (optional)
+                    // });
+                  // deviceType = 1;
+                  final provider = Provider.of<GraphDataProvider>(context, listen: false);
                   _serialUtil.dataStream?.listen((event) {
                     if (!dummyDataStatus && !isAudioListen) {
-                      _preEscapeSequenceBuffer.addBytes(event);
                       if (isDeviceConnect) {
                         _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: _availablePorts.last);
-
                         isDeviceConnect = false;
-                      }
-
-                      if (_isDataIdentified) {
-                        // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
-                        // stopwatch.reset();
+                        _preEscapeSequenceBuffer.addBytes(event);
                       } else {
-                        Uint8List? firstFrameData = _frameDetect.addData(event);
+                        int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
 
-                        if (firstFrameData != null) {
-                          _preEscapeSequenceBuffer.addBytes(firstFrameData);
-                          _isDataIdentified = true;
+                        if (_isDataIdentified) {
+                          // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
+                          // stopwatch.reset();
+                          // print("_ISDATA IDENTIFIED");
+                          if (!isDeviceSelected) {
+                            _preEscapeSequenceBuffer.addBytes(event);
+                          } else {
+                            // print("process SERIAL data");
+                            processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+                          }
+                        } else {
+                          Uint8List? firstFrameData = _frameDetect.addData(event);
+
+                          if (firstFrameData != null) {
+                            _preEscapeSequenceBuffer.addBytes(firstFrameData);
+                            processingUtil.processSerialData(firstFrameData, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+                            _isDataIdentified = true;
+                          } else {
+                            _preEscapeSequenceBuffer.addBytes(event);
+                          }
                         }
-                      }
+                      }                      
+
+
+
+                      // int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+                      // if (_isDataIdentified) {
+                      //   // _preEscapeSequenceBuffer.addBytes(Uint8List(0));
+                      //   // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
+                      //   // stopwatch.reset();
+                      //   // localPlugin.filterArrayElements(array: array, arrayLength: arrayLength, channelIdx: channelIdx);
+                      //   // print("ISDAATA WEB");
+                        
+                      //   processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+                      // } else {
+                      //   print("isDeviceConnect Web : $isDeviceConnect === $_isDataIdentified");
+                      //   if (isDeviceConnect) {
+                      //     _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: _availablePorts.last);
+                      //     isDeviceConnect = false;
+                      //   }else {
+                      //     Uint8List? firstFrameData = _frameDetect.addData(event);
+
+                      //     if (firstFrameData != null) {
+                      //       // print("IS DEVICE ALREADY CONNECT AND firstFrameData");
+                      //       _preEscapeSequenceBuffer.addBytes(firstFrameData);
+                      //       processingUtil.processSerialData(firstFrameData, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+                      //       _isDataIdentified = true;
+                      //     }else {
+                      //       _preEscapeSequenceBuffer.addBytes(event);
+                      //       // print("IS DEVICE ALREADY CONNECT but not firstFrameData");
+                      //       // localPlugin.sendSerialData(event);
+                      //     }
+                      //   }
+                      // }
                     }
                   });
                   portName = _availablePorts.first;
@@ -1011,36 +1083,145 @@ class _GraphTemplateState extends State<GraphTemplate> {
       return;
     }
     Stream<Uint8List>? getData = await _serialUtil.openPortToListen(listOfPort.last, baudRate);
-
     bool dummyDataStatus = dataStatus.isSampleDataOn;
     bool isAudioListen = dataStatus.isMicrophoneData;
     dataStatus.setDeviceDataStatus(true);
 
-    Stopwatch stopwatch = Stopwatch();
+    // Stopwatch stopwatch = Stopwatch();
+    final provider = Provider.of<GraphDataProvider>(context, listen: false);
     getData?.listen((event) {
-      stopwatch.start();
       if (!dummyDataStatus && !isAudioListen) {
-        _preEscapeSequenceBuffer.addBytes(event);
-        // print(
-        //     "the time taken is ${stopwatch.elapsedMilliseconds}and the length ${event.length}");
-        stopwatch.reset();
+        int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
         if (isDeviceConnect) {
+          print("Is Device Connect");
           _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: listOfPort.last);
-
           isDeviceConnect = false;
         }
         if (_isDataIdentified) {
-          // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
-          // stopwatch.reset();
+          processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
         } else {
-          Uint8List? firstFrameData = _frameDetect.addData(event);
-
-          if (firstFrameData != null) {
-            _preEscapeSequenceBuffer.addBytes(firstFrameData);
+          if (!isDeviceConnect && !isDeviceSelected) {
+            _preEscapeSequenceBuffer.addBytes(event);
+          }
+          if (isDeviceSelected) { // !isDeviceConnect &&
             _isDataIdentified = true;
+            processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
+
+            /*
+            Uint8List? firstFrameData = _frameDetect.addData(event);
+
+            if (firstFrameData != null) {
+              _isDataIdentified = true;
+              // print("firstFrameData.length");
+              // print(firstFrameData.length);
+              processingUtil.processSerialData(firstFrameData, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
+            } else {
+              // processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
+            }
+            */
           }
         }
+
+        // print(
+        //     "the time taken is ${stopwatch.elapsedMilliseconds}and the length ${event.length}");
+        // stopwatch.reset();
+        // if (isDeviceConnect) {
+        //   print("Is Device Connect");
+        //   _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: listOfPort.last);
+        //   isDeviceConnect = false;
+        //   _preEscapeSequenceBuffer.addBytes(event);
+        // } else {
+        //   int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+
+        //   if (_isDataIdentified) {
+        //     // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
+        //     // stopwatch.reset();
+        //     // print("_ISDATA IDENTIFIED");
+        //     if (!isDeviceSelected) {
+        //       print("! Is Device Selected");
+        //       _preEscapeSequenceBuffer.addBytes(event);
+        //     } else {
+        //       // print("process SERIAL data: $deviceType");
+        //       processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+        //       // _preEscapeSequenceBuffer.addBytes(event);
+
+        //     }
+        //   } else {
+        //     Uint8List? firstFrameData = _frameDetect.addData(event);
+
+        //     if (firstFrameData != null) {
+        //       print("First Frame Data");
+        //       _preEscapeSequenceBuffer.addBytes(firstFrameData);
+        //       _isDataIdentified = true;
+        //     } else {
+        //       print("Not First Frame Data");
+        //       _preEscapeSequenceBuffer.addBytes(event);
+        //     }
+        //   }
+        // }
       }
+      // stopwatch.start();
+      // if (!dummyDataStatus && !isAudioListen) {
+      //   // print("1050 - GET DATA");
+        
+      //   int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+      //   // stopwatch.reset();
+
+      //   if (_isDataIdentified) {
+      //     // _preEscapeSequenceBuffer.addBytes(Uint8List(0));
+      //     // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
+      //     // stopwatch.reset();
+      //     // localPlugin.filterArrayElements(array: array, arrayLength: arrayLength, channelIdx: channelIdx);
+      //     // print(displayTimeMs);
+      //     if (!isDeviceSelected) {
+      //       _preEscapeSequenceBuffer.addBytes(event);
+      //     } else {
+      //       localPlugin.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+      //     }
+      //   } else {
+      //     if (isDeviceConnect) {
+      //       _preEscapeSequenceBuffer.addBytes(event);            
+      //       _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: _availablePorts.last);
+      //       isDeviceConnect = false;
+      //     }else {
+      //       Uint8List? firstFrameData = _frameDetect.addData(event);
+
+      //       if (firstFrameData != null) {
+      //         // print("IS DEVICE ALREADY CONNECT AND firstFrameData");
+      //         _preEscapeSequenceBuffer.addBytes(firstFrameData);
+      //         localPlugin.processSerialData(firstFrameData, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+      //         _isDataIdentified = true;
+      //       }else {
+      //         _preEscapeSequenceBuffer.addBytes(event);
+      //         // print("IS DEVICE ALREADY CONNECT but not firstFrameData");
+      //         // localPlugin.sendSerialData(event);
+      //       }
+      //     }
+      //   }
+      // }
+
+      // if (!dummyDataStatus && !isAudioListen) {
+      //   _preEscapeSequenceBuffer.addBytes(event);
+      //   // print(
+      //   //     "the time taken is ${stopwatch.elapsedMilliseconds}and the length ${event.length}");
+      //   stopwatch.reset();
+      //   if (isDeviceConnect) {
+      //     _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: listOfPort.last);
+
+      //     isDeviceConnect = false;
+      //   }
+      //   if (_isDataIdentified) {
+      //     // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
+      //     // stopwatch.reset();
+      //   } else {
+      //     Uint8List? firstFrameData = _frameDetect.addData(event);
+
+      //     if (firstFrameData != null) {
+      //       _preEscapeSequenceBuffer.addBytes(firstFrameData);
+      //       _isDataIdentified = true;
+      //     }
+      //   }
+      // }
     });
     portName = listOfPort.last;
   }

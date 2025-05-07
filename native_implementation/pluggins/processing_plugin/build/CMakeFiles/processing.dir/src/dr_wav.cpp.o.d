@@ -1,6 +1,6 @@
 CMakeFiles/processing.dir/src/dr_wav.cpp.o: \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/dr_wav.cpp \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/dr_wav.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/dr_wav.cpp \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/dr_wav.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/stdint.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__config \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__config_site \

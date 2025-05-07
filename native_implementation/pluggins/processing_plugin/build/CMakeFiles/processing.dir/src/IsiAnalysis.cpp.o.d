@@ -1,6 +1,6 @@
 CMakeFiles/processing.dir/src/IsiAnalysis.cpp.o: \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/IsiAnalysis.cpp \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AnalysisUtils.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/IsiAnalysis.cpp \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AnalysisUtils.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/cmath \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__assert \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__assertion_handler \
@@ -258,7 +258,7 @@ CMakeFiles/processing.dir/src/IsiAnalysis.cpp.o: \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/float.h \
   /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/16/include/float.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/float.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/IsiAnalysis.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/IsiAnalysis.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/algorithm \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__algorithm/adjacent_find.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__algorithm/comp.h \

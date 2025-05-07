@@ -5,7 +5,7 @@ import 'local_plugins_window.dart';
 import 'local_plugins_android.dart';
 
 LocalPlugin getLocalPlugins() {
-  if (Platform.isWindows) {
+  if (Platform.isWindows || Platform.isMacOS) {
     return LocalPluginWindow();
   } else if (Platform.isAndroid) {
     return LocalPluginAndroid();

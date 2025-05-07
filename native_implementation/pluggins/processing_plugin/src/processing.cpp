@@ -483,14 +483,22 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
         int* event_indices = new int[PROCESSING_MAX_EVENTS];
         std::string* event_labels = new std::string[PROCESSING_MAX_EVENTS];
         int event_count = 0;
-
         sampleStreamProcessor->process(in_data, length, out_samples, out_sample_counts,
                                      event_indices, event_labels, event_count,
                                      current_channel_count, hardware_type);
+        // Add processed data to circular buffer
+        if (circularBuffer != nullptr) {
+            circularBuffer->addData(out_samples, out_sample_counts[0]);
+        } else {
+            return -100;
+        }
+        
+
+
 
         delete[] event_indices;
         delete[] event_labels;
-        return 0;
+        return out_sample_counts[0];
     } catch (...) {
         return -3;
     }
@@ -767,7 +775,6 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
         !in_event_indices || draw_surface_width <= 0) {
         return -1;
     }
-
     try {
         // Get the channel count from our global state
         int32_t channel_count = current_channel_count;

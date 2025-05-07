@@ -1,6 +1,6 @@
 CMakeFiles/processing.dir/src/processing.cpp.o: \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/processing.cpp \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/processing.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/processing.cpp \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/processing.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/stdint.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__config \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__config_site \
@@ -25,23 +25,23 @@ CMakeFiles/processing.dir/src/processing.cpp.o: \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/sys/_types/_uintptr_t.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/_types/_intmax_t.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/_types/_uintmax_t.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/FilterBase.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/FilterBase.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/cstdint \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__assert \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__assertion_handler \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__verbose_abort \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__availability \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/LowPassFilter.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/HighPassFilter.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/NotchFilter.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SignalUtils.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/LowPassFilter.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/HighPassFilter.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/NotchFilter.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SignalUtils.h \
   /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/16/include/limits.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/limits.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/machine/limits.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/arm/limits.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/arm/_limits.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/sys/syslimits.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AmModulationProcessor.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AmModulationProcessor.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/cmath \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__type_traits/enable_if.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__type_traits/is_arithmetic.h \
@@ -817,12 +817,12 @@ CMakeFiles/processing.dir/src/processing.cpp.o: \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__type_traits/noexcept_move_assign_container.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/string_view \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__fwd/string_view.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/Processor.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SampleStreamProcessor.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SampleStreamUtils.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/ThresholdProcessor.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/HeartbeatHelper.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/FftProcessor.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/Processor.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SampleStreamProcessor.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SampleStreamUtils.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/ThresholdProcessor.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/HeartbeatHelper.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/FftProcessor.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/vector \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__bit_reference \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__format/formatter.h \
@@ -915,14 +915,14 @@ CMakeFiles/processing.dir/src/processing.cpp.o: \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/cstdarg \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__memory/temp_value.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__split_buffer \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AudioFFT.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AnalysisUtils.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AudioFFT.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AnalysisUtils.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/cfloat \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/float.h \
   /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/16/include/float.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/float.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/DrawingUtils.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/EventTriggeredAverageAnalysis.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/DrawingUtils.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/EventTriggeredAverageAnalysis.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/functional \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__functional/binary_negate.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__functional/bind.h \
@@ -996,8 +996,8 @@ CMakeFiles/processing.dir/src/processing.cpp.o: \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__random/seed_seq.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__random/student_t_distribution.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__random/weibull_distribution.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/dr_wav.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/EventUtils.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/dr_wav.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/EventUtils.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/iostream \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/istream \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/ostream \
@@ -1048,12 +1048,12 @@ CMakeFiles/processing.dir/src/processing.cpp.o: \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__filesystem/recursive_directory_iterator.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__filesystem/u8path.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/regex \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SpikeAnalysis.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AutocorrelationAnalysis.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/CrossCorrelationAnalysis.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/IsiAnalysis.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AverageSpikeAnalysis.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SpikeAnalysis.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AutocorrelationAnalysis.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/CrossCorrelationAnalysis.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/IsiAnalysis.h \
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AverageSpikeAnalysis.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/sys/time.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/sys/_types/_timeval64.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/sys/_select.h \
-  /Users/stanislav/Desktop/projects/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/DebuggingLogBYB.h
+  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/DebuggingLogBYB.h

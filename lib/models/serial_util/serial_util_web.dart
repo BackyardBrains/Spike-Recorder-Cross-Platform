@@ -107,7 +107,6 @@ class SerialUtilWeb implements SerialUtil {
   }) async {
     while (true) {
       //   final result = await reader.read();
-
       //   if (result.done) {
       //     // Stream has ended
       //     print("Stream has ended");

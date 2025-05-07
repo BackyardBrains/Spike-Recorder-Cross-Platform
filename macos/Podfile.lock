@@ -52,15 +52,15 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos
 
 SPEC CHECKSUMS:
-  audio_session: eaca2512cf2b39212d724f35d11f46180ad3a33e
-  flutter_libserialport: 2c523cb8d8203fc6d1b0da88190da31ac970eb93
+  audio_session: 728ae3823d914f809c485d390274861a24b0904e
+  flutter_libserialport: d1a505fd4b05785f7b50cc7c93b361937ea1c5bd
   FlutterMacOS: 8f6f14fa908a6fb3fba0cd85dbd81ec4b251fb24
-  just_audio: 4e391f57b79cad2b0674030a00453ca5ce817eed
+  just_audio: a42c63806f16995daf5b219ae1d679deb76e6a79
   libserialport: 1cb25e66ef3c92a8e59c2ea3820302c3fa2268cd
-  mic_stream: d36b1d2fa5ea7124a5ecf4cefded06f7fc00391f
-  native_add: d7e8202e55f5b1ea12b5c5c3f657304b6f1435bb
-  path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
-  url_launcher_macos: 0fba8ddabfc33ce0a9afe7c5fef5aab3d8d2d673
+  mic_stream: c3bc8a10c5451a0f5ef75a54a75caf25a3d146c4
+  native_add: 94cdab66d0865e8ca6307cf649337fd089349f2d
+  path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
+  url_launcher_macos: c82c93949963e55b228a30115bd219499a6fe404
 
 PODFILE CHECKSUM: 353c8bcc5d5b0994e508d035b5431cfe18c1dea7
 

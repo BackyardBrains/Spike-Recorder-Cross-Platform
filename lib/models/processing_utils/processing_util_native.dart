@@ -3,6 +3,9 @@ import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
+import 'package:flutter/material.dart';
+import 'package:spikerbox_architecture/models/default_config_model.dart';
+import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'processing_util.dart';
 import 'processing_bindings.dart';
 
@@ -28,7 +31,8 @@ class ProcessingUtilImpl implements ProcessingUtil
 
   	// Implementation of the data buffer
 	@override
-	Pointer<Pointer<Int16>>? currentDataBuffer;
+	// Pointer<Pointer<Int16>>? currentDataBuffer;
+	  var currentDataBuffer;
 
   	@override
   	Future<bool> init() async {
@@ -168,9 +172,10 @@ class ProcessingUtilImpl implements ProcessingUtil
 
 			// Create Dart view of the native memory
 			final sampleCount = outSampleCountsPtr.value;
+      Pointer<Pointer<Int16>> curDataBuffer = currentDataBuffer as Pointer<Pointer<Int16>>;
 			final bufferViews = List<Int16List>.generate(
 				_channelCount,
-				(i) => (currentDataBuffer!.value + i).cast<Int16>().asTypedList(sampleCount)
+				(i) => (curDataBuffer.value + i).cast<Int16>().asTypedList(sampleCount)
 			);
 
 			return bufferViews;
@@ -197,11 +202,11 @@ class ProcessingUtilImpl implements ProcessingUtil
 
   
 	@override
-	int prepareForSignalDrawingProcess( Pointer<Pointer<Int16>> outSamples,
-                                          Pointer<Int32> outSampleCounts,
-                                          Pointer<Float> outEventIndices,
-                                          Pointer<Int32> outEventCount,
-                                          Pointer<Int32> inEventIndices,
+	int prepareForSignalDrawingProcess(outSamples,
+                                     outSampleCounts,
+                                     outEventIndices,
+                                     outEventCount,
+                                     inEventIndices,
                                           int inEventCount,
                                           int fromSample,
                                           int toSample,
@@ -255,7 +260,216 @@ class ProcessingUtilImpl implements ProcessingUtil
 		ProcessingBindings.instance.cleanup();
 		_isInitialized = false;
 	}
+  
+   @override
+   List<Int16List> prepareDisplayMicrophoneData(List<Int16List> processedData, int drawSurfaceWidth, int channelCount, double displayTimeMs, GraphDataProvider provider) {
+    if (processedData.isNotEmpty) {
+        // Convert Int16List to Float data for signal drawing
+        int frameCount = processedData[0].length;
+        List<Float32List> floatSignalData = [];
+
+        // Convert each channel's data to float
+        for (int i = 0; i < processedData.length; i++) {
+          Float32List floatData = Float32List(frameCount);
+          for (int j = 0; j < frameCount; j++) {
+            floatData[j] = processedData[i][j].toDouble();
+          }
+          floatSignalData.add(floatData);
+        }
+
+        // Prepare for drawing - focusing on the first channel for now
+        Float32List outSignal = Float32List(drawSurfaceWidth * 5); // 5x for envelope
+        Int32List outEvents = Int32List(100); // Max 100 events
+        
+        // Allocate memory for output samples (array of float arrays)
+        final outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
+        for (int i = 0; i < channelCount; i++) {
+            outSamplesPtr[i] = calloc<Int16>(drawSurfaceWidth * 5); // 5x for envelope
+        }
+
+        // Allocate memory for sample counts
+        final outSampleCountsPtr = calloc<Int32>(channelCount);
+
+        // Allocate memory for event indices (assuming max 100 events)
+        final outEventIndicesPtr = calloc<Float>(100);
+
+        // Allocate memory for event count
+        final outEventCountPtr = calloc<Int32>(1);
+
+        // Allocate and prepare input event indices
+        final inEventIndicesPtr = calloc<Int32>(0); // No events yet
+
+        try {
+            int result = prepareForSignalDrawingProcess(
+                outSamplesPtr,           // Pointer<Pointer<Float>>
+                outSampleCountsPtr,      // Pointer<Int32>
+                outEventIndicesPtr,      // Pointer<Float>
+                outEventCountPtr,        // Pointer<Int32>
+                inEventIndicesPtr,       // Pointer<Int32>
+                0,                       // int (inEventCount)
+                0,                       // int (fromSample)
+                (displayTimeMs*0.001 * _sampleRate).toInt(),  // int (toSample)
+                drawSurfaceWidth         // int
+            );
+
+            if (result == 0) {
+                // Copy the results back to Dart
+                // Get the number of samples from outSampleCountsPtr
+                int sampleCount = outSampleCountsPtr.value;
+                //print("sampleCount: $sampleCount");
+                // Copy the prepared signal data
+
+                //for (int i = 0; i < widget.channelCount; i++) {
+                Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
+                //print("Sample count: $sampleCount");
+                //print("first sample: ${channelData[0]}");
+                //se log with this:
+                // cat /tmp/flutter_native_crash.log  
+                
+
+                Uint8List uint8Data = Uint8List.view(channelData.buffer);
+                provider.inputListener(uint8Data);
+                //provider.inputListener(channelData);
+                // Get the number of events
+                int eventCount = outEventCountPtr.value;
+                if (eventCount > 0) {
+                    // Copy event indices if needed
+                    Float32List eventIndices = outEventIndicesPtr.asTypedList(eventCount);
+                    // Use eventIndices as needed
+                }
+            }
+        } finally {
+            // Clean up allocated memory
+            for (int i = 0; i < channelCount; i++) {
+                calloc.free(outSamplesPtr[i]);
+            }
+            calloc.free(outSamplesPtr);
+            calloc.free(outSampleCountsPtr);
+            calloc.free(outEventIndicesPtr);
+            calloc.free(outEventCountPtr);
+            calloc.free(inEventIndicesPtr);
+        }
+    }    
+     return processedData;
+  }
+   
+  int MAX_DISPLAY_SECONDS = 10000;
+
+  int channelCount = 1;
+  int sampleRate = 10000;
+  int packetLen = 100000;
+
+  @override
+  void initializeSerial(Board board) {
+		if (!_isInitialized) {
+		}  
+    final result = ProcessingBindings.instance.init();    
+    channelCount = int.parse(board.maxNumberOfChannels!);
+    sampleRate = int.parse(board.maxSampleRate!);
+    packetLen = sampleRate * MAX_DISPLAY_SECONDS;
+    // print("Initialize Serial === $result $channelCount $sampleRate -- PACKET LEN : $packetLen");
+    
+    // int res = ProcessingBindings.instance.setBitsPerSample(board.sampleResolution!);
+    print("Initialize Serial === $channelCount $sampleRate -- PACKET LEN : $packetLen");
+    ProcessingBindings.instance.setChannelCount(channelCount);
+    ProcessingBindings.instance.setSampleRate(sampleRate);
+  }
+
+  @override
+  void processSerialData(Uint8List samples, int displayTimeMs, int deviceType, int drawSurfaceWidth, GraphDataProvider provider) {
+    // print("SERIAL DATA: $channelCount - ${samples.length} : $drawSurfaceWidth -- $sampleRate : $displayTimeMs DEVICETYPE: $deviceType");
+    var outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
+    for (int i = 0; i < channelCount; i++) {
+      outSamplesPtr[i] = calloc<Int16>(drawSurfaceWidth * 5); // 5x for envelope
+    }
+
+    final outSampleCountsPtr = calloc<Int32>(channelCount);
+
+    // try {
+      // Prepare input data pointer
+      final inDataPtr = calloc<Uint8>(samples.length);
+      for (int i = 0; i < samples.length; i++) {
+        inDataPtr[i] = samples[i];
+      }
+      int res = ProcessingBindings.instance.processSampleStream(outSamplesPtr, outSampleCountsPtr, inDataPtr, samples.length, deviceType);
+      // var list = outSamplesPtr[0].asTypedList(100);
+      // int sampleCount = outSampleCountsPtr.asTypedList(1)[0];
+      // provider.inputListener(outSamplesPtr[0].asTypedList(sampleCount).buffer.asUint8List());
+      // print("RES : $res - ${samples.length}");
+      calloc.free(inDataPtr);
+      // return;
+    // }catch (err) {
+    //   print("err process Sample Stream");
+    //   print(err);
+    // }
+    for (int i = 0; i < channelCount; i++) {
+        calloc.free(outSamplesPtr[i]);
+    }
+    calloc.free(outSamplesPtr);
+
+
+    // Allocate memory for sample counts
+    outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
+    for (int i = 0; i < channelCount; i++) {
+        outSamplesPtr[i] = calloc<Int16>(drawSurfaceWidth * 5); // 5x for envelope
+    }
+
+    // Allocate memory for event indices (assuming max 100 events)
+    final outEventIndicesPtr = calloc<Float>(100);
+
+    // Allocate memory for event count
+    final outEventCountPtr = calloc<Int32>(1);
+
+    // Allocate and prepare input event indices
+    final inEventIndicesPtr = calloc<Int32>(0); // No events yet
+    // print("drawSurfaceWidth : $drawSurfaceWidth");
+    try {
+      int result = ProcessingBindings.instance.prepareForSignalDrawing(
+          outSamplesPtr,           // Pointer<Pointer<Float>>
+          outSampleCountsPtr,      // Pointer<Int32>
+          outEventIndicesPtr,      // Pointer<Float>
+          outEventCountPtr,        // Pointer<Int32>
+          inEventIndicesPtr,       // Pointer<Int32>
+          0,                       // int (inEventCount)
+          0,                       // int (fromSample)
+          (displayTimeMs*0.001 * sampleRate * 1).toInt(),  // int (toSample)
+          drawSurfaceWidth         // int
+      );
+      if (result == 0) {
+        int sampleCount = outSampleCountsPtr.value;
+        Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
+        // Uint8List uint8Data = Uint8List.view(channelData.buffer);
+        Uint8List uint8Data = (channelData.buffer.asUint8List());
+        // print("uint8Data $sampleCount");
+        // print(uint8Data.sublist(0, 30));
+        // print(channelData.sublist(0, 30));
+        // uint8Data.fillRange(0, (sampleCount * 1.99).toInt(), -77);
+        provider.inputListener(uint8Data);
+        int eventCount = outEventCountPtr.value;
+        if (eventCount > 0) {
+          // Float32List eventIndices = outEventIndicesPtr.asTypedList(eventCount);
+        }
+      }
+      for (int i = 0; i < channelCount; i++) {
+          calloc.free(outSamplesPtr[i]);
+      }
+      calloc.free(outSamplesPtr);
+
+      calloc.free(outSampleCountsPtr);
+      calloc.free(outEventIndicesPtr);
+      calloc.free(outEventCountPtr);
+      calloc.free(inEventIndicesPtr);      
+
+    }catch(err) {
+      print("err");
+      print(err);
+    } finally {
+    }
+
+  }
+
 }
+
 
 // This function runs in the processing isolate
 void _processingIsolateFunction(SendPort portToMain) 

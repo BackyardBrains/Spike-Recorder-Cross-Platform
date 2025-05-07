@@ -7,41 +7,220 @@ let dataBufferChannelWise = [];
 // Should be same as the length of packet sent from Dart
 const packetSize = 2000;
 
+const MAX_DISPLAY_SECONDS = 10;
+let packetLen = MAX_DISPLAY_SECONDS;
 let ptrDataArrayChannel1;
+var currentDataBuffers = [];
+var currentDataBuffersPtr;
+
+var channelCount = 1;
+var _displayTimeMs = 10000;
+var sampleRate = 44100;
+// var sampleRate = 48000;
 
 var vm = self;
+
+
+
+/* PROCESSING */
+let serialDataPtr;
+let serialDataPtrStart;
+let serialDataBuffer;
+
+
+let data;
+let channelIdx;
+let inDataPtr;
+let inDataPtrStart;
+let inDataArr;
+
+let inSamplesPtr;
+let inSamplesPtrStart;
+let inSamplesBuffer;
+
+let totalChannel;
+let outSampleCountsPtr;
+let outSampleCountsPtrStart;
+let outSampleCountsBuffer;
+
+let drawSurfaceWidth;
+let outSignalPtr;
+let outSignalPtrStart;
+let outSignalBuffer;
+
+let outSamplesPtr;
+let outSamplesPtrStart;
+let outSamplesBuffer;
+
+let outSampleCountsDrawingPtr;
+let outSampleCountsDrawingPtrStart;
+let outSampleCountsDrawingBuffer;
+
+let totalEvents;
+let outEventIndicesPtr;
+let outEventIndicesPtrStart;
+let outEventIndicesBuffer;
+
+let totalEventCounts;
+let outEventCountPtr;
+let outEventCountPtrStart;
+let outEventCountBuffer;
+
+let inTotalEvents;
+let inEventIndicesPtr;
+let inEventIndicesPtrStart;
+let inEventIndicesBuffer;
+let displayTimeMs;
+
+/*
+*/
+
 var tempOnMessage = self.onmessage;
 self.onmessage = async function (eventFromMain) {
     switch (eventFromMain.data.message) {
+        case "INITIALIZE_MICROPHONE":
+            console.log("INITIALIZE_MICROPHONE");
+            channelCount = eventFromMain.data.channelCount;
+            // sampleRate = eventFromMain.data.sampleRate;
+            Module._processing_init();
+            packetLen = MAX_DISPLAY_SECONDS * sampleRate;
+            const packetLen2 = packetLen; //1156;
+            const curBufferPtr = Module._malloc( channelCount * packetLen2 * Module.HEAP16.BYTES_PER_ELEMENT);
+            const curBufferPtrStart = curBufferPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            currentDataBuffers = Module.HEAP16.subarray(curBufferPtrStart, (curBufferPtrStart + channelCount * packetLen2));
 
+            currentDataBuffersPtr = curBufferPtr;
+            console.log("Module: ", Module);
+        break;
         case "INITIALIZE_WORKER":
             workerChannelPort = eventFromMain.data.simulationWorkerChannelPort;
-            for (let i = 0; i < 6; i++) {
-                // Allocate data buffer
-                let ptrDataArray = Module._malloc(packetSize * Module.HEAP16.BYTES_PER_ELEMENT);
-                let dataArrayStart = ptrDataArray / Module.HEAP16.BYTES_PER_ELEMENT;
-                let dataBuffer = Module.HEAP16.subarray(dataArrayStart, (dataArrayStart + packetSize));
 
-                if (i == 0) {
-                    ptrDataArrayChannel1 = ptrDataArray;
-                }
+        break;
+        case "CHANGE_MICROPHONE_CONFIG":
+            // _drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
+            channelCount = eventFromMain.data.channelCount;
+            _displayTimeMs = eventFromMain.data.displayTimeMs;
+            
+        break;
+        case "INPUT_MICROPHONE_BUFFER":
+            // Prepare input data pointer
+            data = eventFromMain.data.microphoneDataBuffers;
+            channelIdx = eventFromMain.data.channelIdx;
+            inDataPtr = Module._malloc(data.length * Module.HEAPU8.BYTES_PER_ELEMENT);
+            inDataPtrStart = inDataPtr / Module.HEAPU8.BYTES_PER_ELEMENT;
+            inDataArr = Module.HEAPU8.subarray(inDataPtrStart, (inDataPtrStart + data.length));
+            
+            inSamplesPtr = Module._malloc( packetLen * Module.HEAP16.BYTES_PER_ELEMENT);
+            inSamplesPtrStart = inSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            inSamplesBuffer = Module.HEAP16.subarray(inSamplesPtrStart, (inSamplesPtrStart + packetLen));
 
-                for (let j = 0; j < 10; j++) {
-                    dataBuffer[j] = 10 * j;
-                }
+            totalChannel = channelCount;
+            outSampleCountsPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
+            outSampleCountsPtrStart = outSampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            outSampleCountsBuffer = Module.HEAP32.subarray(outSampleCountsPtrStart, (outSampleCountsPtrStart + totalChannel));
 
-                ptrDataArrayChannelWise.push(ptrDataArray);
-                dataArrayStartChannelWise.push(dataArrayStart);
-                dataBufferChannelWise.push(dataBuffer);
-                postMessage({
-                    message: "dataBufferAllocation",
-                    dataBuffer: dataBuffer,
-                    chIdx: i,
-                });
-
-
+            for (let i = 0; i < totalChannel; i++) {
+                outSampleCountsBuffer[i] = data.length / 2;
             }
-            break;
+            inDataArr.set(data);
+
+            const micResult = Module._processing_process_microphone_stream(
+                inSamplesPtr,
+                outSampleCountsPtr,
+                inDataPtr,
+                data.length
+            );
+
+            Module._free(inSamplesPtr);
+            Module._free(inDataPtr);
+            Module._free(outSampleCountsPtr);
+            if (micResult != 0) {
+            }
+        
+            drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
+            outSignalPtr = Module._malloc(drawSurfaceWidth * 5 * totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
+            outSignalPtrStart = outSignalPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            outSignalBuffer = Module.HEAP32.subarray(outSignalPtrStart, (outSignalPtrStart + drawSurfaceWidth * 5));
+            
+            outSamplesPtr = Module._malloc(drawSurfaceWidth * 5 * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
+            outSamplesPtrStart = outSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            outSamplesBuffer = Module.HEAP16.subarray(outSamplesPtrStart, (outSamplesPtrStart + drawSurfaceWidth * 5 * totalChannel));
+
+            outSampleCountsDrawingPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
+            outSampleCountsDrawingPtrStart = outSampleCountsDrawingPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            outSampleCountsDrawingBuffer = Module.HEAP32.subarray(outSampleCountsDrawingPtrStart, (outSampleCountsDrawingPtrStart + totalChannel));
+
+            totalEvents = 100;
+            outEventIndicesPtr = Module._malloc( totalEvents * Module.HEAPF64.BYTES_PER_ELEMENT);
+            outEventIndicesPtrStart = outEventIndicesPtr / Module.HEAPF64.BYTES_PER_ELEMENT;
+            outEventIndicesBuffer = Module.HEAPF64.subarray(outEventIndicesPtrStart, (outEventIndicesPtrStart + totalEvents));
+
+            totalEventCounts = 1;
+            outEventCountPtr = Module._malloc( totalEvents * Module.HEAP32.BYTES_PER_ELEMENT);
+            outEventCountPtrStart = outEventCountPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            outEventCountBuffer = Module.HEAP32.subarray(outEventCountPtrStart, (outEventCountPtrStart + totalEventCounts));
+
+            inTotalEvents = 0;
+            inEventIndicesPtr = Module._malloc( inTotalEvents * Module.HEAP32.BYTES_PER_ELEMENT);
+            inEventIndicesPtrStart = inEventIndicesPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            inEventIndicesBuffer = Module.HEAP32.subarray(inEventIndicesPtrStart, (inEventIndicesPtrStart + inTotalEvents));
+            displayTimeMs = _displayTimeMs;
+
+
+            // console.log("drawing");
+
+            outSampleCountsDrawingBuffer[0] = drawSurfaceWidth * 5;
+            try {
+              
+                let resultDrawing = Module._processing_prepare_for_signal_drawing(
+                    outSamplesPtr,           // Pointer<Pointer<Float>>
+                    // currentDataBuffersPtr,           // Pointer<Pointer<Float>>
+                    outSampleCountsDrawingPtr,      // Pointer<Int32>
+                    outEventIndicesPtr,      // Pointer<Float>
+                    outEventCountPtr,        // Pointer<Int32>
+                    inEventIndicesPtr,       // Pointer<Int32>
+                    0,                       // int (inEventCount)
+                    0,                       // int (fromSample)
+                    Math.floor(displayTimeMs * 0.001 * sampleRate),  // int (toSample)
+                    drawSurfaceWidth         // int
+                );
+
+                if (resultDrawing == 0) {
+                    for (let idx = 0; idx < totalChannel; idx++) {
+                        const slicedArray = outSamplesBuffer.subarray(0, outSampleCountsDrawingBuffer[idx]).slice();
+                        postMessage({
+                            "message": "INPUT_MICROPHONE_BUFFER_FINISHED",
+                            "channelIdx": idx,
+                            "bufferViews": slicedArray,
+                        });
+                    }
+                }
+
+                Module._free(outSignalPtr);
+                Module._free(outSamplesPtr);
+                Module._free(outSampleCountsDrawingPtr);
+                Module._free(outEventIndicesPtr);
+                Module._free(outEventCountPtr);
+                Module._free(inEventIndicesPtr);
+            }catch(err){
+                console.log("err");
+                console.log(err);
+            } finally {
+            }
+        break;
+
+        case "SET_BAND_FILTER":
+            const lowFreq = eventFromMain.data.lowFreq;
+            const highFreq = eventFromMain.data.highFreq;
+            console.log("lowFreq, highFreq");
+            console.log(lowFreq, highFreq);
+            Module._processing_set_band_filter(lowFreq, highFreq);
+        break;
+        case "SET_NOTCH_FILTER":
+            const centerFreq = eventFromMain.data.centerFreq;
+            Module._processing_set_notch_filter(centerFreq);
+        break;
+
 
         case "webInitHighPassFilter":
             channelCount = eventFromMain.data.channelCount;
@@ -59,31 +238,191 @@ self.onmessage = async function (eventFromMain) {
             q = eventFromMain.data.q;
             var result = Module._initLowPassFilter(channelCount, sampleRate, cutOffFrequency, q);
             break;
+        case "INITIALIZE_SERIAL":
+            Module._processing_init();
+            console.log("INITIALIZE_SERIAL: ", eventFromMain.data);
+            channelCount = eventFromMain.data.channelCount;
+            sampleRate = eventFromMain.data.sampleRate;
+            packetLen = sampleRate * MAX_DISPLAY_SECONDS;
+            Module._processing_set_sample_rate(sampleRate);
+            Module._processing_set_channel_count(channelCount);
+            // Module._processing_set_bits_per_sample(14);
 
-        case "webApplyFilter":
-            if (eventFromMain.data.toApplyHighPass) {
+            // serialDataPtr = Module._malloc(data.length * Module.HEAPU8.BYTES_PER_ELEMENT);
+            // serialDataPtrStart = serialDataPtr / Module.HEAPU8.BYTES_PER_ELEMENT;
+            // serialDataBuffer = Module.HEAPU8.subarray(inDataPtrStart, (inDataPtrStart + data.length));
 
-                const response = Module.ccall(
-                    'applyHighPassFilter',
-                    'number', // Assuming the function returns a number (pointer)
-                    ['number', 'number', 'number'], // Argument types: int16_t, short*, int32_t
-                    [eventFromMain.data.channelIdx, ptrDataArrayChannelWise[eventFromMain.data.channelIdx], eventFromMain.data.sampleCount]
-                );
-                // console.log("buffer error check");
+            // postMessage({
+            //     "message": "SERIAL_DATA_TRANSFER",
+            //     "serialDataBuffer": serialDataBuffer
+            // });
+        break;
+        case "SEND_SERIAL_DATA_WEB":
+            data = eventFromMain.data.samples;
+            _displayTimeMs = eventFromMain.data.displayTimeMs;
+            displayTimeMs = eventFromMain.data.displayTimeMs;
+
+            // console.log("WEBAPPLYFILTER: ", _displayTimeMs);
+            channelIdx = eventFromMain.data.channelIdx;
+
+            inDataPtr = Module._malloc(data.length * Module.HEAPU8.BYTES_PER_ELEMENT);
+            inDataPtrStart = inDataPtr / Module.HEAPU8.BYTES_PER_ELEMENT;
+            inDataArr = Module.HEAPU8.subarray(inDataPtrStart, (inDataPtrStart + data.length));
+            
+            drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
+            const serialPacketLen = drawSurfaceWidth * 5;
+            // const serialPacketLen = MAX_DISPLAY_SECONDS * sampleRate;
+            inSamplesPtr = Module._malloc( serialPacketLen * Module.HEAP16.BYTES_PER_ELEMENT);
+            inSamplesPtrStart = inSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            inSamplesBuffer = Module.HEAP16.subarray(inSamplesPtrStart, (inSamplesPtrStart + serialPacketLen));
+
+            totalChannel = channelCount;
+            outSampleCountsPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
+            outSampleCountsPtrStart = outSampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            outSampleCountsBuffer = Module.HEAP32.subarray(outSampleCountsPtrStart, (outSampleCountsPtrStart + totalChannel));
+
+            for (let i = 0; i < totalChannel; i++) {
+                outSampleCountsBuffer[i] = data.length;
             }
-            if (eventFromMain.data.toApplyLowPass) {
-                const response = Module.ccall(
-                    'applyLowPassFilter',
-                    'number', // Assuming the function returns a number (pointer)
-                    ['number', 'number', 'number'], // Argument types: int16_t, short*, int32_t
-                    [eventFromMain.data.channelIdx, ptrDataArrayChannelWise[eventFromMain.data.channelIdx], eventFromMain.data.sampleCount]
+            inDataArr.set(data);
+            // console.log("inDataArr:::: ", inDataArr.subarray(0,5));
+            const deviceType = eventFromMain.data.deviceType;
+            serialResult = Module._processing_process_sample_stream(
+                inSamplesPtr,
+                outSampleCountsPtr,
+                inDataPtr,
+                data.length,
+                deviceType
+            );
+
+
+            // console.log("serialResult: ", totalChannel, serialResult, outSampleCountsBuffer, inSamplesBuffer );
+            // for (let i = 0; i < totalChannel; i++) {
+            //     const slicedArray = inSamplesBuffer.subarray(0, outSampleCountsBuffer[i]).slice();
+            //     const data = {
+            //         "message": "INPUT_SERIAL_BUFFER_FINISHED",
+            //         "channelIdx": i,
+            //         "bufferViews": slicedArray,
+            //     };
+            //     // console.log("data : ", totalChannel, idx);
+            //     // console.log(slicedArray);
+            //     postMessage(data);
+            // }
+
+            Module._free(inSamplesPtr);
+            Module._free(inDataPtr);
+            Module._free(outSampleCountsPtr);
+
+            // return;
+
+            // console.log("serialResult: ", totalChannel, serialResult, outSampleCountsBuffer, outSamplesBuffer );
+            if (serialResult != 0) {
+            }
+        
+
+            try {
+                // outSignalPtr = Module._malloc(drawSurfaceWidth * 7 * totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
+                // outSignalPtrStart = outSignalPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                // outSignalBuffer = Module.HEAP32.subarray(outSignalPtrStart, (outSignalPtrStart + drawSurfaceWidth * 7));
+                
+                outSamplesPtr = Module._malloc(drawSurfaceWidth * 5 * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
+                outSamplesPtrStart = outSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+                outSamplesBuffer = Module.HEAP16.subarray(outSamplesPtrStart, (outSamplesPtrStart + drawSurfaceWidth * 5 * totalChannel));
+    
+                outSampleCountsDrawingPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
+                outSampleCountsDrawingPtrStart = outSampleCountsDrawingPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                outSampleCountsDrawingBuffer = Module.HEAP32.subarray(outSampleCountsDrawingPtrStart, (outSampleCountsDrawingPtrStart + totalChannel));
+    
+                totalEvents = 100;
+                outEventIndicesPtr = Module._malloc( totalEvents * Module.HEAPF64.BYTES_PER_ELEMENT);
+                outEventIndicesPtrStart = outEventIndicesPtr / Module.HEAPF64.BYTES_PER_ELEMENT;
+                outEventIndicesBuffer = Module.HEAPF64.subarray(outEventIndicesPtrStart, (outEventIndicesPtrStart + totalEvents));
+    
+                totalEventCounts = 1;
+                outEventCountPtr = Module._malloc( totalEvents * Module.HEAP32.BYTES_PER_ELEMENT);
+                outEventCountPtrStart = outEventCountPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                outEventCountBuffer = Module.HEAP32.subarray(outEventCountPtrStart, (outEventCountPtrStart + totalEventCounts));
+    
+                inTotalEvents = 0;
+                inEventIndicesPtr = Module._malloc( inTotalEvents * Module.HEAP32.BYTES_PER_ELEMENT);
+                inEventIndicesPtrStart = inEventIndicesPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                inEventIndicesBuffer = Module.HEAP32.subarray(inEventIndicesPtrStart, (inEventIndicesPtrStart + inTotalEvents));
+                displayTimeMs = _displayTimeMs;
+
+                for (let i = 0; i < totalChannel; i++) {
+                    outSampleCountsDrawingBuffer[i] = packetLen;
+                }
+                  
+                // console.log("SERIAL DRAWING: ", (displayTimeMs * 0.001 * sampleRate));
+                let resultDrawing = Module._processing_prepare_for_signal_drawing(
+                    outSamplesPtr,           // Pointer<Pointer<Float>>
+                    // currentDataBuffersPtr,           // Pointer<Pointer<Float>>
+                    outSampleCountsDrawingPtr,      // Pointer<Int32>
+                    outEventIndicesPtr,      // Pointer<Float>
+                    outEventCountPtr,        // Pointer<Int32>
+                    inEventIndicesPtr,       // Pointer<Int32>
+                    0,                       // int (inEventCount)
+                    0,                       // int (fromSample)
+                    Math.floor(displayTimeMs * 0.001 * sampleRate),  // int (toSample)
+                    // 500,  // int (toSample)
+                    drawSurfaceWidth         // int
                 );
+
+                // console.log("resultDrawing: ", resultDrawing, outSamplesBuffer);
+                if (resultDrawing == 0) {
+                    // for (let idx = 0; idx < totalChannel; idx++) {
+                        let idx = 0;
+                        const start = idx * outSampleCountsDrawingBuffer[idx];
+                        const slicedArray = outSamplesBuffer.subarray(start, start + outSampleCountsDrawingBuffer[idx]).slice();
+                        const data = {
+                            "message": "INPUT_SERIAL_BUFFER_FINISHED",
+                            "channelIdx": idx,
+                            "bufferViews": slicedArray,
+                        };
+                        // console.log("data : ", totalChannel, idx);
+                        // console.log(slicedArray);
+                        postMessage(data);
+                    // }
+
+                }
+
+                // Module._free(outSignalPtr);
+                Module._free(outSamplesPtr);
+                Module._free(outSampleCountsDrawingPtr);
+                Module._free(outEventIndicesPtr);
+                Module._free(outEventCountPtr);
+                Module._free(inEventIndicesPtr);
+            }catch(err){
+                console.log("err");
+                console.log(err);
+            } finally {
             }
 
-            postMessage({
-                message: "onWebApplyFilter",
-                channelIdx: eventFromMain.data.channelIdx,
-            });
+
+
+            // if (eventFromMain.data.toApplyHighPass) {
+
+            //     const response = Module.ccall(
+            //         'applyHighPassFilter',
+            //         'number', // Assuming the function returns a number (pointer)
+            //         ['number', 'number', 'number'], // Argument types: int16_t, short*, int32_t
+            //         [eventFromMain.data.channelIdx, ptrDataArrayChannelWise[eventFromMain.data.channelIdx], eventFromMain.data.sampleCount]
+            //     );
+            //     // console.log("buffer error check");
+            // }
+            // if (eventFromMain.data.toApplyLowPass) {
+            //     const response = Module.ccall(
+            //         'applyLowPassFilter',
+            //         'number', // Assuming the function returns a number (pointer)
+            //         ['number', 'number', 'number'], // Argument types: int16_t, short*, int32_t
+            //         [eventFromMain.data.channelIdx, ptrDataArrayChannelWise[eventFromMain.data.channelIdx], eventFromMain.data.sampleCount]
+            //     );
+            // }
+
+            // postMessage({
+            //     message: "onWebApplyFilter",
+            //     channelIdx: eventFromMain.data.channelIdx,
+            // });
             break;
 
         default:
@@ -91,9 +430,8 @@ self.onmessage = async function (eventFromMain) {
 }
 
 if ('function' === typeof importScripts) {
-    self.importScripts("a.out.js");
+    self.importScripts("cprocessing.js");
     self.Module.onRuntimeInitialized = async _ => {
-
         postMessage({
             message: 'INITIALIZE_WASM',
         });

@@ -1397,7 +1397,7 @@
                 "bybProtocolType": "BYB1",
                 "bybProtocolVersion": "1.0",
                 "maxSampleRate": "10000",
-                "maxNumberOfChannels": "6",
+                "maxNumberOfChannels": "1",
                 "sampleResolution": 10,
                 "supportedPlatforms": "android,win,mac,linux",
                 "productURL": "https://backyardbrains.com/products/heartandbrainspikershieldbundle",

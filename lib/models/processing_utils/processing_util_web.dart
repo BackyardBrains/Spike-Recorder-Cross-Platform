@@ -70,6 +70,12 @@ class ProcessingUtilImpl implements ProcessingUtil {
     return [];
   }
 
+  @override
+  Map<String, dynamic> getInformation()  {
+    return {};
+  }
+
+
   int MAX_DISPLAY_SECONDS = 10000;
   
   int channelCount = 1;

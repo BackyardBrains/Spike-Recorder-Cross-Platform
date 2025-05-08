@@ -248,14 +248,18 @@ class ProcessingUtilImpl implements ProcessingUtil
 		await _dataController.close();
 		
 		// Free allocated memory
-		if (currentDataBuffer != null) {
-			for (int i = 0; i < _channelCount; i++) {
-				calloc.free((currentDataBuffer!.value + i).cast<Pointer<Int16>>().value);
-			}
-			calloc.free(currentDataBuffer!.value);
-			calloc.free(currentDataBuffer!);
-			currentDataBuffer = null;
-		}
+    // try {
+      if (currentDataBuffer != null) {
+        for (int i = 0; i < _channelCount; i++) {
+          calloc.free((currentDataBuffer!.value + i).cast<Pointer<Int16>>().value);
+        }
+        calloc.free(currentDataBuffer!.value);
+        calloc.free(currentDataBuffer!);
+        currentDataBuffer = null;
+      }
+    // }catch(err) {
+
+    // }
 		
 		ProcessingBindings.instance.cleanup();
 		_isInitialized = false;
@@ -358,6 +362,7 @@ class ProcessingUtilImpl implements ProcessingUtil
   int channelCount = 1;
   int sampleRate = 10000;
   int packetLen = 100000;
+  List<int> initialSamples = [];
 
   @override
   void initializeSerial(Board board) {
@@ -388,14 +393,25 @@ class ProcessingUtilImpl implements ProcessingUtil
     // try {
       // Prepare input data pointer
       final inDataPtr = calloc<Uint8>(samples.length);
+      // if (initialSamples.isEmpty) {
+      //   for (int i = 0; i < 10; i++) {
+      //     initialSamples.addAll([255,255,1,1,128,255]);
+      //     initialSamples.addAll([0,10 * i,0,20 * i]);
+      //     // initialSamples.addAll([0,10 * i,0,20 * i]);
+      //     // initialSamples.addAll([0,10 * i,0,20 * i]);
+      //     initialSamples.addAll([255,255,1,1,129,255]);
+      //   }
+      // }
       for (int i = 0; i < samples.length; i++) {
         inDataPtr[i] = samples[i];
+        // inDataPtr[i] = initialSamples[i];
       }
       int res = ProcessingBindings.instance.processSampleStream(outSamplesPtr, outSampleCountsPtr, inDataPtr, samples.length, deviceType);
-      // var list = outSamplesPtr[0].asTypedList(100);
-      // int sampleCount = outSampleCountsPtr.asTypedList(1)[0];
+      var list = outSamplesPtr[0].asTypedList(100);
+      Int32List sampleCount = outSampleCountsPtr.asTypedList(2);
       // provider.inputListener(outSamplesPtr[0].asTypedList(sampleCount).buffer.asUint8List());
-      // print("RES : $res - ${samples.length}");
+      // print("RES : $res - ${samples.sublist(0,sampleCount[0])} : $list == $sampleCount");
+      // print("RES : $res - ${samples.length} : == $sampleCount");
       calloc.free(inDataPtr);
       // return;
     // }catch (err) {
@@ -441,7 +457,7 @@ class ProcessingUtilImpl implements ProcessingUtil
         // Uint8List uint8Data = Uint8List.view(channelData.buffer);
         Uint8List uint8Data = (channelData.buffer.asUint8List());
         // print("uint8Data $sampleCount");
-        // print(uint8Data.sublist(0, 30));
+        // print(uint8Data.sublist( uint8Data.length * 7 ~/ 8, uint8Data.length));
         // print(channelData.sublist(0, 30));
         // uint8Data.fillRange(0, (sampleCount * 1.99).toInt(), -77);
         provider.inputListener(uint8Data);
@@ -466,6 +482,22 @@ class ProcessingUtilImpl implements ProcessingUtil
     } finally {
     }
 
+  }
+
+
+  @override
+  Map<String, dynamic> getInformation() {
+    final outInfoPtr = calloc<Int32>(10);
+    ProcessingBindings.instance.getInformation(outInfoPtr);
+    Map<String, dynamic> map = {};
+    final info = outInfoPtr.asTypedList(10);
+    map["current_sample_rate"] = info[0];
+    map["current_channel_count"] = info[1];
+    map["current_bits_per_sample"] = info[2];
+    map["current_selected_channel"] = info[3];
+
+    calloc.free(outInfoPtr);
+    return map;
   }
 
 }

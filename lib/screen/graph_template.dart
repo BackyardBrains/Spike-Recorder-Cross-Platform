@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -454,10 +455,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
               for (Board board in connectedBoards) {
                 if (board.uniqueName == foundDevices) {
                   // HARDCODE
-                  isDeviceSelected = true;
                   deviceType = listOfDevices.indexOf("$foundDevices;") + 1;
                   print("${board.uniqueName} --- $foundDevices ::: ${board.uniqueName == foundDevices} $deviceType" );
+                  // (processingUtil as ProcessingUtilImpl).dispose();
+                  // processingUtil = createProcessingUtil();
                   processingUtil.initializeSerial(board);
+                  Future.delayed(Duration(seconds: 1), (){
+                    var info = processingUtil.getInformation();
+                    print("info : $info");
+                    isDeviceSelected = true;
+                  });
                 }
               }
 
@@ -1075,6 +1082,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     return result;
   }
 
+  List<int> serialBuffer = [];
   Future<void> portListOnConnect() async {
     DataStatusProvider dataStatus = context.read<DataStatusProvider>();
     List<String> listOfPort = Provider.of<PortScanProvider>(context, listen: false).availablePorts;
@@ -1086,6 +1094,20 @@ class _GraphTemplateState extends State<GraphTemplate> {
     bool dummyDataStatus = dataStatus.isSampleDataOn;
     bool isAudioListen = dataStatus.isMicrophoneData;
     dataStatus.setDeviceDataStatus(true);
+    var rng = Random();
+    List<int> initialSamples = [];
+    int headIdx = 0;
+    int headLimit = 4 * 20000;
+    if (initialSamples.isEmpty) {
+      for (int i = 1; i < 20001; i++) {
+        // initialSamples.addAll([255,255,1,1,128,255]);
+        initialSamples.addAll([ 191, 20, 64, 115]);
+        // initialSamples.addAll([0,10 * i,0,20 * i]);
+        // initialSamples.addAll([0,10 * i,0,20 * i]);
+        // initialSamples.addAll([255,255,1,1,129,255]);
+      }
+    }
+    Uint8List initialSamplesArr = Uint8List.fromList(initialSamples);
 
     // Stopwatch stopwatch = Stopwatch();
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
@@ -1093,19 +1115,52 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (!dummyDataStatus && !isAudioListen) {
         int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
         if (isDeviceConnect) {
-          print("Is Device Connect");
           _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: listOfPort.last);
           isDeviceConnect = false;
         }
         if (_isDataIdentified) {
+          // print("event");
+          // print(event);
+          // Uint8List char = initialSamplesArr.sublist(headIdx, (headIdx + 4) );
+          // print("char");
+          // print(char);
+          // processingUtil.processSerialData(char, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+          // (headIdx +=4);
+          // if (headIdx >= headLimit) {
+          //   isDeviceSelected = false;
+          //   _isDataIdentified = false;
+          //   headIdx = 0;
+          // }
+
+          // STEVE
           processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
+          /*
+          serialBuffer.addAll(event);
+          if (serialBuffer.length >= 1024) {
+            print("serialBuffer");
+            print(serialBuffer);
+            serialBuffer.clear();
+            // Uint8List resBuffer = Uint8List.fromList(serialBuffer.sublist(0, 1024));
+            // serialBuffer.removeRange(0, 1024);
+            // processingUtil.processSerialData(resBuffer, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
+          }
+          */
         } else {
           if (!isDeviceConnect && !isDeviceSelected) {
             _preEscapeSequenceBuffer.addBytes(event);
           }
           if (isDeviceSelected) { // !isDeviceConnect &&
             _isDataIdentified = true;
+            // STEVE
             processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
+            /*
+            serialBuffer.addAll(event);
+            if (serialBuffer.length >= 1024) {
+              Uint8List resBuffer = Uint8List.fromList(serialBuffer.sublist(0, 1024));
+              serialBuffer.removeRange(0, 1024);
+              processingUtil.processSerialData(resBuffer, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
+            }
+            */
 
             /*
             Uint8List? firstFrameData = _frameDetect.addData(event);

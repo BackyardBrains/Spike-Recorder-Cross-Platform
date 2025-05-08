@@ -88,6 +88,14 @@ typedef ProcessingProcessFft = int Function(
     Pointer<Int32> inSampleCounts
 );
 
+typedef ProcessingGetInformationNative = Int32 Function(
+    Pointer<Int32> outInfo,
+);
+typedef ProcessingGetInformation = int Function(
+    Pointer<Int32> outInfo,
+);
+
+
 typedef ProcessingResetFftNormalizationNative = Void Function();
 typedef ProcessingResetFftNormalization = void Function();
 
@@ -193,6 +201,8 @@ class ProcessingBindings {
   late final ProcessingSetBpmProcessing setBpmProcessing;
   late final ProcessingPrepareForSignalDrawing prepareForSignalDrawing;
   late final ProcessingCleanup cleanup;
+  
+  late final ProcessingGetInformation getInformation;
 
   ProcessingBindings._() {
     _lib ??= _loadLibrary();
@@ -255,6 +265,8 @@ class ProcessingBindings {
     setBpmProcessing = _lib!.lookupFunction<ProcessingSetBpmProcessingNative, ProcessingSetBpmProcessing>('processing_set_bpm_processing');
 
     prepareForSignalDrawing = _lib!.lookupFunction<ProcessingPrepareForSignalDrawingNative, ProcessingPrepareForSignalDrawing>('processing_prepare_for_signal_drawing');
+    
+    getInformation = _lib!.lookupFunction<ProcessingGetInformationNative, ProcessingGetInformation>('processing_get_information');
 
     cleanup = _lib!.lookupFunction<ProcessingCleanupNative, ProcessingCleanup>('processing_cleanup');
   }

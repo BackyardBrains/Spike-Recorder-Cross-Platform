@@ -386,6 +386,16 @@ int32_t processing_init() {
     }
 }
 
+int32_t* outInfo;
+int32_t processing_get_information(int32_t* _outInfo) {
+    outInfo = _outInfo;
+    outInfo[0] = current_sample_rate;
+    outInfo[1] = current_channel_count;
+    outInfo[2] = current_bits_per_sample;
+    outInfo[3] = current_selected_channel;
+    return 0;
+}
+
 int32_t processing_set_sample_rate(int32_t sample_rate) {
     if (!initialized) {
         return -1;
@@ -488,7 +498,9 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
                                      current_channel_count, hardware_type);
         // Add processed data to circular buffer
         if (circularBuffer != nullptr) {
-            circularBuffer->addData(out_samples, out_sample_counts[0]);
+            if (out_sample_counts[0]>0) {
+                circularBuffer->addData(out_samples, out_sample_counts[0]);
+            }
         } else {
             return -100;
         }

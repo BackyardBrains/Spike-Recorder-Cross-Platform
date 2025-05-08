@@ -52,6 +52,7 @@ PROCESSING_API int32_t processing_init();
 PROCESSING_API void processing_cleanup();
 
 // Sample rate and channel configuration
+PROCESSING_API int32_t processing_get_information(int32_t* outInfo);
 PROCESSING_API int32_t processing_set_sample_rate(int32_t sample_rate);
 PROCESSING_API int32_t processing_set_channel_count(int32_t channel_count);
 PROCESSING_API int32_t processing_set_bits_per_sample(int32_t bits_per_sample);

@@ -4,7 +4,7 @@
 # compile CXX with /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++
 CXX_DEFINES = -DDART_SHARED_LIB -Dprocessing_EXPORTS
 
-CXX_INCLUDES = -I/Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src -I/Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/System/Library/Frameworks
+CXX_INCLUDES = -I/Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src -I/Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/System/Library/Frameworks
 
 CXX_FLAGSx86_64 = -O3 -DNDEBUG -std=gnu++14 -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk -fPIC
 

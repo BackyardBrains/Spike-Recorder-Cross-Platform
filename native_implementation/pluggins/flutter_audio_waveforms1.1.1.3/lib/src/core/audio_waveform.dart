@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_audio_waveforms/src/core/waveform_painters_ab.dart';
@@ -44,7 +45,7 @@ abstract class AudioWaveform extends StatefulWidget {
 
   /// Audio samples raw input.
   /// This raw samples are processed before being used to paint the waveform.
-  final List<double> samples;
+  final List<int> samples;
 
   /// Height of the canvas on which the waveform will be drawn.
   final double height;
@@ -83,10 +84,10 @@ abstract class AudioWaveform extends StatefulWidget {
 abstract class AudioWaveformState<T extends AudioWaveform> extends State<T> {
   /// Samples after processing.
   /// This are used to paint the waveform.
-  late List<double> _processedSamples;
+  late List<int> _processedSamples;
 
   ///Getter for processed samples.
-  List<double> get processedSamples => _processedSamples;
+  List<int> get processedSamples => _processedSamples;
 
   late double _sampleWidth;
 
@@ -96,7 +97,7 @@ abstract class AudioWaveformState<T extends AudioWaveform> extends State<T> {
   ///Method for subsclass to update the processed samples
   @protected
   // ignore: use_setters_to_change_properties
-  void updateProcessedSamples(List<double> updatedSamples) {
+  void updateProcessedSamples(List<int> updatedSamples) {
     _processedSamples = updatedSamples;
   }
 
@@ -114,10 +115,10 @@ abstract class AudioWaveformState<T extends AudioWaveform> extends State<T> {
   /// Active samples that are used to draw the ActiveWaveform.
   /// This are calculated using [_activeIndex] and are subList of the
   /// [_processedSamples] at any given time.
-  late List<double> _activeSamples;
+  late List<int> _activeSamples;
 
   ///Getter for active samples.
-  List<double> get activeSamples => _activeSamples;
+  List<int> get activeSamples => _activeSamples;
 
   ///Getter for maxDuration
   Duration get maxDuration => widget.maxDuration;
@@ -201,7 +202,7 @@ abstract class AudioWaveformState<T extends AudioWaveform> extends State<T> {
 
     _processedSamples = widget.samples;
     _activeIndex = 0;
-    _activeSamples = [];
+    _activeSamples = Int16List(0);
     _sampleWidth = 0;
 
     if (_processedSamples.isNotEmpty) {

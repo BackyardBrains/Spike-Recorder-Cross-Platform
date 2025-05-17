@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_audio_waveforms/flutter_audio_waveforms.dart';
 import 'package:flutter_audio_waveforms/src/waveforms/polygon_waveform/inactive_waveform_painter.dart';
@@ -21,7 +23,7 @@ class PolygonWaveform extends AudioWaveform {
   // ignore: public_member_api_docs
   PolygonWaveform({
     Key? key,
-    required List<double> samples,
+    required List<int> samples,
     required double height,
     required double width,
     required Duration maxDuration,

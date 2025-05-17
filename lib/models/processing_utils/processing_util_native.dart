@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
@@ -7,7 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:spikerbox_architecture/models/default_config_model.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'processing_util.dart';
-import 'processing_bindings.dart';
+import 'package:native_add/native_add.dart';
+import 'package:processing_ffi/processing_ffi.dart' as pb;
+import 'package:processing_ffi/processing_bindings.dart';
+// import 'processing_bindings.dart';
 
 // Message class for communication between isolates
 class ProcessingMessage 
@@ -29,24 +33,26 @@ class ProcessingUtilImpl implements ProcessingUtil
 	int _sampleRate = 44100;
 	int _channelCount = 1;
 
+
   	// Implementation of the data buffer
-	@override
-	// Pointer<Pointer<Int16>>? currentDataBuffer;
-	  var currentDataBuffer;
+	Pointer<Pointer<Int16>>? currentDataBuffer;
+	// @override
+	  // var currentDataBuffer;
 
   	@override
   	Future<bool> init() async {
 		if (_isInitialized) return true;
 
 		// Initialize C++ processing
-		final result = ProcessingBindings.instance.init();
+    
+		final result = pb.processingBindings.init();
 		if (result != 0) {
 			print('Failed to initialize processing: $result');
 			return false;
 		}
 
 		// Set default sample rate
-		final sampleRateResult = ProcessingBindings.instance.setSampleRate(44100);
+		final sampleRateResult = pb.processingBindings.setSampleRate(44100);
 		if (sampleRateResult != 0) {
 			print('Failed to set sample rate: $sampleRateResult');
 			return false;
@@ -91,31 +97,46 @@ class ProcessingUtilImpl implements ProcessingUtil
 	}
 
 	@override
-	Future<bool> initializeMicrophone(int channelCount, int sampleRate) async 
+	Future<bool> initializeMicrophone(int channelCount, int sampleRate, double drawSurfaceWidth) async 
 	{
 		if (!_isInitialized) {
 			await init();
 		}
 		//todo: check if the currentDataBuffer is already initialized. If yes free memory before reinitializing
 		if (currentDataBuffer != null) {
-			for (int i = 0; i < _channelCount; i++) {
-				calloc.free((currentDataBuffer!.value + i).cast<Pointer<Int16>>().value);
-			}
-			calloc.free(currentDataBuffer!.value);
-			calloc.free(currentDataBuffer!);
+      print("currentDataBuffer");
+      print(currentDataBuffer);
+      for (int i = 0; i < _channelCount; i++) {
+          calloc.free(currentDataBuffer![i]);
+      }
+      calloc.free(currentDataBuffer!);
+      currentDataBuffer = null;
+
+			// for (int i = 0; i < _channelCount; i++) {
+			// 	calloc.free((currentDataBuffer!.value + i).cast<Pointer<Int16>>().value);
+			// }
+			// calloc.free(currentDataBuffer!.value);
+			// calloc.free(currentDataBuffer!);
 		}
+
+    ProcessingUtil.drawingBuffers.clear();
+    for (int i = 0; i < channelCount; i++) {
+      ProcessingUtil.drawingBuffers.add(Int16List(drawSurfaceWidth.toInt() * 5));
+      ProcessingUtil.drawingBufferCounts.add(drawSurfaceWidth.toInt() * 5);
+    }
+
 		// Update local properties
 		_channelCount = channelCount;
 		_sampleRate = sampleRate;
 
 		// Set channel count and sample rate in C++ processing
-		final channelResult = ProcessingBindings.instance.setChannelCount(channelCount);
+		final channelResult = pb.processingBindings.setChannelCount(channelCount);
 		if (channelResult != 0) {
 			print('Failed to set channel count: $channelResult');
 			return false;
 		}
 
-		final sampleRateResult = ProcessingBindings.instance.setSampleRate(sampleRate);
+		final sampleRateResult = pb.processingBindings.setSampleRate(sampleRate);
 		if (sampleRateResult != 0) {
 			print('Failed to set sample rate: $sampleRate');
 			return false;
@@ -125,13 +146,23 @@ class ProcessingUtilImpl implements ProcessingUtil
 		final int sampleCount = (ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRate).toInt();
 		
 		// Allocate array of pointers for each channel
-		final channelArrayPtr = calloc<Pointer<Int16>>(channelCount);
-		currentDataBuffer = channelArrayPtr.cast<Pointer<Int16>>();
+		// final channelArrayPtr = calloc<Pointer<Int16>>(channelCount);
+		// currentDataBuffer = channelArrayPtr.cast<Pointer<Int16>>();
+    // final outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
+    // for (int i = 0; i < channelCount; i++) {
+    //     outSamplesPtr[i] = calloc<Int16>(drawSurfaceWidth * 5); // 5x for envelope
+    // }
+    if (currentDataBuffer == null) {
+      currentDataBuffer = calloc<Pointer<Int16>>(channelCount);    
+      for (int i = 0; i < channelCount; i++) {
+        currentDataBuffer?[i] = calloc<Int16>(sampleCount); // 5x for envelope
+      }    
+    }
 		
 		// Allocate memory for each channel
-		for (int i = 0; i < channelCount; i++) {
-			channelArrayPtr[i] = calloc<Int16>(sampleCount);
-		}
+		// for (int i = 0; i < channelCount; i++) {
+		// 	channelArrayPtr[i] = calloc<Int16>(sampleCount);
+		// }
 
 		print('Microphone initialized with $channelCount channels at $sampleRate Hz');
 		print('Buffer size: $channelCount channels × $sampleCount samples');
@@ -156,7 +187,7 @@ class ProcessingUtilImpl implements ProcessingUtil
 			}
 
 			// Process the microphone data using pre-allocated buffer
-			final result = ProcessingBindings.instance.processMicrophoneStream(
+			final result = pb.processingBindings.processMicrophoneStream(
 				currentDataBuffer!, 
 				outSampleCountsPtr, 
 				inDataPtr, 
@@ -189,7 +220,9 @@ class ProcessingUtilImpl implements ProcessingUtil
     if (!_isInitialized) {
       await init();
     }
-    return ProcessingBindings.instance.setBandFilter(lowCutOffFreq, highCutOffFreq);
+
+    print("LH: $lowCutOffFreq $highCutOffFreq");
+    return pb.processingBindings.setBandFilter(lowCutOffFreq, highCutOffFreq);
   }
 
   @override
@@ -197,7 +230,7 @@ class ProcessingUtilImpl implements ProcessingUtil
     if (!_isInitialized) {
       await init();
     }
-    return ProcessingBindings.instance.setNotchFilter(centerFreq);
+    return pb.processingBindings.setNotchFilter(centerFreq);
   }
 
   
@@ -218,7 +251,7 @@ class ProcessingUtilImpl implements ProcessingUtil
 		
 		try {
 			// Call the native function with correct parameters
-			final result = ProcessingBindings.instance.prepareForSignalDrawing(
+			final result = pb.processingBindings.prepareForSignalDrawing(
 				outSamples,
         outSampleCounts,
 				outEventIndices,
@@ -250,18 +283,23 @@ class ProcessingUtilImpl implements ProcessingUtil
 		// Free allocated memory
     // try {
       if (currentDataBuffer != null) {
+        // for (int i = 0; i < _channelCount; i++) {
+        //   calloc.free((currentDataBuffer!.value + i).cast<Pointer<Int16>>().value);
+        // }
+        // calloc.free(currentDataBuffer!.value);
+        // calloc.free(currentDataBuffer!);
         for (int i = 0; i < _channelCount; i++) {
-          calloc.free((currentDataBuffer!.value + i).cast<Pointer<Int16>>().value);
+            calloc.free(currentDataBuffer![i]);
         }
-        calloc.free(currentDataBuffer!.value);
         calloc.free(currentDataBuffer!);
+
         currentDataBuffer = null;
       }
     // }catch(err) {
 
     // }
 		
-		ProcessingBindings.instance.cleanup();
+		pb.processingBindings.cleanup();
 		_isInitialized = false;
 	}
   
@@ -324,15 +362,26 @@ class ProcessingUtilImpl implements ProcessingUtil
                 // Copy the prepared signal data
 
                 //for (int i = 0; i < widget.channelCount; i++) {
-                Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
+                // Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
                 //print("Sample count: $sampleCount");
                 //print("first sample: ${channelData[0]}");
                 //se log with this:
                 // cat /tmp/flutter_native_crash.log  
                 
 
-                Uint8List uint8Data = Uint8List.view(channelData.buffer);
-                provider.inputListener(uint8Data);
+                // Uint8List uint8Data = Uint8List.view(channelData.buffer);
+                // ProcessingUtil.drawingBuffers.clear();
+                for (int i = 0; i < channelCount; i++) {
+                  final temp = outSamplesPtr[i].asTypedList(sampleCount);
+                  // final arrDouble = List.generate(sampleCount, (index) => temp[index].toDouble());
+                  // if (ProcessingUtil.drawingBuffers.length <= i) {
+                    // ProcessingUtil.drawingBuffers.add( arrDouble );  
+                  // } else {
+                    ProcessingUtil.drawingBuffers[i].setAll(0, temp);
+                    ProcessingUtil.drawingBufferCounts[i] = sampleCount;
+                  // }
+                }                
+                provider.inputListener(Uint8List(0));
                 //provider.inputListener(channelData);
                 // Get the number of events
                 int eventCount = outEventCountPtr.value;
@@ -365,23 +414,29 @@ class ProcessingUtilImpl implements ProcessingUtil
   List<int> initialSamples = [];
 
   @override
-  void initializeSerial(Board board) {
+  void initializeSerial(Board board, double drawSurfaceWidth) {
 		if (!_isInitialized) {
 		}  
-    final result = ProcessingBindings.instance.init();    
+    final result = pb.processingBindings.init();    
     channelCount = int.parse(board.maxNumberOfChannels!);
+    _channelCount = channelCount;
     sampleRate = int.parse(board.maxSampleRate!);
     packetLen = sampleRate * MAX_DISPLAY_SECONDS;
     // print("Initialize Serial === $result $channelCount $sampleRate -- PACKET LEN : $packetLen");
+    ProcessingUtil.drawingBuffers.clear();
+    for (int i = 0; i < channelCount; i++) {
+      ProcessingUtil.drawingBuffers.add(Int16List(drawSurfaceWidth.toInt() * 5));
+      ProcessingUtil.drawingBufferCounts.add(drawSurfaceWidth.toInt() * 5);
+    }
     
     // int res = ProcessingBindings.instance.setBitsPerSample(board.sampleResolution!);
-    print("Initialize Serial === $channelCount $sampleRate -- PACKET LEN : $packetLen");
-    ProcessingBindings.instance.setChannelCount(channelCount);
-    ProcessingBindings.instance.setSampleRate(sampleRate);
+    print("Initialize Serial === $channelCount $sampleRate -- PACKET LEN : $packetLen ${ProcessingUtil.drawingBuffers.length}");
+    pb.processingBindings.setChannelCount(channelCount);
+    pb.processingBindings.setSampleRate(sampleRate);
   }
 
   @override
-  void processSerialData(Uint8List samples, int displayTimeMs, int deviceType, int drawSurfaceWidth, GraphDataProvider provider) {
+  Future<int> processSerialData(Uint8List samples, int displayTimeMs, int deviceType, int drawSurfaceWidth, [GraphDataProvider? provider]) async {
     // print("SERIAL DATA: $channelCount - ${samples.length} : $drawSurfaceWidth -- $sampleRate : $displayTimeMs DEVICETYPE: $deviceType");
     var outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
     for (int i = 0; i < channelCount; i++) {
@@ -406,11 +461,14 @@ class ProcessingUtilImpl implements ProcessingUtil
         inDataPtr[i] = samples[i];
         // inDataPtr[i] = initialSamples[i];
       }
-      int res = ProcessingBindings.instance.processSampleStream(outSamplesPtr, outSampleCountsPtr, inDataPtr, samples.length, deviceType);
-      var list = outSamplesPtr[0].asTypedList(100);
-      Int32List sampleCount = outSampleCountsPtr.asTypedList(2);
+      int res = pb.processingBindings.processSampleStream(outSamplesPtr, outSampleCountsPtr, inDataPtr, samples.length, deviceType);
+      var list = outSamplesPtr[0].asTypedList(res);
+      var list2 = outSamplesPtr[1].asTypedList(res);
+      Int32List sampleCount = outSampleCountsPtr.asTypedList(channelCount);
       // provider.inputListener(outSamplesPtr[0].asTypedList(sampleCount).buffer.asUint8List());
-      // print("RES : $res - ${samples.sublist(0,sampleCount[0])} : $list == $sampleCount");
+      // if (samples.reduce(max) > 250) {
+      //   print("RES : $res - $samples === ${samples.length} @@@ : [1]=> $list [2]=> $list2");
+      // }
       // print("RES : $res - ${samples.length} : == $sampleCount");
       calloc.free(inDataPtr);
       // return;
@@ -424,8 +482,16 @@ class ProcessingUtilImpl implements ProcessingUtil
     calloc.free(outSamplesPtr);
 
 
+
+    return Future.value(sampleCount[0]);
+
+  }
+
+  @override
+  Future<Uint8List> processDisplaySerialData(int displayTimeMs, int deviceType, int drawSurfaceWidth, [GraphDataProvider? provider]) async {
     // Allocate memory for sample counts
-    outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
+    var outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
+    final outSampleCountsPtr = calloc<Int32>(channelCount);
     for (int i = 0; i < channelCount; i++) {
         outSamplesPtr[i] = calloc<Int16>(drawSurfaceWidth * 5); // 5x for envelope
     }
@@ -440,7 +506,7 @@ class ProcessingUtilImpl implements ProcessingUtil
     final inEventIndicesPtr = calloc<Int32>(0); // No events yet
     // print("drawSurfaceWidth : $drawSurfaceWidth");
     try {
-      int result = ProcessingBindings.instance.prepareForSignalDrawing(
+      int result = pb.processingBindings.prepareForSignalDrawing(
           outSamplesPtr,           // Pointer<Pointer<Float>>
           outSampleCountsPtr,      // Pointer<Int32>
           outEventIndicesPtr,      // Pointer<Float>
@@ -453,18 +519,30 @@ class ProcessingUtilImpl implements ProcessingUtil
       );
       if (result == 0) {
         int sampleCount = outSampleCountsPtr.value;
-        Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
-        // Uint8List uint8Data = Uint8List.view(channelData.buffer);
-        Uint8List uint8Data = (channelData.buffer.asUint8List());
+        // Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
+        // // Uint8List uint8Data = Uint8List.view(channelData.buffer);
+        // Uint8List uint8Data = Uint8List.fromList(channelData.buffer.asUint8List());
         // print("uint8Data $sampleCount");
         // print(uint8Data.sublist( uint8Data.length * 7 ~/ 8, uint8Data.length));
         // print(channelData.sublist(0, 30));
         // uint8Data.fillRange(0, (sampleCount * 1.99).toInt(), -77);
-        provider.inputListener(uint8Data);
+        // provider.inputListener(uint8Data);
         int eventCount = outEventCountPtr.value;
         if (eventCount > 0) {
           // Float32List eventIndices = outEventIndicesPtr.asTypedList(eventCount);
         }
+        // uint8Data.fillRange(0, 100, 200);
+        // print("displaySerialData: $uint8Data");
+
+        // ProcessingUtil.drawingBuffers.clear();
+        for (int i = 0; i < channelCount; i++) {
+          final temp = outSamplesPtr[i].asTypedList(sampleCount);
+          // final arrDouble = List.generate(sampleCount, (index) => temp[index].toDouble());
+          ProcessingUtil.drawingBuffers[i].setAll( 0, temp );
+          ProcessingUtil.drawingBufferCounts[i] = sampleCount;
+        }
+
+        return (Uint8List(0));
       }
       for (int i = 0; i < channelCount; i++) {
           calloc.free(outSamplesPtr[i]);
@@ -480,15 +558,49 @@ class ProcessingUtilImpl implements ProcessingUtil
       print("err");
       print(err);
     } finally {
-    }
-
+    } 
+    return Future.value(Uint8List(0));
   }
 
+  void processSerialDataIsolate(sendPort)  async {
+    ReceivePort receivePort = ReceivePort();
+    sendPort.send(receivePort.sendPort); // Send the isolate's SendPort back
+
+    receivePort.listen((args) async {
+      if (args is List) {
+        int data = await processSerialData(args[0], args[1], args[2], args[3], null);
+
+        // Send the result back to the main isolate
+        sendPort.send(data);
+      } else if (args == 'exit') {
+        receivePort.close();
+      }
+    });    
+    // return Future.value(1);
+  }
+  void processDisplaySerialDataIsolate(sendPort) async {
+    ReceivePort receivePort = ReceivePort();
+    sendPort.send(receivePort.sendPort); // Send the isolate's SendPort back
+
+    receivePort.listen((args) async {
+      if (args is List) {
+        Uint8List data = await processDisplaySerialData(args[0], args[1], args[2]);
+
+        // Send the result back to the main isolate
+        sendPort.send(data);
+      } else if (args == 'exit') {
+        receivePort.close();
+      }
+    });    
+    // Uint8List data = await displaySerialData(args[0], args[1], args[2], args[3]);
+    // print("displaySerialDataIsolate $data");
+    // return Future.value(data);
+  }
 
   @override
   Map<String, dynamic> getInformation() {
     final outInfoPtr = calloc<Int32>(10);
-    ProcessingBindings.instance.getInformation(outInfoPtr);
+    pb.processingBindings.getInformation(outInfoPtr);
     Map<String, dynamic> map = {};
     final info = outInfoPtr.asTypedList(10);
     map["current_sample_rate"] = info[0];
@@ -545,7 +657,7 @@ dynamic _processData(dynamic data)
 		}
 
 		// Process data using C++ implementation
-		final result = ProcessingBindings.instance.filterData(pointer, length);
+		final result = pb.processingBindings.filterData(pointer, length);
 		if (result != 0) {
 		throw Exception('Failed to process data: $result');
 		}

@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_audio_waveforms/src/util/waveform_alignment.dart';
@@ -11,7 +12,7 @@ class PolygonActiveWaveformPainter extends ActiveWaveformPainter {
   PolygonActiveWaveformPainter({
     required Color color,
     Gradient? gradient,
-    required List<double> activeSamples,
+    required List<int> activeSamples,
     required WaveformAlignment waveformAlignment,
     required PaintingStyle style,
     required double sampleWidth,
@@ -38,7 +39,7 @@ class PolygonActiveWaveformPainter extends ActiveWaveformPainter {
 
     for (var i = 0; i < activeSamples.length; i++) {
       final x = sampleWidth * i;
-      final y = activeSamples[i];
+      final y = activeSamples[i].toDouble();
       if (isStroked) {
         path.lineTo(x, y);
       } else {

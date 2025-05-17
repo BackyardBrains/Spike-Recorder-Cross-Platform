@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:isolate';
 import 'dart:typed_data';
 // import 'dart:ffi';
 import 'package:spikerbox_architecture/models/default_config_model.dart';
@@ -20,11 +21,17 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
   
   @override
-  Future<bool> initializeMicrophone(int channelCount, int sampleRate) async {
-    js.context.callMethod("initializeMicrophoneWeb", [channelCount, sampleRate]);
+  Future<bool> initializeMicrophone(int channelCount, int sampleRate, double drawSurfaceWidth) async {
+    js.context['onDrawingBufferAllocated'] = onDrawingBufferAllocated;
+    js.context.callMethod("initializeMicrophoneWeb", [channelCount, sampleRate, drawSurfaceWidth]);
     if (!_isInitialized) {
       await init();
     }
+    // for (int i = 0; i < channelCount; i++) {
+    //   ProcessingUtil.drawingBuffers.add(Int16List( (drawSurfaceWidth * 5).toInt() ));
+    //   ProcessingUtil.drawingBufferCounts.add( (drawSurfaceWidth * 5).toInt() );
+    // }
+
     return true;
   }
 
@@ -83,16 +90,51 @@ class ProcessingUtilImpl implements ProcessingUtil {
   int packetLen = 100000;
 
   @override
-  void initializeSerial(Board board) {
-    js.context.callMethod("initializeSerialWeb", [board.maxSampleRate, board.maxNumberOfChannels]);
+  void initializeSerial(Board board, double drawSurfaceWidth) {
+    js.context.callMethod("initializeSerialWeb", [board.maxSampleRate, board.maxNumberOfChannels, drawSurfaceWidth]);
   }
   @override
-  void processSerialData(Uint8List samples, int displayTimeMs, int deviceType, int deviceWidth, GraphDataProvider provider) {
+  Future<int> processSerialData(Uint8List samples, int displayTimeMs, int deviceType, int deviceWidth, GraphDataProvider provider) async {
     // var jsSamples = samples.toList();
     js.context.callMethod("processSerialDataWeb", [samples, displayTimeMs, deviceType]);
+    return Future.value(1);
+  }
+  @override
+  Future<Uint8List> processDisplaySerialData(int displayTimeMs, int deviceType, int deviceWidth, GraphDataProvider provider) async {
+    js.context.callMethod("displaySerialDataWeb", [ displayTimeMs, deviceType, deviceWidth]);
+    return Future.value(Uint8List(0));
+  }
+
+  void processSerialDataIsolate(sendPort)  async {
+
+    // await processSerialData(args[0], args[1], args[2], args[3], args[4]);
+  }
+  Future<Uint8List> processDisplaySerialDataIsolate(sendPort) async {
+    // Uint8List data = await displaySerialData(args[0], args[1], args[2], args[3]);
+    // ProcessingUtil.drawingBuffers = data;
+    return Future.value(Uint8List(0));
   }
 
 
+  void onDrawingBufferAllocated(dataBufferList, countBufferList, final channelCount) {
+    print("onDrawingBufferAllocated");
+    print(dataBufferList[0].runtimeType);
+    print(Int16List.fromList(dataBufferList[0]).length);
+    print(countBufferList.length);
+    print(countBufferList);
+    ProcessingUtil.drawingBuffers.clear();
+    for (int i = 0; i < channelCount; i++) {
+      ProcessingUtil.drawingBuffers.add(dataBufferList[i]);
+      ProcessingUtil.drawingBufferCounts = countBufferList;
+    }
+    // for (int i = 0; i < channelCount; i++) {
+    //   ProcessingUtil.drawingBuffers.add(Int16List( (1110 * 5).toInt() ));
+    //   ProcessingUtil.drawingBufferCounts.add( (1110 * 5).toInt() );
+    // }
+
+    // print("onDrawingBufferAllocated ENDED : ${ProcessingUtil.drawingBuffers[0]}");
+
+  }
 
 	Future<void> dispose() async 
 	{

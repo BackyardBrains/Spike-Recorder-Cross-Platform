@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_audio_waveforms/src/core/waveform_painters_ab.dart';
 import 'package:flutter_audio_waveforms/src/util/waveform_alignment.dart';
@@ -9,7 +11,7 @@ class RectangleInActiveWaveformPainter extends InActiveWaveformPainter {
   RectangleInActiveWaveformPainter({
     Color color = Colors.white,
     Gradient? gradient,
-    required List<double> samples,
+    required List<int> samples,
     required WaveformAlignment waveformAlignment,
     required double sampleWidth,
     required Color borderColor,
@@ -42,7 +44,7 @@ class RectangleInActiveWaveformPainter extends InActiveWaveformPainter {
 
     for (var i = 0; i < samples.length; i++) {
       final x = sampleWidth * i;
-      final y = samples[i];
+      final y = samples[i].toDouble();
       //Draws the filled rectangles of the waveform.
       canvas
         ..drawRect(

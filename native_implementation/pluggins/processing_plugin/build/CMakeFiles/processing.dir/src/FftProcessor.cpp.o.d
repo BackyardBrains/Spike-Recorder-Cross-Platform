@@ -1,6 +1,6 @@
 CMakeFiles/processing.dir/src/FftProcessor.cpp.o: \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/FftProcessor.cpp \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/FftProcessor.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/FftProcessor.cpp \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/FftProcessor.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/algorithm \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__assert \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__assertion_handler \
@@ -903,14 +903,14 @@ CMakeFiles/processing.dir/src/FftProcessor.cpp.o: \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/cstdarg \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__memory/temp_value.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__split_buffer \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AudioFFT.h \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AnalysisUtils.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AudioFFT.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/AnalysisUtils.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/cfloat \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/float.h \
   /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/16/include/float.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/float.h \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/Processor.h \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/LowPassFilter.h \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/FilterBase.h \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/HighPassFilter.h \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/NotchFilter.h
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/Processor.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/LowPassFilter.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/FilterBase.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/HighPassFilter.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/NotchFilter.h

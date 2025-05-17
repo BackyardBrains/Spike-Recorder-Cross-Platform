@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_audio_waveforms/src/const/colors.dart';
 import 'package:flutter_audio_waveforms/src/util/check_samples_equality.dart';
@@ -17,7 +19,7 @@ abstract class WaveformPainter extends CustomPainter {
   });
 
   /// Samples that are used to paint the waveform.
-  final List<double> samples;
+  final List<int> samples;
 
   /// Color of the waveform.
   final Color color;
@@ -68,7 +70,7 @@ abstract class ActiveWaveformPainter extends WaveformPainter {
         );
 
   ///The active samples used to paint the waveform.
-  final List<double> activeSamples;
+  final List<int> activeSamples;
 
   /// Stroke/Border Width
   final double borderWidth;
@@ -98,7 +100,7 @@ abstract class InActiveWaveformPainter extends WaveformPainter {
   InActiveWaveformPainter({
     required Color color,
     required Gradient? gradient,
-    required List<double> samples,
+    required List<int> samples,
     required WaveformAlignment waveformAlignment,
     required double sampleWidth,
     PaintingStyle style = PaintingStyle.stroke,
@@ -140,7 +142,7 @@ abstract class ActiveInActiveWaveformPainter extends WaveformPainter {
   // ignore: public_member_api_docs
   ActiveInActiveWaveformPainter({
     required this.activeColor,
-    required List<double> samples,
+    required List<int> samples,
     required double sampleWidth,
     required this.inactiveColor,
     required this.activeRatio,

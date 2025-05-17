@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_audio_waveforms/src/util/waveform_alignment.dart';
 import 'package:flutter_audio_waveforms/src/core/waveform_painters_ab.dart';
@@ -10,7 +11,7 @@ class SquigglyWaveformPainter extends ActiveInActiveWaveformPainter {
   // ignore: public_member_api_docs
   SquigglyWaveformPainter({
     required Color activeColor,
-    required List<double> samples,
+    required List<int> samples,
     required Color inactiveColor,
     required double activeRatio,
     required WaveformAlignment waveformAlignment,
@@ -70,7 +71,7 @@ class SquigglyWaveformPainter extends ActiveInActiveWaveformPainter {
   // ignore: avoid_positional_boolean_parameters
   void paintDefaultWaveform(Path waveformPath, double pointWidth, bool invert) {
     for (var i = 0; i < samples.length; i++) {
-      final value = samples[i];
+      final value = samples[i].toDouble();
       final upOrDown = invert ? i.isOdd : i.isEven;
       final x = pointWidth * i;
       final x2 = pointWidth * (i + 1);
@@ -103,7 +104,7 @@ class SquigglyWaveformPainter extends ActiveInActiveWaveformPainter {
       final value = samples[i];
       final x = pointWidth * i;
       final x2 = pointWidth * (i + 1);
-      final y2 = value;
+      final y2 = value.toDouble();
       final diameter = x2 - x;
       final radius = diameter / 2;
       waveformPath
@@ -132,7 +133,7 @@ class SquigglyWaveformPainter extends ActiveInActiveWaveformPainter {
       final diameter = x2 - x;
       final radius = diameter / 2;
       waveformPath
-        ..lineTo(x, y2)
+        ..lineTo(x, y2.toDouble())
         ..lineTo(x, y2 - diameter)
         ..addArc(
           Rect.fromCircle(

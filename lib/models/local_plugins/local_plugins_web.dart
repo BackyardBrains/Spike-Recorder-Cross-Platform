@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:native_add/model/model.dart';
 import 'package:spikerbox_architecture/models/models.dart';
 import 'package:spikerbox_architecture/models/local_plugins/local_plugins_check.dart';
+import 'package:spikerbox_architecture/models/processing_utils/processing_util.dart';
 import 'dart:js' as js;
 
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
@@ -131,21 +132,33 @@ class LocalPluginWeb implements LocalPlugin {
   }
 
   /// Called from JS when processing completed on a packet
-  void onProcessingDone(int channelIdx, buffer) {
+  void onProcessingDone(channelData, channelCounts) {
     // Int16List returnList = Int16List(_dataBuffer[channelIdx]?.length ?? 0);
     // for (int i = 0; i < returnList.length; i++) {
     //   returnList[i] = _dataBuffer[channelIdx]![i];
     // }
+    // int len = channelData.length;
+    // for (int i = 0; i < len; i++) {
+
+    //   ProcessingUtil.drawingBuffers[i].setAll(0, channelData[0]);
+    //   ProcessingUtil.drawingBufferCounts[i] = channelCounts[i];
+    // }
 
     // postFilterStreamController.add(returnList.buffer.asUint8List());
-    postFilterStreamController.add(buffer);
+    postFilterStreamController.add(Uint8List(0));
 
-    _bufferHandlerOnDemand[channelIdx]?.toFetchBytes = true;
-    _bufferHandlerOnDemand[channelIdx]?.requestData();
+    // _bufferHandlerOnDemand[channelIdx]?.toFetchBytes = true;
+    // _bufferHandlerOnDemand[channelIdx]?.requestData();
   }
 
-  void onPostDisplay(int channelCount, channelData) {
-    postDisplayStreamController.sink.add(channelData);
+  void onPostDisplay(channelData, channelCounts) {
+    // int len = channelData.length;
+    // for (int i = 0; i < len; i++) {
+
+    //   ProcessingUtil.drawingBuffers[i].setAll(0, channelData[0]);
+    //   ProcessingUtil.drawingBufferCounts[i] = channelCounts[i];
+    // }
+    postDisplayStreamController.sink.add(Uint8List(0));
 
   }
 

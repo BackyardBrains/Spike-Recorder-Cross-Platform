@@ -24,6 +24,13 @@ function initializeModule() {
       //   [workerChannel.port1]
       // );
     } else
+    if (event.data.message === "ALLOCATE_DRAWING_DATA_BUFFER") {
+      let drawingCountBufferList = event.data.drawingCountBufferList;
+      let drawingDataBufferList = event.data.drawingDataBufferList;
+      let channelCount = event.data.channelCount;
+      console.log("drawingDataBufferList: ", drawingDataBufferList);
+      window.onDrawingBufferAllocated(drawingDataBufferList, drawingCountBufferList, channelCount);
+    } else
     if (event.data.message === "SERIAL_DATA_TRANSFER") {
       
     } else
@@ -34,12 +41,13 @@ function initializeModule() {
       // Share the typed view of allocated buffer with Dart
       window.onDataBufferAllocated(event.data.dataBuffer, event.data.chIdx);
     } else
-    if (event.data.message === "INPUT_MICROPHONE_BUFFER_FINISHED") {
-      window.onPostDisplay(1, event.data.bufferViews);
+    if (event.data.message === "INPUT_MICROPHONE_BUFFER_FINISHED") { 
+      window.onPostDisplay(event.data.bufferViews, event.data.bufferCountViews);
     } else
     if (event.data.message === "INPUT_SERIAL_BUFFER_FINISHED") {
-      // console.log("INPUT_SERIAL_BUFFER_FINISHED: ", event.data.channelIdx, event.data.bufferViews.length);
-      window.onProcessingDone(event.data.channelIdx, event.data.bufferViews);
+      // console.log("INPUT_SERIAL_BUFFER_FINISHED: ", event.data.bufferViews, event.data.bufferCountViews);
+      // window.onProcessingDone(event.data.channelIdx, event.data.bufferViews);
+      window.onProcessingDone(event.data.bufferViews, event.data.bufferCountViews);
     }
 
     
@@ -109,11 +117,12 @@ function sendToWorkerApplyFilter(
 }
 
 
-function initializeMicrophoneWeb(channelCount, sampleRate) {
+function initializeMicrophoneWeb(channelCount, sampleRate, drawSurfaceWidth) {
   mWorker.postMessage({
     "message": "INITIALIZE_MICROPHONE",
-    "channelCounts": channelCount,
+    "channelCount": channelCount,
     "sampleRate": sampleRate,
+    "drawSurfaceWidth": drawSurfaceWidth,
   });
 }
 
@@ -127,7 +136,7 @@ function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, display
 }
 
 function processMicrophoneDataWeb(microphoneDataBuffers, channelIdx, samplesLength) {
-  // console.log("processMicrophoneDataWeb");
+  // console.log("processMicrophoneDataWeb", microphoneDataBuffers);
   // console.log(window.innerWidth);
   mWorker.postMessage({
     "message": "INPUT_MICROPHONE_BUFFER",
@@ -158,12 +167,13 @@ function setNotchFilterWeb(centerFreq) {
   });
 }
 
-function initializeSerialWeb(sampleRate, channelCount){
+function initializeSerialWeb(sampleRate, channelCount, drawSurfaceWidth){
   console.log("Channel Count: ", channelCount, sampleRate);
   mWorker.postMessage({
     "message": "INITIALIZE_SERIAL",
     "channelCount": parseInt(channelCount),
     "sampleRate": sampleRate,
+    "drawSurfaceWidth": drawSurfaceWidth,
   });
 }
 function processSerialDataWeb(samples, displayTimeMs, deviceType){
@@ -171,6 +181,17 @@ function processSerialDataWeb(samples, displayTimeMs, deviceType){
   mWorker.postMessage({
     "message": "SEND_SERIAL_DATA_WEB",
     "samples": samples,
+    "channelIdx": 0,
+    "displayTimeMs": displayTimeMs,
+    "deviceType": deviceType,
+    // "deviceType": 5,
+    "drawSurfaceWidth": window.innerWidth,
+  });
+}
+function displaySerialDataWeb(displayTimeMs, deviceType, deviceWidth){
+  // console.log("samples: ", samples);
+  mWorker.postMessage({
+    "message": "DISPLAY_SERIAL_DATA_WEB",
     "channelIdx": 0,
     "displayTimeMs": displayTimeMs,
     "deviceType": deviceType,

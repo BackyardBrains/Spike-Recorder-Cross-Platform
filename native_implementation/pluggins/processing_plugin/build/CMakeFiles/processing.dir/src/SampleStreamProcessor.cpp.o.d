@@ -1,7 +1,7 @@
 CMakeFiles/processing.dir/src/SampleStreamProcessor.cpp.o: \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/SampleStreamProcessor.cpp \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SampleStreamProcessor.h \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/Processor.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/SampleStreamProcessor.cpp \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SampleStreamProcessor.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/Processor.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/typeinfo \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__assert \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__assertion_handler \
@@ -226,11 +226,11 @@ CMakeFiles/processing.dir/src/SampleStreamProcessor.cpp.o: \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__functional/invoke.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__type_traits/type_identity.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__type_traits/unwrap_ref.h \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/LowPassFilter.h \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/FilterBase.h \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/HighPassFilter.h \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/NotchFilter.h \
-  /Users/macbook/development/BYB/GH/SR_FLUTTER/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SampleStreamUtils.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/LowPassFilter.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/FilterBase.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/HighPassFilter.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/NotchFilter.h \
+  /Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/src/includes/SampleStreamUtils.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/string \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__algorithm/max.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk/usr/include/c++/v1/__algorithm/comp.h \

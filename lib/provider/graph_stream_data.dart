@@ -27,7 +27,8 @@ class GraphDataProvider extends ChangeNotifier {
       _inputGraphStream = graphStreamData;
       _outputGraphStream = _outputGraphStreamController.stream
             .asBroadcastStream()
-            .transform(myStreamTransformer());
+            .transform(myStreamTransformer()
+            );
 
       _inputGraphStream!.listen(inputListener);
   }

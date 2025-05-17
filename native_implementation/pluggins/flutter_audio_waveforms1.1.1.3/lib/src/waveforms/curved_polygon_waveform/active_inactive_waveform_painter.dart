@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_audio_waveforms/src/core/waveform_painters_ab.dart';
 import 'package:flutter_audio_waveforms/src/util/waveform_alignment.dart';
@@ -9,7 +10,7 @@ class CurvedPolygonActiveInActiveWaveformPainter
     extends ActiveInActiveWaveformPainter {
   // ignore: public_member_api_docs
   CurvedPolygonActiveInActiveWaveformPainter({
-    required List<double> samples,
+    required List<int> samples,
     required WaveformAlignment waveformAlignment,
     required double sampleWidth,
     required double activeRatio,
@@ -55,7 +56,7 @@ class CurvedPolygonActiveInActiveWaveformPainter
     for (var i = 0; i < samples.length; i++) {
       final currentPoint = samples[i];
       final nextPoint = i + 1 > samples.length - 1 ? 0.0 : samples[i + 1];
-      bezierSamplesList.add(currentPoint);
+      bezierSamplesList.add(currentPoint.toDouble());
       // Addition of this two average points helps to get that curved effect.
       final averagePoint = (nextPoint + currentPoint) / 2;
       bezierSamplesList.add(averagePoint);

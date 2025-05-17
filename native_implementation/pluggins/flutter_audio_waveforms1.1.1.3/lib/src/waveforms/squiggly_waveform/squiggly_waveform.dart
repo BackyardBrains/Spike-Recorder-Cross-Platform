@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_audio_waveforms/src/core/audio_waveform.dart';
 import 'package:flutter_audio_waveforms/src/core/waveform_painters_ab.dart';
@@ -24,7 +25,7 @@ class SquigglyWaveform extends AudioWaveform {
   // ignore: public_member_api_docs
   SquigglyWaveform({
     Key? key,
-    required List<double> samples,
+    required List<int> samples,
     required double height,
     required double width,
     required Duration maxDuration,
@@ -67,8 +68,8 @@ class _SquigglyWaveformState extends AudioWaveformState<SquigglyWaveform> {
   void processSamples() {
     final rawSamples = widget.samples;
     // ignore: omit_local_variable_types
-    List<double> processedSamples =
-        rawSamples.map((e) => e.abs() * widget.height).toList();
+    List<int> processedSamples =
+        rawSamples.map((e) => (e.abs() * widget.height).toInt()).toList();
 
     final maxNum =
         processedSamples.reduce((a, b) => math.max(a.abs(), b.abs()));
@@ -80,7 +81,7 @@ class _SquigglyWaveformState extends AudioWaveformState<SquigglyWaveform> {
 
       processedSamples = processedSamples
           .map(
-            (e) => e * finalMultiplier,
+            (e) => (e * finalMultiplier).toInt(),
           )
           .toList();
     }

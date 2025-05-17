@@ -1,8 +1,11 @@
 import 'dart:math';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_audio_waveforms/flutter_audio_waveforms.dart'
     as WavForm;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:spikerbox_architecture/models/processing_utils/processing_util.dart';
 import 'package:spikerbox_architecture/provider/graph_gain_provider.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'package:spikerbox_architecture/provider/isgraphplay_provider.dart';
@@ -24,23 +27,18 @@ class _SpikerBoxUiState extends State<SpikerBoxUi> {
   List<double> eventMarkersPosition = [];
   List<int> eventMarkersNumber = [];
   double position = 0;
+  
+  List<Widget> listUIElements = [];
 
   @override
   Widget build(BuildContext context) {
-    return const Stack(
-      children: [
+    listUIElements.addAll([
         DraggableSection(),
-
         TimeCalculateWidget(),
-
         DraggableRectangle(),
-
-        //   } else {
-        //     return Container();
-        //   }
-        // }),
-        // Container()
-      ],
+    ]);
+    return Stack(
+      children: listUIElements,
     );
   }
 }
@@ -132,36 +130,41 @@ class DraggableSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      Provider.of<VerticalDragProvider>(context, listen: false).initialOffset =
-          constraints.maxHeight / 2;
-      return Consumer<VerticalDragProvider>(
-        builder: (context, verticalDrag, snapshot) {
-          return Stack(
-            clipBehavior: Clip.hardEdge,
-            children: [
-              Positioned(
-                top: verticalDrag.topPosition,
-                left: 0,
-                child: SizedBox(
-                  width: constraints.maxWidth,
-                  height: constraints.maxHeight,
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(child: DraggableButton()),
-                      Expanded(
-                        child: DraggableGraph(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      );
-    });
+    return SizedBox(
+      width: MediaQuery.of(context).size.width,
+      height: MediaQuery.of(context).size.height,
+      child: DraggableGraph()
+    );
+    // return LayoutBuilder(builder: (context, constraints) {
+    //   Provider.of<VerticalDragProvider>(context, listen: false).initialOffset =
+    //       constraints.maxHeight / 2;
+    //   return Consumer<VerticalDragProvider>(
+    //     builder: (context, verticalDrag, snapshot) {
+    //       return Stack(
+    //         clipBehavior: Clip.hardEdge,
+    //         children: [
+    //           Positioned(
+    //             top: verticalDrag.topPosition,
+    //             left: 0,
+    //             child: SizedBox(
+    //               width: constraints.maxWidth,
+    //               height: constraints.maxHeight,
+    //               child: const Row(
+    //                 mainAxisAlignment: MainAxisAlignment.center,
+    //                 children: [
+    //                   SizedBox(child: DraggableButton()),
+    //                   Expanded(
+    //                     child: DraggableGraph(),
+    //                   ),
+    //                 ],
+    //               ),
+    //             ),
+    //           ),
+    //         ],
+    //       );
+    //     },
+    //   );
+    // });
   }
 }
 
@@ -173,40 +176,227 @@ class DraggableGraph extends StatefulWidget {
 }
 
 class _DraggableGraphState extends State<DraggableGraph> {
+  int channelCount = 1;
+  List<double> gainChannel = [];
+  List<double> topChartY = [];
+  List<double> midChartY = [];
+  double widthChart = 800;
+  double heightChart = 600;
+
+  @override
+  void initState() {
+    super.initState();
+    Stream<List<double>> dataStream = Provider.of<GraphDataProvider>(context, listen: false).outputGraphStream ?? const Stream.empty();
+    dataStream.listen((data) {
+      isLoading = false;
+      setState((){});
+    });    
+    Future.delayed(Duration(seconds: 1), () {
+      initializeGraph();
+    });
+  }
+
+  void initializeGraph(){
+    print("initializeGraph");
+    widthChart = MediaQuery.of(context).size.width;
+    heightChart = MediaQuery.of(context).size.height / channelCount;
+    channelCount = ProcessingUtil.drawingBuffers.length;
+    topChartY.clear();
+    midChartY.clear();
+    gainChannel.clear();
+    for (int i = 0; i < channelCount; i++) {
+      double top = (heightChart * i);
+      topChartY.add( top );
+      midChartY.add( (top + heightChart / 2 - 18) );
+      gainChannel.add( 0.25 );
+      topDroplet = midChartY.last;
+    }
+    // double topChartY = heightChart * idx;
+
+  }
+  void addChartControls(List<Widget> charts, int idx, int channelCount, BuildContext context) {
+    double leftDroplet = 5;
+    charts.add(
+      Positioned(
+        top: midChartY[idx].toDouble() + 35,
+        left: leftDroplet,        
+        child: GestureDetector(
+          onTap: () {
+            gainChannel[idx] *= 3;
+            // GraphGainProvider graphGainProvider =
+            //     Provider.of<GraphGainProvider>(context, listen: false);
+            // graphGainProvider.setGain(graphGainProvider.gain * 3);
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: SoftwareColors.kButtonBackGroundColor,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.add, color: Colors.black, size: 15),
+          ),
+        ),
+      )
+    );
+    charts.add(
+      Positioned(
+        top: midChartY[idx],
+        // top: topDroplet,
+        // left: leftDroplet,
+        child: GestureDetector(
+          onVerticalDragUpdate: (details) {
+            midChartY[idx] = details.globalPosition.dy;
+            topChartY[idx] = midChartY[idx] + 18 - heightChart / 2;
+            // topDroplet = details.globalPosition.dy;
+            // topDroplet = topDroplet -30;
+          },
+          // child: Text("$topDroplet", style: TextStyle(color: Colors.white),),
+          child: Container(
+            // color: Colors.red,
+            child: Transform.rotate(
+                      angle: 90 * pi / 180,
+                    child:Icon(Icons.water_drop, color: Colors.green, size:36)
+            ),
+          ),
+
+          // child: Container(
+          //   color: Colors.red,
+          //   padding: const EdgeInsets.symmetric(vertical: 8.0),
+          //   child: Center(
+          //     child: SizedBox(
+          //       height: 20,
+          //       width: 30,
+          //       child: CustomPaint(
+          //         foregroundPainter: DropletPainter(),
+          //       ),
+          //     ),
+          //   ),
+          // ),
+        ),
+      )
+    );
+    charts.add(
+      Positioned(
+        top:midChartY[idx].toDouble() - 15,
+        left: leftDroplet,
+        child: GestureDetector(
+          onTap: () {
+            // GraphGainProvider graphGainProvider =
+            //     Provider.of<GraphGainProvider>(context, listen: false);
+            // graphGainProvider.setGain(graphGainProvider.gain * 0.25);
+            gainChannel[idx] *= 0.25;
+
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: SoftwareColors.kButtonBackGroundColor,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.remove, color: Colors.black, size: 15),
+          ),
+        ),
+
+      )
+    );
+
+  }
+
+  bool isLoading = true;
+  
+  double topDroplet = 0; 
   @override
   Widget build(BuildContext context) {
-    Stream<List<double>> dataStream = Provider.of<GraphDataProvider>(context, listen: false).outputGraphStream ?? const Stream.empty();
-    return LayoutBuilder(builder: (context, constraints) {
-      return Consumer<GraphGainProvider>(
-          builder: (context, graphGainProvider, _) {
-        return StreamBuilder<List<double>>(
-          stream: dataStream,
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              List<double>? streamDouble = snapshot.data;
+    // return LayoutBuilder(builder: (context, constraints) {
+    //   return Consumer<GraphGainProvider>(
+    //       builder: (context, graphGainProvider, _) {
+            List<Widget> charts = [];
+            if (!isLoading) {
+              if (ProcessingUtil.drawingBuffers.isNotEmpty && channelCount != ProcessingUtil.drawingBuffers.length) {
+                channelCount = ProcessingUtil.drawingBuffers.length;
+                initializeGraph();
+              }
+
+              // List<double>? streamDouble = ProcessingUtil.drawingBuffers[0].toList();
               // eventMarkersNumber = snapshot.data;
               // eventMarkersPosition = snapshot.data!;
-              return WavForm.PolygonWaveform(
-                showActiveWaveform: true,
-                inactiveColor: SoftwareColors.kGraphColor,
-                activeColor: Colors.transparent,
-                maxDuration: const Duration(days: 1),
-                elapsedDuration: const Duration(hours: 0),
-                samples: streamDouble!,
-                height: constraints.maxHeight,
-                width: constraints.maxWidth,
-                channelIdx: 1,
-                channelActive: -1,
-                // channelTop: top,
-                gain: graphGainProvider.gain,
-                levelMedian: constraints.maxHeight / 2,
-                strokeWidth: 1.25,
-                eventMarkersNumber: 1,
-                // eventMarkersPosition: eventMarkersPosition,
+// /*
+              List<Int16List> temp = [];
+              int idx = 0;
+              for (idx = 0; idx < channelCount; idx++) {
+                Int16List curBuffer = Int16List.fromList(ProcessingUtil.drawingBuffers[idx]);
+                temp.add(curBuffer);
+              }
+
+              for (idx =0; idx < channelCount; idx++) {
+                Int16List curBuffer = temp[idx];
+                int outSampleCount = ProcessingUtil.drawingBufferCounts[idx];
+                // print("sampleCount $outSampleCount vs ${curBuffer.length}");
+                // print(sampleCount);
+                // print(curBuffer);
+
+                var buffer;
+                if (kIsWeb) {
+                  // buffer = Int16List(outSampleCount);
+                  // buffer = Int16List.sublistView(curBuffer, 0, outSampleCount).toList();
+                  // buffer = List<int>.generate(outSampleCount, (idx) => curBuffer[idx]);
+                  // subArray(curBuffer, buffer, 0, outSampleCount);
+                  // buffer.fillRange(0, 100, 300);
+                  buffer = (curBuffer).sublist(0, outSampleCount);
+                } else {
+                  buffer = (curBuffer).sublist(0, outSampleCount);
+                }
+
+                // print("buffer $outSampleCount vs ${buffer.length} $channelCount");
+                charts.add(
+                  Positioned(
+                    top: topChartY[idx].toDouble(),
+                    left:0,
+                    child: Container(
+                      // color:Colors.yellow,
+                      width:MediaQuery.of(context).size.width,
+                      height:MediaQuery.of(context).size.height,
+                      child: WavForm.PolygonWaveform(
+                        showActiveWaveform: true,
+                        inactiveColor: SoftwareColors.kGraphColor,
+                        activeColor: Colors.transparent,
+                        maxDuration: const Duration(days: 1),
+                        elapsedDuration: const Duration(hours: 0),
+                        samples: buffer.toList(),
+                        height: heightChart,
+                        width: widthChart,
+                        channelIdx: idx,
+                        channelActive: 1,
+                        // channelTop: top,
+                        gain: gainChannel[idx],
+                        levelMedian: heightChart / 2,
+                        strokeWidth: 1,
+                        eventMarkersNumber: 1,
+                      // eventMarkersPosition: eventMarkersPosition,
+                      ),
+                    ),
+                  )
+                );
+                addChartControls(charts, idx, channelCount, context);
+              }
+// */
+// */
+              return Stack(
+                  children: charts.isEmpty ? [Container()] : charts,
+                  // children: [
+                  //   Positioned(
+                  //     top: topDroplet,
+                  //     left: 100,
+                  //     child: GestureDetector(
+                  //       onVerticalDragUpdate: (details){
+                  //         topDroplet = details.globalPosition.dy;
+                  //         print("topDroplet");
+                  //         print(topDroplet);
+                  //       },
+                  //       child: Icon(Icons.water_drop, color: Colors.green, size:50)
+                  //     ),
+                  //   ),
+                    
+                  // ],
               );
-            } else if (snapshot.hasError) {
-              // Handle error state here
-              return Text('Error: ${snapshot.error}');
             } else {
               // Handle loading state here
               return const Center(
@@ -214,13 +404,30 @@ class _DraggableGraphState extends State<DraggableGraph> {
                       height: 50,
                       width: 50,
                       child: CircularProgressIndicator(color: Colors.green)));
-            }
-          },
-        );
-      });
-    });
+            }            
+        // return StreamBuilder<List<double>>(
+        //   stream: dataStream,
+        //   builder: (context, snapshot) {
+
+        //   },
+        // );
+    //   });
+    // });
+  }
+  
+  void subArray(Int16List curBuffer, Int16List buffer, int start, int sampleCount) {
+    int len = sampleCount;
+    // Int16List buffer = Int16List(sampleCount);
+    // print("subArray ${buffer.length} ${curBuffer.length} ${curBuffer.sublist(0,100)}");
+    int arrayIdx = 0;
+    for (arrayIdx = 0; arrayIdx < len; arrayIdx++) {
+      buffer[arrayIdx] = curBuffer[arrayIdx];
+      // print(arrayIdx);
+    }
+    // return buffer;
   }
 }
+
 
 class DraggableButton extends StatefulWidget {
   const DraggableButton({super.key});
@@ -255,46 +462,6 @@ class _DraggableButtonState extends State<DraggableButton> {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            GestureDetector(
-              onTap: () {
-                GraphGainProvider graphGainProvider =
-                    Provider.of<GraphGainProvider>(context, listen: false);
-                graphGainProvider.setGain(graphGainProvider.gain * 3);
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  color: SoftwareColors.kButtonBackGroundColor,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.add, color: Colors.black, size: 15),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Center(
-                child: SizedBox(
-                  height: 20,
-                  width: 30,
-                  child: CustomPaint(
-                    foregroundPainter: DropletPainter(),
-                  ),
-                ),
-              ),
-            ),
-            GestureDetector(
-              onTap: () {
-                GraphGainProvider graphGainProvider =
-                    Provider.of<GraphGainProvider>(context, listen: false);
-                graphGainProvider.setGain(graphGainProvider.gain * 0.25);
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  color: SoftwareColors.kButtonBackGroundColor,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.remove, color: Colors.black, size: 15),
-              ),
-            ),
           ],
         ),
       ),
@@ -331,7 +498,6 @@ class _DraggableRectangleState extends State<DraggableRectangle> {
                     height: 20,
                     width: double.infinity,
                     child: Stack(
-                      alignment: AlignmentDirectional.centerStart,
                       children: [
                         Consumer<GraphDataProvider>(
                             builder: (context, graphDataProvider, _) {

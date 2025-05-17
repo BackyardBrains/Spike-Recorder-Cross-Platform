@@ -1,5 +1,7 @@
 // ignore_for_file: omit_local_variable_types
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_audio_waveforms/src/core/waveform_painters_ab.dart';
 import 'package:flutter_audio_waveforms/src/util/waveform_alignment.dart';
@@ -11,7 +13,7 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
   PolygonInActiveWaveformPainter({
     Color color = Colors.red,
     Gradient? gradient,
-    required List<double> samples,
+    required List<int> samples,
     required WaveformAlignment waveformAlignment,
     required PaintingStyle style,
     required double sampleWidth,

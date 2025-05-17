@@ -32,6 +32,10 @@ dependencies:
     sdk: flutter
   native_add:
     path : native_implementation/pluggins/native_add/
+  # processing_plugin:
+  #   path : native_implementation/pluggins/processing_plugin/
+  processing_ffi:
+    path : native_implementation/pluggins/processing_ffi/
 
   # mic_stream:
   #   path : native_implementation/pluggins/mic_stream/

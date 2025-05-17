@@ -65,6 +65,7 @@ class SerialUtilWindow implements SerialUtil {
   StreamSubscription? serialBufferSubscription;
   StreamController<Uint8List> _serialBufferController = StreamController();
   Uint8List serialBuffer = Uint8List(1200);
+  List<int> serialBufferList = [];
   int headIdx = 0;
   int bufferLimit = 1024;
   @override
@@ -86,30 +87,35 @@ class SerialUtilWindow implements SerialUtil {
       /*
       serialBufferSubscription = reader.stream.listen((data){
         for (int i = 0; i < data.length; i++) {
-          serialBuffer[headIdx] = data[i];
+          // serialBuffer[headIdx] = data[i];
+          serialBufferList.add(data[i]);
           headIdx++;
         }
-        if (headIdx >= bufferLimit) {
-          final resBuffer = serialBuffer.sublist(0,bufferLimit);
-          _serialBufferController.add(resBuffer);
-
-          // print("SerialBuffer length: ${serialBuffer.length} $headIdx");
-          final residueBuffer = Uint8List.fromList(serialBuffer.sublist(bufferLimit, headIdx));
+        if (headIdx > bufferLimit) {
           headIdx = 0;
-          final residueBufferLen = residueBuffer.length;
-          if (residueBufferLen > 0) {
-            for (int i = 0; i < residueBufferLen; i++) {
-              serialBuffer[i] = data[i];
-              headIdx++;
-            }
-            serialBuffer.fillRange(residueBufferLen, 1200, 0);
+          // print("serialBufferList: $serialBufferList");
+          // serialBufferList.clear();
+          // final resBuffer = serialBuffer.sublist(0,bufferLimit);
+          // print("resBuffer ${resBuffer.length}");
+          // print(resBuffer);
+          // _serialBufferController.add(resBuffer);
 
-          }
+          // // print("SerialBuffer length: ${serialBuffer.length} $headIdx");
+          // final residueBuffer = Uint8List.fromList(serialBuffer.sublist(bufferLimit , headIdx));
+          // headIdx = 0;
+          // final residueBufferLen = residueBuffer.length;
+          // if (residueBufferLen > 0) {
+          //   for (int i = 0; i < residueBufferLen; i++) {
+          //     serialBuffer[i] = data[i];
+          //     headIdx++;
+          //   }
+          //   serialBuffer.fillRange(residueBufferLen, 1200, 0);
+          // }
         }
       });
       return _serialBufferController.stream.asBroadcastStream();
       */
-      return reader.stream.asBroadcastStream();
+      return reader.stream;
     }
     return null;
   }

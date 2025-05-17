@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_audio_waveforms/src/core/audio_waveform.dart';
 import 'package:flutter_audio_waveforms/src/core/waveform_painters_ab.dart';
@@ -22,7 +24,7 @@ class CurvedPolygonWaveform extends AudioWaveform {
   // ignore: public_member_api_docs
   CurvedPolygonWaveform({
     Key? key,
-    required List<double> samples,
+    required List<int> samples,
     required double height,
     required double width,
     required Duration maxDuration,

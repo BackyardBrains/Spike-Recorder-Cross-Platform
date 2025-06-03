@@ -10,21 +10,21 @@ class DataStatusProvider extends ChangeNotifier {
   bool _is50Hertz = false;
   bool _is60Hertz = false;
 
-  FilterSetup _highPassFilterSettings = const FilterSetup(
+  FilterSetup _highPassFilterSettings = FilterSetup(
       isFilterOn: false,
       filterType: FilterType.highPassFilter,
       filterConfiguration:
           FilterConfiguration(cutOffFrequency: 500, sampleRate: 10000),
       channelCount: channelCountBuffer);
 
-  FilterSetup _lowPassFilterSettings = const FilterSetup(
+  FilterSetup _lowPassFilterSettings = FilterSetup(
       isFilterOn: false,
       filterType: FilterType.lowPassFilter,
       filterConfiguration:
           FilterConfiguration(cutOffFrequency: 500, sampleRate: 10000),
       channelCount: channelCountBuffer);
 
-  FilterSetup _notchPassFilterSettings = const FilterSetup(
+  FilterSetup _notchPassFilterSettings = FilterSetup(
       isFilterOn: false,
       filterType: FilterType.lowPassFilter,
       filterConfiguration:

@@ -14,7 +14,7 @@ class MessageIdentifier {
 
   final Function(Uint8List) onDeviceData;
   final Function(Uint8List) onDeviceMessage;
-  MessageState _messageState = MessageState.noSequence;
+  MessageState messageState = MessageState.noSequence;
 
   /// 255, 255, 1, 1, 128, 255
   static final Uint8List startSequence = Uint8List.fromList([255, 255, 1, 1, 128, 255]);
@@ -28,11 +28,11 @@ class MessageIdentifier {
 
   void addPacket(Uint8List newPacket) {
     for (int i = 0; i < newPacket.length; i++) {
-      switch (_messageState) {
+      switch (messageState) {
         case MessageState.noSequence:
           if (newPacket[i] == startSequence.first) {
             _startSequenceFoundIndex = 0;
-            _messageState = MessageState.inStartSequence;
+            messageState = MessageState.inStartSequence;
           } else {
             _deviceDataBuffer.add(newPacket[i]);
           }
@@ -41,14 +41,14 @@ class MessageIdentifier {
         case MessageState.inStartSequence:
           if (newPacket[i] == startSequence[_startSequenceFoundIndex + 1]) {
             if (_startSequenceFoundIndex == startSequence.length - 2) {
-              _messageState = MessageState.inMessage;
+              messageState = MessageState.inMessage;
             } else {
               _startSequenceFoundIndex++;
             }
           } else {
             // Adding the partial start sequence found to data
             _deviceDataBuffer.addAll(startSequence.sublist(0, _startSequenceFoundIndex + 1));
-            _messageState = MessageState.noSequence;
+            messageState = MessageState.noSequence;
           }
           break;
 
@@ -57,12 +57,14 @@ class MessageIdentifier {
           // all the bytes keep on adding to _messageBuffer
           if (_messageBuffer.length > 50) {
             _messageBuffer.clear();
-            _messageState = MessageState.noSequence;
+            messageState = MessageState.noSequence;
             break;
           }
 
           // Keep on adding messages / end sequence bytes to _messageBuffer
           _messageBuffer.add(newPacket[i]);
+          // print("_messageBuffer Device : ");
+          // print(_messageBuffer);
 
           // When endSequence is found then remove the endSequence from _messageBuffer
           // and send the _messageBuffer
@@ -71,12 +73,12 @@ class MessageIdentifier {
             removeSublist(_messageBuffer, endSequence);
             onDeviceMessage(Uint8List.fromList(_messageBuffer));
             _messageBuffer.clear();
-            _messageState = MessageState.noSequence;
+            messageState = MessageState.noSequence;
           }
           break;
       }
     }
-    if (_messageState != MessageState.noSequence) return;
+    if (messageState != MessageState.noSequence) return;
     if (_deviceDataBuffer.isNotEmpty) {
       onDeviceData(Uint8List.fromList(_deviceDataBuffer));
       _deviceDataBuffer.clear();

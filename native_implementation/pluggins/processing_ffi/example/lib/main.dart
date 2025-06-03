@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-import 'package:processing_ffi/processing_ffi.dart' as processing_ffi;
+// import 'package:processing_ffi/processing_ffi.dart' as processing_ffi;
 
 void main() {
   runApp(const MyApp());
@@ -21,8 +21,8 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    sumResult = processing_ffi.sum(1, 2);
-    sumAsyncResult = processing_ffi.sumAsync(3, 4);
+    // sumResult = processing_ffi.sum(1, 2);
+    // sumAsyncResult = processing_ffi.sumAsync(3, 4);
   }
 
   @override

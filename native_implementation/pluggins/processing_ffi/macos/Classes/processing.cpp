@@ -4,6 +4,15 @@
 #include <vector>
 #include <cstring>
 #include <algorithm>
+#include <string>
+#define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
+void platform_log(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+}
+
 #ifdef _WIN32
     #include <windows.h>
     #include <time.h>
@@ -41,6 +50,7 @@ using namespace backyardbrains::utils;
 // Constants
 static constexpr int32_t PROCESSING_MAX_EVENTS = 100;  // Same as MAX_EVENTS in SampleStreamProcessor
 static constexpr int32_t MAX_NUMBER_OF_SECONDS = 10;  // 10 seconds of buffer
+static constexpr int32_t BUFFER_MULTIPLIER = 2;  // 10 seconds of buffer
 
 // Internal state variables
 static bool initialized = false;
@@ -124,7 +134,7 @@ class CircularBuffer {
                   
                   this->sampleRate = sampleRate;
                   this->channelCount = channelCount;
-                  this->bufferSize = sampleRate * MAX_NUMBER_OF_SECONDS;
+                  this->bufferSize = sampleRate * MAX_NUMBER_OF_SECONDS * BUFFER_MULTIPLIER;
                   this->buffer = new int16_t*[channelCount];
                   this->headIndex = new int32_t[channelCount];
                   this->tailIndex = new int32_t[channelCount];
@@ -214,6 +224,16 @@ class CircularBuffer {
                   for (int chan = 0; chan < channelCount; chan++) {
                         for (int i = 0; i < sampleCount; i++) {
                               int32_t bufferPos = (headIndex[chan] - (toSample - i) + bufferSize) % bufferSize;
+                            //   if (fromSample > 0) {
+                            //       platform_log("HEAD\n");
+                            //       platform_log(std::to_string(headIndex[chan]).c_str());
+                            //       platform_log("\nTOSAMPLE-i\n");
+                            //       platform_log(std::to_string(toSample - i).c_str());
+                            //       platform_log("\nBUFFERSIZE\n");
+                            //       platform_log(std::to_string(bufferSize).c_str());
+                            //       platform_log("===========\n");
+                            //   }
+
                               outputBuffer[chan][i] = buffer[chan][bufferPos];
                         }
                   }
@@ -409,9 +429,10 @@ int32_t processing_set_sample_rate(int32_t sample_rate) {
     
     try {
         current_sample_rate = sample_rate;
+        amModulationProcessor->setSampleRate( sample_rate );
         sampleStreamProcessor->setSampleRate(sample_rate);
         fftProcessor->setSampleRate(sample_rate);
-        
+
         // Re-setup the circular buffer when sample rate changes
         if (circularBuffer != nullptr) {
             circularBuffer->setup(current_sample_rate, current_channel_count);
@@ -434,6 +455,7 @@ int32_t processing_set_channel_count(int32_t channel_count) {
     
     try {
         current_channel_count = channel_count;
+        amModulationProcessor->setChannelCount(channel_count);
         sampleStreamProcessor->setChannelCount(channel_count);
         fftProcessor->setChannelCount(channel_count);
         
@@ -545,7 +567,7 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
             for (int i = 0; i < current_channel_count; i++) {
                   channel_samples[i] = new int16_t[frame_count]{0};
             }
-            
+
             // Pass channel_samples to amModulationProcessor, not out_samples
             amModulationProcessor->process(
                   reinterpret_cast<short*>(const_cast<uint8_t*>(in_data)),
@@ -838,8 +860,8 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
             channel_count,
             const_cast<int*>(in_event_indices),
             in_event_count,
-            from_sample,
-            to_sample,
+            0,
+            to_sample - from_sample,
             draw_surface_width
         );
         
@@ -1235,6 +1257,8 @@ int32_t processing_set_band_filter(float low_cut_off_freq, float high_cut_off_fr
     }
 }
 
+
+
 int32_t processing_set_notch_filter(float center_freq) {
     if (!initialized) {
         return -1;  // Not initialized
@@ -1248,7 +1272,7 @@ int32_t processing_set_notch_filter(float center_freq) {
         if (amModulationProcessor) {
             amModulationProcessor->setNotchFilter(center_freq);
         }
-        
+
         if (sampleStreamProcessor) {
             sampleStreamProcessor->setNotchFilter(center_freq);
         }
@@ -1280,3 +1304,23 @@ int32_t processing_map(float* out_data, const float* in_data, int32_t length,
         return -3;
     }
 }
+
+
+// typedef void (*DartCallback)(int32_t);
+
+// DartCallback g_dart_callback;
+// // C++ function to receive the Dart callback pointer
+// extern "C" void set_dart_callback(Dart_NativeFunction callback) {
+//   g_dart_callback = reinterpret_cast<DartCallback>(callback);
+//   std::cout << "C++: Dart callback received and stored." << std::endl;
+// }
+
+// // C++ function that calls the Dart callback
+// extern "C" void call_dart_from_cpp(int value) {
+//   if (g_dart_callback != nullptr) {
+//     std::cout << "C++: Calling Dart callback with value: " << value << std::endl;
+//     g_dart_callback(value);
+//   } else {
+//     std::cerr << "C++: Dart callback not set." << std::endl;
+//   }
+// }

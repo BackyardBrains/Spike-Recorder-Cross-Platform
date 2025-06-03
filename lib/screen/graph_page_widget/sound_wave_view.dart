@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'package:spikerbox_architecture/provider/isgraphplay_provider.dart';
+import 'package:spikerbox_architecture/screen/graph_template.dart';
 import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
 import 'package:spikerbox_architecture/widget/spiker_box_button.dart';
 
 class SoundWaveView extends StatefulWidget {
+  static PointerScrollEvent? dragDetails;
+  static int direction = 0;
+
   const SoundWaveView({
     super.key,
   });
@@ -21,6 +25,8 @@ class _SoundWaveViewState extends State<SoundWaveView> {
     return Listener(
       onPointerSignal: (PointerSignalEvent event) {
         if (event is PointerScrollEvent) {
+          SoundWaveView.dragDetails = event;
+
           Provider.of<GraphDataProvider>(context, listen: false)
               .notifyZoomEvent(event.scrollDelta.dy);
         }
@@ -76,6 +82,7 @@ class _BottomButtonsState extends State<BottomButtons> {
           iconSize: 40,
           iconData: isGraphStatus ? Icons.pause : Icons.play_arrow,
           onTapButton: () {
+            GraphTemplate.isPlayerPaused = !GraphTemplate.isPlayerPaused;
             isGraphStatus = !isGraphStatus;
             widget.pauseButton(isGraphStatus);
             setState(() {});

@@ -44,6 +44,10 @@ function initializeModule() {
     if (event.data.message === "INPUT_MICROPHONE_BUFFER_FINISHED") { 
       window.onPostDisplay(event.data.bufferViews, event.data.bufferCountViews);
     } else
+    if (event.data.message === "SET_EXPANSION_BOARD_TYPE") { 
+      console.log("event.data.expansionBoardType: ", event.data.expansionBoardType);
+      window.setExpansionBoardTypeDart(event.data.expansionBoardType);
+    } else
     if (event.data.message === "INPUT_SERIAL_BUFFER_FINISHED") {
       // console.log("INPUT_SERIAL_BUFFER_FINISHED: ", event.data.bufferViews, event.data.bufferCountViews);
       // window.onProcessingDone(event.data.channelIdx, event.data.bufferViews);
@@ -118,6 +122,7 @@ function sendToWorkerApplyFilter(
 
 
 function initializeMicrophoneWeb(channelCount, sampleRate, drawSurfaceWidth) {
+  // console.log("SAMPLE RATE", sampleRate);
   mWorker.postMessage({
     "message": "INITIALIZE_MICROPHONE",
     "channelCount": channelCount,
@@ -126,12 +131,14 @@ function initializeMicrophoneWeb(channelCount, sampleRate, drawSurfaceWidth) {
   });
 }
 
-function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, displayTimeMs) {
+function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, displayTimeMs, startPositionIdx, endPositionIdx) {
   mWorker.postMessage({
-    "message": "CHANGE_MICROPHONE_CONFIG",
+    "message": "DISPLAY_MICROPHONE_DATA",
     "channelCount": channelCount,
     "displayTimeMs": displayTimeMs,
     "drawSurfaceWidth": drawSurfaceWidth,
+    "startPositionIdx": startPositionIdx,
+    "endPositionIdx": endPositionIdx,
   });
 }
 
@@ -169,6 +176,9 @@ function setNotchFilterWeb(centerFreq) {
 
 function initializeSerialWeb(sampleRate, channelCount, drawSurfaceWidth){
   console.log("Channel Count: ", channelCount, sampleRate);
+  if (drawSurfaceWidth === -1) {
+    drawSurfaceWidth = window.innerWidth;
+  }
   mWorker.postMessage({
     "message": "INITIALIZE_SERIAL",
     "channelCount": parseInt(channelCount),
@@ -188,13 +198,15 @@ function processSerialDataWeb(samples, displayTimeMs, deviceType){
     "drawSurfaceWidth": window.innerWidth,
   });
 }
-function displaySerialDataWeb(displayTimeMs, deviceType, deviceWidth){
+function displaySerialDataWeb(displayTimeMs, deviceType, deviceWidth, startPositionIdx, endPositionIdx){
   // console.log("samples: ", samples);
   mWorker.postMessage({
     "message": "DISPLAY_SERIAL_DATA_WEB",
     "channelIdx": 0,
     "displayTimeMs": displayTimeMs,
     "deviceType": deviceType,
+    "startPositionIdx": startPositionIdx,
+    "endPositionIdx": endPositionIdx,
     // "deviceType": 5,
     "drawSurfaceWidth": window.innerWidth,
   });

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:sound_stream_now/sound_stream_now.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -9,11 +10,15 @@ import 'microphone_stream_check.dart';
 class MicrophoneUtilAndroid implements MicrophoneUtil {
   // late ffi.Pointer<ffi.Pointer<ffi.Float>> audioData;
   @override
-  StreamController<Uint8List> addListenAudioStreamController =
-      StreamController();
+  // StreamController<Uint8List> addListenAudioStreamController =
+  //     StreamController();
+  ValueNotifier<Uint8List> addListenAudioStreamController = ValueNotifier(Uint8List(0));
 
   @override
-  Stream<Uint8List>? micStream;
+  double sampleRate = 44100;
+
+  @override
+  ValueNotifier<Uint8List> micStream = ValueNotifier(Uint8List(0));
 
   List<double>? waveSamples;
   List<double>? intensitySamples;
@@ -32,10 +37,12 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
     //   status == SoundStreamStatus.Playing;
     // });
 
-    micStream = addListenAudioStreamController.stream.asBroadcastStream();
+    // micStream = addListenAudioStreamController.stream.asBroadcastStream();
+    micStream = addListenAudioStreamController;
 
     _recorder.audioStream.listen((data) {
-      addListenAudioStreamController.add(data);
+      // addListenAudioStreamController.add(data);
+      addListenAudioStreamController.value = (data);
     });
 
     await Future.wait([

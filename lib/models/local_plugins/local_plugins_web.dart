@@ -7,6 +7,7 @@ import 'package:spikerbox_architecture/models/processing_utils/processing_util.d
 import 'dart:js' as js;
 
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
+import 'package:spikerbox_architecture/screen/graph_template.dart';
 
 LocalPlugin getLocalPlugins() => LocalPluginWeb();
 
@@ -39,6 +40,7 @@ class LocalPluginWeb implements LocalPlugin {
     js.context['onDataBufferAllocated'] = onDataBufferAllocated;
     js.context['onProcessingDone'] = onProcessingDone;
     js.context['onPostDisplay'] = onPostDisplay;
+    js.context['setExpansionBoardTypeDart'] = setExpansionBoardTypeDart;
     js.context.callMethod("initializeModule", []);
   }
 
@@ -57,25 +59,25 @@ class LocalPluginWeb implements LocalPlugin {
 
   @override
   Future<bool> initHighPassFilters(FilterSetup filterBaseSettingsModel) async {
-    _highPassFilterSetup = filterBaseSettingsModel;
-    js.context.callMethod("sendToWebInitHighPassFilter", [
-      filterBaseSettingsModel.channelCount,
-      filterBaseSettingsModel.filterConfiguration.sampleRate,
-      filterBaseSettingsModel.filterConfiguration.cutOffFrequency,
-      0.5
-    ]);
+    // _highPassFilterSetup = filterBaseSettingsModel;
+    // js.context.callMethod("setBandFilterWeb", [
+    //   filterBaseSettingsModel.
+    //   filterBaseSettingsModel.filterConfiguration.sampleRate,
+    //   filterBaseSettingsModel.filterConfiguration.cutOffFrequency,
+    //   0.5
+    // ]);
     return true;
   }
 
   @override
   Future<bool> initLowPassFilters(FilterSetup filterBaseSettingsModel) async {
-    _lowPassFilterSetup = filterBaseSettingsModel;
-    js.context.callMethod("sendToWebInitLowPassFilter", [
-      filterBaseSettingsModel.channelCount,
-      filterBaseSettingsModel.filterConfiguration.sampleRate,
-      filterBaseSettingsModel.filterConfiguration.cutOffFrequency,
-      0.5
-    ]);
+    // _lowPassFilterSetup = filterBaseSettingsModel;
+    // js.context.callMethod("sendToWebInitLowPassFilter", [
+    //   filterBaseSettingsModel.channelCount,
+    //   filterBaseSettingsModel.filterConfiguration.sampleRate,
+    //   filterBaseSettingsModel.filterConfiguration.cutOffFrequency,
+    //   0.5
+    // ]);
     return true;
   }
 
@@ -128,6 +130,7 @@ class LocalPluginWeb implements LocalPlugin {
 
   /// Called only once in the beginning to send address of buffer to dart
   void onDataBufferAllocated(Int16List dataBuffer, final channelIndex) {
+    print("ON BUFFER ALLOCATED LOCAL PLUGIN");
     _dataBuffer[channelIndex] = dataBuffer;
   }
 
@@ -151,6 +154,29 @@ class LocalPluginWeb implements LocalPlugin {
     // _bufferHandlerOnDemand[channelIdx]?.requestData();
   }
 
+  void setExpansionBoardTypeDart(expBoardType) {
+    print("setExpansionBoardTypeDart");
+    print(GraphTemplate.selectedBoard);
+    if (GraphTemplate.selectedBoard != null) {
+      print("setExpansionBoardTypeDart1");
+      if (GraphTemplate.selectedBoard!.expansionBoards != null) {
+        print("setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
+        for (var expBoard in GraphTemplate.selectedBoard!.expansionBoards!) {
+          print("setExpansionBoardTypeDart3");
+          if (expBoard.boardType == expBoardType.toString()) {
+            print("setExpansionBoardTypeDart4");
+            // ProcessingBindings.instance.setSampleRate();
+            if (expBoard.maxSampleRate != null) {
+              print("setExpansionBoardTypeDart5");
+              int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+              int boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
+              js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+            }
+          }
+        }
+      }
+    }
+  }
   void onPostDisplay(channelData, channelCounts) {
     // int len = channelData.length;
     // for (int i = 0; i < len; i++) {
@@ -176,11 +202,11 @@ class LocalPluginWeb implements LocalPlugin {
     return 0;
   }
   
-  List<Int16List> prepareDisplayMicrophoneData(List<Int16List> processedData, int drawSurfaceWidth, int channelCount, double displayTimeMs, GraphDataProvider provider) {
-    js.context.callMethod("prepareDisplayMicrophoneData", [drawSurfaceWidth, channelCount, displayTimeMs]);
-    return [];
-    // prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, displayTimeMs);
-  }
+  // List<Int16List> prepareDisplayMicrophoneData(List<Int16List> processedData, int drawSurfaceWidth, int channelCount, double displayTimeMs, GraphDataProvider provider) {
+  //   js.context.callMethod("prepareDisplayMicrophoneData", [drawSurfaceWidth, channelCount, displayTimeMs]);
+  //   return [];
+  //   // prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, displayTimeMs);
+  // }
   
   @override
   Stream<Uint8List>? postDisplayStream;

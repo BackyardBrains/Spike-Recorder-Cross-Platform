@@ -62,12 +62,12 @@ SPEC CHECKSUMS:
   FlutterMacOS: 8f6f14fa908a6fb3fba0cd85dbd81ec4b251fb24
   just_audio: a42c63806f16995daf5b219ae1d679deb76e6a79
   libserialport: 1cb25e66ef3c92a8e59c2ea3820302c3fa2268cd
-  mic_stream: c3bc8a10c5451a0f5ef75a54a75caf25a3d146c4
-  native_add: 94cdab66d0865e8ca6307cf649337fd089349f2d
+  mic_stream: 3cf878a5923acdf190d7503a7a93173c1bc1c5b8
+  native_add: 54703c7242d3e9d29f7d47f1a3a886cd22e5be48
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
-  processing_ffi: d868f1871157cf568607e5b4bf98bd41f6ca4df1
+  processing_ffi: 11ea5a375c9b83f5d1ff554953bb1eacdc6db486
   url_launcher_macos: c82c93949963e55b228a30115bd219499a6fe404
 
-PODFILE CHECKSUM: 353c8bcc5d5b0994e508d035b5431cfe18c1dea7
+PODFILE CHECKSUM: dac0ddf03d136db544afc27b87cc6c08492e67b9
 
 COCOAPODS: 1.16.2

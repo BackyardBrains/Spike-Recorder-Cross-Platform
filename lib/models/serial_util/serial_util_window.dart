@@ -23,7 +23,7 @@ class SerialUtilWindow implements SerialUtil {
 
   // get the list of current ports
   @override
-  Future<void> getAvailablePorts(int baudRate) async {
+  Future<void> getAvailablePorts(int baudRate, Function callback) async {
     availablePorts = await startPortCheck(9600); // Adjust baudRate as needed
 
     // Wait for 5 seconds before the next check
@@ -60,8 +60,14 @@ class SerialUtilWindow implements SerialUtil {
   }
 
   @override
-  void connectToPort() {}
-  
+  void closePort() {
+    reader.close();
+    port!.close();
+  }
+
+  @override
+  Future<int> connectToPort() { return Future.value(0);}
+  late SerialPortReader reader;
   StreamSubscription? serialBufferSubscription;
   StreamController<Uint8List> _serialBufferController = StreamController();
   Uint8List serialBuffer = Uint8List(1200);
@@ -83,7 +89,7 @@ class SerialUtilWindow implements SerialUtil {
 
     if (port?.name == portName) {
       if (!port!.isOpen) !_openPort();
-      SerialPortReader reader = SerialPortReader(port!);
+      reader = SerialPortReader(port!);
       /*
       serialBufferSubscription = reader.stream.listen((data){
         for (int i = 0; i < data.length; i++) {

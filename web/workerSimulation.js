@@ -20,7 +20,9 @@ var sampleRate = 44100;
 
 var vm = self;
 
-
+var expBoardTypePtr;
+var expBoardTypePtrStart;
+var expBoardTypeBuffer;
 
 /* PROCESSING */
 let drawingDataPtr;
@@ -92,16 +94,20 @@ var tempOnMessage = self.onmessage;
 self.onmessage = async function (eventFromMain) {
     switch (eventFromMain.data.message) {
         case "INITIALIZE_MICROPHONE":
-            console.log("INITIALIZE_MICROPHONE");
+            sampleRate = eventFromMain.data.sampleRate;
             channelCount = eventFromMain.data.channelCount;
             drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
+            console.log("INITIALIZE_MICROPHONE : ", sampleRate, channelCount);
             // sampleRate = eventFromMain.data.sampleRate;
             Module._processing_init();
+            // Module._processing_set_channel_count(channelCount);
+            let r = Module._processing_set_sample_rate(sampleRate);
+            console.log("SAMPLER RATE RES: ", r);
             packetLen = MAX_DISPLAY_SECONDS * sampleRate;
             const packetLen2 = packetLen; //1156;
-            const curBufferPtr = Module._malloc( channelCount * packetLen2 * Module.HEAP16.BYTES_PER_ELEMENT);
-            const curBufferPtrStart = curBufferPtr / Module.HEAP16.BYTES_PER_ELEMENT;
-            currentDataBuffers = Module.HEAP16.subarray(curBufferPtrStart, (curBufferPtrStart + channelCount * packetLen2));
+            // const curBufferPtr = Module._malloc( channelCount * packetLen2 * Module.HEAP16.BYTES_PER_ELEMENT);
+            // const curBufferPtrStart = curBufferPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            // currentDataBuffers = Module.HEAP16.subarray(curBufferPtrStart, (curBufferPtrStart + channelCount * packetLen2));
 
             // DRAWING BUFFER SETUP
             try{
@@ -158,20 +164,116 @@ self.onmessage = async function (eventFromMain) {
             });
             // END DRAWING COUNTER SETUP            
 
-
-
-            currentDataBuffersPtr = curBufferPtr;
+            // currentDataBuffersPtr = curBufferPtr;
             console.log("Module: ", Module);
         break;
         case "INITIALIZE_WORKER":
             workerChannelPort = eventFromMain.data.simulationWorkerChannelPort;
 
         break;
-        case "CHANGE_MICROPHONE_CONFIG":
+        case "DISPLAY_MICROPHONE_DATA":
             // _drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
             channelCount = eventFromMain.data.channelCount;
             _displayTimeMs = eventFromMain.data.displayTimeMs;
+            drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
+            startPositionIdx = eventFromMain.data.startPositionIdx;
+            endPositionIdx = eventFromMain.data.endPositionIdx;
+
             
+            outSignalPtr = Module._malloc(drawSurfaceWidth * 5 * totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
+            outSignalPtrStart = outSignalPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            outSignalBuffer = Module.HEAP32.subarray(outSignalPtrStart, (outSignalPtrStart + drawSurfaceWidth * 5));
+            
+            outSamplesPtr = Module._malloc(drawSurfaceWidth * 5 * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
+            outSamplesPtrStart = outSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            outSamplesBuffer = Module.HEAP16.subarray(outSamplesPtrStart, (outSamplesPtrStart + drawSurfaceWidth * 5 * totalChannel));
+
+            outSampleCountsDrawingPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
+            outSampleCountsDrawingPtrStart = outSampleCountsDrawingPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            outSampleCountsDrawingBuffer = Module.HEAP32.subarray(outSampleCountsDrawingPtrStart, (outSampleCountsDrawingPtrStart + totalChannel));
+
+            totalEvents = 100;
+            outEventIndicesPtr = Module._malloc( totalEvents * Module.HEAPF64.BYTES_PER_ELEMENT);
+            outEventIndicesPtrStart = outEventIndicesPtr / Module.HEAPF64.BYTES_PER_ELEMENT;
+            outEventIndicesBuffer = Module.HEAPF64.subarray(outEventIndicesPtrStart, (outEventIndicesPtrStart + totalEvents));
+
+            totalEventCounts = 1;
+            outEventCountPtr = Module._malloc( totalEvents * Module.HEAP32.BYTES_PER_ELEMENT);
+            outEventCountPtrStart = outEventCountPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            outEventCountBuffer = Module.HEAP32.subarray(outEventCountPtrStart, (outEventCountPtrStart + totalEventCounts));
+
+            inTotalEvents = 0;
+            inEventIndicesPtr = Module._malloc( inTotalEvents * Module.HEAP32.BYTES_PER_ELEMENT);
+            inEventIndicesPtrStart = inEventIndicesPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            inEventIndicesBuffer = Module.HEAP32.subarray(inEventIndicesPtrStart, (inEventIndicesPtrStart + inTotalEvents));
+            displayTimeMs = _displayTimeMs;
+
+
+            // console.log("drawing");
+            outSampleCountsDrawingBuffer[0] = drawSurfaceWidth * 5;
+            try {
+              
+                let resultDrawing = Module._processing_prepare_for_signal_drawing(
+                    outSamplesPtr,           // Pointer<Pointer<Float>>
+                    // currentDataBuffersPtr,           // Pointer<Pointer<Float>>
+                    outSampleCountsDrawingPtr,      // Pointer<Int32>
+                    outEventIndicesPtr,      // Pointer<Float>
+                    outEventCountPtr,        // Pointer<Int32>
+                    inEventIndicesPtr,       // Pointer<Int32>
+                    0,                       // int (inEventCount)
+
+                    // 0,                       // int (fromSample)
+                    // Math.floor(displayTimeMs * 0.001 * sampleRate),  // int (toSample)
+                    startPositionIdx,                       // int (fromSample)
+                    endPositionIdx,  // int (toSample)
+                    drawSurfaceWidth         // int
+                );
+
+                // console.log("resultDrawing: ", channelCount, resultDrawing, outSamplesBuffer);
+                if (resultDrawing == 0) {
+                    try{
+                        // console.log("Channel Count: " , channelCount);
+                        for (let i = 0; i < channelCount; i++) {
+                            const outSampleCount = outSampleCountsDrawingBuffer[i];
+                            const slicedArray = outSamplesBuffer.subarray( i * outSampleCount, (i + 1) * outSampleCount).slice();
+                            const slicedCountArray = outSampleCountsBuffer.subarray(i, i + 1).slice();
+                            // console.log("drawingCountBufferList: ", slicedCountArray[0], slicedArray.length);
+                            drawingDataBufferList[i].set(slicedArray, 0);
+                            drawingCountBufferList[i] = slicedArray.length;
+                        }
+                        // console.log("drawingCountBufferList: ", drawingCountBufferList);
+                        const data = {
+                            "message": "INPUT_MICROPHONE_BUFFER_FINISHED",
+                            "channelIdx": 0,
+                            "bufferViews": drawingDataBufferList,
+                            "bufferCountViews": drawingCountBufferList,
+                        };
+                        postMessage(data);
+                    }catch(err) {
+
+                    }
+    
+                    // for (let idx = 0; idx < totalChannel; idx++) {
+                    //     const slicedArray = outSamplesBuffer.subarray(0, outSampleCountsDrawingBuffer[idx]).slice();
+                    //     postMessage({
+                    //         "message": "INPUT_MICROPHONE_BUFFER_FINISHED",
+                    //         "channelIdx": idx,
+                    //         "bufferViews": slicedArray,
+                    //     });
+                    // }
+                }
+
+                Module._free(outSignalPtr);
+                Module._free(outSamplesPtr);
+                Module._free(outSampleCountsDrawingPtr);
+                Module._free(outEventIndicesPtr);
+                Module._free(outEventCountPtr);
+                Module._free(inEventIndicesPtr);
+            }catch(err){
+                console.log("err");
+                console.log(err);
+            } finally {
+            }            
         break;
         case "INPUT_MICROPHONE_BUFFER":
             // Prepare input data pointer
@@ -210,94 +312,7 @@ self.onmessage = async function (eventFromMain) {
             }
             // console.log("micResult: ", micResult);
         
-            drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
-            outSignalPtr = Module._malloc(drawSurfaceWidth * 5 * totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
-            outSignalPtrStart = outSignalPtr / Module.HEAP32.BYTES_PER_ELEMENT;
-            outSignalBuffer = Module.HEAP32.subarray(outSignalPtrStart, (outSignalPtrStart + drawSurfaceWidth * 5));
-            
-            outSamplesPtr = Module._malloc(drawSurfaceWidth * 5 * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
-            outSamplesPtrStart = outSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
-            outSamplesBuffer = Module.HEAP16.subarray(outSamplesPtrStart, (outSamplesPtrStart + drawSurfaceWidth * 5 * totalChannel));
 
-            outSampleCountsDrawingPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
-            outSampleCountsDrawingPtrStart = outSampleCountsDrawingPtr / Module.HEAP32.BYTES_PER_ELEMENT;
-            outSampleCountsDrawingBuffer = Module.HEAP32.subarray(outSampleCountsDrawingPtrStart, (outSampleCountsDrawingPtrStart + totalChannel));
-
-            totalEvents = 100;
-            outEventIndicesPtr = Module._malloc( totalEvents * Module.HEAPF64.BYTES_PER_ELEMENT);
-            outEventIndicesPtrStart = outEventIndicesPtr / Module.HEAPF64.BYTES_PER_ELEMENT;
-            outEventIndicesBuffer = Module.HEAPF64.subarray(outEventIndicesPtrStart, (outEventIndicesPtrStart + totalEvents));
-
-            totalEventCounts = 1;
-            outEventCountPtr = Module._malloc( totalEvents * Module.HEAP32.BYTES_PER_ELEMENT);
-            outEventCountPtrStart = outEventCountPtr / Module.HEAP32.BYTES_PER_ELEMENT;
-            outEventCountBuffer = Module.HEAP32.subarray(outEventCountPtrStart, (outEventCountPtrStart + totalEventCounts));
-
-            inTotalEvents = 0;
-            inEventIndicesPtr = Module._malloc( inTotalEvents * Module.HEAP32.BYTES_PER_ELEMENT);
-            inEventIndicesPtrStart = inEventIndicesPtr / Module.HEAP32.BYTES_PER_ELEMENT;
-            inEventIndicesBuffer = Module.HEAP32.subarray(inEventIndicesPtrStart, (inEventIndicesPtrStart + inTotalEvents));
-            displayTimeMs = _displayTimeMs;
-
-
-            // console.log("drawing");
-
-            outSampleCountsDrawingBuffer[0] = drawSurfaceWidth * 5;
-            try {
-              
-                let resultDrawing = Module._processing_prepare_for_signal_drawing(
-                    outSamplesPtr,           // Pointer<Pointer<Float>>
-                    // currentDataBuffersPtr,           // Pointer<Pointer<Float>>
-                    outSampleCountsDrawingPtr,      // Pointer<Int32>
-                    outEventIndicesPtr,      // Pointer<Float>
-                    outEventCountPtr,        // Pointer<Int32>
-                    inEventIndicesPtr,       // Pointer<Int32>
-                    0,                       // int (inEventCount)
-                    0,                       // int (fromSample)
-                    Math.floor(displayTimeMs * 0.001 * sampleRate),  // int (toSample)
-                    drawSurfaceWidth         // int
-                );
-
-                // console.log("resultDrawing: ", channelCount, resultDrawing, outSamplesBuffer);
-                if (resultDrawing == 0) {
-                    for (let i = 0; i < channelCount; i++) {
-                        const outSampleCount = outSampleCountsDrawingBuffer[i];
-                        const slicedArray = outSamplesBuffer.subarray( i * outSampleCount, (i + 1) * outSampleCount).slice();
-                        const slicedCountArray = outSampleCountsBuffer.subarray(i, i + 1).slice();
-                        // console.log("drawingCountBufferList: ", slicedCountArray, slicedArray);
-                        drawingDataBufferList[i].set(slicedArray, 0);
-                        drawingCountBufferList[i] =slicedCountArray[0];
-                    }
-                    // console.log("drawingCountBufferList: ", drawingCountBufferList);
-                    const data = {
-                        "message": "INPUT_MICROPHONE_BUFFER_FINISHED",
-                        "channelIdx": 0,
-                        "bufferViews": drawingDataBufferList,
-                        "bufferCountViews": drawingCountBufferList,
-                    };
-                    postMessage(data);
-    
-                    // for (let idx = 0; idx < totalChannel; idx++) {
-                    //     const slicedArray = outSamplesBuffer.subarray(0, outSampleCountsDrawingBuffer[idx]).slice();
-                    //     postMessage({
-                    //         "message": "INPUT_MICROPHONE_BUFFER_FINISHED",
-                    //         "channelIdx": idx,
-                    //         "bufferViews": slicedArray,
-                    //     });
-                    // }
-                }
-
-                Module._free(outSignalPtr);
-                Module._free(outSamplesPtr);
-                Module._free(outSampleCountsDrawingPtr);
-                Module._free(outEventIndicesPtr);
-                Module._free(outEventCountPtr);
-                Module._free(inEventIndicesPtr);
-            }catch(err){
-                console.log("err");
-                console.log(err);
-            } finally {
-            }
         break;
 
         case "SET_BAND_FILTER":
@@ -309,7 +324,9 @@ self.onmessage = async function (eventFromMain) {
         break;
         case "SET_NOTCH_FILTER":
             const centerFreq = eventFromMain.data.centerFreq;
-            Module._processing_set_notch_filter(centerFreq);
+            console.log("SET NOTCH FILTER", centerFreq);
+            let res = Module._processing_set_notch_filter(centerFreq);
+            console.log(res);
         break;
 
 
@@ -340,6 +357,23 @@ self.onmessage = async function (eventFromMain) {
             Module._processing_set_sample_rate(sampleRate);
             Module._processing_set_channel_count(channelCount);
             // Module._processing_set_bits_per_sample(14);
+            expBoardTypePtr = Module._malloc(1 * Module.HEAP16.BYTES_PER_ELEMENT);
+            expBoardTypePtrStart = expBoardTypePtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            expBoardTypeBuffer = Module.HEAP16.subarray( expBoardTypePtrStart, (expBoardTypePtrStart + 1) );
+            expBoardTypeBuffer[0] = -1;
+            console.log("Module");
+            // console.log(Module.ccall);
+            // Module._processing_pass_pointers(expBoardTypePtr);
+            const test = Module.ccall(
+                'processing_pass_pointers',
+                'number',
+                [
+                    'number', 
+                ],
+                [
+                    expBoardTypePtr
+                ]
+            );            
             
 
             // DRAWING BUFFER SETUP
@@ -384,7 +418,7 @@ self.onmessage = async function (eventFromMain) {
             drawingCountPtrList.push(drawingCountPtr);
             drawingCountBufferList = (drawingCountBuffer);
             for (let i = 0; i < channelCount; i++) {
-                drawingCountBuffer[i] = 1;
+                drawingCountBuffer[i] = drawSurfaceWidth * 5;
             }
             console.log("onDrawingBufferAllocated - javascript", channelCount, drawingCountBufferList, drawSurfaceWidth);
             postMessage({
@@ -500,6 +534,10 @@ self.onmessage = async function (eventFromMain) {
         break;
         case "DISPLAY_SERIAL_DATA_WEB":
             try {
+                startPositionIdx = eventFromMain.data.startPositionIdx;
+                endPositionIdx = eventFromMain.data.endPositionIdx;
+                // console.log("startPositionIdx: ", startPositionIdx, endPositionIdx);
+
                 const startPosMultiplier = drawSurfaceWidth * 5;
                 outSamplesPtr = Module._malloc(drawSurfaceWidth * 5 * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
                 outSamplesPtrStart = outSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
@@ -538,8 +576,10 @@ self.onmessage = async function (eventFromMain) {
                     outEventCountPtr,        // Pointer<Int32>
                     inEventIndicesPtr,       // Pointer<Int32>
                     0,                       // int (inEventCount)
-                    0,                       // int (fromSample)
-                    Math.floor(displayTimeMs * 0.001 * sampleRate),  // int (toSample)
+                    // 0,                       // int (fromSample)
+                    // Math.floor(displayTimeMs * 0.001 * sampleRate),  // int (toSample)
+                    startPositionIdx,                       // int (fromSample)
+                    endPositionIdx,  // int (toSample)
                     // 500,  // int (toSample)
                     drawSurfaceWidth         // int
                 );
@@ -590,6 +630,7 @@ self.onmessage = async function (eventFromMain) {
 if ('function' === typeof importScripts) {
     self.importScripts("cprocessing.js");
     self.Module.onRuntimeInitialized = async _ => {
+        console.log("ccall : ", self.Module.ccall );
         postMessage({
             message: 'INITIALIZE_WASM',
         });
@@ -599,3 +640,33 @@ if ('function' === typeof importScripts) {
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+
+function setExpansionBoardType(rawPosExpBoardType){
+    
+    posExpBoardType = rawPosExpBoardType >> 1;
+    const expBoardTypeBuffer = HEAP16.subarray(posExpBoardType, posExpBoardType + 1);
+    if (previousExpBoardType != expBoardTypeBuffer[0]) {
+        previousExpBoardType = expBoardTypeBuffer[0];
+        postMessage({
+            "message": "SET_EXPANSION_BOARD_TYPE",
+            "expansionBoardType": expBoardTypeBuffer[0],
+        });
+        console.log("setExpansionBoardType : ", previousExpBoardType, expBoardTypeBuffer[0]);
+    }
+}
+
+let previousExpBoardType = -1;
+// setInterval(() => {
+//     // var posExpBoardType = expBoardTypePtr;
+//     // const expBoardTypeBuffer = HEAP32.subarray(posExpBoardType, posExpBoardType + 1);
+//     if (expBoardTypeBuffer !== undefined && expBoardTypeBuffer.length> 0 && previousExpBoardType != expBoardTypeBuffer[0]) {
+//         previousExpBoardType = expBoardTypeBuffer[0];
+//         console.log("posExpBoardType: ", expBoardTypePtr, expBoardTypeBuffer);
+//         postMessage({
+//             "message": "SET_EXPANSION_BOARD_TYPE",
+//             "expansionBoardType": expBoardTypeBuffer[0],
+//         });
+//     }
+
+// }, 2000);

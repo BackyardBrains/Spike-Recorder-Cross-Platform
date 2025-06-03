@@ -409,6 +409,7 @@ int32_t processing_set_sample_rate(int32_t sample_rate) {
     
     try {
         current_sample_rate = sample_rate;
+        amModulationProcessor->setSampleRate(sample_rate);
         sampleStreamProcessor->setSampleRate(sample_rate);
         fftProcessor->setSampleRate(sample_rate);
         
@@ -1235,7 +1236,7 @@ int32_t processing_set_band_filter(float low_cut_off_freq, float high_cut_off_fr
     }
 }
 
-int32_t processing_set_notch_filter(float center_freq) {
+int32_t processing_set_notch_filter(int32_t center_freq) {
     if (!initialized) {
         return -1;  // Not initialized
     }

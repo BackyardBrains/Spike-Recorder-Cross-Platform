@@ -70,7 +70,7 @@ class _DragGraphHorizontallyState extends State<DragGraphHorizontally> {
                   dragDetails.scrollDelta.dy == 0.0) {
                 return;
               } else if (dragDetails.scrollDelta.dy < 0 &&
-                  dragDetails.scrollDelta.dy > -500) {
+                  dragDetails.scrollDelta.dy > -500) { // vertical only
                 prevY = dragDetails.scrollDelta.dy;
                 //down
                 direction = -1;
@@ -80,7 +80,7 @@ class _DragGraphHorizontallyState extends State<DragGraphHorizontally> {
                   timeScaleBar--;
                 }
               } else if (dragDetails.scrollDelta.dy > 0 &&
-                  dragDetails.scrollDelta.dy < 500) {
+                  dragDetails.scrollDelta.dy < 500) { // vertical only
                 direction = 1;
                 prevY = dragDetails.scrollDelta.dy;
 

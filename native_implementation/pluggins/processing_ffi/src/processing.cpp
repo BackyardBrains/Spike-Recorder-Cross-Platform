@@ -409,6 +409,7 @@ int32_t processing_set_sample_rate(int32_t sample_rate) {
     
     try {
         current_sample_rate = sample_rate;
+        amModulationProcessor->setSampleRate(sample_rate);
         sampleStreamProcessor->setSampleRate(sample_rate);
         fftProcessor->setSampleRate(sample_rate);
         
@@ -417,7 +418,7 @@ int32_t processing_set_sample_rate(int32_t sample_rate) {
             circularBuffer->setup(current_sample_rate, current_channel_count);
         }
         
-        return 0;
+        return sample_rate;
     } catch (...) {
         return -3;
     }

@@ -10,6 +10,7 @@ export 'processing_util_native.dart' if (dart.library.html) 'processing_util_web
 
 // The abstract interface all implementations must follow
 abstract class ProcessingUtil {
+  static int positionIndex = 0;
   // Maximum display time in seconds
   static const double MAX_DISPLAY_SECONDS = 10.0;
 
@@ -26,7 +27,7 @@ abstract class ProcessingUtil {
   Future<bool> initializeMicrophone(int channelCount, int sampleRate, double drawSurfaceWidth);
 
   List<Int16List> processMicrophoneData(Uint8List data);
-  List<Int16List> prepareDisplayMicrophoneData(List<Int16List> data, int drawSurfaceWidth, int channelCount, double displayTimeMs, GraphDataProvider provider);
+  List<Int16List> prepareDisplayMicrophoneData(List<Int16List> data, int drawSurfaceWidth, int channelCount, double displayTimeMs, GraphDataProvider provider, int startPositionIdx, int endPositionIdx);
 
   // Prepare signal data for drawing
   int prepareForSignalDrawingProcess(
@@ -55,7 +56,7 @@ abstract class ProcessingUtil {
   Map<String,dynamic> getInformation();
   void initializeSerial(Board board, double drawSurfaceWidth);
   Future<int> processSerialData(Uint8List samples, int displayTimeMs, int deviceType, int drawSurfaceWidth, GraphDataProvider provider);
-  Future<Uint8List> processDisplaySerialData(int displayTimeMs, int deviceType, int drawSurfaceWidth, GraphDataProvider provider);
+  Future<Uint8List> processDisplaySerialData(int displayTimeMs, int deviceType, int drawSurfaceWidth, GraphDataProvider provider, int startPositionIdx, int endPositionIdx);
   // Future<int> processSerialDataIsolate(List<dynamic> args);
   // Future<Uint8List> displaySerialDataIsolate(List<dynamic> args);
   void processSerialDataIsolate(sendPort);

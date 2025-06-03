@@ -166,7 +166,7 @@ Future<void> continuouslyCheckMicData(SendPort isolateToMainMic) async {
   // Stopwatch stopwatch = Stopwatch();
   final Duration pollDuration = Platform.isWindows
       ? const Duration(milliseconds: 10)
-      : const Duration(microseconds: 100);
+      : const Duration(microseconds: 10);
 
   bool isFetchingData = false;
   Stopwatch stopwatch = Stopwatch();

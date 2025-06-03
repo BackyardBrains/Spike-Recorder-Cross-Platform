@@ -31,6 +31,11 @@ namespace backyardbrains {
             amDetectionNotchFilter.setCenterFrequency(AM_CARRIER_FREQUENCY);
             amDetectionNotchFilter.setQ(1.0f);
 
+            // platform_log("SAMPLE RATE\n");
+            // platform_log(std::to_string(AM_CARRIER_FREQUENCY).c_str());
+            // platform_log("===========\n");
+
+
             // setup AM demodulation low pass filter
             amDemodulationLowPassFilter = new LowPassFilter *[getChannelCount()];
             for (int i = 0; i < getChannelCount(); i++) {

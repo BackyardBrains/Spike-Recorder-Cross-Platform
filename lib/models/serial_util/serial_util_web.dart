@@ -12,6 +12,7 @@ SerialUtil getSerialUtil() => SerialUtilWeb();
 class SerialUtilWeb implements SerialUtil {
   SerialPort? _port;
   SerialPortInfo? portInfo;
+  Function? audioCallback;
 
   StreamController<Uint8List> streamController = StreamController();
   @override
@@ -38,6 +39,10 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   @override
+  void closePort() {
+  }
+
+  @override
   void writeToPort({required Uint8List bytesMessage, String? address}) async {
     if (_port == null) {
       return;
@@ -61,6 +66,7 @@ class SerialUtilWeb implements SerialUtil {
     return availablePorts;
   }
 
+  ReadableStreamReader? reader;
   @override
   Future<Stream<Uint8List>?> openPortToListen(
       String? name, int baudRate) async {
@@ -69,23 +75,43 @@ class SerialUtilWeb implements SerialUtil {
       return null;
     }
     try {
-      final reader = _port!.readable.reader;
+      reader = _port!.readable.reader;
+      streamController = StreamController();
       dataStream = streamController.stream.asBroadcastStream();
 
       // continuouslyReadData(reader: reader);
       while (true) {
-        final ReadableStreamDefaultReadResult result = await reader.read();
+        final ReadableStreamDefaultReadResult result = await reader!.read();
         streamController.add(result.value);
       }
     } catch (e) {
       print("Reading port failed with exception: \n$e");
+      if (audioCallback != null) {
+        print("Audio Callback not null0");
+        // final reader = _port!.readable.reader;
+        writer?.releaseLock();
+        // await writer?.close();
+        print("Audio Callback not null1");
+        reader?.releaseLock();
+        print("Audio Callback not null2");
+        await _port?.close();
+        print("Audio Callback not null3");
+        writer = null;
+        reader = null;
+        audioCallback!(1, null);
+      }else {
+        // print("Audio Callback null");
+        // print(audioCallback);
+      }
+
       return null;
     }
   }
 
   /// Connection is directly established with the selected port
   @override
-  Future<void> getAvailablePorts(int baudRate) async {
+  Future<void> getAvailablePorts(int baudRate, Function callback) async {
+    audioCallback = callback;
     _baudRate = baudRate;
     await connectToPort();
 

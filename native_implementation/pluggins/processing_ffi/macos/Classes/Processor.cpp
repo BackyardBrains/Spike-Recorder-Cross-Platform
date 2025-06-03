@@ -4,6 +4,7 @@
 
 #include <Processor.h>
 
+
 namespace backyardbrains {
 
     namespace processing {
@@ -73,7 +74,12 @@ namespace backyardbrains {
         void Processor::applyFilters(int channel, short *data, int sampleCount) {
             if (lowPassFilteringEnabled) lowPassFilter[channel]->filter(data, sampleCount);
             if (highPassFilteringEnabled) highPassFilter[channel]->filter(data, sampleCount);
-            if (notchFilteringEnabled) notchFilter[channel]->filter(data, sampleCount);
+            if (notchFilteringEnabled) {
+                // platform_log("Notch Filtering Enabled\n");
+                // platform_log(std::to_string(sampleCount).c_str());
+                // platform_log("===========\n");
+                notchFilter[channel]->filter(data, sampleCount);
+            }
 
         }
 
@@ -92,7 +98,6 @@ namespace backyardbrains {
             notchFilteringEnabled = centerFreq != -1 && centerFreq != MIN_FILTER_CUT_OFF;
 
             Processor::centerFrequency = centerFreq;
-
             if (initialized) deleteFilters(channelCount);
             createFilters(Processor::sampleRate, channelCount);
         }

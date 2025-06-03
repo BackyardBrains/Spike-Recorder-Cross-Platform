@@ -66,7 +66,7 @@ class SerialUtilAndroid implements SerialUtil {
   }
 
   @override
-  Future<void> getAvailablePorts(int baudRate) async {
+  Future<void> getAvailablePorts(int baudRate, Function audioCallback) async {
     _baudRate = baudRate;
 
     availablePorts =
@@ -81,6 +81,10 @@ class SerialUtilAndroid implements SerialUtil {
   @override
   void streamListen({required Stream<Uint8List>? getData}) {
     // TODO: implement streamListen
+  }
+
+  @override
+  void closePort() {
   }
 
   Future<bool> _connectTo(device) async {

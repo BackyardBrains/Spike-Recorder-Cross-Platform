@@ -4,8 +4,9 @@ import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 import 'package:native_add/model/model.dart';
 import 'package:native_add/native_add.dart' as native_add;
+import 'package:processing_ffi/processing_ffi.dart' as pb;
 import 'package:spikerbox_architecture/models/models.dart';
-import 'package:spikerbox_architecture/models/processing_utils/processing_bindings.dart';
+// import 'package:spikerbox_architecture/models/processing_utils/processing_bindings.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 
 class LocalPluginWindow implements LocalPlugin {
@@ -45,9 +46,19 @@ class LocalPluginWindow implements LocalPlugin {
   @override
   Future<bool> initNotchPassFilters(FilterSetup filterBaseSettingsModel) async {
     // native_add.SetUpNotchFilter();
-    bool checkInit = native_add.initNotchPassFilter(filterBaseSettingsModel);
-    print("the init notch Pass filter is $checkInit");
-    return checkInit;
+    // bool checkInit = native_add.initNotchPassFilter(filterBaseSettingsModel);
+    if (filterBaseSettingsModel.isFilterOn) {
+      if (filterBaseSettingsModel.filterConfiguration.cutOffFrequency == 50) {
+        pb.processingBindings.setNotchFilter(50);
+      } else 
+      if (filterBaseSettingsModel.filterConfiguration.cutOffFrequency == 60) {
+        pb.processingBindings.setNotchFilter(60);
+      } else {
+        pb.processingBindings.setNotchFilter(-1);
+      }
+    }
+    // print("the init notch Pass filter is $checkInit");
+    return true;
   }
 
   @override

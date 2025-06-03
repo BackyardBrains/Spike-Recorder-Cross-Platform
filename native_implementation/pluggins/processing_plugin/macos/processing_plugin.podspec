@@ -20,7 +20,13 @@ A Flutter FFI plugin for processing audio data with native implementation.
   s.source_files     = 'Classes/**/*.{h,cpp}'
   s.dependency 'FlutterMacOS'
 
-  s.platform = :osx, '10.11'
-  s.pod_target_xcconfig = { :DEFINES_MODULE' => 'YES' }
+  s.platform = :osx, '10.14'
+  # s.pod_target_xcconfig = { :DEFINES_MODULE' => 'YES' }
+  s.pod_target_xcconfig = {
+    :DEFINES_MODULE' => 'YES',
+    'VALID_ARCHS' => 'arm64 armv7 x86_64',
+    'ARCHS' => 'arm64 armv7 x86_64',
+    # You might also set 'ARCHS' if needed, though VALID_ARCHS is more common
+  }  
   s.swift_version = '5.0'
 end 

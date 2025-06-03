@@ -3,7 +3,6 @@
 //
 
 #include <Processor.h>
-
 namespace backyardbrains {
 
     namespace processing {
@@ -89,6 +88,12 @@ namespace backyardbrains {
         }
 
         void Processor::setNotchFilter(float centerFreq) {
+                // platform_log("centerFrequency\n");
+                // platform_log(std::to_string(centerFrequency).c_str());
+                // platform_log("===========\n");
+                // platform_log(std::to_string(sampleRate).c_str());
+                // platform_log("@@===========\n");
+
             notchFilteringEnabled = centerFreq != -1 && centerFreq != MIN_FILTER_CUT_OFF;
 
             Processor::centerFrequency = centerFreq;
@@ -120,6 +125,8 @@ namespace backyardbrains {
                 notchFilter[i]->initWithSamplingRate(sampleRate);
                 notchFilter[i]->setCenterFrequency(centerFrequency);
                 notchFilter[i]->setQ(1.0);
+
+
             }
         }
 

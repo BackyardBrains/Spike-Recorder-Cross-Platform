@@ -2,6 +2,13 @@
 import 'dart:ffi';
 import 'dart:io';
 
+
+// typedef DartCallbackNative = Void Function(Int32);
+// typedef DartCallbackDart = void Function(int);
+
+// typedef SetDartCallbackNative = Void Function(Pointer<NativeFunction<DartCallbackNative>>);
+// typedef SetDartCallbackDart = void Function(Pointer<NativeFunction<DartCallbackNative>>);
+
 // FFI type definitions
 typedef ProcessingInitNative = Int32 Function();
 typedef ProcessingInit = int Function();
@@ -283,6 +290,17 @@ class ProcessingBindings {
     getInformation = _lib!.lookupFunction<ProcessingGetInformationNative, ProcessingGetInformation>('processing_get_information');
 
     cleanup = _lib!.lookupFunction<ProcessingCleanupNative, ProcessingCleanup>('processing_cleanup');
+
+
+
+
+    // Dart code
+    // final dartCallbackPointer = Pointer.fromFunction<DartCallbackNative>(dartCallback);
+
+    // final setDartCallback = _lib!.lookupFunction<SetDartCallbackNative, SetDartCallbackDart>('set_dart_callback');
+
+    // // Pass the Dart callback pointer to C++
+    // setDartCallback(dartCallbackPointer);    
   }
 
   // static DynamicLibrary _loadLibrary() {
@@ -388,3 +406,9 @@ class ProcessingBindings {
     _isDebugMode = isDebug;
   }
 }
+
+
+// void dartCallback(int value) {
+//   print('Dart callback received from C++: $value');
+// }
+

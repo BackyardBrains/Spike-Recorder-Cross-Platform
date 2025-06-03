@@ -38,13 +38,13 @@ class FilterSetup {
 }
 
 class FilterConfiguration {
-  const FilterConfiguration({
+  FilterConfiguration({
     required this.cutOffFrequency,
-    required this.sampleRate,
+    this.sampleRate
   });
 
   final int cutOffFrequency;
-  final int sampleRate;
+  int? sampleRate;
 
   Map<String, dynamic> toJson() {
     return {

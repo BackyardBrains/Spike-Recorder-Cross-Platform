@@ -10,6 +10,7 @@ import 'package:spikerbox_architecture/provider/graph_gain_provider.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'package:spikerbox_architecture/provider/isgraphplay_provider.dart';
 import 'package:spikerbox_architecture/provider/vertical_dragprovider.dart';
+import 'package:spikerbox_architecture/screen/graph_template.dart';
 
 import '../constant/const_export.dart';
 import '../widget/widget_export.dart';
@@ -44,6 +45,11 @@ class _SpikerBoxUiState extends State<SpikerBoxUi> {
 }
 
 class TimeCalculateWidget extends StatefulWidget {
+  static double widthOfScale = 0;
+  static double displayTimeMsLabel = 0.0;
+  static double prevWidthOfScale = 0;
+  static double prevDisplayTimeMsLabel = 0.0;
+
   const TimeCalculateWidget({
     super.key,
   });
@@ -56,7 +62,7 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
   // Class-level constants
   final List<double> scales = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
   final List<String> scalesStr = ["1ms", "2ms", "5ms", "10ms", "20ms", "50ms", "100ms", "200ms", "500ms", "1s", "2s", "5s", "10s", "20s"];
-  final double widthOfScreen = 800;
+  double widthOfScreen = 800;
   double widthOfScale = 100;
 
   String calculateDisplayTime(double? rawTime) {
@@ -68,8 +74,20 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
     // Find the appropriate scale
     for (int i = 1; i < scales.length; i++) {
       if (value < scales[i]) {
+        TimeCalculateWidget.prevWidthOfScale = TimeCalculateWidget.widthOfScale;
+        TimeCalculateWidget.prevDisplayTimeMsLabel = TimeCalculateWidget.displayTimeMsLabel;
         finalString = scalesStr[i - 1];
         widthOfScale = (scales[i - 1] / rawTime) * widthOfScreen;
+        print("(${scales[i - 1]} / $rawTime) * $widthOfScreen ==== ${(scales[i - 1] / rawTime) * widthOfScreen}");
+        TimeCalculateWidget.widthOfScale = widthOfScale;
+        TimeCalculateWidget.displayTimeMsLabel = scales[i-1];
+        if (TimeCalculateWidget.prevWidthOfScale == 0) {
+          TimeCalculateWidget.prevWidthOfScale = widthOfScale;
+          TimeCalculateWidget.prevDisplayTimeMsLabel = scales[i-1];
+        }
+  // static double prevWidthOfScale = 0;
+  // static double prevDisplayTimeMsLabel = 0.0;
+
         break;
       }
     }
@@ -78,6 +96,8 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
     if (finalString.isEmpty) {
       finalString = scalesStr.last;
       widthOfScale = (scales.last / value) * widthOfScreen;
+      TimeCalculateWidget.widthOfScale = widthOfScale;
+      
     }
 
     return finalString;
@@ -85,6 +105,7 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
 
   @override
   Widget build(BuildContext context) {
+    widthOfScreen = MediaQuery.of(context).size.width;
     return Consumer<GraphDataProvider>(builder: (context, graphDataProvider, _) {
       return Align(
         alignment: const Alignment(0.8, 0.75),
@@ -315,20 +336,29 @@ class _DraggableGraphState extends State<DraggableGraph> {
                 initializeGraph();
               }
 
+              // if (GraphTemplate.isPlayerPaused) {
+              //   return Container();
+              // }
+
               // List<double>? streamDouble = ProcessingUtil.drawingBuffers[0].toList();
               // eventMarkersNumber = snapshot.data;
               // eventMarkersPosition = snapshot.data!;
 // /*
               List<Int16List> temp = [];
+              List<int> sampleCounts = [];
               int idx = 0;
               for (idx = 0; idx < channelCount; idx++) {
                 Int16List curBuffer = Int16List.fromList(ProcessingUtil.drawingBuffers[idx]);
                 temp.add(curBuffer);
+                sampleCounts.add(ProcessingUtil.drawingBufferCounts[idx]);
+                // sampleCounts.add(curBuffer.length);
               }
 
               for (idx =0; idx < channelCount; idx++) {
                 Int16List curBuffer = temp[idx];
-                int outSampleCount = ProcessingUtil.drawingBufferCounts[idx];
+                // int outSampleCount = ProcessingUtil.drawingBufferCounts[idx];
+                // int outSampleCount = ProcessingUtil.drawingBufferCounts[idx];
+                int outSampleCount = sampleCounts[idx];
                 // print("sampleCount $outSampleCount vs ${curBuffer.length}");
                 // print(sampleCount);
                 // print(curBuffer);
@@ -340,7 +370,11 @@ class _DraggableGraphState extends State<DraggableGraph> {
                   // buffer = List<int>.generate(outSampleCount, (idx) => curBuffer[idx]);
                   // subArray(curBuffer, buffer, 0, outSampleCount);
                   // buffer.fillRange(0, 100, 300);
-                  buffer = (curBuffer).sublist(0, outSampleCount);
+                  // if (outSampleCount > curBuffer.length) {
+                  //   continue;
+                  // }
+                  // print("$idx OUT SAMPLE COUNT VS CURBUFFER: ${curBuffer.length} - ${outSampleCount}");
+                  buffer = (curBuffer).sublist(0, min(curBuffer.length, outSampleCount));
                 } else {
                   buffer = (curBuffer).sublist(0, outSampleCount);
                 }
@@ -375,8 +409,23 @@ class _DraggableGraphState extends State<DraggableGraph> {
                     ),
                   )
                 );
+              }
+              charts.add(
+                Positioned(
+                  top: 0,
+                  left: 0,        
+                  child: Container(
+                    color: Colors.black,
+                    width: 34,
+                    height: MediaQuery.of(context).size.height,
+                  ),
+                )      
+              );
+
+              for (idx =0; idx < channelCount; idx++) {
                 addChartControls(charts, idx, channelCount, context);
               }
+
 // */
 // */
               return Stack(

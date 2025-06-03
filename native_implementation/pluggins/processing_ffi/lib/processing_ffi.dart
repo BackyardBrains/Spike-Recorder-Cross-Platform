@@ -5,10 +5,8 @@
 // add platforms in the `pubspec.yaml` at
 // https://flutter.dev/to/pubspec-plugin-platforms.
 
-import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'processing_bindings.dart';
 // import 'processing_ffi_bindings_generated.dart';

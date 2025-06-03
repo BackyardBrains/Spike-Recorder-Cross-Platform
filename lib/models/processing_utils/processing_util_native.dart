@@ -8,9 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:spikerbox_architecture/models/default_config_model.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'processing_util.dart';
-import 'package:native_add/native_add.dart';
+// import 'package:native_add/native_add.dart';
 import 'package:processing_ffi/processing_ffi.dart' as pb;
-import 'package:processing_ffi/processing_bindings.dart';
+// import 'package:processing_ffi/processing_bindings.dart';
 // import 'processing_bindings.dart';
 
 // Message class for communication between isolates
@@ -39,12 +39,13 @@ class ProcessingUtilImpl implements ProcessingUtil
 	// @override
 	  // var currentDataBuffer;
 
-  	@override
-  	Future<bool> init() async {
+  @override
+  Future<bool> init() async {
 		if (_isInitialized) return true;
 
 		// Initialize C++ processing
     
+    print('initialize processing');
 		final result = pb.processingBindings.init();
 		if (result != 0) {
 			print('Failed to initialize processing: $result');
@@ -52,12 +53,13 @@ class ProcessingUtilImpl implements ProcessingUtil
 		}
 
 		// Set default sample rate
-		final sampleRateResult = pb.processingBindings.setSampleRate(44100);
+    print('Failed to set sample rate0:');
+		final sampleRateResult = pb.processingBindings.setSampleRate(_sampleRate);
 		if (sampleRateResult != 0) {
-			print('Failed to set sample rate: $sampleRateResult');
+			print('Failed to set sample rate11: $sampleRateResult');
 			return false;
-		}
-
+  }
+/*
 		// Create receive port for main isolate to receive messages from processing isolate
 		portProcessingIsolateToMain = ReceivePort();
 
@@ -91,7 +93,7 @@ class ProcessingUtilImpl implements ProcessingUtil
 
 		// Wait for the SendPort to be received before continuing
 		await completer.future;
-
+*/
 		_isInitialized = true;
 		return true;
 	}
@@ -156,7 +158,7 @@ class ProcessingUtilImpl implements ProcessingUtil
       currentDataBuffer = calloc<Pointer<Int16>>(channelCount);    
       for (int i = 0; i < channelCount; i++) {
         currentDataBuffer?[i] = calloc<Int16>(sampleCount); // 5x for envelope
-      }    
+      }
     }
 		
 		// Allocate memory for each channel
@@ -171,11 +173,13 @@ class ProcessingUtilImpl implements ProcessingUtil
 	}
 
 
-		@override
+  @override
 	List<Int16List> processMicrophoneData(Uint8List data) {
 		if (!_isInitialized) {
 			throw StateError('ProcessingUtil not initialized. Call init() first.');
 		}
+    ProcessingUtil.positionIndex = (ProcessingUtil.positionIndex + data.length / 2).toInt() % (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate * 2).toInt();
+    // print("ProcessingUtil.positionIndex : $_sampleRate --  ${ProcessingUtil.positionIndex}");
 
 		final outSampleCountsPtr = calloc<Int32>();
 
@@ -202,14 +206,15 @@ class ProcessingUtilImpl implements ProcessingUtil
 			}
 
 			// Create Dart view of the native memory
-			final sampleCount = outSampleCountsPtr.value;
-      Pointer<Pointer<Int16>> curDataBuffer = currentDataBuffer as Pointer<Pointer<Int16>>;
-			final bufferViews = List<Int16List>.generate(
-				_channelCount,
-				(i) => (curDataBuffer.value + i).cast<Int16>().asTypedList(sampleCount)
-			);
+			// final sampleCount = outSampleCountsPtr.value;
+      // Pointer<Pointer<Int16>> curDataBuffer = currentDataBuffer as Pointer<Pointer<Int16>>;
+			// final bufferViews = List<Int16List>.generate(
+			// 	_channelCount,
+			// 	(i) => (curDataBuffer.value + i).cast<Int16>().asTypedList(sampleCount)
+			// );
 
-			return bufferViews;
+			// return bufferViews;
+      return [];
 		} finally {
 			calloc.free(outSampleCountsPtr);
 		}
@@ -304,7 +309,7 @@ class ProcessingUtilImpl implements ProcessingUtil
 	}
   
    @override
-   List<Int16List> prepareDisplayMicrophoneData(List<Int16List> processedData, int drawSurfaceWidth, int channelCount, double displayTimeMs, GraphDataProvider provider) {
+   List<Int16List> prepareDisplayMicrophoneData(List<Int16List> processedData, int drawSurfaceWidth, int channelCount, double displayTimeMs, GraphDataProvider provider, int startPositionIdx, int endPositionIdx) {
     if (processedData.isNotEmpty) {
         // Convert Int16List to Float data for signal drawing
         int frameCount = processedData[0].length;
@@ -320,8 +325,8 @@ class ProcessingUtilImpl implements ProcessingUtil
         }
 
         // Prepare for drawing - focusing on the first channel for now
-        Float32List outSignal = Float32List(drawSurfaceWidth * 5); // 5x for envelope
-        Int32List outEvents = Int32List(100); // Max 100 events
+        // Float32List outSignal = Float32List(drawSurfaceWidth * 5); // 5x for envelope
+        // Int32List outEvents = Int32List(100); // Max 100 events
         
         // Allocate memory for output samples (array of float arrays)
         final outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
@@ -341,6 +346,8 @@ class ProcessingUtilImpl implements ProcessingUtil
         // Allocate and prepare input event indices
         final inEventIndicesPtr = calloc<Int32>(0); // No events yet
 
+        // int sampleResolution = (displayTimeMs*0.001 * _sampleRate).toInt();
+
         try {
             int result = prepareForSignalDrawingProcess(
                 outSamplesPtr,           // Pointer<Pointer<Float>>
@@ -349,8 +356,8 @@ class ProcessingUtilImpl implements ProcessingUtil
                 outEventCountPtr,        // Pointer<Int32>
                 inEventIndicesPtr,       // Pointer<Int32>
                 0,                       // int (inEventCount)
-                0,                       // int (fromSample)
-                (displayTimeMs*0.001 * _sampleRate).toInt(),  // int (toSample)
+                startPositionIdx,                       // int (fromSample)
+                endPositionIdx,  // int (toSample)
                 drawSurfaceWidth         // int
             );
 
@@ -387,7 +394,7 @@ class ProcessingUtilImpl implements ProcessingUtil
                 int eventCount = outEventCountPtr.value;
                 if (eventCount > 0) {
                     // Copy event indices if needed
-                    Float32List eventIndices = outEventIndicesPtr.asTypedList(eventCount);
+                    // Float32List eventIndices = outEventIndicesPtr.asTypedList(eventCount);
                     // Use eventIndices as needed
                 }
             }
@@ -488,7 +495,7 @@ class ProcessingUtilImpl implements ProcessingUtil
   }
 
   @override
-  Future<Uint8List> processDisplaySerialData(int displayTimeMs, int deviceType, int drawSurfaceWidth, [GraphDataProvider? provider]) async {
+  Future<Uint8List> processDisplaySerialData(int displayTimeMs, int deviceType, int drawSurfaceWidth, GraphDataProvider? provider, int startPositionIdx, int endPositionIdx) async {
     // Allocate memory for sample counts
     var outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
     final outSampleCountsPtr = calloc<Int32>(channelCount);
@@ -513,8 +520,10 @@ class ProcessingUtilImpl implements ProcessingUtil
           outEventCountPtr,        // Pointer<Int32>
           inEventIndicesPtr,       // Pointer<Int32>
           0,                       // int (inEventCount)
-          0,                       // int (fromSample)
-          (displayTimeMs*0.001 * sampleRate * 1).toInt(),  // int (toSample)
+          // 0,                       // int (fromSample)
+          // (displayTimeMs*0.001 * sampleRate * 1).toInt(),  // int (toSample)
+          startPositionIdx,                       // int (fromSample)
+          endPositionIdx,  // int (toSample)
           drawSurfaceWidth         // int
       );
       if (result == 0) {
@@ -584,10 +593,10 @@ class ProcessingUtilImpl implements ProcessingUtil
 
     receivePort.listen((args) async {
       if (args is List) {
-        Uint8List data = await processDisplaySerialData(args[0], args[1], args[2]);
+        // Uint8List data = await processDisplaySerialData(args[0], args[1], args[2],0,0);
 
         // Send the result back to the main isolate
-        sendPort.send(data);
+        // sendPort.send(data);
       } else if (args == 'exit') {
         receivePort.close();
       }
@@ -679,3 +688,13 @@ dynamic _processData(dynamic data)
 
 // Factory function to create an instance
 ProcessingUtil createProcessingUtil() => ProcessingUtilImpl();
+
+
+// void dartCallback(int value) {
+//   print('Dart callback received from C++: $value');
+// }
+
+// typedef DartCallbackNative = Void Function(Int32);
+// typedef DartCallbackDart = void Function(int);
+
+// final dartCallbackPointer = Pointer.fromFunction<DartCallbackNative>(dartCallback);

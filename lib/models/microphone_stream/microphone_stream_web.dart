@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+
 import 'microphone_stream_check.dart';
+import 'dart:html' as html;
 import 'dart:js' as js;
 
 MicrophoneUtil getMicrophoneStreams() => MicrophoneUtilWeb();
@@ -9,34 +12,61 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
   Int16List? _micDataBuffer;
 
   @override
-  StreamController<Uint8List> addListenAudioStreamController =
-      StreamController.broadcast();
+  // StreamController<Uint8List> addListenAudioStreamController =
+  //     StreamController<Uint8List>();
+  ValueNotifier<Uint8List> addListenAudioStreamController = ValueNotifier(Uint8List(0));
 
   @override
-  Stream<Uint8List>? micStream;
+  ValueNotifier<Uint8List> micStream = ValueNotifier(Uint8List(0));
+
+  @override
+  double sampleRate = 44100;
 
   @override
   Future<void> init() async {
-    micStream = addListenAudioStreamController.stream;
+    try {
+      final mediaStream = await html.window.navigator.mediaDevices?.getUserMedia({
+        'audio': true,
+      });
+
+      if (mediaStream != null) {
+        html.MediaStreamTrack audioTrack = mediaStream.getAudioTracks()[0];
+        Map<dynamic, dynamic> trackSettings = audioTrack.getSettings();
+        sampleRate = trackSettings["sampleRate"];
+      }
+      // micStream = ValueNotifier(Uint8List(0));
+    } catch(err) {
+      print("err mic");
+      print(err);
+    }
+    
+    // micStream = addListenAudioStreamController;
     js.context['onDataBufferAllocated'] = onDataBufferAllocated;
     js.context['onDataReceived'] = onDataReceived;
-    Future.delayed(const Duration(seconds: 1), () {
-      js.context.callMethod('startListeningToMicrophone', []);
-    });
+    await Future.delayed(const Duration(seconds: 1));
+    print("startListeningToMicrophone");    
+    js.context.callMethod('startListeningToMicrophone', []);
   }
 
   /// Called only once in the beginning to send address of buffer to dart
-  void onDataBufferAllocated(Int16List dataBuffer) {
+  void onDataBufferAllocated(Int16List dataBuffer, int channelIdx, pSampleRate) {
+    print("ON DATA BUFFER ALLOCATED MICROPHONE UTILS");
     _micDataBuffer = dataBuffer;
+    if (pSampleRate != null) {
+      sampleRate = pSampleRate.toDouble();
+    }
     print("_micDataBuffer allocated ${_micDataBuffer?.length} ");
   }
 
   void onDataReceived() {
+    // var time = DateTime.now().millisecondsSinceEpoch;
     if (_micDataBuffer == null) {
       return;
     }
+
     Uint8List uList = Uint8List.fromList(_micDataBuffer!.buffer.asUint8List());
-    addListenAudioStreamController.add(uList);
+    // Uint8List uList = Uint8List.fromList(micBuffer.buffer.asUint8List());
+    micStream.value = (uList);
   }
 
   @override

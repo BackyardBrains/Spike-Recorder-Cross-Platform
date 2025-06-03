@@ -23,6 +23,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   @override
   Future<bool> initializeMicrophone(int channelCount, int sampleRate, double drawSurfaceWidth) async {
     js.context['onDrawingBufferAllocated'] = onDrawingBufferAllocated;
+    // print("initializeMicrophoneWeb: $channelCount, $sampleRate,");
     js.context.callMethod("initializeMicrophoneWeb", [channelCount, sampleRate, drawSurfaceWidth]);
     if (!_isInitialized) {
       await init();
@@ -72,8 +73,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   @override
-  List<Int16List> prepareDisplayMicrophoneData(List<Int16List> data, int drawSurfaceWidth, int channelCount, double displayTimeMs, GraphDataProvider provider) {
-    js.context.callMethod("prepareDisplayMicrophoneDataWeb", [drawSurfaceWidth, channelCount, displayTimeMs]);
+  List<Int16List> prepareDisplayMicrophoneData(List<Int16List> data, int drawSurfaceWidth, int channelCount, double displayTimeMs, GraphDataProvider provider, int startPositionIdx, int endPositionIdx) {
+    // print("POSITION :  $startPositionIdx $endPositionIdx");
+    js.context.callMethod("prepareDisplayMicrophoneDataWeb", [drawSurfaceWidth, channelCount, displayTimeMs, startPositionIdx, endPositionIdx]);
     return [];
   }
 
@@ -100,8 +102,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
     return Future.value(1);
   }
   @override
-  Future<Uint8List> processDisplaySerialData(int displayTimeMs, int deviceType, int deviceWidth, GraphDataProvider provider) async {
-    js.context.callMethod("displaySerialDataWeb", [ displayTimeMs, deviceType, deviceWidth]);
+  Future<Uint8List> processDisplaySerialData(int displayTimeMs, int deviceType, int deviceWidth, GraphDataProvider provider, startPositionIdx, endPositionIdx) async {
+    js.context.callMethod("displaySerialDataWeb", [ displayTimeMs, deviceType, deviceWidth, startPositionIdx, endPositionIdx]);
     return Future.value(Uint8List(0));
   }
 
@@ -116,7 +118,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
 
-  void onDrawingBufferAllocated(dataBufferList, countBufferList, final channelCount) {
+  void onDrawingBufferAllocated(List<Int16List> dataBufferList, Int16List countBufferList, final channelCount) {
     print("onDrawingBufferAllocated");
     print(dataBufferList[0].runtimeType);
     print(Int16List.fromList(dataBufferList[0]).length);

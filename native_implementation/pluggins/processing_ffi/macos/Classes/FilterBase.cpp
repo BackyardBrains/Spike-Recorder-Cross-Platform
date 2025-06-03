@@ -83,6 +83,18 @@ namespace backyardbrains {
                                    tInputBuffer[n - 2] * coefficients[2] - tOutputBuffer[n - 1] * coefficients[3] -
                                    tOutputBuffer[n - 2] * coefficients[4];
             }
+                // platform_log("centerFrequency\n");
+                // platform_log(std::to_string(coefficients[0]).c_str());
+                // platform_log("===========\n");
+                // platform_log(std::to_string(coefficients[1]).c_str());
+                // platform_log("@@===========\n");            
+                // platform_log(std::to_string(coefficients[2]).c_str());
+                // platform_log("@@===========\n");            
+                // platform_log(std::to_string(coefficients[3]).c_str());
+                // platform_log("@@===========\n");
+                // platform_log(std::to_string(coefficients[4]).c_str());
+                // platform_log("@@===========\n");            
+
 
             // Copy the data
             memcpy(data, tOutputBuffer, numFrames * sizeof(double));

@@ -6,7 +6,7 @@ import '../models/default_config_model.dart';
 import 'package:http/http.dart' as https;
 
 class SetUpFunctionality {
-  DefaultConfig? defaultDeviceConfig;
+  static DefaultConfig? defaultDeviceConfig;
   Future<Board?> setTheDeviceSetting(String? deviceName) async {
     if (deviceName != null) {
       DefaultConfig data = await SetUpFunctionality().jsonLoad();
@@ -14,6 +14,7 @@ class SetUpFunctionality {
       Iterable<Board>? deviceConfiguration =
           data.config!.boards?.where((e) => e.uniqueName == deviceName);
 
+      print("setTheDeviceSetting: ${deviceConfiguration?.first.uniqueName}");
       return deviceConfiguration?.first;
     }
     return null;
@@ -43,7 +44,8 @@ class SetUpFunctionality {
 
 
   Future<Config> getAllDeviceList() async {
-    print("getAllDeviceList");
+    print("getAllDeviceList000");
+    print(defaultDeviceConfig);
     if (defaultDeviceConfig != null) {
       print("defaultDeviceConfig");
       DefaultConfig data = await SetUpFunctionality().jsonLoad();
@@ -51,7 +53,7 @@ class SetUpFunctionality {
       return defaultDeviceConfig!.config!;
     } else {
       print("load assets");
-      String jsonString =await rootBundle.loadString('assets/default_config.json');
+      String jsonString = await rootBundle.loadString('assets/default_config.json');
       jsonString = await getDeviceCatalog(jsonString);
       if ( jsonString.trim() != "") {
         DefaultConfig data = DefaultConfig.fromRawJson(jsonString);

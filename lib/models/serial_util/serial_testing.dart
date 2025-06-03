@@ -87,7 +87,7 @@ class SerialUtilWebCheck {
       //  }
       // }
     } catch (e) {
-      print("Reading port failed with exception: \n$e");
+      print("Reading testing port failed with exception: \n$e");
     }
   }
 }

@@ -6,31 +6,41 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter_libserialport/flutter_libserialport.dart';
+import 'package:mic_stream/mic_stream.dart';
+// import 'package:flutter_libserialport/flutter_libserialport.dart';
 import 'package:native_add/model/model.dart';
 import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/constant/const_export.dart';
+import 'package:spikerbox_architecture/functionality/utils.dart';
 import 'package:spikerbox_architecture/message_identifier.dart';
 import 'package:spikerbox_architecture/models/models.dart';
 import 'package:spikerbox_architecture/models/processing_utils/processing_util.dart';
 import 'package:spikerbox_architecture/screen/setting_page.dart';
+import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
 import '../provider/provider_export.dart';
 import '../widget/widget_export.dart';
 import 'graph_page_widget/sound_wave_view.dart';
 import 'package:spikerbox_architecture/models/microphone_stream/microphone_stream_check.dart';
 
 class GraphTemplate extends StatefulWidget {
+  static bool isPlayerPaused = false;
+  static Board? selectedBoard;
   const GraphTemplate({super.key, required this.bitsData, required this.channelCount, required this.baudRate});
 
   final int bitsData;
   final int channelCount;
   final int baudRate;
-
   @override
   State<GraphTemplate> createState() => _GraphTemplateState();
 }
 
 class _GraphTemplateState extends State<GraphTemplate> {
+  List<double> bufferPos = [0, 0];
+
+  var envelopeSizes = [];
+  List<int> skipCounts = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512];
+  List<int> arrCounts = [ 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 ];
+
   List<String> listOfDevices = ["PLANTSS;", "MUSCLESS;", "HEARTSS;", "HBLEOSB;", "HUMANSB;", "MSBPCDC;", "NSBPCDC;", "NRNSBPRO;", "HHIBOX;"];  
   List<String> _availablePorts = [];
   LocalPlugin localPlugin = LocalPlugin();
@@ -40,6 +50,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   final double endValue = 22000;
   int _sampleRate = 44100;
   double displayTimeMs = 10000;
+
 
   late Ticker ticker;
   final StreamController<Uint8List> _graphStreamController = StreamController();
@@ -104,7 +115,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   Future<void> _startPortCheck() async {
     Timer.periodic(const Duration(seconds: 3), (timer) async {
       int baudRate = context.read<ConstantProvider>().getBaudRate();
-      _serialUtil.getAvailablePorts(baudRate);
+      _serialUtil.getAvailablePorts(baudRate, listenToMicrophone);
+      allDevices.clear();
 
       List<String> filteredPorts;
       if (Platform.isMacOS) {
@@ -190,11 +202,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
     if (!kIsWeb) {
       _startPortCheck();
     }
-    filterBaseSettingsModel = const FilterSetup(filterConfiguration: FilterConfiguration(cutOffFrequency: 1000, sampleRate: 10000), filterType: FilterType.highPassFilter, channelCount: channelCountBuffer, isFilterOn: false);
 
     listenToMicrophone(1, provider);
 
-    // TODO: remove dummy data
+    filterBaseSettingsModel = FilterSetup(filterConfiguration: FilterConfiguration(cutOffFrequency: 1000, sampleRate: 10000), filterType: FilterType.highPassFilter, channelCount: channelCountBuffer, isFilterOn: false);
     _sampleData = GenerateSampleData.sineWaveUint14(samplingRate: dummySamplingRate, frequencies: [50, 1000], samplesGenerated: _sampleGeneratedCount).buffer.asUint8List();
 
     Timer.periodic(const Duration(milliseconds: timeMs), (timer) {
@@ -207,15 +218,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     localPlugin.spawnHelperIsolate().then(
       (value) {
         localPlugin.postFilterStream?.listen((serialData) {
-          // provider.inputListener(event);
           bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
           if (!isAudioListen) {
-            // Uint8List arr = Uint8List(1154);
-            // arr.fillRange(0, 1154, 200);
-            // print("serialData123");
-            // print(serialData);
             if (kIsWeb) {
-              // provider.inputListener(serialData);
               provider.inputListener(Uint8List(0));
             }
           }
@@ -224,15 +229,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
         localPlugin.postDisplayStream?.listen((event) {
           bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
           if (isAudioListen) {
-            // print("AUDIO");
-            // widget.channelCount;h
             provider.inputListener(event);
           }
         });
       },
     );
-    // localPlugin.initHighPassFilters(filterBaseSettingsModel!);
-
     _preprocessingBuffer = BufferHandler(
       chunkReadSize: 2000,
       onDataAvailable: (Uint8List listBytes) async {
@@ -380,6 +381,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // }
 
       SetUpFunctionality().setTheDeviceSetting(_deviceName.value).then((value) {
+        print("VALUE : $value");
         if (value != null) {
           String tempDevices = value.uniqueName ?? "";
           if (foundDevices != "") {
@@ -410,7 +412,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
           print("isDeviceConnect: ");
           print(isDeviceConnect);
           // if (isDeviceConnect) {
+          bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+          if (!isAudioListen) {
+
             SetUpFunctionality().getAllDeviceList().then((value) {
+              print("INIT STATE GET ALL DEVICE LIST");
               // Extract the list of boards from the result
               List<Board> allBoards = value.boards ?? [];
               // Filter the boards based on some condition (e.g., matching unique names)
@@ -426,9 +432,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
               // print(connectedBoards);
               for (Board board in connectedBoards) {
                 if (board.uniqueName == foundDevices) {
+                  GraphTemplate.selectedBoard = board;
                   // HARDCODE
                   deviceType = listOfDevices.indexOf("$foundDevices;") + 1;
-                  print("${board.uniqueName} --- $foundDevices ::: ${board.uniqueName == foundDevices} $deviceType" );
+                  print("${GraphTemplate.selectedBoard} ${board.uniqueName} --- $foundDevices ::: ${board.uniqueName == foundDevices} $deviceType" );
                   // (processingUtil as ProcessingUtilImpl).dispose();
                   // processingUtil = createProcessingUtil();
                   _sampleRate = int.parse(board.maxSampleRate!);
@@ -446,7 +453,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
               // Print the stream (optional)
             });
-          // }
+          }
 
         }
       });
@@ -457,9 +464,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     });
 
     _preEscapeSequenceBuffer = BufferHandler(
-      chunkReadSize: 16,
+      chunkReadSize: 32,
       onDataAvailable: (Uint8List dataFromBuffer) {
-        // print("message identifier");
+        // print("message identifier : ${dataFromBuffer}");
         _messageIdentifier.addPacket(dataFromBuffer);
       },
     );
@@ -490,9 +497,36 @@ class _GraphTemplateState extends State<GraphTemplate> {
           displayTimeMs *= 0.9;
         }
         displayTimeMs = displayTimeMs.clamp(5.0, 10000.0);
+        // get current position
+        // get next position
+        // get difference in position
         providerScroll.broadcastDisplayTime(displayTimeMs);
+
+        if (GraphTemplate.isPlayerPaused) {
+          // int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+          double prevStartElementIdx = screenPositionToElementPosition(SoundWaveView.dragDetails!.position.dx, _sampleRate, ProcessingUtil.positionIndex, 
+            TimeCalculateWidget.prevDisplayTimeMsLabel *0.001, TimeCalculateWidget.prevWidthOfScale, MediaQuery.of(context).size.width, bufferPos);
+          double startElementIdx = screenPositionToElementPosition(SoundWaveView.dragDetails!.position.dx, _sampleRate, ProcessingUtil.positionIndex, 
+            TimeCalculateWidget.displayTimeMsLabel *0.001, TimeCalculateWidget.widthOfScale, MediaQuery.of(context).size.width, bufferPos);
+          print("DIFFERENCES = $prevStartElementIdx - $startElementIdx = ${prevStartElementIdx - startElementIdx} | ${ProcessingUtil.positionIndex}");
+          bufferPaddingLeft = bufferPaddingLeft - (prevStartElementIdx - startElementIdx);
+          if (displayTimeMs == 10000) {
+            bufferPaddingLeft = 0;
+          }
+          // if (bufferPaddingLeft < 0) {
+          //   bufferPaddingLeft = 0;
+          // }
+        }else {
+          bufferPaddingLeft = 0;
+        }
+
       });
     });
+  
+    setState(() {
+      
+    });
+
   }
 
   @override
@@ -613,11 +647,24 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       const SizedBox(
                         height: 10,
                       ),
-                      NotchPassFilterWidget(onTapNotchFrequency: (notchFilterSettings) {
+                      NotchPassFilterWidget(sampleRateParam:_sampleRate.toDouble(), onTapNotchFrequency: (notchFilterSettings) async {
+                        notchFilterSettings.filterConfiguration.sampleRate = _sampleRate;
                         print("the notch filter setting is ${notchFilterSettings.toJson()}");
+                        if (notchFilterSettings.isFilterOn) {
+                          if (notchFilterSettings.filterConfiguration.cutOffFrequency == 50) {
+                            int temp = await processingUtil.setNotchFilter(50);
+                            print("processingUtil.setNotchFilter(50) $temp");
+                          } else 
+                          if (notchFilterSettings.filterConfiguration.cutOffFrequency == 60) {
+                            processingUtil.setNotchFilter(60);
+                            print("processingUtil.setNotchFilter(60)");
+                          } else {
+                            processingUtil.setNotchFilter(-1);
+                          }
+                        }
 
                         context.read<DataStatusProvider>().setNotchPassFilterSetting(notchFilterSettings);
-                        localPlugin.initNotchPassFilters(notchFilterSettings);
+                        // localPlugin.initNotchPassFilters(notchFilterSettings);
                       }),
                       const SizedBox(
                         height: 10,
@@ -646,60 +693,60 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                         // _toGenerateDummyData =
                                         //     isSampleDataOn;
                                       }),
-                                      DropdownButtonFormField<int>(
-                                        dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                        style: SoftwareTextStyle().kWtMediumTextStyle,
-                                        items: _dataBit
-                                            .map(
-                                              (e) => DropdownMenuItem(
-                                                value: e,
-                                                child: Text(
-                                                  e.toString(),
-                                                ),
-                                              ),
-                                            )
-                                            .toList(),
-                                        onChanged: (int? bitDataSelect) {
-                                          context.read<ConstantProvider>().setBitData(bitDataSelect!);
-                                        },
-                                        value: context.read<ConstantProvider>().getBitData(),
-                                      ),
-                                      DropdownButtonFormField(
-                                        dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                        style: SoftwareTextStyle().kWtMediumTextStyle,
-                                        items: _baudRate
-                                            .map(
-                                              (e) => DropdownMenuItem(
-                                                value: e,
-                                                child: Text(
-                                                  e.toString(),
-                                                ),
-                                              ),
-                                            )
-                                            .toList(),
-                                        onChanged: (baudRateSelect) {
-                                          context.read<ConstantProvider>().setBaudRate(baudRateSelect!);
-                                        },
-                                        value: context.read<ConstantProvider>().getBaudRate(),
-                                      ),
-                                      DropdownButtonFormField(
-                                        dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                        style: SoftwareTextStyle().kWtMediumTextStyle,
-                                        items: _channelCount
-                                            .map(
-                                              (e) => DropdownMenuItem(
-                                                value: e,
-                                                child: Text(
-                                                  e.toString(),
-                                                ),
-                                              ),
-                                            )
-                                            .toList(),
-                                        onChanged: (int? channelCountSelect) {
-                                          context.read<ConstantProvider>().setChannelCount(channelCountSelect!);
-                                        },
-                                        value: context.read<ConstantProvider>().getChannelCount(),
-                                      ),
+                                      // DropdownButtonFormField<int>(
+                                      //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                      //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                                      //   items: _dataBit
+                                      //       .map(
+                                      //         (e) => DropdownMenuItem(
+                                      //           value: e,
+                                      //           child: Text(
+                                      //             e.toString(),
+                                      //           ),
+                                      //         ),
+                                      //       )
+                                      //       .toList(),
+                                      //   onChanged: (int? bitDataSelect) {
+                                      //     context.read<ConstantProvider>().setBitData(bitDataSelect!);
+                                      //   },
+                                      //   value: context.read<ConstantProvider>().getBitData(),
+                                      // ),
+                                      // DropdownButtonFormField(
+                                      //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                      //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                                      //   items: _baudRate
+                                      //       .map(
+                                      //         (e) => DropdownMenuItem(
+                                      //           value: e,
+                                      //           child: Text(
+                                      //             e.toString(),
+                                      //           ),
+                                      //         ),
+                                      //       )
+                                      //       .toList(),
+                                      //   onChanged: (baudRateSelect) {
+                                      //     context.read<ConstantProvider>().setBaudRate(baudRateSelect!);
+                                      //   },
+                                      //   value: context.read<ConstantProvider>().getBaudRate(),
+                                      // ),
+                                      // DropdownButtonFormField(
+                                      //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                      //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                                      //   items: _channelCount
+                                      //       .map(
+                                      //         (e) => DropdownMenuItem(
+                                      //           value: e,
+                                      //           child: Text(
+                                      //             e.toString(),
+                                      //           ),
+                                      //         ),
+                                      //       )
+                                      //       .toList(),
+                                      //   onChanged: (int? channelCountSelect) {
+                                      //     context.read<ConstantProvider>().setChannelCount(channelCountSelect!);
+                                      //   },
+                                      //   value: context.read<ConstantProvider>().getChannelCount(),
+                                      // ),
                                     ],
                                   ),
                                 ),
@@ -877,47 +924,25 @@ class _GraphTemplateState extends State<GraphTemplate> {
               backgroundColor: SoftwareColors.kButtonBackGroundColor,
               onPressed: () async {
                 try {
+                  serialDataSubscription?.cancel();
                   int baudRate = context.read<ConstantProvider>().getBaudRate();
-                  await _serialUtil.getAvailablePorts(baudRate);
+                  print("getAvailablePorts");
+                  await _serialUtil.getAvailablePorts(baudRate, listenToMicrophone);
                   _availablePorts = _serialUtil.availablePorts;
                   if (!mounted) return;
                   Provider.of<PortScanProvider>(context, listen: false).setPortScanList(_availablePorts);
                   context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
 
-                  // await _serialUtil.openPortToListen(
-                  //     _availablePorts.first, baudRate);
-
                   if (!mounted) return;
                   bool dummyDataStatus = context.read<DataStatusProvider>().isSampleDataOn;
                   bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
-                    // HARDCODE STEVANUS
-                    // foundDevices = "HEARTSS";
-                    // SetUpFunctionality().getAllDeviceList().then((value) {
-                    //   // Extract the list of boards from the result
-                    //   List<Board> allBoards = value.boards ?? [];
-                    //   // Filter the boards based on some condition (e.g., matching unique names)
-                    //   List<Board> connectedBoards = allBoards.where((board) {
-                    //     return connectedDevices.contains(board.uniqueName);
-                    //   }).toList();
-
-                    //   // Add the filtered list to the stream
-                    //   // print("listOfBoard");
-                    //   // print(allBoards);
-                    //   for (Board board in allBoards) {
-                    //     // print(board.uniqueName);
-                    //     if (board.uniqueName == foundDevices) {
-                    //       deviceType = listOfDevices.indexOf(foundDevices);
-                    //       processingUtil.initializeSerial(board);
-                    //       // print("deviceType");
-                    //       // print(deviceType);
-                    //     }
-                    //   }
-
-                    //   // Print the stream (optional)
-                    // });
-                  // deviceType = 1;
                   final provider = Provider.of<GraphDataProvider>(context, listen: false);
-                  _serialUtil.dataStream?.listen((event) async {
+                  print("_serialUtil.dataStream $isAudioListen $dummyDataStatus | $_isDataIdentified $isDeviceSelected");
+                  isDeviceConnect = true;
+                  isDeviceSelected = false;
+                  _isDataIdentified = false;
+
+                  serialDataSubscription = _serialUtil.dataStream?.listen((event) async {
                     if (!dummyDataStatus && !isAudioListen) {
                       int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
                       if (isDeviceConnect) {
@@ -925,29 +950,38 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         isDeviceConnect = false;
                       }
                       if (_isDataIdentified) {
+                        if (!GraphTemplate.isPlayerPaused) {
                           processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((sampleCount) {
                             totalSampleCount += sampleCount;
                             // print("totalSampleCount: $totalSampleCount");
                             if (totalSampleCount > sampleCountToDisplay) {
                               totalSampleCount = 0;
-                              processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
-                              // provider.inputListener(Uint8List(0));
+                              processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, (displayTimeMs * 0.001 * _sampleRate).floor());
                             }
                           });
+                        } else {
+                          if (SoundWaveView.dragDetails != null) {
+                            int fromSample = (-bufferPaddingLeft).toInt();
+                            int toSample = (fromSample + displayTimeMs * 0.001 * _sampleRate).toInt();
+                            // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+                            processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+                          } else {
+                          }                          
+                        }
                       } else {
                         if (!isDeviceConnect && !isDeviceSelected) {
                           _preEscapeSequenceBuffer.addBytes(event);
+                          // print("ENTER:  $event = $isAudioListen $dummyDataStatus | $_isDataIdentified $isDeviceSelected");
+
                         }
                         if (isDeviceSelected) { // !isDeviceConnect &&
                           _isDataIdentified = true;
                           // STEVE
                           processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((sampleCount) {
                             totalSampleCount += sampleCount;
-                            // print("totalSampleCount: $totalSampleCount");
                             if (totalSampleCount > sampleCountToDisplay) {
                               totalSampleCount = 0;
-                              processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
-                              // provider.inputListener(Uint8List(0));
+                              processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, (displayTimeMs * 0.001 * _sampleRate).floor());
                             }
                           });
 
@@ -1020,9 +1054,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     }
                     */
                   }, onError: (error) {
-                    if (error is SerialPortError) {
+                    // if (error is SerialPortError) {
                       print("SERIAL PORT ERROR -- DISCONNECTED");
-                    }
+                      Future.delayed(Duration(milliseconds: 2500), () {
+                        _serialUtil.closePort();
+                        listenToMicrophone(1, provider);
+                      });
+                    // }
                   });
                   portName = _availablePorts.first;
                 } catch (e) {
@@ -1131,7 +1169,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // Stopwatch stopwatch = Stopwatch();
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
     totalSampleCount = 0;
-    getData?.listen((event) async {
+
+    serialDataSubscription?.cancel();
+    serialDataSubscription = getData?.listen((event) async {
       if (!dummyDataStatus && !isAudioListen) {
         int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
         if (isDeviceConnect) {
@@ -1156,13 +1196,24 @@ class _GraphTemplateState extends State<GraphTemplate> {
           // if (event.reduce(max) > 250) {
           //   print("isDeviceConnect: $isDeviceConnect - $isDeviceSelected EVENT: $event");
           // } else {
+          if (!GraphTemplate.isPlayerPaused) {
             int sampleCount = await processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
             totalSampleCount += sampleCount;
             if (totalSampleCount > sampleCountToDisplay) {
               totalSampleCount = 0;
-              await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+              // await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+              await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, (displayTimeMs * 0.001 * _sampleRate).floor());
               provider.inputListener(Uint8List(0));
             }
+          } else {
+            // await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
+            int fromSample = (-bufferPaddingLeft).toInt();
+            int toSample = (fromSample + displayTimeMs * 0.001 * _sampleRate).toInt();
+            // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+            await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+
+            provider.inputListener(Uint8List(0));
+          }
           // }
 
           // processSerialSendPort?.send([event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth]);
@@ -1201,11 +1252,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
           if (isDeviceSelected) { // !isDeviceConnect &&
             _isDataIdentified = true;
             // STEVE
-            int sampleCount = await processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
-            totalSampleCount += sampleCount;
-            if (totalSampleCount> sampleCountToDisplay) {
-              totalSampleCount = 0;
-              await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+            if (!GraphTemplate.isPlayerPaused) {
+              int sampleCount = await processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
+              totalSampleCount += sampleCount;
+              if (totalSampleCount> sampleCountToDisplay) {
+                totalSampleCount = 0;
+                await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, (displayTimeMs * 0.001 * _sampleRate).floor());
+                provider.inputListener(Uint8List(0));
+              }
+            } else {
+              // await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+              int fromSample = (-bufferPaddingLeft).toInt();
+              int toSample = (fromSample + displayTimeMs * 0.001 * _sampleRate).toInt();
+              // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+              await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+
               provider.inputListener(Uint8List(0));
             }
 
@@ -1355,11 +1416,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
       //   }
       // }
     }, onError: (error) {
-      if (error is SerialPortError) {
+      // if (error is SerialPortError) {
         print("SERIAL PORT ERROR -- DISCONNECTED");
-        processingUtil.init();
-        processingUtil.initializeMicrophone(1, 44100, MediaQuery.of(context).size.width);
-      }
+        listenToMicrophone(1, provider);
+        // processingUtil.init();
+        // processingUtil.initializeMicrophone(1, _sampleRate, MediaQuery.of(context).size.width);
+      // }
     });
     portName = listOfPort.last;
   }
@@ -1419,48 +1481,138 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
   
   StreamSubscription<Uint8List>? microphoneSubscription;
+  StreamSubscription<Uint8List>? serialDataSubscription;
   
   SendPort? processSerialSendPort;
   ReceivePort? processSerialReceivePort;
   SendPort? processSerialDisplaySendPort;
   ReceivePort? processSerialDisplayReceivePort;
-  
+ 
   int totalSampleCount = 0;
   int sampleCountToDisplay = 8;
+
+  double bufferPaddingLeft = 0;
+  
+  Board? selectedBoard;
+  
   void listenToMicrophone(channelCount, provider) {
+    isDeviceConnect = true;
+    isDeviceSelected = false;
+    _isDataIdentified = false;
+    foundDevices = "";
     Future.delayed(const Duration(seconds: 2)).then((value) async {
+      print("_messageIdentifier.messageState");
+      print(_messageIdentifier.messageState);
       // Initialize both utils
+      try{
+        microphoneUtil.micStream.removeListener(micListener);
+        microphoneUtil.micStream = ValueNotifier(Uint8List(0));
+        context.read<DataStatusProvider>().setMicrophoneDataStatus(true);
+      }catch(err){
+        print("er remove listener");
+        print(err);
+      }
+
       await Future.wait([
-        microphoneUtil.init(),
+        microphoneUtil.init()
       ]);
 
       await processingUtil.init();
       //init microphone stream  
+      if (kIsWeb) {
+        print("WEB SAMPLE RATE : ${microphoneUtil.sampleRate}");
+        _sampleRate = microphoneUtil.sampleRate.toInt();
+      } else {
+        double? tempSampleRate = await MicStream.sampleRate;
+        if (tempSampleRate != null) {
+          _sampleRate = tempSampleRate.toInt();
+        }
+      }
+
+      int NUMBER_OF_SEGMENTS = 10;
+      int SEGMENT_SIZE = _sampleRate;
+      double SIZE = (NUMBER_OF_SEGMENTS * SEGMENT_SIZE).toDouble();
+      final SIZE_LOGS2 = 10;
+
+      double size = SIZE;
+      int i = 0;
+      for (; i < SIZE_LOGS2; i++) {
+        envelopeSizes.add(size.toInt());
+        size /= 2;
+      }
+      print("listenToMicrophone2");
+
       double drawSurfaceWidth = MediaQuery.of(context).size.width;
       await processingUtil.initializeMicrophone(channelCount, _sampleRate, drawSurfaceWidth);
 
       // Set band filter
       await processingUtil.setBandFilter(-1, -1);
 
-      // // Set notch filter
-      await processingUtil.setNotchFilter(50);
+      // // // Set notch filter
+      // await processingUtil.setNotchFilter(50);
       // print("isAudioListen");
       // print(microphoneUtil.micStream);
-      microphoneSubscription?.cancel();
-      microphoneSubscription = microphoneUtil.micStream!.listen((event) {
-        bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+      // microphoneSubscription?.cancel();
+      // int drawIdx = 0;
+      // microphoneSubscription = 
+      print("listenToMicrophone5");
+      microphoneUtil.micStream.addListener(micListener);    
+      isDeviceConnect = true;
+      isDeviceSelected = false;
 
-        //
-        if (isAudioListen) {
-          // print("isAUDIO LISTEN");
-          //_preprocessingBuffer.addBytes(event);
-          List<Int16List> processedData = processingUtil.processMicrophoneData(event);
-          // _preGraphBuffer.addBytes(event);
-          int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
-          processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider);
-        }
-      });
-    });    
+    });
+  }
+
+  void micListener(){
+    // print("miCLISTENER DATA");
+    int channelCount = 1;
+    final provider = Provider.of<GraphDataProvider>(context, listen: false);
+    bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+    // print("isAUDIO LISTEN: $isAudioListen");
+    if (isAudioListen) {
+      //_preprocessingBuffer.addBytes(event);
+      // List<Int16List> processedData = 
+      if (!GraphTemplate.isPlayerPaused) {
+        // print("microphoneUtil.micStream.value");
+        // print(microphoneUtil.micStream.value);
+        processingUtil.processMicrophoneData(microphoneUtil.micStream.value);
+      }
+      // _preGraphBuffer.addBytes(event);
+      
+      // if (drawIdx == 3) {
+      int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+      if (!GraphTemplate.isPlayerPaused) {
+        processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, (displayTimeMs*0.001 * microphoneUtil.sampleRate).floor() );
+      } else {
+        double startElementIdx = 0.0;
+
+        // if (ProcessingUtil.positionIndex > 0) {
+          if (SoundWaveView.dragDetails != null) {
+            // int level = calculateLevel(displayTimeMs, _sampleRate.toDouble(), drawSurfaceWidth.toDouble(), arrCounts, 0);
+            // double divider = ;
+            // print("bufferPaddingLeft : $bufferPaddingLeft");
+            // int fromSample = (ProcessingUtil.positionIndex - displayTimeMs * 0.001 * _sampleRate - bufferPaddingLeft).toInt();
+            int fromSample = (-bufferPaddingLeft).toInt();
+            int toSample = (fromSample + displayTimeMs * 0.001 * _sampleRate).toInt();
+            // int toSample = (displayTimeMs * 0.001 * _sampleRate).toInt() ;
+            // print("fromSample - toSample : $fromSample _ $toSample  ${bufferPaddingLeft} ${displayTimeMs * 0.001 * _sampleRate} ${bufferPos[1]}");
+            processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+            // print("level: $level @@ ${ProcessingUtil.positionIndex} | ${TimeCalculateWidget.prevDisplayTimeMsLabel} - ${TimeCalculateWidget.displayTimeMsLabel} | $prevStartElementIdx $startElementIdx ${prevStartElementIdx - startElementIdx}");
+            // print("level: $level @@ ${ProcessingUtil.positionIndex} | ${TimeCalculateWidget.prevWidthOfScale} - ${TimeCalculateWidget.widthOfScale} | $prevStartElementIdx $startElementIdx ${prevStartElementIdx - startElementIdx}");
+            // print("bufferPos[1].toInt() - bufferPaddingLeft.toInt(): ${bufferPos[1].toInt()} - ${bufferPaddingLeft.toInt()} == ${bufferPos[1].toInt() - bufferPaddingLeft.toInt()}");
+
+          } else {
+            // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, 10 * _sampleRate );
+          }
+        // } else {
+        //   // List<double> pos = [0, 10.0 * _sampleRate];
+        //   // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, bufferPos[0].floor(), bufferPos[1].floor() );
+        // }
+      }
+      //   drawIdx = 0;
+      // }
+      // drawIdx++;
+    }
   }
 
   Future<void> createProcessSerialDataIsolate() async {
@@ -1522,8 +1674,10 @@ class NotchPassFilterWidget extends StatefulWidget {
   const NotchPassFilterWidget({
     super.key,
     required this.onTapNotchFrequency,
+    required this.sampleRateParam,
   });
 
+  final double sampleRateParam;
   final Function(FilterSetup) onTapNotchFrequency;
 
   @override
@@ -1539,7 +1693,7 @@ class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
   void initState() {
     super.initState();
 
-    _notchPassFilterSettings = FilterSetup(filterConfiguration: FilterConfiguration(cutOffFrequency: 50, sampleRate: _sampleRate.toInt()), filterType: FilterType.notchFilter, channelCount: channelCountBuffer, isFilterOn: false);
+    _notchPassFilterSettings = FilterSetup(filterConfiguration: FilterConfiguration(cutOffFrequency: 50, sampleRate: widget.sampleRateParam.toInt()), filterType: FilterType.notchFilter, channelCount: channelCountBuffer, isFilterOn: false);
   }
 
 
@@ -1588,6 +1742,9 @@ class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
               WhiteColorCheckBox(
                 valueStatus: dataStatus.is60Hertz,
                 onChanged: (value) {
+                  print("value");
+                  print(value);
+
                   if (isNotch50) {
                     dataStatus.set50HertzStatus(false);
                     isNotch60 = value!;
@@ -1838,29 +1995,29 @@ class _FilterProcessWidgetState extends State<FilterProcessWidget> {
     return Consumer<DataStatusProvider>(builder: (context, dataStatus, snapshot) {
       return Column(
         children: [
-          Row(
-            children: [
-              WhiteColorCheckBox(
-                valueStatus: dataStatus.isSampleDataOn,
-                onChanged: (value) {
-                  setState(() {
-                    _isSampleDataOn = value ?? false;
-                    if (_isSampleDataOn && _isMicrophoneEnable) {
-                      _isMicrophoneEnable = false;
-                      widget.isMicrophoneEnable(_isMicrophoneEnable);
-                    }
-                  });
-                  print("dummySamplingRate : $dummySamplingRate");
-                  Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(dummySamplingRate);
-                  widget.onSampleChange(_isSampleDataOn);
-                },
-              ),
-              Text(
-                "Sample Data ",
-                style: SoftwareTextStyle().kWtMediumTextStyle,
-              )
-            ],
-          ),
+          // Row(
+          //   children: [
+          //     WhiteColorCheckBox(
+          //       valueStatus: dataStatus.isSampleDataOn,
+          //       onChanged: (value) {
+          //         setState(() {
+          //           _isSampleDataOn = value ?? false;
+          //           if (_isSampleDataOn && _isMicrophoneEnable) {
+          //             _isMicrophoneEnable = false;
+          //             widget.isMicrophoneEnable(_isMicrophoneEnable);
+          //           }
+          //         });
+          //         print("dummySamplingRate : $dummySamplingRate");
+          //         Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(dummySamplingRate);
+          //         widget.onSampleChange(_isSampleDataOn);
+          //       },
+          //     ),
+          //     Text(
+          //       "Sample Data ",
+          //       style: SoftwareTextStyle().kWtMediumTextStyle,
+          //     )
+          //   ],
+          // ),
           const SizedBox(height: 10),
           // CustomButton(
           //   childWidget: const Text("Check audio on web"),

@@ -75,7 +75,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
   late final BufferHandler _preEscapeSequenceBuffer;
   late final BufferHandler _preGraphBuffer;
 
-  final List<Color> availableColors = [
+  final List<Color> availableColors = {
+    ...ChannelColorDefaults.audioChannelColors,
+    ...ChannelColorDefaults.serialChannelColors,
     Colors.green,
     Colors.red,
     Colors.blue,
@@ -84,7 +86,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     Colors.yellow,
     Colors.teal,
     Colors.pink,
-  ];
+  }.toList();
 
   late final BufferHandler _preprocessingBuffer;
 
@@ -1724,16 +1726,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   Widget _channelColorSettings() {
-    return Consumer<ChannelColorProvider>(builder: (context, prov, _) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (prov.audioColors.isNotEmpty)
-            _buildChannelColorDropdowns(prov, true),
-          if (prov.serialColors.isNotEmpty)
-            _buildChannelColorDropdowns(prov, false),
-        ],
-      );
+    return Consumer2<ChannelColorProvider, DataStatusProvider>(
+        builder: (context, prov, dataStatus, _) {
+      bool isAudioListen = dataStatus.isMicrophoneData;
+      if (isAudioListen && prov.audioColors.isNotEmpty) {
+        return _buildChannelColorDropdowns(prov, true);
+      } else if (!isAudioListen && prov.serialColors.isNotEmpty) {
+        return _buildChannelColorDropdowns(prov, false);
+      } else {
+        return const SizedBox.shrink();
+      }
     });
   }
 

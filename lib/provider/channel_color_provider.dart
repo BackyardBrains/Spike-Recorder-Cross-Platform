@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constant/colors_constant.dart';
+import '../constant/channel_color_defaults.dart';
 
 class ChannelColorProvider extends ChangeNotifier {
   List<Color> audioColors = [];
@@ -7,8 +8,13 @@ class ChannelColorProvider extends ChangeNotifier {
 
   void setAudioChannelCount(int count) {
     if (audioColors.length < count) {
-      audioColors.addAll(
-          List<Color>.filled(count - audioColors.length, SoftwareColors.kGraphColor));
+      for (int i = audioColors.length; i < count; i++) {
+        if (i < ChannelColorDefaults.audioChannelColors.length) {
+          audioColors.add(ChannelColorDefaults.audioChannelColors[i]);
+        } else {
+          audioColors.add(SoftwareColors.kGraphColor);
+        }
+      }
     } else if (audioColors.length > count) {
       audioColors = audioColors.sublist(0, count);
     }
@@ -17,8 +23,13 @@ class ChannelColorProvider extends ChangeNotifier {
 
   void setSerialChannelCount(int count) {
     if (serialColors.length < count) {
-      serialColors.addAll(
-          List<Color>.filled(count - serialColors.length, SoftwareColors.kGraphColor));
+      for (int i = serialColors.length; i < count; i++) {
+        if (i < ChannelColorDefaults.serialChannelColors.length) {
+          serialColors.add(ChannelColorDefaults.serialChannelColors[i]);
+        } else {
+          serialColors.add(SoftwareColors.kGraphColor);
+        }
+      }
     } else if (serialColors.length > count) {
       serialColors = serialColors.sublist(0, count);
     }

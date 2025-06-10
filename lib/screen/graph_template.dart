@@ -1700,7 +1700,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         ...List.generate(colors.length, (idx) {
           return Row(
             children: [
-              Text('Ch ${idx + 1}',
+              Text('Channel ${idx + 1}',
                   style: SoftwareTextStyle().kWtMediumTextStyle),
               const SizedBox(width: 8),
               DropdownButton<Color>(
@@ -1740,7 +1740,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         ...List.generate(filters.length, (idx) {
           return Row(
             children: [
-              Text('Ch ${idx + 1}',
+              Text('Channel ${idx + 1}',
                   style: SoftwareTextStyle().kWtMediumTextStyle),
               const SizedBox(width: 8),
               Checkbox(

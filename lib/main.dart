@@ -32,6 +32,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => SerialDataProvider()),
         ChangeNotifierProvider(create: (_) => PortScanProvider()),
         ChangeNotifierProvider(create: (_) => SampleRateProvider()),
+        ChangeNotifierProvider(create: (_) => ChannelColorProvider()),
         ChangeNotifierProvider(create: (_) => CustomRangeSliderProvider()),
       ],
       child: const MyApp(),

@@ -10,6 +10,8 @@ import 'package:spikerbox_architecture/provider/graph_gain_provider.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'package:spikerbox_architecture/provider/isgraphplay_provider.dart';
 import 'package:spikerbox_architecture/provider/vertical_dragprovider.dart';
+import 'package:spikerbox_architecture/provider/data_type_status.dart';
+import 'package:spikerbox_architecture/provider/channel_color_provider.dart';
 import 'package:spikerbox_architecture/screen/graph_template.dart';
 
 import '../constant/const_export.dart';
@@ -240,6 +242,15 @@ class _DraggableGraphState extends State<DraggableGraph> {
   }
   void addChartControls(List<Widget> charts, int idx, int channelCount, BuildContext context) {
     double leftDroplet = 5;
+    final colorProvider = Provider.of<ChannelColorProvider>(context, listen: false);
+    final isAudio = Provider.of<DataStatusProvider>(context, listen: false).isMicrophoneData;
+    Color channelColor = isAudio
+        ? (idx < colorProvider.audioColors.length
+            ? colorProvider.audioColors[idx]
+            : SoftwareColors.kGraphColor)
+        : (idx < colorProvider.serialColors.length
+            ? colorProvider.serialColors[idx]
+            : SoftwareColors.kGraphColor);
     charts.add(
       Positioned(
         top: midChartY[idx].toDouble() + 35,
@@ -281,7 +292,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
                 showWaveform[idx]
                     ? Icons.water_drop
                     : Icons.water_drop_outlined,
-                color: showWaveform[idx] ? Colors.green : Colors.grey,
+                color: channelColor,
                 size: 36,
               ),
             ),
@@ -337,6 +348,9 @@ class _DraggableGraphState extends State<DraggableGraph> {
     // return LayoutBuilder(builder: (context, constraints) {
     //   return Consumer<GraphGainProvider>(
     //       builder: (context, graphGainProvider, _) {
+            final colorProvider = context.watch<ChannelColorProvider>();
+            final dataStatus = context.watch<DataStatusProvider>();
+            bool isAudio = dataStatus.isMicrophoneData;
             List<Widget> charts = [];
               if (!isLoading) {
                 if (ProcessingUtil.drawingBuffers.isNotEmpty && channelCount != ProcessingUtil.drawingBuffers.length) {
@@ -374,6 +388,13 @@ class _DraggableGraphState extends State<DraggableGraph> {
 
               for (idx =0; idx < channelCount; idx++) {
                 Int16List curBuffer = temp[idx];
+                Color channelColor = isAudio
+                    ? (idx < colorProvider.audioColors.length
+                        ? colorProvider.audioColors[idx]
+                        : SoftwareColors.kGraphColor)
+                    : (idx < colorProvider.serialColors.length
+                        ? colorProvider.serialColors[idx]
+                        : SoftwareColors.kGraphColor);
                 // int outSampleCount = ProcessingUtil.drawingBufferCounts[idx];
                 // int outSampleCount = ProcessingUtil.drawingBufferCounts[idx];
                 int outSampleCount = sampleCounts[idx];
@@ -408,7 +429,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
                         height: MediaQuery.of(context).size.height,
                         child: WavForm.PolygonWaveform(
                           showActiveWaveform: true,
-                          inactiveColor: SoftwareColors.kGraphColor,
+                          inactiveColor: channelColor,
                           activeColor: Colors.transparent,
                           maxDuration: const Duration(days: 1),
                           elapsedDuration: const Duration(hours: 0),

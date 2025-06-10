@@ -75,6 +75,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
   late final BufferHandler _preEscapeSequenceBuffer;
   late final BufferHandler _preGraphBuffer;
 
+  final List<Color> availableColors = [
+    Colors.green,
+    Colors.red,
+    Colors.blue,
+    Colors.orange,
+    Colors.purple,
+    Colors.yellow,
+    Colors.teal,
+    Colors.pink,
+  ];
+
   late final BufferHandler _preprocessingBuffer;
 
   final ValueNotifier<String?> _deviceName = ValueNotifier(null);
@@ -441,6 +452,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   _sampleRate = int.parse(board.maxSampleRate!);
                   double drawSurfaceWidth = MediaQuery.of(context).size.width;
                   processingUtil.initializeSerial(board, drawSurfaceWidth);
+                  context.read<ChannelColorProvider>().setSerialChannelCount(
+                      int.parse(board.maxNumberOfChannels!));
                   // createDisplaySerialDataIsolate();
                   // createProcessSerialDataIsolate();
                   Future.delayed(Duration(seconds: 2), (){
@@ -693,6 +706,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                         // _toGenerateDummyData =
                                         //     isSampleDataOn;
                                       }),
+                                      _channelColorSettings(),
                                       // DropdownButtonFormField<int>(
                                       //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
                                       //   style: SoftwareTextStyle().kWtMediumTextStyle,
@@ -1544,6 +1558,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       double drawSurfaceWidth = MediaQuery.of(context).size.width;
       await processingUtil.initializeMicrophone(channelCount, _sampleRate, drawSurfaceWidth);
+      context.read<ChannelColorProvider>().setAudioChannelCount(channelCount);
 
       // Set band filter
       await processingUtil.setBandFilter(-1, -1);
@@ -1666,6 +1681,60 @@ class _GraphTemplateState extends State<GraphTemplate> {
     processSerialDisplaySendPort = await isolateSendPortCompleter.future;
 
     return Future.value(null);
+  }
+
+  Widget _buildChannelColorDropdowns(
+      ChannelColorProvider provider, bool isAudio) {
+    final colors = isAudio ? provider.audioColors : provider.serialColors;
+    String title = isAudio ? 'Audio Channel Colors' : 'Serial Channel Colors';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: SoftwareTextStyle().kWtMediumTextStyle),
+        ...List.generate(colors.length, (idx) {
+          return Row(
+            children: [
+              Text('Ch ${idx + 1}',
+                  style: SoftwareTextStyle().kWtMediumTextStyle),
+              const SizedBox(width: 8),
+              DropdownButton<Color>(
+                value: colors[idx],
+                dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                items: availableColors
+                    .map((c) => DropdownMenuItem(
+                          value: c,
+                          child: Container(width: 20, height: 20, color: c),
+                        ))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    if (isAudio) {
+                      provider.setAudioColor(idx, val);
+                    } else {
+                      provider.setSerialColor(idx, val);
+                    }
+                  }
+                },
+              ),
+            ],
+          );
+        })
+      ],
+    );
+  }
+
+  Widget _channelColorSettings() {
+    return Consumer<ChannelColorProvider>(builder: (context, prov, _) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (prov.audioColors.isNotEmpty)
+            _buildChannelColorDropdowns(prov, true),
+          if (prov.serialColors.isNotEmpty)
+            _buildChannelColorDropdowns(prov, false),
+        ],
+      );
+    });
   }
 
 }

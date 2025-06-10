@@ -33,6 +33,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => PortScanProvider()),
         ChangeNotifierProvider(create: (_) => SampleRateProvider()),
         ChangeNotifierProvider(create: (_) => ChannelColorProvider()),
+        ChangeNotifierProvider(create: (_) => ChannelFilterProvider()),
         ChangeNotifierProvider(create: (_) => CustomRangeSliderProvider()),
       ],
       child: const MyApp(),

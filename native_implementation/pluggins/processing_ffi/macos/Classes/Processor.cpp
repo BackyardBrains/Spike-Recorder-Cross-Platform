@@ -72,12 +72,13 @@ namespace backyardbrains {
         }
 
         void Processor::applyFilters(int channel, short *data, int sampleCount) {
+            if (channelFilterEnabled && !channelFilterEnabled[channel]) {
+                return;
+            }
+
             if (lowPassFilteringEnabled) lowPassFilter[channel]->filter(data, sampleCount);
             if (highPassFilteringEnabled) highPassFilter[channel]->filter(data, sampleCount);
             if (notchFilteringEnabled) {
-                // platform_log("Notch Filtering Enabled\n");
-                // platform_log(std::to_string(sampleCount).c_str());
-                // platform_log("===========\n");
                 notchFilter[channel]->filter(data, sampleCount);
             }
 
@@ -102,11 +103,17 @@ namespace backyardbrains {
             createFilters(Processor::sampleRate, channelCount);
         }
 
+        void Processor::setChannelFilterEnabled(int channel, bool enabled) {
+            if (!channelFilterEnabled || channel < 0 || channel >= channelCount) return;
+            channelFilterEnabled[channel] = enabled;
+        }
+
         void Processor::createFilters(float sampleRate, int channelCount) {
             lowPassFilter = new LowPassFilterPtr[channelCount];
             highPassFilter = new HighPassFilterPtr[channelCount];
             notchFilter = new NotchFilterPtr[channelCount];
-            
+            channelFilterEnabled = new bool[channelCount];
+
             for (int i = 0; i < channelCount; i++) {
                 // low pass filters
                 lowPassFilter[i] = new LowPassFilter();
@@ -125,6 +132,7 @@ namespace backyardbrains {
                 notchFilter[i]->initWithSamplingRate(sampleRate);
                 notchFilter[i]->setCenterFrequency(centerFrequency);
                 notchFilter[i]->setQ(1.0);
+                channelFilterEnabled[i] = true;
             }
         }
 
@@ -137,6 +145,7 @@ namespace backyardbrains {
             delete[] lowPassFilter;
             delete[] highPassFilter;
             delete[] notchFilter;
+            delete[] channelFilterEnabled;
         }
     }
 }

@@ -456,6 +456,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   processingUtil.initializeSerial(board, drawSurfaceWidth);
                   context.read<ChannelColorProvider>().setSerialChannelCount(
                       int.parse(board.maxNumberOfChannels!));
+                  context.read<ChannelFilterProvider>().setSerialChannelCount(
+                      int.parse(board.maxNumberOfChannels!));
                   // createDisplaySerialDataIsolate();
                   // createProcessSerialDataIsolate();
                   Future.delayed(Duration(seconds: 2), (){
@@ -709,6 +711,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                         //     isSampleDataOn;
                                       }),
                                       _channelColorSettings(),
+                                      _channelFilterSettings(),
                                       // DropdownButtonFormField<int>(
                                       //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
                                       //   style: SoftwareTextStyle().kWtMediumTextStyle,
@@ -1561,6 +1564,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       double drawSurfaceWidth = MediaQuery.of(context).size.width;
       await processingUtil.initializeMicrophone(channelCount, _sampleRate, drawSurfaceWidth);
       context.read<ChannelColorProvider>().setAudioChannelCount(channelCount);
+      context.read<ChannelFilterProvider>().setAudioChannelCount(channelCount);
 
       // Set band filter
       await processingUtil.setBandFilter(-1, -1);
@@ -1725,6 +1729,39 @@ class _GraphTemplateState extends State<GraphTemplate> {
     );
   }
 
+  Widget _buildChannelFilterCheckboxes(
+      ChannelFilterProvider provider, bool isAudio) {
+    final filters = isAudio ? provider.audioFilters : provider.serialFilters;
+    String title = isAudio ? 'Audio Filters' : 'Serial Filters';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: SoftwareTextStyle().kWtMediumTextStyle),
+        ...List.generate(filters.length, (idx) {
+          return Row(
+            children: [
+              Text('Ch ${idx + 1}',
+                  style: SoftwareTextStyle().kWtMediumTextStyle),
+              const SizedBox(width: 8),
+              Checkbox(
+                value: filters[idx],
+                onChanged: (val) async {
+                  if (val == null) return;
+                  if (isAudio) {
+                    provider.setAudioFilter(idx, val);
+                  } else {
+                    provider.setSerialFilter(idx, val);
+                  }
+                  await processingUtil.setChannelFilterEnabled(idx, val);
+                },
+              ),
+            ],
+          );
+        })
+      ],
+    );
+  }
+
   Widget _channelColorSettings() {
     return Consumer2<ChannelColorProvider, DataStatusProvider>(
         builder: (context, prov, dataStatus, _) {
@@ -1733,6 +1770,20 @@ class _GraphTemplateState extends State<GraphTemplate> {
         return _buildChannelColorDropdowns(prov, true);
       } else if (!isAudioListen && prov.serialColors.isNotEmpty) {
         return _buildChannelColorDropdowns(prov, false);
+      } else {
+        return const SizedBox.shrink();
+      }
+    });
+  }
+
+  Widget _channelFilterSettings() {
+    return Consumer2<ChannelFilterProvider, DataStatusProvider>(
+        builder: (context, prov, dataStatus, _) {
+      bool isAudioListen = dataStatus.isMicrophoneData;
+      if (isAudioListen && prov.audioFilters.isNotEmpty) {
+        return _buildChannelFilterCheckboxes(prov, true);
+      } else if (!isAudioListen && prov.serialFilters.isNotEmpty) {
+        return _buildChannelFilterCheckboxes(prov, false);
       } else {
         return const SizedBox.shrink();
       }

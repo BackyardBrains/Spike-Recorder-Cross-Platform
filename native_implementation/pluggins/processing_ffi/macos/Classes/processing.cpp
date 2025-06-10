@@ -1291,6 +1291,30 @@ int32_t processing_set_notch_filter(float center_freq) {
     }
 }
 
+int32_t processing_set_channel_filter_enabled(int32_t channel, bool enabled) {
+    if (!initialized) {
+        return -1;
+    }
+
+    try {
+        if (amModulationProcessor) {
+            amModulationProcessor->setChannelFilterEnabled(channel, enabled);
+        }
+        if (sampleStreamProcessor) {
+            sampleStreamProcessor->setChannelFilterEnabled(channel, enabled);
+        }
+        if (thresholdProcessor) {
+            thresholdProcessor->setChannelFilterEnabled(channel, enabled);
+        }
+        if (fftProcessor) {
+            fftProcessor->setChannelFilterEnabled(channel, enabled);
+        }
+        return 0;
+    } catch (...) {
+        return -3;
+    }
+}
+
 int32_t processing_map(float* out_data, const float* in_data, int32_t length,
                       float in_min, float in_max, float out_min, float out_max) {
     if (!initialized || !out_data || !in_data || length <= 0) {

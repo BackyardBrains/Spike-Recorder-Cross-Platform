@@ -40,6 +40,8 @@ namespace backyardbrains {
 
             void setNotchFilter(float centerFreq);
 
+            void setChannelFilterEnabled(int channel, bool enabled);
+
         protected:
             float getSampleRate();
 
@@ -101,6 +103,9 @@ namespace backyardbrains {
             bool notchFilteringEnabled = false;
             // Notch filters for all channels
             NotchFilterPtr *notchFilter;
+
+            // Per-channel filter enabled flags
+            bool *channelFilterEnabled = nullptr;
         };
     }
 }

@@ -9,3 +9,4 @@ export 'serial_provider.dart';
 export 'port_scan_provider.dart';
 export 'sample_rate_provider.dart';
 export 'channel_color_provider.dart';
+export 'channel_filter_provider.dart';

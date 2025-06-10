@@ -238,6 +238,15 @@ class ProcessingUtilImpl implements ProcessingUtil
     return pb.processingBindings.setNotchFilter(centerFreq);
   }
 
+  @override
+  Future<int> setChannelFilterEnabled(int channel, bool enabled) async {
+    if (!_isInitialized) {
+      await init();
+    }
+    return pb.processingBindings
+        .setChannelFilterEnabled(channel, enabled ? 1 : 0);
+  }
+
   
 	@override
 	int prepareForSignalDrawingProcess(outSamples,

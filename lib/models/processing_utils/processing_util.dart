@@ -53,6 +53,8 @@ abstract class ProcessingUtil {
   // Set notch filter
   Future<int> setNotchFilter(double centerFreq);
 
+  Future<int> setChannelFilterEnabled(int channel, bool enabled);
+
   Map<String,dynamic> getInformation();
   void initializeSerial(Board board, double drawSurfaceWidth);
   Future<int> processSerialData(Uint8List samples, int displayTimeMs, int deviceType, int drawSurfaceWidth, GraphDataProvider provider);

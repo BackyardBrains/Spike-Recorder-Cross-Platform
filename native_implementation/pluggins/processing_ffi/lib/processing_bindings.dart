@@ -33,6 +33,8 @@ typedef ProcessingSetBandFilter = int Function(
 
 typedef ProcessingSetNotchFilterNative = Int32 Function(Float centerFreq);
 typedef ProcessingSetNotchFilter = int Function(double centerFreq);
+typedef ProcessingSetChannelFilterEnabledNative = Int32 Function(Int32 channel, Int32 enabled);
+typedef ProcessingSetChannelFilterEnabled = int Function(int channel, int enabled);
 typedef ProcessingProcessMicrophoneStreamNative = Int32 Function(
     Pointer<Pointer<Int16>> outSamples, 
     Pointer<Int32> outSampleCounts,
@@ -188,6 +190,7 @@ class ProcessingBindings {
   late final ProcessingSetSelectedChannel setSelectedChannel;
   late final ProcessingSetBandFilter setBandFilter;
   late final ProcessingSetNotchFilter setNotchFilter;
+  late final ProcessingSetChannelFilterEnabled setChannelFilterEnabled;
   late final ProcessingProcessMicrophoneStream processMicrophoneStream;
   late final ProcessingProcessSampleStream processSampleStream;
   late final ProcessingFilterData filterData;
@@ -249,6 +252,8 @@ class ProcessingBindings {
     setBandFilter = _lib!.lookupFunction<ProcessingSetBandFilterNative, ProcessingSetBandFilter>('processing_set_band_filter');
 
     setNotchFilter = _lib!.lookupFunction<ProcessingSetNotchFilterNative,ProcessingSetNotchFilter>('processing_set_notch_filter');
+
+    setChannelFilterEnabled = _lib!.lookupFunction<ProcessingSetChannelFilterEnabledNative, ProcessingSetChannelFilterEnabled>('processing_set_channel_filter_enabled');
 
     processMicrophoneStream = _lib!.lookupFunction<ProcessingProcessMicrophoneStreamNative,ProcessingProcessMicrophoneStream>('processing_process_microphone_stream');
     processSampleStream = _lib!.lookupFunction<ProcessingProcessSampleStreamNative,ProcessingProcessSampleStream>('processing_process_sample_stream');

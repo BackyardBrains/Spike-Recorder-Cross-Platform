@@ -201,6 +201,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
   List<double> gainChannel = [];
   List<double> topChartY = [];
   List<double> midChartY = [];
+  List<bool> showWaveform = [];
   double widthChart = 800;
   double heightChart = 600;
 
@@ -220,17 +221,19 @@ class _DraggableGraphState extends State<DraggableGraph> {
   void initializeGraph(){
     print("initializeGraph");
     widthChart = MediaQuery.of(context).size.width;
-    heightChart = MediaQuery.of(context).size.height / channelCount;
     channelCount = ProcessingUtil.drawingBuffers.length;
+    heightChart = MediaQuery.of(context).size.height / (channelCount == 0 ? 1 : channelCount);
     topChartY.clear();
     midChartY.clear();
     gainChannel.clear();
+    showWaveform.clear();
     for (int i = 0; i < channelCount; i++) {
       double top = (heightChart * i);
       topChartY.add( top );
       midChartY.add( (top + heightChart / 2 - 18) );
       gainChannel.add( 0.25 );
       topDroplet = midChartY.last;
+      showWaveform.add(true);
     }
     // double topChartY = heightChart * idx;
 
@@ -261,21 +264,26 @@ class _DraggableGraphState extends State<DraggableGraph> {
     charts.add(
       Positioned(
         top: midChartY[idx],
-        // top: topDroplet,
-        // left: leftDroplet,
         child: GestureDetector(
+          onTap: () {
+            setState(() {
+              showWaveform[idx] = !showWaveform[idx];
+            });
+          },
           onVerticalDragUpdate: (details) {
             midChartY[idx] = details.globalPosition.dy;
             topChartY[idx] = midChartY[idx] + 18 - heightChart / 2;
-            // topDroplet = details.globalPosition.dy;
-            // topDroplet = topDroplet -30;
           },
-          // child: Text("$topDroplet", style: TextStyle(color: Colors.white),),
           child: Container(
-            // color: Colors.red,
             child: Transform.rotate(
-                      angle: 90 * pi / 180,
-                    child:Icon(Icons.water_drop, color: Colors.green, size:36)
+              angle: 90 * pi / 180,
+              child: Icon(
+                showWaveform[idx]
+                    ? Icons.water_drop
+                    : Icons.water_drop_outlined,
+                color: showWaveform[idx] ? Colors.green : Colors.grey,
+                size: 36,
+              ),
             ),
           ),
 
@@ -330,11 +338,21 @@ class _DraggableGraphState extends State<DraggableGraph> {
     //   return Consumer<GraphGainProvider>(
     //       builder: (context, graphGainProvider, _) {
             List<Widget> charts = [];
-            if (!isLoading) {
-              if (ProcessingUtil.drawingBuffers.isNotEmpty && channelCount != ProcessingUtil.drawingBuffers.length) {
-                channelCount = ProcessingUtil.drawingBuffers.length;
-                initializeGraph();
-              }
+              if (!isLoading) {
+                if (ProcessingUtil.drawingBuffers.isNotEmpty && channelCount != ProcessingUtil.drawingBuffers.length) {
+                  channelCount = ProcessingUtil.drawingBuffers.length;
+                  initializeGraph();
+                }
+
+                // Ensure waveform visibility list matches the current channel count
+                if (showWaveform.length != ProcessingUtil.drawingBuffers.length) {
+                  if (showWaveform.length < ProcessingUtil.drawingBuffers.length) {
+                    showWaveform.addAll(
+                        List<bool>.filled(ProcessingUtil.drawingBuffers.length - showWaveform.length, true));
+                  } else {
+                    showWaveform = showWaveform.sublist(0, ProcessingUtil.drawingBuffers.length);
+                  }
+                }
 
               // if (GraphTemplate.isPlayerPaused) {
               //   return Container();
@@ -380,35 +398,34 @@ class _DraggableGraphState extends State<DraggableGraph> {
                 }
 
                 // print("buffer $outSampleCount vs ${buffer.length} $channelCount");
-                charts.add(
-                  Positioned(
-                    top: topChartY[idx].toDouble(),
-                    left:0,
-                    child: Container(
-                      // color:Colors.yellow,
-                      width:MediaQuery.of(context).size.width,
-                      height:MediaQuery.of(context).size.height,
-                      child: WavForm.PolygonWaveform(
-                        showActiveWaveform: true,
-                        inactiveColor: SoftwareColors.kGraphColor,
-                        activeColor: Colors.transparent,
-                        maxDuration: const Duration(days: 1),
-                        elapsedDuration: const Duration(hours: 0),
-                        samples: buffer.toList(),
-                        height: heightChart,
-                        width: widthChart,
-                        channelIdx: idx,
-                        channelActive: 1,
-                        // channelTop: top,
-                        gain: gainChannel[idx],
-                        levelMedian: heightChart / 2,
-                        strokeWidth: 1,
-                        eventMarkersNumber: 1,
-                      // eventMarkersPosition: eventMarkersPosition,
+                if (showWaveform[idx]) {
+                  charts.add(
+                    Positioned(
+                      top: topChartY[idx].toDouble(),
+                      left: 0,
+                      child: Container(
+                        width: MediaQuery.of(context).size.width,
+                        height: MediaQuery.of(context).size.height,
+                        child: WavForm.PolygonWaveform(
+                          showActiveWaveform: true,
+                          inactiveColor: SoftwareColors.kGraphColor,
+                          activeColor: Colors.transparent,
+                          maxDuration: const Duration(days: 1),
+                          elapsedDuration: const Duration(hours: 0),
+                          samples: buffer.toList(),
+                          height: heightChart,
+                          width: widthChart,
+                          channelIdx: idx,
+                          channelActive: 1,
+                          gain: gainChannel[idx],
+                          levelMedian: heightChart / 2,
+                          strokeWidth: 1,
+                          eventMarkersNumber: 1,
+                        ),
                       ),
                     ),
-                  )
-                );
+                  );
+                }
               }
               charts.add(
                 Positioned(

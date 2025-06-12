@@ -211,3 +211,11 @@ function displaySerialDataWeb(displayTimeMs, deviceType, deviceWidth, startPosit
     "drawSurfaceWidth": window.innerWidth,
   });
 }
+
+function setChannelFilterEnabled(channel, enabled) {
+  mWorker.postMessage({
+    "message": "SET_CHANNEL_FILTER_ENABLED",
+    "channelIndex": channel,
+    "enabled": enabled,
+  });
+}

@@ -1,7 +1,6 @@
 //
 // Created by  Tihomir Leka <tihomir at backyardbrains.com>
 //
-
 #include "Processor.h"
 
 namespace backyardbrains {
@@ -12,6 +11,10 @@ namespace backyardbrains {
             Processor::sampleRate = sampleRate;
             Processor::channelCount = channelCount;
             Processor::bitsPerSample = bitsPerSample;
+            channelFilterEnabled = new bool[channelCount];
+            for (int i = 0; i < channelCount; i++) {
+                channelFilterEnabled[i] = true;
+            }
 
             createFilters(0, channelCount);
 
@@ -38,8 +41,14 @@ namespace backyardbrains {
         void Processor::setChannelCount(int channelCount) {
             if (initialized) deleteFilters(Processor::channelCount);
             Processor::channelCount = channelCount;
+            delete[] channelFilterEnabled;
+            channelFilterEnabled = new bool[channelCount];
 
+            for (int i = 0; i < channelCount; i++) {
+                channelFilterEnabled[i] = true;
+            }
             createFilters(Processor::sampleRate, channelCount);
+
         }
 
         int Processor::getBitsPerSample() {
@@ -71,6 +80,10 @@ namespace backyardbrains {
         }
 
         void Processor::applyFilters(int channel, short *data, int sampleCount) {
+            if (!channelFilterEnabled[channel]) {
+                return;
+            }  
+
             if (lowPassFilteringEnabled) lowPassFilter[channel]->filter(data, sampleCount);
             if (highPassFilteringEnabled) highPassFilter[channel]->filter(data, sampleCount);
             if (notchFilteringEnabled) {
@@ -99,11 +112,17 @@ namespace backyardbrains {
             createFilters(Processor::sampleRate, channelCount);
         }
 
+        void Processor::setChannelFilterEnabled(int channel, bool enabled) {
+            if (channel < 0 || channel >= channelCount) return;
+            channelFilterEnabled[channel] = enabled;
+        }
+
         void Processor::createFilters(float sampleRate, int channelCount) {
             lowPassFilter = new LowPassFilterPtr[channelCount];
             highPassFilter = new HighPassFilterPtr[channelCount];
             notchFilter = new NotchFilterPtr[channelCount];
-            
+            // channelFilterEnabled = new bool[channelCount];
+
             for (int i = 0; i < channelCount; i++) {
                 // low pass filters
                 lowPassFilter[i] = new LowPassFilter();
@@ -122,6 +141,7 @@ namespace backyardbrains {
                 notchFilter[i]->initWithSamplingRate(sampleRate);
                 notchFilter[i]->setCenterFrequency(centerFrequency);
                 notchFilter[i]->setQ(1.0);
+                // channelFilterEnabled[i] = true;
             }
         }
 

@@ -137,6 +137,15 @@ class ProcessingUtilImpl implements ProcessingUtil {
     // print("onDrawingBufferAllocated ENDED : ${ProcessingUtil.drawingBuffers[0]}");
 
   }
+  @override
+  Future<int> setChannelFilterEnabled(int channel, bool enabled) async {
+    if (!_isInitialized) {
+      await init();
+    }
+    js.context.callMethod("setChannelFilterEnabled", [channel, enabled ? 1 : 0]);
+    return 1;
+    // return setChannelFilterEnabled(channel, enabled ? 1 : 0);
+  }
 
 	Future<void> dispose() async 
 	{

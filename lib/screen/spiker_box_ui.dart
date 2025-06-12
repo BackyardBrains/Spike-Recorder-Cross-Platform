@@ -253,7 +253,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
             : SoftwareColors.kGraphColor);
     charts.add(
       Positioned(
-        top: midChartY[idx].toDouble() + 35,
+        top: midChartY[idx].toDouble() - 15,
         left: leftDroplet,        
         child: GestureDetector(
           onTap: () {
@@ -316,7 +316,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
     );
     charts.add(
       Positioned(
-        top:midChartY[idx].toDouble() - 15,
+        top:midChartY[idx].toDouble() + 35,
         left: leftDroplet,
         child: GestureDetector(
           onTap: () {

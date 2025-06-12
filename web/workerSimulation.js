@@ -314,6 +314,13 @@ self.onmessage = async function (eventFromMain) {
         
 
         break;
+        case "SET_CHANNEL_FILTER_ENABLED":
+            const channelIndex = eventFromMain.data.channelIndex;
+            const enabled = eventFromMain.data.enabled == 1 ? true : false;
+            console.log("_processing_set_channel_filter_enabled WEB ", channelIndex, enabled);
+            Module._processing_set_channel_filter_enabled(channelIndex, enabled);
+
+        break;
 
         case "SET_BAND_FILTER":
             const lowFreq = eventFromMain.data.lowFreq;

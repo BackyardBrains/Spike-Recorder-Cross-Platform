@@ -415,13 +415,15 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_init() {
 
         // Initialize processors
         initialize_processors();
-        
+
         // Initialize the circular buffer
         if (circularBuffer == nullptr) {
             circularBuffer = new CircularBuffer(current_sample_rate, current_channel_count);
         }
         
         initialized = true;
+        processing_set_channel_count(1);
+        processing_set_channel_filter_enabled(0, true);
         return 0;
     } catch (...) {
         return -1;
@@ -1450,6 +1452,30 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_notch_filter(float center_freq
         return 0;  // Success
     } catch (...) {
         return -3;  // Processing error
+    }
+}
+
+EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_channel_filter_enabled(int32_t channel, bool enabled) {
+    if (!initialized) {
+        return -1;
+    }
+
+    try {
+        if (amModulationProcessor) {
+            amModulationProcessor->setChannelFilterEnabled(channel, enabled);
+        }
+        if (sampleStreamProcessor) {
+            sampleStreamProcessor->setChannelFilterEnabled(channel, enabled);
+        }
+        if (thresholdProcessor) {
+            thresholdProcessor->setChannelFilterEnabled(channel, enabled);
+        }
+        if (fftProcessor) {
+            fftProcessor->setChannelFilterEnabled(channel, enabled);
+        }
+        return 0;
+    } catch (...) {
+        return -3;
     }
 }
 

@@ -7,11 +7,14 @@ let dataBufferChannelWise = [];
 // Should be same as the length of packet sent from Dart
 const packetSize = 2000;
 
+const MAX_EVENT_MARKERS = 2000;
 const MAX_DISPLAY_SECONDS = 10;
 let packetLen = MAX_DISPLAY_SECONDS;
 let ptrDataArrayChannel1;
 var currentDataBuffers = [];
 var currentDataBuffersPtr;
+var eventLabels;
+var eventPositions;
 
 var channelCount = 1;
 var _displayTimeMs = 10000;
@@ -37,6 +40,10 @@ let drawingCountBuffer;
 let drawingCountBufferList;
 let drawingCountPtrList;
 
+
+let outEventPositionPtr;
+let outEventPositionPtrStart;
+let outEventPositionBuffer;
 
 let serialDataPtr;
 let serialDataPtrStart;
@@ -152,6 +159,11 @@ self.onmessage = async function (eventFromMain) {
             drawingCountBuffer = Module.HEAP16.subarray(drawingCountPtrStart, (drawingCountPtrStart + channelCount));
             drawingCountPtrList.push(drawingCountPtr);
             drawingCountBufferList = (drawingCountBuffer);
+
+
+            outEventPositionPtr = Module._malloc(MAX_EVENT_MARKERS * Module.HEAPF64.BYTES_PER_ELEMENT);
+            outEventPositionPtrStart = outEventPositionPtr / Module.HEAPF64.BYTES_PER_ELEMENT;
+            outEventPositionBuffer = Module.HEAPF64.subarray(outEventPositionPtrStart, (outEventPositionPtrStart + MAX_EVENT_MARKERS));
             for (i = 0; i < channelCount; i++) {
                 drawingCountBuffer[i] = drawSurfaceWidth * 5;
             }
@@ -161,6 +173,7 @@ self.onmessage = async function (eventFromMain) {
                 "drawingDataBufferList": drawingDataBufferList,
                 "drawingCountBufferList": drawingCountBufferList,
                 "channelCount": channelCount,
+                "eventPositions": outEventPositionBuffer,
             });
             // END DRAWING COUNTER SETUP            
 
@@ -178,6 +191,8 @@ self.onmessage = async function (eventFromMain) {
             drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
             startPositionIdx = eventFromMain.data.startPositionIdx;
             endPositionIdx = eventFromMain.data.endPositionIdx;
+            eventLabels = JSON.parse(eventFromMain.data.eventLabels);
+            eventPositions = JSON.parse(eventFromMain.data.eventPositions);
 
             
             outSignalPtr = Module._malloc(drawSurfaceWidth * 5 * totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
@@ -192,22 +207,24 @@ self.onmessage = async function (eventFromMain) {
             outSampleCountsDrawingPtrStart = outSampleCountsDrawingPtr / Module.HEAP32.BYTES_PER_ELEMENT;
             outSampleCountsDrawingBuffer = Module.HEAP32.subarray(outSampleCountsDrawingPtrStart, (outSampleCountsDrawingPtrStart + totalChannel));
 
-            totalEvents = 100;
-            outEventIndicesPtr = Module._malloc( totalEvents * Module.HEAPF64.BYTES_PER_ELEMENT);
-            outEventIndicesPtrStart = outEventIndicesPtr / Module.HEAPF64.BYTES_PER_ELEMENT;
-            outEventIndicesBuffer = Module.HEAPF64.subarray(outEventIndicesPtrStart, (outEventIndicesPtrStart + totalEvents));
+            totalEvents = eventLabels.length;
+            outEventIndicesPtr = Module._malloc( totalEvents * Module.HEAP32.BYTES_PER_ELEMENT);
+            outEventIndicesPtrStart = outEventIndicesPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            outEventIndicesBuffer = Module.HEAP32.subarray(outEventIndicesPtrStart, (outEventIndicesPtrStart + totalEvents));
 
             totalEventCounts = 1;
             outEventCountPtr = Module._malloc( totalEvents * Module.HEAP32.BYTES_PER_ELEMENT);
             outEventCountPtrStart = outEventCountPtr / Module.HEAP32.BYTES_PER_ELEMENT;
             outEventCountBuffer = Module.HEAP32.subarray(outEventCountPtrStart, (outEventCountPtrStart + totalEventCounts));
 
-            inTotalEvents = 0;
+            inTotalEvents = eventLabels.length;
             inEventIndicesPtr = Module._malloc( inTotalEvents * Module.HEAP32.BYTES_PER_ELEMENT);
             inEventIndicesPtrStart = inEventIndicesPtr / Module.HEAP32.BYTES_PER_ELEMENT;
             inEventIndicesBuffer = Module.HEAP32.subarray(inEventIndicesPtrStart, (inEventIndicesPtrStart + inTotalEvents));
             displayTimeMs = _displayTimeMs;
-
+            // console.log("eventLabels: ", eventLabels.length, eventPositions);
+            inEventIndicesBuffer.set(eventPositions);
+            // console.log("eventLabels: ", inEventIndicesBuffer, eventPositions);
 
             // console.log("drawing");
             outSampleCountsDrawingBuffer[0] = drawSurfaceWidth * 5;
@@ -220,7 +237,7 @@ self.onmessage = async function (eventFromMain) {
                     outEventIndicesPtr,      // Pointer<Float>
                     outEventCountPtr,        // Pointer<Int32>
                     inEventIndicesPtr,       // Pointer<Int32>
-                    0,                       // int (inEventCount)
+                    inTotalEvents,                       // int (inEventCount)
 
                     // 0,                       // int (fromSample)
                     // Math.floor(displayTimeMs * 0.001 * sampleRate),  // int (toSample)
@@ -231,6 +248,14 @@ self.onmessage = async function (eventFromMain) {
 
                 // console.log("resultDrawing: ", channelCount, resultDrawing, outSamplesBuffer);
                 if (resultDrawing == 0) {
+                    if (inTotalEvents > 0) {
+                        outEventPositionBuffer.set(outEventIndicesBuffer.subarray(0, inTotalEvents));
+                        // outEventPositionBuffer.fill(200.0, 0);
+                        let len = outEventCountBuffer[0];
+                        if (len > 0) {
+                            console.log("outEventIndicesBuffer", outEventIndicesBuffer.subarray(0, len), inEventIndicesBuffer.subarray(0, len));
+                        }
+                    }
                     try{
                         // console.log("Channel Count: " , channelCount);
                         for (let i = 0; i < channelCount; i++) {
@@ -308,7 +333,7 @@ self.onmessage = async function (eventFromMain) {
             Module._free(inSamplesPtr);
             Module._free(inDataPtr);
             Module._free(outSampleCountsPtr);
-            if (micResult != 0) {
+            if (micResult >= 0) {
             }
             // console.log("micResult: ", micResult);
         
@@ -424,6 +449,12 @@ self.onmessage = async function (eventFromMain) {
             drawingCountBuffer = Module.HEAP16.subarray(drawingCountPtrStart, (drawingCountPtrStart + channelCount));
             drawingCountPtrList.push(drawingCountPtr);
             drawingCountBufferList = (drawingCountBuffer);
+
+
+            drawingCountPtr = Module._malloc(channelCount * Module.HEAP16.BYTES_PER_ELEMENT);
+            drawingCountPtrStart = drawingCountPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            drawingCountBuffer = Module.HEAP16.subarray(drawingCountPtrStart, (drawingCountPtrStart + channelCount));
+
             for (let i = 0; i < channelCount; i++) {
                 drawingCountBuffer[i] = drawSurfaceWidth * 5;
             }
@@ -433,6 +464,7 @@ self.onmessage = async function (eventFromMain) {
                 "drawingDataBufferList": drawingDataBufferList,
                 "drawingCountBufferList": drawingCountBufferList,
                 "channelCount": channelCount,
+                "eventPositionList": eventPositionList,
             });
             // END DRAWING COUNTER SETUP            
 

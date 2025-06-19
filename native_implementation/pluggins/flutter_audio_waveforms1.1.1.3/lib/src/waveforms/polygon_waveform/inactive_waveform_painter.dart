@@ -22,7 +22,7 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
     this.gain = 100,
     this.levelMedian = -1,
     this.strokeWidth = 0.5,
-    this.eventMarkersNumber = 1,
+    this.eventMarkersNumber = const [],
     this.eventMarkersPosition = const [],
   }) : super(
           samples: samples,
@@ -63,7 +63,7 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
   final double gain;
   final double levelMedian;
   final double strokeWidth;
-  final int eventMarkersNumber;
+  final List<int> eventMarkersNumber;
   final List<double> eventMarkersPosition;
 
   double prevMax = 0;
@@ -117,7 +117,7 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
       final shiftedPath = path.shift(Offset(0, levelMedian));
       canvas.drawPath(shiftedPath, mypaint);
       if (eventMarkersPosition.isNotEmpty && channelIdx == channelActive) {
-        var n = eventMarkersPosition.length;
+        var n = eventMarkersNumber.length;
         double prevX = -1;
         double counterStacked = 10;
         double evY = 0;
@@ -126,8 +126,11 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
         }
 
         // try{
+        // print(
+        //     "eventMarkersPosition : $eventMarkersNumber, $eventMarkersPosition");
+        // print("eventMarkersNumber[0]: ${MARKER_PAINT[eventMarkersNumber[0]]}");
         for (i = 0; i < n; i++) {
-          if (eventMarkersPosition[i] == 0) {
+          if (eventMarkersPosition[i] <= 0) {
             continue;
           }
           final evX = eventMarkersPosition[i];
@@ -137,10 +140,14 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
           canvas.drawLine(
             offset1,
             offset2,
-            MARKER_PAINT[eventMarkersNumber],
+            MARKER_PAINT[eventMarkersNumber[i]],
           );
-          final TextPainter tp = textPainters[eventMarkersNumber];
-          counterStacked = i > 0 && evX - 20 <= prevX ? 30 : 100;
+          final TextPainter tp = textPainters[eventMarkersNumber[i]];
+          if (i > 0 && evX - 20 <= prevX) {
+            counterStacked += 30;
+          } else {
+            counterStacked = 100;
+          }
           prevX = evX;
           tp.paint(canvas, Offset(evX - 3, counterStacked));
         }

@@ -41,7 +41,7 @@ class PolygonWaveform extends AudioWaveform {
     this.gain = 1000,
     this.levelMedian = -1,
     this.strokeWidth = 1,
-    this.eventMarkersNumber = 1,
+    this.eventMarkersNumber = const [],
     this.eventMarkersPosition = const [],
   }) : super(
           key: key,
@@ -76,7 +76,7 @@ class PolygonWaveform extends AudioWaveform {
   final double levelMedian;
   final double strokeWidth;
 
-  final int eventMarkersNumber;
+  final List<int> eventMarkersNumber;
   final List<double> eventMarkersPosition;
 
   @override

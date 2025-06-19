@@ -28,8 +28,11 @@ function initializeModule() {
       let drawingCountBufferList = event.data.drawingCountBufferList;
       let drawingDataBufferList = event.data.drawingDataBufferList;
       let channelCount = event.data.channelCount;
+      let eventPositions = event.data.eventPositions;
+
       console.log("drawingDataBufferList: ", drawingDataBufferList);
       window.onDrawingBufferAllocated(drawingDataBufferList, drawingCountBufferList, channelCount);
+      window.onEventPositionAllocated(eventPositions);
     } else
     if (event.data.message === "SERIAL_DATA_TRANSFER") {
       
@@ -43,6 +46,7 @@ function initializeModule() {
     } else
     if (event.data.message === "INPUT_MICROPHONE_BUFFER_FINISHED") { 
       window.onPostDisplay(event.data.bufferViews, event.data.bufferCountViews);
+      window.onEventPositionCalculated();
     } else
     if (event.data.message === "SET_EXPANSION_BOARD_TYPE") { 
       console.log("event.data.expansionBoardType: ", event.data.expansionBoardType);
@@ -131,7 +135,7 @@ function initializeMicrophoneWeb(channelCount, sampleRate, drawSurfaceWidth) {
   });
 }
 
-function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, displayTimeMs, startPositionIdx, endPositionIdx) {
+function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, displayTimeMs, startPositionIdx, endPositionIdx, eventLabels, eventPositions) {
   mWorker.postMessage({
     "message": "DISPLAY_MICROPHONE_DATA",
     "channelCount": channelCount,
@@ -139,6 +143,9 @@ function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, display
     "drawSurfaceWidth": drawSurfaceWidth,
     "startPositionIdx": startPositionIdx,
     "endPositionIdx": endPositionIdx,
+    "eventLabels": eventLabels,
+    "eventPositions": eventPositions,
+
   });
 }
 

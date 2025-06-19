@@ -1,6 +1,12 @@
 //
 // Created by Tihomir Leka <tihomir at backyardbrains.com>
 //
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/bind.h>
+    using namespace emscripten;
+    #include <emscripten.h>
+    #include <wasm_simd128.h>
+#endif
 
 #include <DrawingUtils.h>
 
@@ -163,6 +169,10 @@ namespace backyardbrains {
                             if (eventCounter > 0) {
                                 for (int k = 0; k < eventCounter; k++) {
                                     outEventIndices[eventIndex++] = sampleIndex;
+                                    EM_ASM({
+                                        console.log( $0 );
+                                    }, sampleIndex);        
+
                                 }
                             }
                             outSamples[i][sampleIndex++] = max;

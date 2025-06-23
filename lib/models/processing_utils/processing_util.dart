@@ -17,6 +17,8 @@ abstract class ProcessingUtil {
   static const double MAX_DISPLAY_SECONDS = 10.0;
   static const int MAX_EVENT_MARKERS = 2000;
   static int currentEventMarkers = 0;
+  static int fromSample = 0;
+  static int toSample = 0;
 
   // Data buffer to store processed audio data (channels × samples)
   // var currentDataBuffer;
@@ -24,7 +26,7 @@ abstract class ProcessingUtil {
   static List<Int16List> drawingBuffers = [];
   static List<int> drawingBufferCounts = [];
   // Pointer<Pointer<Int16>>? currentDataBuffer;
-  static ValueNotifier<int> eventMarkerNotifier = ValueNotifier(0);
+  static ValueNotifier<List<int>> eventMarkerNotifier = ValueNotifier([0,0]);
   static List<int> eventLabels = [];
   static List<int> eventPosition = [];
 

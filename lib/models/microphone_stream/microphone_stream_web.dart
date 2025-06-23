@@ -34,6 +34,7 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
         Map<dynamic, dynamic> trackSettings = audioTrack.getSettings();
         sampleRate = trackSettings["sampleRate"];
       }
+      print("sampleRate: $sampleRate");
       // micStream = ValueNotifier(Uint8List(0));
     } catch(err) {
       print("err mic");
@@ -52,10 +53,10 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
   void onDataBufferAllocated(Int16List dataBuffer, int channelIdx, pSampleRate) {
     print("ON DATA BUFFER ALLOCATED MICROPHONE UTILS");
     _micDataBuffer = dataBuffer;
-    if (pSampleRate != null) {
-      sampleRate = pSampleRate.toDouble();
-    }
-    print("_micDataBuffer allocated ${_micDataBuffer?.length} ");
+    // if (pSampleRate != null) {
+    //   sampleRate = pSampleRate.toDouble();
+    // }
+    print("_micDataBuffer allocated ${_micDataBuffer?.length} $sampleRate");
   }
 
   void onDataReceived() {

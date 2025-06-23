@@ -169,9 +169,6 @@ namespace backyardbrains {
                             if (eventCounter > 0) {
                                 for (int k = 0; k < eventCounter; k++) {
                                     outEventIndices[eventIndex++] = sampleIndex;
-                                    EM_ASM({
-                                        console.log( $0 );
-                                    }, sampleIndex);        
 
                                 }
                             }

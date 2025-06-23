@@ -29,13 +29,18 @@ function initializeModule() {
       let drawingDataBufferList = event.data.drawingDataBufferList;
       let channelCount = event.data.channelCount;
       let eventPositions = event.data.eventPositions;
+      let inEventPositionPointerBuffer = event.data.inEventPositionPointerBuffer;
 
       console.log("drawingDataBufferList: ", drawingDataBufferList);
       window.onDrawingBufferAllocated(drawingDataBufferList, drawingCountBufferList, channelCount);
-      window.onEventPositionAllocated(eventPositions);
+      window.onEventPositionAllocated(eventPositions, inEventPositionPointerBuffer);
     } else
     if (event.data.message === "SERIAL_DATA_TRANSFER") {
-      
+      let frameCount = event.data.frameCount;
+      window.onSerialParsedCallback(frameCount);
+    } else
+    if (event.data.message === "EVENT_FOUND") {
+      window.onEventFound(event.data.sampleIndex, event.data.eventLabel);
     } else
     if (event.data.message === "onWebApplyFilter") {
       window.onProcessingDone(event.data.channelIdx);
@@ -56,6 +61,7 @@ function initializeModule() {
       // console.log("INPUT_SERIAL_BUFFER_FINISHED: ", event.data.bufferViews, event.data.bufferCountViews);
       // window.onProcessingDone(event.data.channelIdx, event.data.bufferViews);
       window.onProcessingDone(event.data.bufferViews, event.data.bufferCountViews);
+      window.onEventPositionCalculated();
     }
 
     
@@ -151,7 +157,7 @@ function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, display
 
 function processMicrophoneDataWeb(microphoneDataBuffers, channelIdx, samplesLength) {
   // console.log("processMicrophoneDataWeb", microphoneDataBuffers);
-  // console.log(window.innerWidth);
+  // console.log("window.innerWidth: ", window.innerWidth);
   mWorker.postMessage({
     "message": "INPUT_MICROPHONE_BUFFER",
     "microphoneDataBuffers": microphoneDataBuffers,
@@ -205,7 +211,7 @@ function processSerialDataWeb(samples, displayTimeMs, deviceType){
     "drawSurfaceWidth": window.innerWidth,
   });
 }
-function displaySerialDataWeb(displayTimeMs, deviceType, deviceWidth, startPositionIdx, endPositionIdx){
+function displaySerialDataWeb(displayTimeMs, deviceType, deviceWidth, startPositionIdx, endPositionIdx, eventLabels, eventPositions){
   // console.log("samples: ", samples);
   mWorker.postMessage({
     "message": "DISPLAY_SERIAL_DATA_WEB",
@@ -216,6 +222,9 @@ function displaySerialDataWeb(displayTimeMs, deviceType, deviceWidth, startPosit
     "endPositionIdx": endPositionIdx,
     // "deviceType": 5,
     "drawSurfaceWidth": window.innerWidth,
+    "eventLabels": eventLabels,
+    "eventPositions": eventPositions,
+
   });
 }
 
@@ -224,5 +233,17 @@ function setChannelFilterEnabled(channel, enabled) {
     "message": "SET_CHANNEL_FILTER_ENABLED",
     "channelIndex": channel,
     "enabled": enabled,
+  });
+}
+
+function onKeyPressEventMarker(label, position, markerIndex, fromSample, toSample, bufferSize) {
+  mWorker.postMessage({
+    "message": "ON_KEY_PRESS_EVENT_MARKER",
+    "label": label,
+    "position": position,
+    "markerIndex": markerIndex,
+    "fromSample": fromSample,
+    "toSample": toSample,
+    "bufferSize": bufferSize,
   });
 }

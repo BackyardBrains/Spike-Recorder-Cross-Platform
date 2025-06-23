@@ -121,9 +121,9 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
         double prevX = -1;
         double counterStacked = 10;
         double evY = 0;
-        if (channelIdx == 2) {
-          evY = -50;
-        }
+        // if (channelIdx == 2) {
+        //   evY = -50;
+        // }
 
         // try{
         // print(
@@ -134,6 +134,7 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
             continue;
           }
           final evX = eventMarkersPosition[i];
+          // print(evX);
           final offset1 = Offset(evX, evY);
           final offset2 = Offset(evX, 2900);
 

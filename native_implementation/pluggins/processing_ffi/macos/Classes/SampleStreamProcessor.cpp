@@ -254,6 +254,7 @@ namespace backyardbrains {
                 eventIndices[eventCounter] = sampleIndex;
                 eventLabels[eventCounter++] = backyardbrains::utils::SampleStreamUtils::getEventNumber(
                         message);
+                // listener->onEventFound(sampleIndex, eventLabels[eventCounter]);
             } else if (backyardbrains::utils::SampleStreamUtils::isExpansionBoardTypeMsg(message)) {
                 const int expansionBoardType = backyardbrains::utils::SampleStreamUtils::getExpansionBoardType(
                         message);

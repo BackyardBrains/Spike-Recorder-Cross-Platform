@@ -1,6 +1,12 @@
 //
 // Created by Tihomir Leka <tihomir at backyardbrains.com>
 //
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/bind.h>
+    using namespace emscripten;
+    #include <emscripten.h>
+    #include <wasm_simd128.h>
+#endif
 
 #include "DrawingUtils.h"
 
@@ -9,14 +15,20 @@ namespace backyardbrains {
     namespace utils {
 
         void DrawingUtils::prepareSignalForDrawing(float **outSamples, int *outSampleCounts, float *outEventIndices,
-                                                   int outEventCount, short **inSamples, int channelCount,
+                                                   int* outEventCount, short **inSamples, int channelCount,
                                                    const int *inEventIndices, int inEventCount, int fromSample,
                                                    int toSample, int drawSurfaceWidth) {
             auto **envelopedSamples = new short *[channelCount];
             for (int i = 0; i < channelCount; i++) {
                 envelopedSamples[i] = new short[drawSurfaceWidth * 5];
             }
-            envelope(envelopedSamples, outSampleCounts, outEventIndices, outEventCount, inSamples, channelCount,
+            // EM_ASM({
+            //     // outEventIndices[eventIndex++]:  45760 1.4001774255533572e-41 1655 1285  -  0 50000 XSTEP:  1439
+            //     // outEventIndices[eventIndex++]:  -11272118 NaN 0 0  -  0 480000 XSTEP:  1.0015649795532227
+            //     console.log( "000outEventIndices[eventIndex++]: ", $0, $1, $2, $3, " - ", $4, $5, "XSTEP: " );
+            // }, inEventIndices[0], outEventIndices[0], outEventCount[0], inEventCount, fromSample, toSample);
+
+            envelope(envelopedSamples, outSampleCounts, outEventIndices, outEventCount[0], inSamples, channelCount,
                      inEventIndices, inEventCount, fromSample, toSample, drawSurfaceWidth);
 
             float xStep = (float) drawSurfaceWidth / (outSampleCounts[0] - 1);
@@ -35,6 +47,13 @@ namespace backyardbrains {
             for (int i = 0; i < channelCount; i++) {
                 delete[] envelopedSamples[i];
             }
+            // EM_ASM({
+            //     // outEventIndices[eventIndex++]:  45760 1.4001774255533572e-41 1655 1285  -  0 50000 XSTEP:  1439
+            //     // outEventIndices[eventIndex++]:  -11272118 NaN 0 0  -  0 480000 XSTEP:  1.0015649795532227
+            //     console.log( "outEventIndices[eventIndex++]: ", $0, $1, $2, $3, " - ", $4, $5, "XSTEP: ", $6 );
+            // }, inEventIndices[0], outEventIndices[0], outEventCount[0], inEventCount, fromSample, toSample, xStep);
+
+
             delete[] envelopedSamples;
         }
 
@@ -140,6 +159,10 @@ namespace backyardbrains {
                     if (!eventsProcessed) {
                         for (int k = 0; k < inEventIndicesCount; k++) {
                             if (j == inEventIndices[k]) {
+                                // EM_ASM({
+                                //     console.log( "outEventIndices[eventIndex++]: ", $0, $1, $2, $3, " - ", $4, $5, "XSTEP: ", $6 );
+                                // }, inEventIndices[0], outEventIndices[0], "outEventCount[0]", "inEventCount", fromSample, toSample, "xStep");
+
                                 eventCounter++;
                             } else {
                                 if (j < inEventIndices[k]) break;

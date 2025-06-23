@@ -173,7 +173,7 @@ abstract class AudioWaveformState<T extends AudioWaveform> extends State<T> {
   /// This is later used in the Painters to calculate the Offset along x-axis
   /// from the start for any sample while painting.
   void _calculateSampleWidth() {
-    _sampleWidth = widget.width / (_processedSamples.length);
+    _sampleWidth = widget.width / (_processedSamples.length - 1);
   }
 
   /// Updates the [_activeIndex] whenever the duration changes.

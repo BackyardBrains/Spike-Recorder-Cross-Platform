@@ -15,15 +15,23 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   @override
   var currentDataBuffer;
-  List<int> inEventIndicesPtr = [];
-  List<int> inEventLabelsPtr = [];
+  Int32List inEventPositionPtr = Int32List(0);
+  Int32List inEventIndicesPtr = Int32List(0);
+  Int32List inEventLabelsPtr = Int32List(0);
   Float64List _eventPositionList = Float64List(0);
 
   int _sampleRate = 44100;
+  bool isAllocated = false;
 
   @override
   Future<bool> init() async {
     _isInitialized = true;
+    js.context['onEventPositionAllocated'] = onEventPositionAllocated;
+    js.context['onEventPositionCalculated'] = onEventPositionCalculated;
+    js.context['onEventFound'] = onEventFound;
+    js.context['onSerialParsedCallback'] = onSerialParsedCallback;
+    js.context['onDrawingBufferAllocated'] = onDrawingBufferAllocated;
+
     return true;
   }
 
@@ -31,22 +39,25 @@ class ProcessingUtilImpl implements ProcessingUtil {
   Future<bool> initializeMicrophone(
       int channelCount, int sampleRate, double drawSurfaceWidth) async {
     _sampleRate = sampleRate;
-    js.context['onDrawingBufferAllocated'] = onDrawingBufferAllocated;
-    // print("initializeMicrophoneWeb: $channelCount, $sampleRate,");
-    js.context.callMethod("initializeMicrophoneWeb",
-        [channelCount, sampleRate, drawSurfaceWidth]);
-    js.context['onEventPositionAllocated'] = onEventPositionAllocated;
-    js.context['onEventPositionCalculated'] = onEventPositionCalculated;
     if (!_isInitialized) {
       await init();
     }
+    ProcessingUtil.currentEventMarkers = 0;
+    ProcessingUtil.eventLabels.clear();
+    ProcessingUtil.eventPosition.clear();
+    isAllocated = false;
 
-    inEventIndicesPtr = [];
-    inEventLabelsPtr = [];
+    // print("initializeMicrophoneWeb: $channelCount, $sampleRate,");
+    js.context.callMethod("initializeMicrophoneWeb",
+        [channelCount, sampleRate, drawSurfaceWidth]);
+
+    // inEventIndicesPtr = [];
+    // inEventLabelsPtr = [];
 
     ProcessingUtil.currentEventMarkers = 0;
     initEventMarkers(_sampleRate);
-    print("add LIstener marker");
+    print("add LIstener marker $_sampleRate");
+    ProcessingUtil.eventMarkerNotifier.removeListener(eventMarkerListener);
     ProcessingUtil.eventMarkerNotifier.addListener(eventMarkerListener);
 
     // for (int i = 0; i < channelCount; i++) {
@@ -60,6 +71,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   @override
   List<Int16List> processMicrophoneData(Uint8List data) {
     // start setup markers
+    if (!isAllocated) return [Int16List(0)];
 
     int frameCount = (data.length / 2).floor();
     int removedIndicesCount = 0;
@@ -67,6 +79,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       if (inEventIndicesPtr[i] - frameCount > 0) {
         inEventIndicesPtr[i] -= frameCount;
         ProcessingUtil.eventPosition[i] = inEventIndicesPtr[i];
+        // print("ProcessingUtil.eventPosition[i] :  ${ProcessingUtil.eventPosition[i]} ${DateTime.now()}");
       } else {
         if (inEventIndicesPtr[i] != -1) {
           removedIndicesCount++;
@@ -75,23 +88,30 @@ class ProcessingUtilImpl implements ProcessingUtil {
         }
       }
     }
+    // print("inEventIndicesPtr: ${inEventIndicesPtr.sublist(0,2)}");
     for (int i = 0; i < removedIndicesCount; i++) {
       if (inEventIndicesPtr[i] == -1) {
         // print(
-        //     "INDEX: $i -- $removedIndicesCount __ ${inEventIndicesPtr[i]} : ${ProcessingUtil.eventLabels} @@ ${inEventIndicesPtr.asTypedList(ProcessingUtil.currentEventMarkers)}");
+        //     "INDEX: $i -- $removedIndicesCount __ ${inEventIndicesPtr[i]} : ${ProcessingUtil.eventLabels} @@ ${inEventIndicesPtr.sublist(0, ProcessingUtil.currentEventMarkers)}");
         if (ProcessingUtil.eventLabels.isNotEmpty) {
           ProcessingUtil.eventLabels.removeAt(0);
           ProcessingUtil.eventPosition.removeAt(0);
         }
       }
     }
-    int tempCurrentEvent = ProcessingUtil.currentEventMarkers;
-    ProcessingUtil.currentEventMarkers -= removedIndicesCount;
     if (inEventIndicesPtr.isNotEmpty && inEventIndicesPtr[0] == -1) {
+      print("REMOVING BUFFER: ${inEventPositionPtr}");
+      int tempCurrentEvent = ProcessingUtil.currentEventMarkers;
+      ProcessingUtil.currentEventMarkers -= removedIndicesCount;
+
       int eventPositionLen = ProcessingUtil.eventLabels.length;
-      for (int i = eventPositionLen; i >= 0; i--) {
+      int i = 0;
+      for (i = 0; i < eventPositionLen; i++) {
         inEventIndicesPtr[i] = ProcessingUtil.eventPosition[i];
+        inEventPositionPtr[i] = inEventPositionPtr[i + 1];
       }
+      inEventPositionPtr[i] = inEventPositionPtr[i + 1];
+      // print("inEventPositionPtr: $inEventPositionPtr");
       for (int i = eventPositionLen; i < tempCurrentEvent; i++) {
         // print("ZEROING: $eventPositionLen - $tempCurrentEvent");
         inEventIndicesPtr[i] =
@@ -104,6 +124,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
       0,
       data.length,
     ]);
+    // DraggableGraph.eventMarkersPosition.clear();
+    // DraggableGraph.eventMarkersPosition.addAll(_eventPositionList.toList());
+    
     // Return empty list as mock data
     return [Int16List(0)];
   }
@@ -121,6 +144,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       int drawSurfaceWidth) {
     // Simple mock implementation for web
     // Just return success code
+
     return 0;
   }
 
@@ -164,37 +188,57 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   void initEventMarkers(int sampleRate) {
-    if (inEventIndicesPtr.isNotEmpty) {
-      inEventIndicesPtr.clear();
-      inEventLabelsPtr.clear();
-      inEventIndicesPtr =
-          List<int>.generate(ProcessingUtil.MAX_EVENT_MARKERS, (_) => 0);
-      inEventLabelsPtr =
-          List<int>.generate(ProcessingUtil.MAX_EVENT_MARKERS, (_) => 0);
+    if (inEventIndicesPtr.length > 0) {
+      // print("AFter Zero");
+      // inEventIndicesPtr.clear();
+      // inEventLabelsPtr.clear();
+      // inEventIndicesPtr =
+      //     List<int>.generate(ProcessingUtil.MAX_EVENT_MARKERS, (_) => sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor());
+      // inEventLabelsPtr =
+      //     List<int>.generate(ProcessingUtil.MAX_EVENT_MARKERS, (_) => 0);
+      inEventPositionPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
+      inEventIndicesPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
+      inEventLabelsPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
+      inEventIndicesPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor());
       ProcessingUtil.eventPosition = [];
-      for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
-        inEventIndicesPtr[i] = sampleRate * 10;
-      }
+      // for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
+      //   inEventIndicesPtr[i] = sampleRate * 10;
+      // }
     } else {
-      for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
-        inEventIndicesPtr[i] = sampleRate * 10;
-      }
+      // print("in Zero");
+      inEventPositionPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
+      inEventIndicesPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
+      inEventLabelsPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
+
+      inEventIndicesPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor());
+
+      // for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
+      //   inEventIndicesPtr[i] = sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor();
+      // }
     }
   }
 
   void eventMarkerListener() {
-    if (ProcessingUtil.eventMarkerNotifier.value == -1) return;
+    List<int> list = ProcessingUtil.eventMarkerNotifier.value;
+    if (list[0] == -1) return;
+
+
+    try{
+      inEventLabelsPtr[ProcessingUtil.currentEventMarkers] = list[0];
+      if (list[1] != -1) {
+        inEventIndicesPtr[ProcessingUtil.currentEventMarkers] = list[1];
+      }
+      ProcessingUtil.eventLabels.add(list[0]);
+      js.context.callMethod("onKeyPressEventMarker", [list[0], list[1], ProcessingUtil.currentEventMarkers, ProcessingUtil.fromSample, ProcessingUtil.toSample, _sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS]);
+
+    }catch(err) {
+      print("err marker listener");
+      print(err);
+    }
     ProcessingUtil.currentEventMarkers =
         (ProcessingUtil.currentEventMarkers + 1) %
             ProcessingUtil.MAX_EVENT_MARKERS;
-    print("ADD LISTENER--- ${ProcessingUtil.eventMarkerNotifier.value}");
 
-    if (ProcessingUtil.currentEventMarkers > ProcessingUtil.MAX_EVENT_MARKERS) {
-      ProcessingUtil.currentEventMarkers = 0;
-    }
-    inEventLabelsPtr[ProcessingUtil.currentEventMarkers] =
-        ProcessingUtil.eventMarkerNotifier.value;
-    ProcessingUtil.eventLabels.add(ProcessingUtil.eventMarkerNotifier.value);
   }
 
   int MAX_DISPLAY_SECONDS = 10000;
@@ -205,6 +249,16 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   @override
   void initializeSerial(Board board, double drawSurfaceWidth) {
+    isAllocated = false;
+    _sampleRate = int.parse(board.maxSampleRate!);
+    ProcessingUtil.currentEventMarkers = 0;
+    ProcessingUtil.eventLabels.clear();
+    ProcessingUtil.eventPosition.clear();
+    initEventMarkers(_sampleRate);
+    inEventPositionPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS, 0);
+    ProcessingUtil.eventMarkerNotifier.removeListener(eventMarkerListener);
+    ProcessingUtil.eventMarkerNotifier.addListener(eventMarkerListener);
+    
     js.context.callMethod("initializeSerialWeb",
         [board.maxSampleRate, board.maxNumberOfChannels, drawSurfaceWidth]);
   }
@@ -231,7 +285,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
       deviceType,
       deviceWidth,
       startPositionIdx,
-      endPositionIdx
+      endPositionIdx,
+      json.encode(ProcessingUtil.eventLabels),
+      json.encode(ProcessingUtil.eventPosition)
     ]);
     return Future.value(Uint8List(0));
   }
@@ -245,16 +301,77 @@ class ProcessingUtilImpl implements ProcessingUtil {
     return Future.value(Uint8List(0));
   }
 
-  void onEventPositionAllocated(Float64List eventPositionList) {
+  void onEventPositionAllocated(Float64List eventPositionList, Int32List inEventPositionPointerBuffer) {
     _eventPositionList = eventPositionList;
+    inEventPositionPtr = inEventPositionPointerBuffer;
+    inEventIndicesPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), _sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor());
+
+    // print("DEFAULT VALUE: $_sampleRate  =====  ${_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor()}");
+    isAllocated = true;
     // _eventPositionList.fillRange(0, 3, -123.456);
-    print("onEventPositionAllocated: $_eventPositionList");
+    // print("onEventPositionAllocated: $_eventPositionList ${inEventIndicesPtr.length}");
+  }
+
+  void onEventFound(sampleIndex, eventLabel) {
+    ProcessingUtil.eventMarkerNotifier.value = eventLabel;
+    // ProcessingUtil.eventMarkerNotifier.value = [-1, -1];
+    
+  }
+  void onSerialParsedCallback( int frameCount ) {
+    // print("onSerialParsedCallback: $frameCount");
+    int removedIndicesCount = 0;
+    for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {
+      if (inEventIndicesPtr[i] - frameCount > 0) {
+        inEventIndicesPtr[i] -= frameCount;
+        ProcessingUtil.eventPosition[i] = inEventIndicesPtr[i];
+        // print("ProcessingUtil.eventPosition[i] :  ${ProcessingUtil.eventPosition[i]} ${DateTime.now()}");
+      } else {
+        if (inEventIndicesPtr[i] != -1) {
+          removedIndicesCount++;
+          inEventIndicesPtr[i] = -1;
+          // DraggableGraph.eventMarkersPosition.removeAt(i);
+        }
+      }
+    }
+    // print("inEventIndicesPtr: ${inEventIndicesPtr.sublist(0,2)}");
+    for (int i = 0; i < removedIndicesCount; i++) {
+      if (inEventIndicesPtr[i] == -1) {
+        // print(
+        //     "INDEX: $i -- $removedIndicesCount __ ${inEventIndicesPtr[i]} : ${ProcessingUtil.eventLabels} @@ ${inEventIndicesPtr.sublist(0, ProcessingUtil.currentEventMarkers)}");
+        if (ProcessingUtil.eventLabels.isNotEmpty) {
+          ProcessingUtil.eventLabels.removeAt(0);
+          ProcessingUtil.eventPosition.removeAt(0);
+        }
+      }
+    }
+    if (inEventIndicesPtr.isNotEmpty && inEventIndicesPtr[0] == -1) {
+      int tempCurrentEvent = ProcessingUtil.currentEventMarkers;
+      ProcessingUtil.currentEventMarkers -= removedIndicesCount;
+      int eventPositionLen = ProcessingUtil.eventLabels.length;
+      int i = 0;
+      for (i = 0; i < eventPositionLen; i++) {
+        inEventIndicesPtr[i] = ProcessingUtil.eventPosition[i];
+        inEventPositionPtr[i] = inEventPositionPtr[i + 1];
+      }
+      inEventPositionPtr[i] = inEventPositionPtr[i + 1];
+      
+      // print("inEventPositionPtr: $inEventPositionPtr");
+      for (int i = eventPositionLen; i < tempCurrentEvent; i++) {
+        // print("ZEROING: $eventPositionLen - $tempCurrentEvent");
+        inEventIndicesPtr[i] =
+            (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+      }
+    }
+    
   }
 
   void onEventPositionCalculated() {
-    // print("onEventPositionCalculated: $_eventPositionList");
+    // print("DateTime: ${DateTime.now()} ${_eventPositionList.sublist(0, ProcessingUtil.eventLabels.length)}");
     DraggableGraph.eventMarkersPosition.clear();
-    DraggableGraph.eventMarkersPosition.addAll(_eventPositionList.toList());
+    // print("ProcessingUtil.eventLabels.length: ${ProcessingUtil.eventLabels.length} && ${_eventPositionList.length}");
+    if (ProcessingUtil.eventLabels.isNotEmpty) {
+      DraggableGraph.eventMarkersPosition.addAll(_eventPositionList.sublist(0, ProcessingUtil.eventLabels.length));
+    }
   }
 
   void onDrawingBufferAllocated(List<Int16List> dataBufferList,

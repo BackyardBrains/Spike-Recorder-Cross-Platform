@@ -17,7 +17,7 @@ namespace backyardbrains {
         public:
             static void
             prepareSignalForDrawing(float **outSamples, int *outSampleCounts, float *outEventIndices,
-                                    int outEventCount,
+                                    int* outEventCount,
                                     short **inSamples, int channelCount, const int *inEventIndices, int inEventCount,
                                     int fromSample, int toSample, int drawSurfaceWidth);
 

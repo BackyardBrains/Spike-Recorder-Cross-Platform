@@ -724,7 +724,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   void eventMarkerListener() {
-    if (ProcessingUtil.eventMarkerNotifier.value == -1) return;
+    List<int> list = ProcessingUtil.eventMarkerNotifier.value;
+    if (list[0] == -1) return;
     ProcessingUtil.currentEventMarkers =
         (ProcessingUtil.currentEventMarkers + 1) %
             ProcessingUtil.MAX_EVENT_MARKERS;
@@ -734,8 +735,12 @@ class ProcessingUtilImpl implements ProcessingUtil {
       ProcessingUtil.currentEventMarkers = 0;
     }
     inEventLabelsPtr![ProcessingUtil.currentEventMarkers] =
-        ProcessingUtil.eventMarkerNotifier.value;
-    ProcessingUtil.eventLabels.add(ProcessingUtil.eventMarkerNotifier.value);
+        list[0];
+    if (list[1] != -1) {
+      inEventIndicesPtr![ProcessingUtil.currentEventMarkers] = list[1];
+    }
+
+    ProcessingUtil.eventLabels.add(list[0]);
   }
 }
 

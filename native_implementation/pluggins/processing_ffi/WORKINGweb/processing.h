@@ -88,6 +88,9 @@ PROCESSING_API int32_t processing_process_playback_stream(int16_t* out_samples, 
                                          int32_t event_count, int64_t start, int64_t end,
                                          int32_t prepend_samples);
 
+
+PROCESSING_API int32_t processing_get_most_right(int chan, int from_sample, int to_sample, int bufferSize);
+
 // Signal analysis
 // PROCESSING_API float processing_rms(const int16_t* data, int32_t length);
 PROCESSING_API int32_t processing_map(float* out_data, const float* in_data, int32_t length,

@@ -383,18 +383,18 @@ class _DraggableGraphState extends State<DraggableGraph> {
 
   void _handleKeyEvent(KeyEvent event) {
     if (event is KeyDownEvent) {
-      debouncerKeyboard.run(() {
+      // debouncerKeyboard.run(() {
         final String? character = event.character;
 
         // Check if the character is a digit (0-9)
         if (character != null && _isNumeric(character)) {
           print("CHARACTER : $character");
-          ProcessingUtil.eventMarkerNotifier.value = int.parse(character);
-          ProcessingUtil.eventMarkerNotifier.value = -1;
+          ProcessingUtil.eventMarkerNotifier.value = [int.parse(character), -1];
+          // ProcessingUtil.eventMarkerNotifier.value = [-1, -1];
         } else if (event.logicalKey == LogicalKeyboardKey.backspace) {
           // Handle backspace key: remove the last character from the text field.
         }
-      });
+      // });
     }
   }
 
@@ -502,11 +502,11 @@ class _DraggableGraphState extends State<DraggableGraph> {
                   levelMedian: heightChart / 2,
                   strokeWidth: 1,
                   eventMarkersNumber:
-                      List<int>.from(ProcessingUtil.eventLabels),
+                      (ProcessingUtil.eventLabels),
                   eventMarkersPosition: DraggableGraph
                           .eventMarkersPosition.isEmpty
                       ? []
-                      : List<double>.from(DraggableGraph.eventMarkersPosition),
+                      : (DraggableGraph.eventMarkersPosition),
                   // eventMarkersNumber: List.generate(100, (idx) => (idx + 1) % 7),
                   // eventMarkersPosition: List.generate(100, (idx) => idx * 4),
                 ),

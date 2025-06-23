@@ -178,6 +178,21 @@ typedef ProcessingPrepareForSignalDrawing = int Function(
 typedef ProcessingCleanupNative = Void Function();
 typedef ProcessingCleanup = void Function();
 
+
+typedef ProcessingGetMostRightNative = Int32 Function(
+  Int32 chan,
+  Int32 fromSample,
+  Int32 toSample,
+  Int32 bufferSize,
+);
+typedef ProcessingGetMostRight = int Function(
+  int chan,
+  int fromSample,
+  int toSample,
+  int bufferSize
+);
+
+
 class ProcessingBindings {
   static DynamicLibrary? _lib;
   static ProcessingBindings? _instance;
@@ -213,6 +228,7 @@ class ProcessingBindings {
   late final ProcessingCleanup cleanup;
   
   late final ProcessingGetInformation getInformation;
+  late final ProcessingGetMostRight getMostRight;
 
   ProcessingBindings(DynamicLibrary dynamicLibrary) {
     // _lib ??= _loadLibrary();
@@ -295,6 +311,7 @@ class ProcessingBindings {
     getInformation = _lib!.lookupFunction<ProcessingGetInformationNative, ProcessingGetInformation>('processing_get_information');
 
     cleanup = _lib!.lookupFunction<ProcessingCleanupNative, ProcessingCleanup>('processing_cleanup');
+    getMostRight = _lib!.lookupFunction<ProcessingGetMostRightNative, ProcessingGetMostRight>('processing_get_most_right');
 
 
 

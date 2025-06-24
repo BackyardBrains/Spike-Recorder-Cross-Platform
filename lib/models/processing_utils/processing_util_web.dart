@@ -56,7 +56,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
     ProcessingUtil.currentEventMarkers = 0;
     initEventMarkers(_sampleRate);
-    print("add LIstener marker $_sampleRate");
+    // print("add LIstener marker $_sampleRate");
     ProcessingUtil.eventMarkerNotifier.removeListener(eventMarkerListener);
     ProcessingUtil.eventMarkerNotifier.addListener(eventMarkerListener);
 
@@ -196,11 +196,17 @@ class ProcessingUtilImpl implements ProcessingUtil {
       //     List<int>.generate(ProcessingUtil.MAX_EVENT_MARKERS, (_) => sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor());
       // inEventLabelsPtr =
       //     List<int>.generate(ProcessingUtil.MAX_EVENT_MARKERS, (_) => 0);
+      int maxSamples = sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor();
       inEventPositionPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
+      inEventPositionPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), maxSamples);
+
       inEventIndicesPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
+      inEventIndicesPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), maxSamples);
+
       inEventLabelsPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
-      inEventIndicesPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor());
-      ProcessingUtil.eventPosition = [];
+      ProcessingUtil.eventPosition.clear();
+
+      // ProcessingUtil.eventPosition = [];
       // for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
       //   inEventIndicesPtr[i] = sampleRate * 10;
       // }
@@ -229,7 +235,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
         inEventIndicesPtr[ProcessingUtil.currentEventMarkers] = list[1];
       }
       ProcessingUtil.eventLabels.add(list[0]);
-      js.context.callMethod("onKeyPressEventMarker", [list[0], list[1], ProcessingUtil.currentEventMarkers, ProcessingUtil.fromSample, ProcessingUtil.toSample, _sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS]);
+      // js.context.callMethod("onKeyPressEventMarker", [list[0], list[1], ProcessingUtil.currentEventMarkers, ProcessingUtil.fromSample, ProcessingUtil.toSample, _sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS]);
 
     }catch(err) {
       print("err marker listener");
@@ -301,9 +307,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
     return Future.value(Uint8List(0));
   }
 
-  void onEventPositionAllocated(Float64List eventPositionList, Int32List inEventPositionPointerBuffer) {
+  void onEventPositionAllocated(Float64List eventPositionList) {
     _eventPositionList = eventPositionList;
-    inEventPositionPtr = inEventPositionPointerBuffer;
+    // inEventPositionPtr = inEventPositionPointerBuffer;
     inEventIndicesPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), _sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor());
 
     // print("DEFAULT VALUE: $_sampleRate  =====  ${_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor()}");
@@ -318,7 +324,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     
   }
   void onSerialParsedCallback( int frameCount ) {
-    // print("onSerialParsedCallback: $frameCount");
+    // print("onSerialParsedCallback: ${inEventIndicesPtr[0]} - $frameCount");
     int removedIndicesCount = 0;
     for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {
       if (inEventIndicesPtr[i] - frameCount > 0) {
@@ -333,7 +339,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
         }
       }
     }
-    // print("inEventIndicesPtr: ${inEventIndicesPtr.sublist(0,2)}");
+    // print("inEventIndicesPtr: ${inEventIndicesPtr.sublist(0,5)}");
     for (int i = 0; i < removedIndicesCount; i++) {
       if (inEventIndicesPtr[i] == -1) {
         // print(
@@ -376,11 +382,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   void onDrawingBufferAllocated(List<Int16List> dataBufferList,
       Int16List countBufferList, final channelCount) {
-    print("onDrawingBufferAllocated");
-    print(dataBufferList[0].runtimeType);
-    print(Int16List.fromList(dataBufferList[0]).length);
-    print(countBufferList.length);
-    print(countBufferList);
+    // print("onDrawingBufferAllocated");
+    // print(dataBufferList[0].runtimeType);
+    // print(Int16List.fromList(dataBufferList[0]).length);
+    // print(countBufferList.length);
+    // print(countBufferList);
     ProcessingUtil.drawingBuffers.clear();
     for (int i = 0; i < channelCount; i++) {
       ProcessingUtil.drawingBuffers.add(dataBufferList[i]);

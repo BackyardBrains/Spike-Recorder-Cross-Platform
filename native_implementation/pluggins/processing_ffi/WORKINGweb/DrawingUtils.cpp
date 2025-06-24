@@ -1,13 +1,13 @@
 //
 // Created by Tihomir Leka <tihomir at backyardbrains.com>
 //
+
 #ifdef __EMSCRIPTEN__
     #include <emscripten/bind.h>
     using namespace emscripten;
     #include <emscripten.h>
     #include <wasm_simd128.h>
 #endif
-
 #include "DrawingUtils.h"
 
 namespace backyardbrains {
@@ -22,16 +22,19 @@ namespace backyardbrains {
             for (int i = 0; i < channelCount; i++) {
                 envelopedSamples[i] = new short[drawSurfaceWidth * 5];
             }
-            // EM_ASM({
-            //     // outEventIndices[eventIndex++]:  45760 1.4001774255533572e-41 1655 1285  -  0 50000 XSTEP:  1439
-            //     // outEventIndices[eventIndex++]:  -11272118 NaN 0 0  -  0 480000 XSTEP:  1.0015649795532227
-            //     console.log( "000outEventIndices[eventIndex++]: ", $0, $1, $2, $3, " - ", $4, $5, "XSTEP: " );
-            // }, inEventIndices[0], outEventIndices[0], outEventCount[0], inEventCount, fromSample, toSample);
 
+            // EM_ASM({
+            //     console.log( "BEFORE: ", $0, $1 );
+            // }, inEventIndices[0], inEventCount);        
             envelope(envelopedSamples, outSampleCounts, outEventIndices, outEventCount[0], inSamples, channelCount,
                      inEventIndices, inEventCount, fromSample, toSample, drawSurfaceWidth);
 
             float xStep = (float) drawSurfaceWidth / (outSampleCounts[0] - 1);
+            if (inEventCount > 0 ) {
+                EM_ASM({
+                    console.log( "AFTER : ", $0, $1, $2, $3 );
+                }, outEventIndices[0], outEventCount[0], xStep, outEventIndices[0] * xStep);
+            }
             int sampleIndex = 0;
             for (int i = 0; i < inEventCount; i++)
                 outEventIndices[i] *= xStep;
@@ -47,13 +50,6 @@ namespace backyardbrains {
             for (int i = 0; i < channelCount; i++) {
                 delete[] envelopedSamples[i];
             }
-            // EM_ASM({
-            //     // outEventIndices[eventIndex++]:  45760 1.4001774255533572e-41 1655 1285  -  0 50000 XSTEP:  1439
-            //     // outEventIndices[eventIndex++]:  -11272118 NaN 0 0  -  0 480000 XSTEP:  1.0015649795532227
-            //     console.log( "outEventIndices[eventIndex++]: ", $0, $1, $2, $3, " - ", $4, $5, "XSTEP: ", $6 );
-            // }, inEventIndices[0], outEventIndices[0], outEventCount[0], inEventCount, fromSample, toSample, xStep);
-
-
             delete[] envelopedSamples;
         }
 
@@ -159,10 +155,6 @@ namespace backyardbrains {
                     if (!eventsProcessed) {
                         for (int k = 0; k < inEventIndicesCount; k++) {
                             if (j == inEventIndices[k]) {
-                                // EM_ASM({
-                                //     console.log( "outEventIndices[eventIndex++]: ", $0, $1, $2, $3, " - ", $4, $5, "XSTEP: ", $6 );
-                                // }, inEventIndices[0], outEventIndices[0], "outEventCount[0]", "inEventCount", fromSample, toSample, "xStep");
-
                                 eventCounter++;
                             } else {
                                 if (j < inEventIndices[k]) break;

@@ -503,6 +503,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     _channelCount = channelCount;
     sampleRate = int.parse(board.maxSampleRate!);
     packetLen = sampleRate * MAX_DISPLAY_SECONDS;
+    
     // print("Initialize Serial === $result $channelCount $sampleRate -- PACKET LEN : $packetLen");
     ProcessingUtil.drawingBuffers.clear();
     for (int i = 0; i < channelCount; i++) {

@@ -29,11 +29,10 @@ function initializeModule() {
       let drawingDataBufferList = event.data.drawingDataBufferList;
       let channelCount = event.data.channelCount;
       let eventPositions = event.data.eventPositions;
-      let inEventPositionPointerBuffer = event.data.inEventPositionPointerBuffer;
 
       console.log("drawingDataBufferList: ", drawingDataBufferList);
       window.onDrawingBufferAllocated(drawingDataBufferList, drawingCountBufferList, channelCount);
-      window.onEventPositionAllocated(eventPositions, inEventPositionPointerBuffer);
+      window.onEventPositionAllocated(eventPositions);
     } else
     if (event.data.message === "SERIAL_DATA_TRANSFER") {
       let frameCount = event.data.frameCount;
@@ -62,6 +61,7 @@ function initializeModule() {
       // window.onProcessingDone(event.data.channelIdx, event.data.bufferViews);
       window.onProcessingDone(event.data.bufferViews, event.data.bufferCountViews);
       window.onEventPositionCalculated();
+      
     }
 
     
@@ -157,7 +157,7 @@ function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, display
 
 function processMicrophoneDataWeb(microphoneDataBuffers, channelIdx, samplesLength) {
   // console.log("processMicrophoneDataWeb", microphoneDataBuffers);
-  // console.log("window.innerWidth: ", window.innerWidth);
+  // console.log(window.innerWidth);
   mWorker.postMessage({
     "message": "INPUT_MICROPHONE_BUFFER",
     "microphoneDataBuffers": microphoneDataBuffers,
@@ -212,7 +212,7 @@ function processSerialDataWeb(samples, displayTimeMs, deviceType){
   });
 }
 function displaySerialDataWeb(displayTimeMs, deviceType, deviceWidth, startPositionIdx, endPositionIdx, eventLabels, eventPositions){
-  // console.log("samples: ", samples);
+  // console.log("eventPositions: ", eventPositions);
   mWorker.postMessage({
     "message": "DISPLAY_SERIAL_DATA_WEB",
     "channelIdx": 0,
@@ -233,17 +233,5 @@ function setChannelFilterEnabled(channel, enabled) {
     "message": "SET_CHANNEL_FILTER_ENABLED",
     "channelIndex": channel,
     "enabled": enabled,
-  });
-}
-
-function onKeyPressEventMarker(label, position, markerIndex, fromSample, toSample, bufferSize) {
-  mWorker.postMessage({
-    "message": "ON_KEY_PRESS_EVENT_MARKER",
-    "label": label,
-    "position": position,
-    "markerIndex": markerIndex,
-    "fromSample": fromSample,
-    "toSample": toSample,
-    "bufferSize": bufferSize,
   });
 }

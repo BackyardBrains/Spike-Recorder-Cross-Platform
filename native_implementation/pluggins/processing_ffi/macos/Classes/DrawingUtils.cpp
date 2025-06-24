@@ -7,7 +7,6 @@
     #include <emscripten.h>
     #include <wasm_simd128.h>
 #endif
-
 #include <DrawingUtils.h>
 
 namespace backyardbrains {

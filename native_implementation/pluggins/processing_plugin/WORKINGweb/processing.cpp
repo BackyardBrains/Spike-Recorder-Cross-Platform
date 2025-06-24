@@ -62,9 +62,15 @@ using namespace backyardbrains::processing;
 using namespace backyardbrains::analysis;
 using namespace backyardbrains::utils;
 
+
+// Passed Pointers
+short* _ptrExpBoardType;
+
+
 // Constants
 static constexpr int32_t PROCESSING_MAX_EVENTS = 100;  // Same as MAX_EVENTS in SampleStreamProcessor
 static constexpr int32_t MAX_NUMBER_OF_SECONDS = 10;  // 10 seconds of buffer
+static constexpr int32_t BUFFER_MULTIPLIER = 2;
 
 // Internal state variables
 static bool initialized = false;
@@ -148,7 +154,7 @@ class CircularBuffer {
                 
                 this->sampleRate = sampleRate;
                 this->channelCount = channelCount;
-                this->bufferSize = sampleRate * MAX_NUMBER_OF_SECONDS;
+                this->bufferSize = sampleRate * MAX_NUMBER_OF_SECONDS * BUFFER_MULTIPLIER;
                 this->buffer = new int16_t*[channelCount];
                 this->headIndex = new int32_t[channelCount];
                 this->tailIndex = new int32_t[channelCount];
@@ -189,7 +195,6 @@ class CircularBuffer {
                                        
                                         // If head catches up to tail, move tail forward
                                         if (headIndex[chan] == tailIndex[chan]) {
-                                             
                                               tailIndex[chan] = (tailIndex[chan] + 1) % bufferSize;
                                         }
                                   } catch (const std::exception& e) {
@@ -306,6 +311,13 @@ public:
       //   backyardbrains::utils::JniHelper::invokeVoid(vm, sampleSourceObj, "setExpansionBoardType",
       //                                                "(I)V",
       //                                                expansionBoardType);
+        // _ptrExpBoardType[0] = static_cast<short>(expansionBoardType);
+        _ptrExpBoardType[0] = expansionBoardType;
+
+        EM_ASM({
+            setExpansionBoardType( $0 );
+            console.log( $0, $1 );
+        }, _ptrExpBoardType, expansionBoardType);        
     }
 
 private:
@@ -380,6 +392,7 @@ EXTERNC FUNCTION_ATTRIBUTE void cleanup_processors() {
 
 // Implementation of the public API
 EXTERNC FUNCTION_ATTRIBUTE int32_t processing_init() {
+
     if (initialized) {
         return 0;
     }
@@ -401,13 +414,15 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_init() {
 
         // Initialize processors
         initialize_processors();
-        
+
         // Initialize the circular buffer
         if (circularBuffer == nullptr) {
             circularBuffer = new CircularBuffer(current_sample_rate, current_channel_count);
         }
         
         initialized = true;
+        processing_set_channel_count(1);
+        processing_set_channel_filter_enabled(0, true);
         return 0;
     } catch (...) {
         return -1;
@@ -418,6 +433,9 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_init() {
   EMSCRIPTEN_KEEPALIVE
 #endif
 EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_sample_rate(int32_t sample_rate) {
+            EM_ASM({
+                console.log("---- sample_rate C++: ", $0);
+            }, sample_rate);        
     if (!initialized) {
         return -1;
     }
@@ -427,10 +445,13 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_sample_rate(int32_t sample_rat
     }
     
     try {
+            EM_ASM({
+                console.log("0 sample_rate C++: ", $0);
+            }, sample_rate);        
         current_sample_rate = sample_rate;
+        amModulationProcessor->setSampleRate(static_cast<float>(sample_rate));
         sampleStreamProcessor->setSampleRate(sample_rate);
         fftProcessor->setSampleRate(sample_rate);
-        
         // Re-setup the circular buffer when sample rate changes
         if (circularBuffer != nullptr) {
             circularBuffer->setup(current_sample_rate, current_channel_count);
@@ -456,6 +477,7 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_channel_count(int32_t channel_
     
     try {
         current_channel_count = channel_count;
+        amModulationProcessor->setChannelCount(channel_count);
         sampleStreamProcessor->setChannelCount(channel_count);
         fftProcessor->setChannelCount(channel_count);
         
@@ -952,7 +974,7 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
         int32_t channel_count = current_channel_count;
         
         // Calculate sample count
-        int32_t sample_count = to_sample - from_sample + 1;
+        int32_t sample_count = current_sample_rate * MAX_NUMBER_OF_SECONDS;
         int32_t sample_out_count= out_sample_counts[0];//experimentally found
         
         // Create temporary buffers
@@ -966,7 +988,8 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
   
         // Retrieve data from the circular buffer
         if (circularBuffer != nullptr) {
-            circularBuffer->getDataForDrawing(temp_samples, from_sample, to_sample);
+            // circularBuffer->getDataForDrawing(temp_samples, from_sample, to_sample);
+            circularBuffer->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
             //log_debug("Circular: from_sample=%d, to_sample=%d", from_sample, to_sample);
         } else {
             // Clean up and return error if no circular buffer is available
@@ -981,6 +1004,17 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
 
         // Call DrawingUtils to prepare the signal for drawing
         int outEventCount = 0;
+        int samplesCount = to_sample - from_sample;
+        int maxSamples = current_sample_rate * MAX_NUMBER_OF_SECONDS;
+        int startIndex = maxSamples - samplesCount;
+        int endIndex = maxSamples;
+        if (from_sample != 0) {
+            startIndex = from_sample;
+            endIndex = to_sample;
+        }
+        EM_ASM({
+            console.log( "BEFORE: ", $0, $1 );
+        }, in_event_indices[0], in_event_count);        
 
         backyardbrains::utils::DrawingUtils::prepareSignalForDrawing(
             float_samples,
@@ -991,10 +1025,13 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
             channel_count,
             const_cast<int*>(in_event_indices),
             in_event_count,
-            from_sample,
-            to_sample,
+            startIndex,
+            endIndex,
             draw_surface_width
         );
+        EM_ASM({
+            console.log( "AFTER: ", $0, $1 );
+        }, out_event_indices[0], "out_event_indices");        
         
         // Copy float data back to output samples
         for (int i = 0; i < channel_count; i++) {
@@ -1396,9 +1433,11 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_band_filter(float low_cut_off_
 }
 
 EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_notch_filter(float center_freq) {
+   
     if (!initialized) {
         return -1;  // Not initialized
     }
+
     
     try {
         // Store value in internal state
@@ -1406,6 +1445,9 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_notch_filter(float center_freq
         
         // Apply to all processors (same as in byb-lib.cpp)
         if (amModulationProcessor) {
+            // EM_ASM({
+            //     console.log("setNotchFilter: ", $0);
+            // }, center_freq);
             amModulationProcessor->setNotchFilter(center_freq);
         }
         
@@ -1424,6 +1466,30 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_notch_filter(float center_freq
         return 0;  // Success
     } catch (...) {
         return -3;  // Processing error
+    }
+}
+
+EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_channel_filter_enabled(int32_t channel, bool enabled) {
+    if (!initialized) {
+        return -1;
+    }
+
+    try {
+        if (amModulationProcessor) {
+            amModulationProcessor->setChannelFilterEnabled(channel, enabled);
+        }
+        if (sampleStreamProcessor) {
+            sampleStreamProcessor->setChannelFilterEnabled(channel, enabled);
+        }
+        if (thresholdProcessor) {
+            thresholdProcessor->setChannelFilterEnabled(channel, enabled);
+        }
+        if (fftProcessor) {
+            fftProcessor->setChannelFilterEnabled(channel, enabled);
+        }
+        return 0;
+    } catch (...) {
+        return -3;
     }
 }
 
@@ -1503,3 +1569,9 @@ int main() {
 // //     // register_vector<short>("LowPassList");
 // }
 // #endif
+
+
+EXTERNC FUNCTION_ATTRIBUTE short processing_pass_pointers(short* ptrExpBoardType) {
+    _ptrExpBoardType = ptrExpBoardType;
+    return 1;
+}

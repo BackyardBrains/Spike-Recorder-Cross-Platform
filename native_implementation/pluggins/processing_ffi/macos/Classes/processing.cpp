@@ -271,7 +271,17 @@ public:
     ~EventListener() = default;
 
 
+    void onEventFound(int sampleIndex, int eventLabel) {
 
+        // EM_ASM({
+        //     postMessage({
+        //         "message": "EVENT_FOUND",
+        //         "sampleIndex": sampleIndex,
+        //         "eventLabel": eventLabel,
+        //     });
+        //     console.log( $0, $1 );
+        // }, sampleIndex, eventLabel);        
+    }
     void onSpikerBoxHardwareTypeDetected(int hardwareType) override {
       //   backyardbrains::utils::JniHelper::invokeVoid(vm, sampleSourceObj, "setHardwareType", "(I)V",
       //                                                hardwareType);
@@ -821,7 +831,8 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
         int32_t channel_count = current_channel_count;
         
         // Calculate sample count
-        int32_t sample_count = to_sample - from_sample + 1;
+        // int32_t sample_count = to_sample - from_sample + 1;
+        int32_t sample_count = current_sample_rate * MAX_NUMBER_OF_SECONDS;
         int32_t sample_out_count= draw_surface_width * 5;//experimentally found
         
         // Create temporary buffers
@@ -836,7 +847,7 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
         // Retrieve data from the circular buffer
         if (circularBuffer != nullptr) {
             
-            circularBuffer->getDataForDrawing(temp_samples, from_sample, to_sample);
+            circularBuffer->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
             //log_debug("Circular: from_sample=%d, to_sample=%d", from_sample, to_sample);
         } else {
             // Clean up and return error if no circular buffer is available
@@ -851,6 +862,16 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
 
         // Call DrawingUtils to prepare the signal for drawing
         int outEventCount = 0;
+        int samplesCount = to_sample - from_sample;
+        int maxSamples = current_sample_rate * MAX_NUMBER_OF_SECONDS;
+        int startIndex = maxSamples - samplesCount;
+        int endIndex = maxSamples;
+        if (from_sample != 0) {
+            startIndex = from_sample;
+            endIndex = to_sample;
+        }
+
+
         backyardbrains::utils::DrawingUtils::prepareSignalForDrawing(
             float_samples,
             out_sample_counts,
@@ -860,10 +881,23 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
             channel_count,
             const_cast<int*>(in_event_indices),
             in_event_count,
-            0,
-            to_sample - from_sample,
+            startIndex,
+            endIndex,
+            // 0,
+            // maxSamples,
             draw_surface_width
         );
+        // platform_log("\nSTART\nMaxSamples:");
+        // platform_log(std::to_string(maxSamples-1).c_str());
+        // platform_log("===========\nSampleCount:");
+        // platform_log(std::to_string(samplesCount).c_str());
+        // platform_log("===========\nMax-Sample:");
+        // platform_log(std::to_string(maxSamples - samplesCount).c_str());
+        // platform_log("===========\nStarting:");
+        // platform_log(std::to_string(from_sample).c_str());
+        // platform_log("===========\nENDING:");
+        // platform_log(std::to_string(to_sample).c_str());
+        // platform_log("===========\n");
         
         // Copy float data back to output samples
         // circularBuffer->getRecentSamples(out_samples, out_sample_counts[0]*5);

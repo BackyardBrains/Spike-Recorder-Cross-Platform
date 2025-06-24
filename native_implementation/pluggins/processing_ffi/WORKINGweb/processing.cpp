@@ -231,50 +231,41 @@ class CircularBuffer {
           }
 
           // Add this method to the CircularBuffer class
-          int32_t getMostRight(int chan, int from_sample, int to_sample, int bufferSize) {
-            int32_t sampleCount = to_sample - from_sample;
-            int32_t mostRight = (headIndex[chan] - (to_sample - sampleCount) ) % bufferSize;
-            return mostRight;
-          }
+        //   int32_t getMostRight(int chan, int from_sample, int to_sample, int bufferSize) {
+        //     int32_t sampleCount = to_sample - from_sample;
+        //     int32_t mostRight = (headIndex[chan] - (to_sample - sampleCount) ) % bufferSize;
+        //     return mostRight;
+        //   }
           
-          void getDataForDrawing(int16_t** outputBuffer, int32_t fromSample, int32_t toSample, const int32_t* inEventIndicesPosition, int32_t* outEventIndicesPosition, int total_events) {
-                if (buffer == nullptr) {
-                    return;
-                }
-                
-                // Calculate number of samples requested
-                int32_t sampleCount = toSample - fromSample + 1;
-                if (sampleCount <= 0) {
-                    return;
-                }
+            void getDataForDrawing(int16_t** outputBuffer, int32_t fromSample, int32_t toSample) {
+                  if (buffer == nullptr) {
+                        return;
+                  }
+                  
+                  // Calculate number of samples requested
+                  int32_t sampleCount = toSample - fromSample + 1;
+                  if (sampleCount <= 0) {
+                        return;
+                  }
+                  
+                  // Prepare the data (either from the actual position or wrapping around)
+                  for (int chan = 0; chan < channelCount; chan++) {
+                        for (int i = 0; i < sampleCount; i++) {
+                              int32_t bufferPos = (headIndex[chan] - (toSample - i) + bufferSize) % bufferSize;
+                            //   if (fromSample > 0) {
+                            //       platform_log("HEAD\n");
+                            //       platform_log(std::to_string(headIndex[chan]).c_str());
+                            //       platform_log("\nTOSAMPLE-i\n");
+                            //       platform_log(std::to_string(toSample - i).c_str());
+                            //       platform_log("\nBUFFERSIZE\n");
+                            //       platform_log(std::to_string(bufferSize).c_str());
+                            //       platform_log("===========\n");
+                            //   }
 
-                // EM_ASM({
-                //     console.log( "SAMPLE BUFFER: ", $0, $1 );
-                // }, sampleRate, bufferSize);        
-                
-                // Prepare the data (either from the actual position or wrapping around)
-                for (int chan = 0; chan < channelCount; chan++) {
-                    for (int32_t i = 0; i < sampleCount; i++) {
-                        int32_t bufferPos = (headIndex[chan] - (toSample - i) + bufferSize) % bufferSize;
-                        for (int evIdx = 0; evIdx < total_events; evIdx++) {
-                            if (chan == 0 && bufferPos == inEventIndicesPosition[evIdx]) {
-                                // if (total_events > 0) {
-                                //     EM_ASM({
-                                //         console.log( "=======Channel count : ", $0, $1, $2 , "____" );
-                                //     }, bufferPos, i, inEventIndicesPosition[evIdx]);
-                                // }
-                                outEventIndicesPosition[evIdx] = i;
-                            }
+                              outputBuffer[chan][i] = buffer[chan][bufferPos];
                         }
-                        outputBuffer[chan][i] = buffer[chan][bufferPos];
-                    }
-                }
-                // if (total_events > 0) {
-                //     EM_ASM({
-                //         console.log( "BUFFER POS : ", $0, $1 );
-                //     }, 17171717, outEventIndicesPosition[0]);
-                // }
-          }
+                  }
+            }
     private:
           int sampleRate;
           int channelCount;
@@ -969,9 +960,9 @@ EXTERNC FUNCTION_ATTRIBUTE void processing_pause_threshold() {
 //     }
 // }
 
-EXTERNC FUNCTION_ATTRIBUTE int32_t processing_get_most_right(int chan, int from_sample, int to_sample, int bufferSize) {
-    return circularBuffer->getMostRight(chan, from_sample, to_sample, bufferSize);
-}
+// EXTERNC FUNCTION_ATTRIBUTE int32_t processing_get_most_right(int chan, int from_sample, int to_sample, int bufferSize) {
+//     return circularBuffer->getMostRight(chan, from_sample, to_sample, bufferSize);
+// }
 EXTERNC FUNCTION_ATTRIBUTE void processing_set_bpm_processing(bool process_bpm) {
     bpm_processing_enabled = process_bpm;
     if (thresholdProcessor) {
@@ -988,11 +979,12 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
                                            const int32_t* in_event_indices, int32_t in_event_count,
                                            int32_t from_sample, int32_t to_sample,
                                            int32_t draw_surface_width) {
+
+
     if (!initialized || !_out_samples || !out_sample_counts || !out_event_indices || !out_event_count ||
         !in_event_indices || draw_surface_width <= 0) {
         return -1;
     }
-
     try {
         // STEVE NEED JS WRAP
         int16_t** out_samples = new int16_t*[current_channel_count];
@@ -1003,7 +995,7 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
         }
 
         // int32_t* raw_in_event_indices = new int32_t[in_event_count];
-        int32_t* temp_in_event_indices = new int32_t[in_event_count];
+        // int32_t* temp_in_event_indices = new int32_t[in_event_count];
         // int32_t bufferSize = 48000 * MAX_NUMBER_OF_SECONDS;
         // short chan = 0;
         // for (int eIdx = 0; eIdx < in_event_count; eIdx++) {
@@ -1032,8 +1024,8 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
         int32_t channel_count = current_channel_count;
         
         // Calculate sample count
-        int32_t sample_count = to_sample - from_sample + 1;
-        int32_t sample_out_count= out_sample_counts[0];//experimentally found
+        int32_t sample_count = current_sample_rate * MAX_NUMBER_OF_SECONDS;
+        int32_t sample_out_count= draw_surface_width * 5;//experimentally found
         
         // Create temporary buffers
         auto** temp_samples = new int16_t*[channel_count];
@@ -1046,7 +1038,7 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
         // Retrieve data from the circular buffer
         // Stev: From_sample is index in the circular buffer
         if (circularBuffer != nullptr) {
-            circularBuffer->getDataForDrawing(temp_samples, from_sample, to_sample, in_event_indices, temp_in_event_indices, in_event_count);
+            circularBuffer->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
             // if (in_event_count > 0) {
             //     EM_ASM({
             //         console.log( "eventIndex++: ", $0, $1, " - ", $2, $3);
@@ -1067,19 +1059,28 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
 
         // Call DrawingUtils to prepare the signal for drawing
         // int outEventCount = 0;
+        int samplesCount = to_sample - from_sample;
+        int maxSamples = current_sample_rate * MAX_NUMBER_OF_SECONDS;
+        int startIndex = maxSamples - samplesCount;
+        int endIndex = maxSamples;
+        if (from_sample != 0) {
+            startIndex = from_sample;
+            endIndex = to_sample;
+        }
 
         backyardbrains::utils::DrawingUtils::prepareSignalForDrawing(
             float_samples,
             out_sample_counts,
             out_event_indices,
-            // outEventCount,
             out_event_count,
             reinterpret_cast<short**>(temp_samples),
             channel_count,
-            const_cast<int*>(temp_in_event_indices),
+            const_cast<int*>(in_event_indices),
             in_event_count,
-            0, // we slice the circular buffer so the index - 0
-            to_sample - from_sample,
+            startIndex,
+            endIndex,
+            // 0,
+            // maxSamples,
             draw_surface_width
         );
         
@@ -1105,7 +1106,7 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
         }
         delete[] temp_samples;
         delete[] float_samples;
-        delete[] temp_in_event_indices;
+        // delete[] temp_in_event_indices;
         // delete[] raw_in_event_indices;
         
         // *out_event_count = outEventCount;

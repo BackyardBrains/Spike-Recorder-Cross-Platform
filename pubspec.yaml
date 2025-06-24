@@ -68,6 +68,7 @@ dependencies:
   # mic_stream: ^0.7.2
   sound_stream_now: ^1.0.0
   serial_communication: ^0.0.2
+  another_xlider: 3.0.2
 
   # flutter_recorder: 1.1.1 # it is slow
   # flutter_audio_waveforms: ^1.2.1+8

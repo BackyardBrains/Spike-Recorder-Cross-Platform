@@ -3,6 +3,9 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:another_xlider/models/handler.dart';
+import 'package:another_xlider/models/tooltip/tooltip.dart';
+import 'package:another_xlider/models/trackbar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -21,6 +24,8 @@ import '../provider/provider_export.dart';
 import '../widget/widget_export.dart';
 import 'graph_page_widget/sound_wave_view.dart';
 import 'package:spikerbox_architecture/models/microphone_stream/microphone_stream_check.dart';
+
+import 'package:another_xlider/another_xlider.dart';
 
 class GraphTemplate extends StatefulWidget {
   static bool isPlayerPaused = false;
@@ -876,9 +881,76 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       //   width: 10,
                       // ),
                       SpikerBoxButton(
-                        onTapButton: () {},
+                        onTapButton: () {
+                          isThresholdingButton = !isThresholdingButton;
+                          setState((){});
+                        },
+                        iconColor: isThresholdingButton? Colors.yellow : Colors.black,
                         iconData: Icons.graphic_eq_outlined,
                       ),
+                      const SizedBox(
+                        width: 20,
+                      ),
+                      if (isThresholdingButton) ... {
+                        Center(
+                          child: SpikerBoxButton(
+                            onTapButton: (){
+                              isChoosingThresholdType = true;
+                            }, iconData: Icons.stacked_line_chart_rounded),
+                        ),
+                        SizedBox(
+                          width: 20,
+                        ),
+                        Container(
+                          margin: EdgeInsets.fromLTRB(0, 10, 0, 0),
+                          width:200,
+                          height:30,
+                          child: FlutterSlider(
+                            tooltip: FlutterSliderTooltip(
+                              disabled: true,
+                            ),
+                            min: 0,
+                            max: 1000,
+                            handler: FlutterSliderHandler(
+                              child: Material(
+                                type: MaterialType.canvas,
+                                color: Colors.grey.shade500,
+                                elevation: 3,
+                                child: Container(
+                                    padding: EdgeInsets.all(5),
+                                    // child: Icon(Icons.adjust, size: 25,)
+                                  ),
+                              ),                                                          
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(0),
+                                color: Colors.grey,
+                                border: Border.all(width: 3, color: Colors.white),
+                              )
+                            ),
+                            trackBar: FlutterSliderTrackBar(
+                              inactiveTrackBarHeight: 70,
+                              activeTrackBarHeight: 70,
+                              inactiveTrackBar: BoxDecoration(
+                                borderRadius: BorderRadius.circular(0),
+                                color: Colors.grey,
+                                border: Border.all(width: 3, color: Colors.black45),
+                              ),
+                              activeTrackBar: BoxDecoration(
+                                borderRadius: BorderRadius.circular(0),
+                                color: Colors.grey.withOpacity(0.5)
+                              ),
+                            ), values: [100],
+                          )
+                        ),
+                        // Container(
+                        //   width:50,
+                        //   height:30,
+                        //   child: TextField(
+                        //     controller: thresholdValueController,
+                        //   )
+
+                        // )
+                      },
                       const SizedBox(
                         width: 10,
                       ),
@@ -1529,6 +1601,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
   double bufferPaddingLeft = 0;
   
   Board? selectedBoard;
+  
+  bool isThresholdingButton = false;
+  
+  bool isChoosingThresholdType = false;
+  
+  TextEditingController thresholdValueController = TextEditingController();
   
   void listenToMicrophone(channelCount, provider) {
     isDeviceConnect = true;

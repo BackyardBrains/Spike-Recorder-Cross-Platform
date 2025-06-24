@@ -589,6 +589,57 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
       }
 }
 
+int32_t processing_process_threshold_stream(int16_t** out_samples, int32_t* out_sample_counts,
+                                           const uint8_t* in_data, int32_t length) {
+    if (!initialized || !out_samples || !out_sample_counts || !in_data || length <= 0) {
+        return -1;
+    }
+
+    try {
+        int32_t sample_count = length * 8 / current_bits_per_sample;
+        int32_t frame_count = sample_count / current_channel_count;
+
+        // Prepare deinterleaved input buffers for the threshold processor
+        auto** in_samples = new int16_t*[current_channel_count];
+        auto* in_sample_counts = new int[current_channel_count];
+        for (int ch = 0; ch < current_channel_count; ch++) {
+            in_samples[ch] = new int16_t[frame_count];
+            in_sample_counts[ch] = frame_count;
+        }
+
+        const int16_t* ptr = reinterpret_cast<const int16_t*>(in_data);
+        for (int frame = 0; frame < frame_count; ++frame) {
+            for (int ch = 0; ch < current_channel_count; ++ch) {
+                in_samples[ch][frame] = ptr[frame * current_channel_count + ch];
+            }
+        }
+
+        // Events are not used when processing stream data
+        thresholdProcessor->process(
+            out_samples,
+            out_sample_counts,
+            in_samples,
+            in_sample_counts,
+            nullptr,
+            nullptr,
+            0);
+
+        if (circularBuffer != nullptr) {
+            circularBuffer->addData(out_samples, out_sample_counts);
+        }
+
+        for (int ch = 0; ch < current_channel_count; ch++) {
+            delete[] in_samples[ch];
+        }
+        delete[] in_samples;
+        delete[] in_sample_counts;
+
+        return 0;
+    } catch (...) {
+        return -3;
+    }
+}
+
 int32_t processing_process_playback_stream(int16_t** out_samples, int32_t* out_sample_counts,
                                          const uint8_t* in_data, int32_t length,
                                          const int32_t* event_indices, const char** event_names,

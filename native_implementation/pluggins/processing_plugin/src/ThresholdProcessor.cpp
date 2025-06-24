@@ -455,5 +455,6 @@ namespace backyardbrains {
             sampleCounter = 0;
             lastTriggerSampleCounter = 0;
         }
+
     }
 }

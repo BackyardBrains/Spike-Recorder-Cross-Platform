@@ -70,6 +70,9 @@ PROCESSING_API int32_t processing_process_sample_stream(int16_t** out_samples, i
 PROCESSING_API int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out_sample_counts,
                                            const uint8_t* in_data, int32_t length);
 
+PROCESSING_API int32_t processing_process_threshold_stream(int16_t** out_samples, int32_t* out_sample_counts,
+                                           const uint8_t* in_data, int32_t length);
+
 PROCESSING_API int32_t processing_process_playback_stream(int16_t** out_samples, int32_t* out_sample_counts,
                                          const uint8_t* in_data, int32_t length,
                                          const int32_t* event_indices, const char** event_names,

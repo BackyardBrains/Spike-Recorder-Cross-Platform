@@ -27,14 +27,24 @@ typedef ProcessingSetBandFilter = int Function(
 typedef ProcessingSetNotchFilterNative = Int32 Function(Float centerFreq);
 typedef ProcessingSetNotchFilter = int Function(double centerFreq);
 typedef ProcessingProcessMicrophoneStreamNative = Int32 Function(
-    Pointer<Pointer<Int16>> outSamples, 
+    Pointer<Pointer<Int16>> outSamples,
     Pointer<Int32> outSampleCounts,
-    Pointer<Uint8> inData, 
+    Pointer<Uint8> inData,
     Int32 length);
 typedef ProcessingProcessMicrophoneStream = int Function(
-    Pointer<Pointer<Int16>> outSamples, 
+    Pointer<Pointer<Int16>> outSamples,
     Pointer<Int32> outSampleCounts,
-    Pointer<Uint8> inData, 
+    Pointer<Uint8> inData,
+    int length);
+typedef ProcessingProcessThresholdStreamNative = Int32 Function(
+    Pointer<Pointer<Int16>> outSamples,
+    Pointer<Int32> outSampleCounts,
+    Pointer<Uint8> inData,
+    Int32 length);
+typedef ProcessingProcessThresholdStream = int Function(
+    Pointer<Pointer<Int16>> outSamples,
+    Pointer<Int32> outSampleCounts,
+    Pointer<Uint8> inData,
     int length);
 typedef ProcessingProcessSampleStreamNative = Int32 Function(
     Pointer<Pointer<Int16>> outSamples, 
@@ -182,6 +192,7 @@ class ProcessingBindings {
   late final ProcessingSetBandFilter setBandFilter;
   late final ProcessingSetNotchFilter setNotchFilter;
   late final ProcessingProcessMicrophoneStream processMicrophoneStream;
+  late final ProcessingProcessThresholdStream processThresholdStream;
   late final ProcessingProcessSampleStream processSampleStream;
   late final ProcessingFilterData filterData;
   late final ProcessingRms rms;
@@ -243,6 +254,7 @@ class ProcessingBindings {
     setNotchFilter = _lib!.lookupFunction<ProcessingSetNotchFilterNative,ProcessingSetNotchFilter>('processing_set_notch_filter');
 
     processMicrophoneStream = _lib!.lookupFunction<ProcessingProcessMicrophoneStreamNative,ProcessingProcessMicrophoneStream>('processing_process_microphone_stream');
+    processThresholdStream = _lib!.lookupFunction<ProcessingProcessThresholdStreamNative,ProcessingProcessThresholdStream>('processing_process_threshold_stream');
     processSampleStream = _lib!.lookupFunction<ProcessingProcessSampleStreamNative,ProcessingProcessSampleStream>('processing_process_sample_stream');
 
     // filterData = _lib!.lookupFunction<ProcessingFilterDataNative, ProcessingFilterData>('processing_filter_data');

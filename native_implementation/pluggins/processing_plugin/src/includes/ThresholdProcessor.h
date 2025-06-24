@@ -51,6 +51,7 @@ namespace backyardbrains {
 
             void appendIncomingSamples(short **inSamples, int *inSampleCounts);
 
+
         private:
             static const char *TAG;
 

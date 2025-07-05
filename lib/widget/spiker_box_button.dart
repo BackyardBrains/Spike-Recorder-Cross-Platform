@@ -15,8 +15,11 @@ class SpikerBoxButton extends StatelessWidget {
   final Color? iconColor;
   final double? iconSize;
 
+
   @override
   Widget build(BuildContext context) {
+
+
     return InkWell(
       onTap: onTapButton,
       child: DecoratedBox(
@@ -37,6 +40,21 @@ class SpikerBoxButton extends StatelessWidget {
   }
 }
 
+generateSpikerBoxDecorate(iconData) {
+  Container boxStyle = Container(
+    width: 50,
+    height: 50,
+    decoration: BoxDecoration(
+      color: SoftwareColors.kButtonBackGroundColor,
+      shape: BoxShape.circle,
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: iconData,
+    ),
+  );
+  return boxStyle;
+}
 
 // InkWell(
 //       onTap: ontap,

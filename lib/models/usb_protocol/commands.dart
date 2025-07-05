@@ -45,6 +45,8 @@ class MessageValueSet {
   const MessageValueSet({required this.message, this.value = ""});
 
   factory MessageValueSet.fromStringCommand({required String message}) {
+    print("responseMessage :  $message");
+
     final List<String> splitString = message.split(':');
     final String msg = splitString.first;
     final String value = splitString.last;

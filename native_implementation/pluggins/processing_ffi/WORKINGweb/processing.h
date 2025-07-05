@@ -115,6 +115,12 @@ PROCESSING_API void processing_set_threshold(float threshold);
 PROCESSING_API void processing_reset_threshold();
 PROCESSING_API void processing_resume_threshold();
 PROCESSING_API void processing_pause_threshold();
+PROCESSING_API void processing_set_is_thresholding(bool flag);
+PROCESSING_API int32_t processing_process_threshold(int16_t* out_samples, int32_t* out_sample_counts,
+                                   int16_t* in_samples, int32_t* in_sample_counts,
+                                   const int32_t* in_event_indices, const int32_t* in_event_labels, int32_t in_event_count,
+                                   bool average_samples);
+
 // STEVE COMMENTED THIS OUT
 // PROCESSING_API int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_counts,
 //                                    const int16_t** in_samples, const int32_t* in_sample_counts,

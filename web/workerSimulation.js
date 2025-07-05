@@ -97,10 +97,17 @@ let displayTimeMs;
 /*
 */
 
+/* THRESHOLDING
+*/
+
+let isThresholding = false;
+let thresholdArrayLength = 0;
+
 var tempOnMessage = self.onmessage;
 self.onmessage = async function (eventFromMain) {
     switch (eventFromMain.data.message) {
         case "INITIALIZE_MICROPHONE":
+            console.log("Module" , Module, Module._processing_process_threshold);
             sampleRate = eventFromMain.data.sampleRate;
             channelCount = eventFromMain.data.channelCount;
             drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
@@ -199,9 +206,10 @@ self.onmessage = async function (eventFromMain) {
             outSignalPtrStart = outSignalPtr / Module.HEAP32.BYTES_PER_ELEMENT;
             outSignalBuffer = Module.HEAP32.subarray(outSignalPtrStart, (outSignalPtrStart + drawSurfaceWidth * 5));
             
-            outSamplesPtr = Module._malloc(drawSurfaceWidth * 5 * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
+            const samplesLen = drawSurfaceWidth * 20;
+            outSamplesPtr = Module._malloc(samplesLen * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
             outSamplesPtrStart = outSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
-            outSamplesBuffer = Module.HEAP16.subarray(outSamplesPtrStart, (outSamplesPtrStart + drawSurfaceWidth * 5 * totalChannel));
+            outSamplesBuffer = Module.HEAP16.subarray(outSamplesPtrStart, (outSamplesPtrStart + samplesLen * totalChannel));
 
             outSampleCountsDrawingPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
             outSampleCountsDrawingPtrStart = outSampleCountsDrawingPtr / Module.HEAP32.BYTES_PER_ELEMENT;
@@ -228,9 +236,13 @@ self.onmessage = async function (eventFromMain) {
             }
             // console.log("inEventIndicesBuffer: ", inEventIndicesBuffer, eventPositions);
 
-            // console.log("drawing");
-            outSampleCountsDrawingBuffer[0] = drawSurfaceWidth * 5;
+            outSampleCountsDrawingBuffer[0] = samplesLen;
             try {
+                if (isThresholding) {
+                    endPositionIdx = endPositionIdx == 0 ? 1 : endPositionIdx;
+                    // startPositionIdx = 0;
+                    // console.log("CHECK THRESHOLDING::: ", startPositionIdx, "===", endPositionIdx, thresholdArrayLength);
+                }
               
                 let resultDrawing = Module._processing_prepare_for_signal_drawing(
                     outSamplesPtr,           // Pointer<Pointer<Float>>
@@ -248,7 +260,6 @@ self.onmessage = async function (eventFromMain) {
                     drawSurfaceWidth         // int
                 );
 
-                // console.log("resultDrawing: ", channelCount, resultDrawing, outSamplesBuffer);
                 if (resultDrawing == 0) {
                     if (inTotalEvents > 0) {
                         // let float64list = convertFloat32ToFloat64(outEventIndicesBuffer, outEventPositionBuffer);
@@ -260,7 +271,7 @@ self.onmessage = async function (eventFromMain) {
                         // console.log("outEventIndicesBuffer", outEventIndicesBuffer.subarray(0, inTotalEvents), inEventIndicesBuffer.subarray(0, inTotalEvents));
                     }
                     try{
-                        // console.log("Channel Count: " , channelCount);
+                        // console.log("outSampleCountsDrawingBuffer: " , outSampleCountsDrawingBuffer);
                         for (let i = 0; i < channelCount; i++) {
                             const outSampleCount = outSampleCountsDrawingBuffer[i];
                             const slicedArray = outSamplesBuffer.subarray( i * outSampleCount, (i + 1) * outSampleCount).slice();
@@ -331,8 +342,69 @@ self.onmessage = async function (eventFromMain) {
                 inDataPtr,
                 data.length
             );
-            
 
+            if (isThresholding) {
+            
+                let outThresholdSamplesPtr = Module._malloc( packetLen * Module.HEAP16.BYTES_PER_ELEMENT);
+                // let outThresholdSamplesPtrStart = outThresholdSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+                // let outThresholdSamplesBuffer = Module.HEAP16.subarray(outThresholdSamplesPtrStart, (outThresholdSamplesPtrStart + packetLen));
+
+                let outThresholdSampleCountsPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
+                let outThresholdSampleCountsPtrStart = outThresholdSampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                let outThresholdSampleCountsBuffer = Module.HEAP32.subarray(outThresholdSampleCountsPtrStart, (outThresholdSampleCountsPtrStart + totalChannel));
+
+                let eventLabels = JSON.parse(eventFromMain.data.eventLabels);
+                let eventPositions = JSON.parse(eventFromMain.data.eventPositions);
+
+                let inEventIndicesPtr = Module._malloc( eventLabels.length * Module.HEAP32.BYTES_PER_ELEMENT);
+                let inEventIndicesPtrStart = inEventIndicesPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                let inEventIndicesBuffer = Module.HEAP32.subarray(inEventIndicesPtrStart, (inEventIndicesPtrStart + eventLabels.length));
+                for (let i = 0; i < eventLabels.length; i++) {
+                    inEventIndicesBuffer[i] = MAX_DISPLAY_SECONDS * sampleRate - eventPositions[i] - 512;
+                }
+
+                let inEventLabelsPtr = Module._malloc( eventLabels.length * Module.HEAP32.BYTES_PER_ELEMENT);
+                let inEventLabelsPtrStart = inEventLabelsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                let inEventLabelsBuffer = Module.HEAP32.subarray(inEventLabelsPtrStart, (inEventLabelsPtrStart + eventLabels.length));
+                inEventLabelsBuffer.set(eventLabels);
+                // let outThresholdSampleCountsPtrStart = outThresholdSampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                // let outThresholdSampleCountsBuffer = Module.HEAP32.subarray(outThresholdSampleCountsPtrStart, (outThresholdSampleCountsPtrStart + totalChannel));
+
+
+
+                let thresholdResult = Module._processing_process_threshold(
+                    outThresholdSamplesPtr, outThresholdSampleCountsPtr, 
+                    inSamplesPtr, outSampleCountsPtr,
+                    inEventIndicesPtr, inEventLabelsPtr, eventLabels.length,
+                    true
+                );
+                
+// int32_t processing_process_threshold(int16_t* _out_samples, int32_t* out_sample_counts,
+//                                     int16_t* _in_samples,  int32_t* in_sample_counts,
+//                                     const int32_t* in_event_indices, const int32_t* in_event_labels, int32_t in_event_count,
+//                                    bool average_samples) {
+
+                if (thresholdResult == 0) {
+                    // push to note the current array length
+                    thresholdArrayLength = outThresholdSampleCountsBuffer[0];
+                    // if (thresholdArrayLength == 0) {
+                        // console.log("thresholdArrayLength: ", thresholdArrayLength);
+                    // }
+                    const data = {
+                        "message": "THRESHOLD_PROCESSED_ARRAY_LENGTH",
+                        "thresholdArrayLength": outThresholdSampleCountsBuffer[0],
+                    };
+
+                    postMessage(data);
+
+                }
+
+                Module._free(outThresholdSamplesPtr);
+                Module._free(outThresholdSampleCountsPtr);
+                Module._free(inEventIndicesPtr);
+                Module._free(inEventLabelsPtr);
+
+            }
             Module._free(inSamplesPtr);
             Module._free(inDataPtr);
             Module._free(outSampleCountsPtr);
@@ -493,7 +565,6 @@ self.onmessage = async function (eventFromMain) {
             _displayTimeMs = eventFromMain.data.displayTimeMs;
             displayTimeMs = eventFromMain.data.displayTimeMs;
 
-            // console.log("WEBAPPLYFILTER: ", _displayTimeMs);
             channelIdx = eventFromMain.data.channelIdx;
 
             inDataPtr = Module._malloc(data.length * Module.HEAPU8.BYTES_PER_ELEMENT);
@@ -502,10 +573,12 @@ self.onmessage = async function (eventFromMain) {
             
             drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
             const serialPacketLen = drawSurfaceWidth * 5;
+            // const serialPacketLen = data.length;
             // const serialPacketLen = MAX_DISPLAY_SECONDS * sampleRate;
-            inSamplesPtr = Module._malloc( serialPacketLen * Module.HEAP16.BYTES_PER_ELEMENT);
+            inSamplesPtr = Module._malloc( serialPacketLen * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
             inSamplesPtrStart = inSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
-            inSamplesBuffer = Module.HEAP16.subarray(inSamplesPtrStart, (inSamplesPtrStart + serialPacketLen));
+            inSamplesBuffer = Module.HEAP16.subarray(inSamplesPtrStart, (inSamplesPtrStart + serialPacketLen * totalChannel));
+            // inSamplesBuffer.fill(0, 0, serialPacketLen * totalChannel);
 
             totalChannel = channelCount;
             outSampleCountsPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
@@ -525,28 +598,74 @@ self.onmessage = async function (eventFromMain) {
                 data.length,
                 deviceType
             );
-            // console.log("SERIAL RESULT: ", serialResult);
+            // console.log("isThresholding: ", isThresholding);
 
             if (serialResult > 0) {
+                // console.log("SERIAL RESULT: ", serialResult, inSamplesBuffer, outSampleCountsBuffer);
+                if (isThresholding) {
+                    let eventLabels = JSON.parse(eventFromMain.data.eventLabels);
+                    let eventPositions = JSON.parse(eventFromMain.data.eventPositions);
+                    // if we set 525 it trigger the threshold. Why the value from sampleStream processor is big?
+                    // inSamplesBuffer.fill(525, 0, outSampleCountsBuffer[0] + outSampleCountsBuffer[1]);
+
+
+                    let serialPacketLenThreshold = serialPacketLen * 20;
+                    // let serialPacketLenThreshold = 12000;
+                    let outThresholdSamplesPtr = Module._malloc( serialPacketLenThreshold * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
+                    let outThresholdSamplesPtrStart = outThresholdSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+                    let outThresholdSamplesPtrBuffer = Module.HEAP16.subarray(outThresholdSamplesPtrStart, (outThresholdSamplesPtrStart + serialPacketLenThreshold *totalChannel));
+                    
+                    let outThresholdSampleCountsPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
+                    let outThresholdSampleCountsPtrStart = outThresholdSampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                    let outThresholdSampleCountsBuffer = Module.HEAP32.subarray(outThresholdSampleCountsPtrStart, (outThresholdSampleCountsPtrStart + totalChannel));
+                    outThresholdSampleCountsBuffer.fill(serialPacketLenThreshold, 0, totalChannel);
+
+
+                    let inEventIndicesPtr = Module._malloc( eventLabels.length * Module.HEAP32.BYTES_PER_ELEMENT);
+                    let inEventIndicesPtrStart = inEventIndicesPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                    let inEventIndicesBuffer = Module.HEAP32.subarray(inEventIndicesPtrStart, (inEventIndicesPtrStart + eventLabels.length));
+                    for (let i = 0; i < eventLabels.length; i++) {
+                        inEventIndicesBuffer[i] = MAX_DISPLAY_SECONDS * sampleRate - eventPositions[i] - serialResult;
+                    }
+
+                    let inEventLabelsPtr = Module._malloc( eventLabels.length * Module.HEAP32.BYTES_PER_ELEMENT);
+                    let inEventLabelsPtrStart = inEventLabelsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                    let inEventLabelsBuffer = Module.HEAP32.subarray(inEventLabelsPtrStart, (inEventLabelsPtrStart + eventLabels.length));
+                    inEventLabelsBuffer.set(eventLabels);
+
+                    // inSamplesBuffer.fill(100, 0, serialPacketLen * totalChannel);
+
+
+                    let thresholdResult = Module._processing_process_threshold(
+                        outThresholdSamplesPtr, outThresholdSampleCountsPtr, 
+                        inSamplesPtr, outSampleCountsPtr,
+                        inEventIndicesPtr, inEventLabelsPtr, eventLabels.length,
+                        true
+                    );
+                    // console.log("outThresholdSamplesPtrBuffer: ", outThresholdSamplesPtrBuffer.subarray(0, 20));
+
+                    if (thresholdResult == 0) {
+                        // console.log("SERIAL RESULT: ", thresholdResult, inSamplesBuffer);
+                        thresholdArrayLength = outThresholdSampleCountsBuffer[0];
+                        const data = {
+                            "message": "THRESHOLD_PROCESSED_ARRAY_LENGTH",
+                            "thresholdArrayLength": outThresholdSampleCountsBuffer[0],
+                        };
+                        postMessage(data);
+                    }
+
+                    Module._free(outThresholdSamplesPtr);
+                    Module._free(outThresholdSampleCountsPtr);
+                    Module._free(inEventIndicesPtr);
+                    Module._free(inEventLabelsPtr);
+
+                }
                 postMessage({
                     "message": "SERIAL_DATA_TRANSFER",
                     "frameCount": serialResult,
                 });
+                
             }
-
-
-            // console.log("serialResult: ", totalChannel, serialResult, outSampleCountsBuffer, inSamplesBuffer );
-            // for (let i = 0; i < totalChannel; i++) {
-            //     const slicedArray = inSamplesBuffer.subarray(0, outSampleCountsBuffer[i]).slice();
-            //     const data = {
-            //         "message": "INPUT_SERIAL_BUFFER_FINISHED",
-            //         "channelIdx": i,
-            //         "bufferViews": slicedArray,
-            //     };
-            //     // console.log("data : ", totalChannel, idx);
-            //     // console.log(slicedArray);
-            //     postMessage(data);
-            // }
 
             Module._free(inSamplesPtr);
             Module._free(inDataPtr);
@@ -588,6 +707,8 @@ self.onmessage = async function (eventFromMain) {
         break;
         case "DISPLAY_SERIAL_DATA_WEB":
             try {
+                // startPositionIdx = 0;
+                // endPositionIdx = sampleRate * MAX_DISPLAY_SECONDS;
                 startPositionIdx = eventFromMain.data.startPositionIdx;
                 endPositionIdx = eventFromMain.data.endPositionIdx;
 
@@ -596,15 +717,16 @@ self.onmessage = async function (eventFromMain) {
                 drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
                 eventLabels = JSON.parse(eventFromMain.data.eventLabels);
                 eventPositions = JSON.parse(eventFromMain.data.eventPositions);
+
                 // eventLabels = [];
                 // eventPositions = [];
 
                 // console.log("startPositionIdx: ", startPositionIdx, endPositionIdx);
 
                 const startPosMultiplier = drawSurfaceWidth * 5;
-                outSamplesPtr = Module._malloc(drawSurfaceWidth * 5 * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
+                outSamplesPtr = Module._malloc(startPosMultiplier * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
                 outSamplesPtrStart = outSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
-                outSamplesBuffer = Module.HEAP16.subarray(outSamplesPtrStart, (outSamplesPtrStart + drawSurfaceWidth * 5 * totalChannel));
+                outSamplesBuffer = Module.HEAP16.subarray(outSamplesPtrStart, (outSamplesPtrStart + startPosMultiplier * totalChannel));
     
                 outSampleCountsDrawingPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
                 outSampleCountsDrawingPtrStart = outSampleCountsDrawingPtr / Module.HEAP32.BYTES_PER_ELEMENT;
@@ -626,11 +748,13 @@ self.onmessage = async function (eventFromMain) {
                 inEventIndicesBuffer = Module.HEAP32.subarray(inEventIndicesPtrStart, (inEventIndicesPtrStart + inTotalEvents));
                 displayTimeMs = _displayTimeMs;
                 try{
+                    if (isThresholding) {
+                        endPositionIdx = endPositionIdx == 0 ? 1 : endPositionIdx;
+                    }
+
                     if (inTotalEvents > 0) {
                         inEventIndicesBuffer.set(eventPositions);
                     }
-                    // inEventIndicesBuffer.set([100]);
-                    // console.log("eventLabels: ", eventPositions);
                 }catch(err) {
                     console.log("ERR111", eventPositions, inEventIndicesBuffer);
                 }
@@ -655,18 +779,22 @@ self.onmessage = async function (eventFromMain) {
                     drawSurfaceWidth         // int
                 );
 
-                // console.log("resultDrawing: ", resultDrawing, outSamplesBuffer);
+                // console.log("resultDrawing: ", resultDrawing, outSampleCountsDrawingBuffer);
                 if (resultDrawing == 0) {
                     if (inTotalEvents > 0) {
-                        console.log("outEventIndicesBuffer: ", outEventIndicesBuffer.subarray(0, inTotalEvents), inEventIndicesBuffer, eventPositions);
+                        // console.log("outEventIndicesBuffer: ", outEventIndicesBuffer.subarray(0, inTotalEvents), inEventIndicesBuffer, eventPositions);
                         outEventPositionBuffer.set(outEventIndicesBuffer.subarray(0, inTotalEvents));
                     }
 
                     for (let i = 0; i < channelCount; i++) {
                         const outSampleCount = outSampleCountsDrawingBuffer[i];
+
                         const slicedArray = outSamplesBuffer.slice( i * startPosMultiplier, i * startPosMultiplier + outSampleCount);
                         drawingDataBufferList[i].set(slicedArray);
                         drawingCountBufferList[i] = outSampleCount;
+                        // if (isThresholding) {
+                        //     console.log("outSampleCountsDrawingPtr: ", i, " channel:", totalChannel, " ==== ", slicedArray, outSamplesBuffer.length, startPosMultiplier);
+                        // }
                     }
 
                     const data = {
@@ -693,7 +821,32 @@ self.onmessage = async function (eventFromMain) {
             }
 
         break;
+        case "INIT_THRESHOLD":
+            let thresholdChannelCount = eventFromMain.data.channelCount;
+            let thresholdSampleRate = eventFromMain.data.sampleRate;
+            // let drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
+            Module._processing_init();
+            Module._processing_set_channel_count(thresholdChannelCount);
+            console.log("INIT THRESHOLDDDD: ", thresholdChannelCount, thresholdSampleRate);
+            Module._processing_set_sample_rate(thresholdSampleRate);
 
+        break;
+        case "SET_THRESHOLD_AVERAGE_SAMPLE":
+            let avgSampleCount = eventFromMain.data.avgSampleCount;
+            Module._processing_set_averaged_sample_count(avgSampleCount);
+        break;
+        case "SET_THRESHOLD_VALUE":
+            let thresholdValue = eventFromMain.data.thresholdValue;
+            Module._processing_set_threshold(thresholdValue);
+        break;
+        case "SET_THRESHOLD_IS_THRESHOLDING":
+            isThresholding = eventFromMain.data.isThresholding;
+            Module._processing_set_is_thresholding(isThresholding);
+        break;
+        case "SET_THRESHOLD_TRIGGER_TYPE":
+            let eventThresholdTriggeredType = eventFromMain.data.eventThresholdTriggeredType;
+            Module._processing_set_averaging_trigger_type(eventThresholdTriggeredType);
+        break;
         default:
     }
 }

@@ -27,15 +27,25 @@ abstract class ProcessingUtil {
   static List<int> drawingBufferCounts = [];
   // Pointer<Pointer<Int16>>? currentDataBuffer;
   static ValueNotifier<List<int>> eventMarkerNotifier = ValueNotifier([0,0]);
+  static ValueNotifier<int> initializeDevice = ValueNotifier(-100);
   static List<int> eventLabels = [];
   static List<int> eventPosition = [];
+  int thresholdingArraylength = 1;
 
   Future<bool> init();
 
   // Initialize microphone with specific settings
   Future<bool> initializeMicrophone(
       int channelCount, int sampleRate, double drawSurfaceWidth);
+  
+  
+  void setAveragedSampleCount(int avgSampleCount);
+  void setThreshold(double thresholdValue);
 
+  void initThreshold(int channelCount, int sampleRate, double drawSurfaceWidth);
+  // List<int> processThresholdData(Uint8List data, int drawSurfaceWidth, int selectedChannel, bool isAverageSamples);
+  List<int> processThresholdData(List<Int16List> data, int thresholdChannelCount, int drawSurfaceWidth, int selectedChannel, bool isAverageSamples);
+  // List<Int16List> processMicrophoneData(Uint8List data, bool isAverageSamples, bool isThresholdingButton, int drawSurfaceWidth, int selectedChannel);
   List<Int16List> processMicrophoneData(Uint8List data);
   List<Int16List> prepareDisplayMicrophoneData(
       List<Int16List> data,
@@ -73,7 +83,7 @@ abstract class ProcessingUtil {
 
   Map<String, dynamic> getInformation();
   void initializeSerial(Board board, double drawSurfaceWidth);
-  Future<int> processSerialData(Uint8List samples, int displayTimeMs,
+  Future<List<Int16List>> processSerialData(Uint8List samples, int displayTimeMs,
       int deviceType, int drawSurfaceWidth, GraphDataProvider provider);
   Future<Uint8List> processDisplaySerialData(
       int displayTimeMs,
@@ -86,4 +96,8 @@ abstract class ProcessingUtil {
   // Future<Uint8List> displaySerialDataIsolate(List<dynamic> args);
   void processSerialDataIsolate(sendPort);
   void processDisplaySerialDataIsolate(sendPort);
+
+  void setThresholdTriggerType(int eventThresholdTriggeredType) {}
+
+  void setIsThresholding(bool bool);
 }

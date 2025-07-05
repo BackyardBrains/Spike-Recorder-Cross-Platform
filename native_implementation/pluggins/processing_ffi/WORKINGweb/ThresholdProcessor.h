@@ -17,7 +17,7 @@ namespace backyardbrains {
 
         class ThresholdProcessor : public Processor {
         public:
-            static constexpr int DEFAULT_SAMPLE_COUNT = static_cast<const int>(2.4f * 44100.0f);
+            static constexpr int DEFAULT_SAMPLE_COUNT = static_cast<const int>(2.4f * 48000.0f);
 
             explicit ThresholdProcessor(backyardbrains::utils::OnHeartbeatListener *listener);
 

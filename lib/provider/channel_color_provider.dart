@@ -49,4 +49,5 @@ class ChannelColorProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
 }

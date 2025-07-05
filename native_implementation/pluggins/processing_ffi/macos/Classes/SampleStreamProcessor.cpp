@@ -7,7 +7,6 @@
 #include <iostream>
 #include <fstream>
 
-
 namespace backyardbrains {
 
     namespace processing {
@@ -252,9 +251,12 @@ namespace backyardbrains {
                 setSampleRateAndChannelCount(sampleRate, channelCount);
             } else if (backyardbrains::utils::SampleStreamUtils::isEventMsg(message)) {
                 eventIndices[eventCounter] = sampleIndex;
-                eventLabels[eventCounter++] = backyardbrains::utils::SampleStreamUtils::getEventNumber(
+                eventLabels[eventCounter] = backyardbrains::utils::SampleStreamUtils::getEventNumber(
                         message);
-                // listener->onEventFound(sampleIndex, eventLabels[eventCounter]);
+                int num = std::stoi(eventLabels[eventCounter]);    
+                listener->onEventFound(sampleIndex, num);
+                eventCounter++;
+
             } else if (backyardbrains::utils::SampleStreamUtils::isExpansionBoardTypeMsg(message)) {
                 const int expansionBoardType = backyardbrains::utils::SampleStreamUtils::getExpansionBoardType(
                         message);

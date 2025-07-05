@@ -73,6 +73,7 @@ static constexpr int32_t MAX_NUMBER_OF_SECONDS = 10;  // 10 seconds of buffer
 static constexpr int32_t BUFFER_MULTIPLIER = 1;
 
 // Internal state variables
+static bool isProcessThresholding = false;
 static bool initialized = false;
 static int32_t current_sample_rate = PROCESSING_DEFAULT_SAMPLE_RATE;
 static int32_t current_channel_count = 1;
@@ -247,7 +248,8 @@ class CircularBuffer {
                   if (sampleCount <= 0) {
                         return;
                   }
-                  
+
+
                   // Prepare the data (either from the actual position or wrapping around)
                   for (int chan = 0; chan < channelCount; chan++) {
                         for (int i = 0; i < sampleCount; i++) {
@@ -278,7 +280,7 @@ class CircularBuffer {
 
 //create a new static instance of CircularBuffer
 static CircularBuffer* circularBuffer = nullptr;
-
+static CircularBuffer* circularBufferThreshold = nullptr;
 
 class HeartbeatListener : public backyardbrains::utils::OnHeartbeatListener {
       public:
@@ -304,8 +306,8 @@ public:
         EM_ASM({
             postMessage({
                 "message": "EVENT_FOUND",
-                "sampleIndex": sampleIndex,
-                "eventLabel": eventLabel,
+                "sampleIndex": $0,
+                "eventLabel": $1,
             });
             console.log( $0, $1 );
         }, sampleIndex, eventLabel);        
@@ -446,6 +448,7 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_init() {
         // Initialize the circular buffer
         if (circularBuffer == nullptr) {
             circularBuffer = new CircularBuffer(current_sample_rate, current_channel_count);
+            circularBufferThreshold = new CircularBuffer(current_sample_rate, current_channel_count);
         }
         
         initialized = true;
@@ -475,11 +478,13 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_sample_rate(int32_t sample_rat
     try {
         current_sample_rate = sample_rate;
         amModulationProcessor->setSampleRate(static_cast<float>(sample_rate));
+        thresholdProcessor->setSampleRate( sample_rate );
         sampleStreamProcessor->setSampleRate(sample_rate);
         fftProcessor->setSampleRate(sample_rate);
         // Re-setup the circular buffer when sample rate changes
         if (circularBuffer != nullptr) {
             circularBuffer->setup(current_sample_rate, current_channel_count);
+            circularBufferThreshold->setup(current_sample_rate, current_channel_count);
         }
         
         return 0;
@@ -503,12 +508,14 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_channel_count(int32_t channel_
     try {
         current_channel_count = channel_count;
         amModulationProcessor->setChannelCount(channel_count);
+        thresholdProcessor->setChannelCount( channel_count );
         sampleStreamProcessor->setChannelCount(channel_count);
         fftProcessor->setChannelCount(channel_count);
         
         // Re-setup the circular buffer when channel count changes
         if (circularBuffer != nullptr) {
             circularBuffer->setup(current_sample_rate, current_channel_count);
+            circularBufferThreshold->setup(current_sample_rate, current_channel_count);
         }
         
         return 0;
@@ -532,6 +539,7 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_bits_per_sample(int32_t bits_p
     try {
         current_bits_per_sample = bits_per_sample;
         sampleStreamProcessor->setBitsPerSample(bits_per_sample);
+        thresholdProcessor->setBitsPerSample(bits_per_sample);        
         return 0;
     } catch (...) {
         return -3;
@@ -549,6 +557,7 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_selected_channel(int32_t selec
     
     try {
         current_selected_channel = selected_channel;
+        thresholdProcessor->setSelectedChannel(selected_channel);
         return 0;
     } catch (...) {
         return -3;
@@ -590,7 +599,7 @@ int32_t processing_process_sample_stream(int16_t* _out_samples, int32_t* out_sam
         //       }
         // }
 
-        sampleStreamProcessor->process(in_data, length, out_samples, out_sample_counts,
+        sampleStreamProcessor->process(in_data, length, (out_samples), out_sample_counts,
                                      event_indices, event_labels, event_count,
                                      current_channel_count, hardware_type);       
         // Add processed data to circular buffer
@@ -599,14 +608,15 @@ int32_t processing_process_sample_stream(int16_t* _out_samples, int32_t* out_sam
             // indicating that the serial data 
                 // totalSamples1 += out_sample_counts[0];
                 // totalSamples2 += out_sample_counts[1];
-                // EM_ASM({
-                //     if ($0 !== $1) {
-                //         console.log("Sample Count : ", $0, $1, $2, $3);
-                //     }
-                // }, out_sample_counts[0], out_sample_counts[1], totalSamples1, totalSamples2);
 
                 // std::fill(out_samples[1], out_samples[1] + out_sample_counts[1], 307);
                 circularBuffer->addData(out_samples, out_sample_counts);
+                // EM_ASM({
+                //     // if ($0 !== $1) {
+                //         console.log("Sample Countz : ", $0, $1, $2, $3);
+                //     // }
+                // }, out_samples[0][0], out_samples[0][1], out_sample_counts[0], out_sample_counts[1]);
+
             // }
         } else {
             delete[] event_indices;
@@ -763,6 +773,59 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_microphone_stream(int16_t*
             return -3;
       }
 }
+
+
+// EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_threshold_stream(int16_t** out_samples, int32_t* out_sample_counts,
+//                                            const uint8_t* in_data, int32_t length) {
+//     if (!initialized || !out_samples || !out_sample_counts || !in_data || length <= 0) {
+//         return -1;
+//     }
+
+//     try {
+//         int32_t sample_count = length * 8 / current_bits_per_sample;
+//         int32_t frame_count = sample_count / current_channel_count;
+
+//         // Prepare deinterleaved input buffers for the threshold processor
+//         auto** in_samples = new int16_t*[current_channel_count];
+//         auto* in_sample_counts = new int[current_channel_count];
+//         for (int ch = 0; ch < current_channel_count; ch++) {
+//             in_samples[ch] = new int16_t[frame_count];
+//             in_sample_counts[ch] = frame_count;
+//         }
+
+//         const int16_t* ptr = reinterpret_cast<const int16_t*>(in_data);
+//         for (int frame = 0; frame < frame_count; ++frame) {
+//             for (int ch = 0; ch < current_channel_count; ++ch) {
+//                 in_samples[ch][frame] = ptr[frame * current_channel_count + ch];
+//             }
+//         }
+
+//         // Events are not used when processing stream data
+//         thresholdProcessor->process(
+//             out_samples,
+//             out_sample_counts,
+//             in_samples,
+//             in_sample_counts,
+//             nullptr,
+//             nullptr,
+//             0);
+
+//         if (circularBuffer != nullptr) {
+//             circularBuffer->addData(out_samples, out_sample_counts);
+//         }
+
+//         for (int ch = 0; ch < current_channel_count; ch++) {
+//             delete[] in_samples[ch];
+//         }
+//         delete[] in_samples;
+//         delete[] in_sample_counts;
+
+//         return 0;
+//     } catch (...) {
+//         return -3;
+//     }
+// }
+
 
 EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_playback_stream(int16_t* out_samples, int32_t* out_sample_counts,
                                          const uint8_t* in_data, int32_t length,
@@ -924,41 +987,80 @@ EXTERNC FUNCTION_ATTRIBUTE void processing_pause_threshold() {
 }
 
 // STEVE COMMENTED THIS OUT
-// EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_counts,
-//                                    const int16_t** in_samples, const int32_t* in_sample_counts,
-//                                    bool average_samples) {
-//     if (!initialized || !out_samples || !out_sample_counts || !in_samples || !in_sample_counts) {
-//         return -1;
-//     }
+EXTERNC FUNCTION_ATTRIBUTE void processing_set_is_thresholding(bool isThresholding) {
+    isProcessThresholding = isThresholding;    
+}
 
-//     try {
-//         if (!average_samples) {
-//             thresholdProcessor->appendIncomingSamples(
-//                 reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
-//                 const_cast<int*>(in_sample_counts)
-//             );
-//             return 0;
-//         }
+EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_threshold(int16_t* _out_samples, int32_t* out_sample_counts,
+                                    int16_t* _in_samples,  int32_t* in_sample_counts,
+                                    const int32_t* in_event_indices, const int32_t* in_event_labels, int32_t in_event_count,
+                                   bool average_samples) {
+    if (!initialized || !_out_samples || !out_sample_counts || !_in_samples || !in_sample_counts) {
+        return -1;
+    }
+        int16_t** out_samples = new int16_t*[current_channel_count];
+        for (int cu = 0; cu < current_channel_count; cu++) {
+            out_samples[cu] = &_out_samples[cu * out_sample_counts[cu]];
+        }
+        int16_t** in_samples = new int16_t*[current_channel_count];
+        for (int cu = 0; cu < current_channel_count; cu++) {
+            in_samples[cu] = &_in_samples[cu * in_sample_counts[cu]];
+            // in_samples[cu] = new int16_t[in_sample_counts[cu]] {300};
+        }
+    
+        // platform_log("FIRST\n");
+        // // platform_log(std::to_string(in_samples[0]).c_str());
+        // platform_log("\n");
+        if (!average_samples) {
+            thresholdProcessor->appendIncomingSamples(
+                reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
+                const_cast<int*>(in_sample_counts)
+            );
+            return 0;
+        }
 
-//         // For averaging samples, we need to pass empty arrays for events since they're not used
-//         int* empty_event_indices = nullptr;
-//         int* empty_events = nullptr;
-//         int empty_event_count = 0;
+        // For averaging samples, we need to pass empty arrays for events since they're not used
+        // int* empty_event_indices = new int[1];
+        // int* empty_events = new int[1];
+        // int empty_event_count = 0;
+        int* empty_event_indices = const_cast<int*>(in_event_indices);
+        int* empty_events = const_cast<int*>(in_event_labels);
+        int empty_event_count = in_event_count;
 
-//         thresholdProcessor->process(
-//             reinterpret_cast<short**>(const_cast<int16_t**>(out_samples)),
-//             const_cast<int*>(out_sample_counts),
-//             reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
-//             const_cast<int*>(in_sample_counts),
-//             empty_event_indices,
-//             empty_events,
-//             empty_event_count
-//         );
-//         return 0;
-//     } catch (...) {
-//         return -3;
-//     }
-// }
+        // platform_log("SECOND\n");
+        // platform_log(std::to_string(in_event_indices[0]).c_str());
+        // platform_log("\n");
+
+        thresholdProcessor->process(
+            reinterpret_cast<short**>(const_cast<int16_t**>(out_samples)),
+            const_cast<int*>(out_sample_counts),
+            reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
+            const_cast<int*>(in_sample_counts),
+            empty_event_indices,
+            empty_events,
+            empty_event_count
+        );
+
+        if (circularBufferThreshold != nullptr) {
+            // EM_ASM({
+            //     console.log("THreshold check");
+            //     console.log($0, $1, $2); // 2. 1.  -1.
+            // }, current_channel_count, thresholdProcessor->getAveragedSampleCount(), thresholdProcessor->getTriggerType(), out_samples[0][0]);
+
+            // EM_ASM({
+            //     // console.log("out_sample_counts");
+            //     // console.log($0, $1);
+            //     console.log("out_sample_Data");
+            //     console.log($2, $3);
+            // }, out_sample_counts[0], out_sample_counts[1], out_samples[0][0], out_samples[1][0]);
+
+            circularBufferThreshold->addData(out_samples, (out_sample_counts));
+        }
+
+        return 0;
+
+}
+
 
 // EXTERNC FUNCTION_ATTRIBUTE int32_t processing_get_most_right(int chan, int from_sample, int to_sample, int bufferSize) {
 //     return circularBuffer->getMostRight(chan, from_sample, to_sample, bufferSize);
@@ -1034,17 +1136,17 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
             temp_samples[i] = new int16_t[sample_count];
             float_samples[i] = new float[sample_out_count];
         }
+        
   
         // Retrieve data from the circular buffer
         // Stev: From_sample is index in the circular buffer
+       
+        if (isProcessThresholding) {
+            circularBufferThreshold->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
+            // circularBuffer->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
+        } else
         if (circularBuffer != nullptr) {
             circularBuffer->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
-            // if (in_event_count > 0) {
-            //     EM_ASM({
-            //         console.log( "eventIndex++: ", $0, $1, " - ", $2, $3);
-            //     }, from_sample, temp_in_event_indices[0], to_sample, in_event_count);
-            // }
-
             //log_debug("Circular: from_sample=%d, to_sample=%d", from_sample, to_sample);
         } else {
             // Clean up and return error if no circular buffer is available
@@ -1067,6 +1169,12 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
             startIndex = from_sample;
             endIndex = to_sample;
         }
+            // EM_ASM({
+            //     // ===== PREPARE SIGNAL from:  0 to:  91612 91612 480000  -  388388 480000 XSTEP: 
+            //     // ===== PREPARE SIGNAL from:  5759 to:  109440 103681 480000  -  5759 109440 XSTEP: 
+            //     console.log( "===== PREPARE SIGNAL from: ", $0, "to: ", $1, $2, $3, " - ", $4, $5, "XSTEP: ", );
+            // }, from_sample, to_sample, samplesCount, maxSamples, startIndex, endIndex);
+
 
         backyardbrains::utils::DrawingUtils::prepareSignalForDrawing(
             float_samples,

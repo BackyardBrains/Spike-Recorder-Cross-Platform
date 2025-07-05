@@ -70,7 +70,8 @@ PROCESSING_API int32_t processing_process_sample_stream(int16_t** out_samples, i
 
 PROCESSING_API int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out_sample_counts,
                                            const uint8_t* in_data, int32_t length);
-
+// PROCESSING_API int32_t processing_process_threshold_stream(int16_t** out_samples, int32_t* out_sample_counts,
+//                                            const uint8_t* in_data, int32_t length);
 PROCESSING_API int32_t processing_process_playback_stream(int16_t** out_samples, int32_t* out_sample_counts,
                                          const uint8_t* in_data, int32_t length,
                                          const int32_t* event_indices, const char** event_names,
@@ -100,8 +101,10 @@ PROCESSING_API void processing_set_threshold(float threshold);
 PROCESSING_API void processing_reset_threshold();
 PROCESSING_API void processing_resume_threshold();
 PROCESSING_API void processing_pause_threshold();
+PROCESSING_API void processing_set_is_thresholding(bool flag);
 PROCESSING_API int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_counts,
-                                   const int16_t** in_samples, const int32_t* in_sample_counts,
+                                   int16_t** in_samples, int32_t* in_sample_counts,
+                                   const int32_t* in_event_indices, const int32_t* in_event_labels, int32_t in_event_count,
                                    bool average_samples);
 
 // BPM processing

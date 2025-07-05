@@ -31,10 +31,13 @@ class ProcessingUtilImpl implements ProcessingUtil {
     js.context['onEventFound'] = onEventFound;
     js.context['onSerialParsedCallback'] = onSerialParsedCallback;
     js.context['onDrawingBufferAllocated'] = onDrawingBufferAllocated;
+    js.context['onThresholdProcessCallback'] = onThresholdProcessCallback;
 
     return true;
   }
-
+  void onThresholdProcessCallback( int frameCount ) {
+    thresholdingArraylength = frameCount;
+  }
   @override
   Future<bool> initializeMicrophone(
       int channelCount, int sampleRate, double drawSurfaceWidth) async {
@@ -100,7 +103,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       }
     }
     if (inEventIndicesPtr.isNotEmpty && inEventIndicesPtr[0] == -1) {
-      print("REMOVING BUFFER: ${inEventPositionPtr}");
+      // print("REMOVING BUFFER: ${inEventPositionPtr}");
       int tempCurrentEvent = ProcessingUtil.currentEventMarkers;
       ProcessingUtil.currentEventMarkers -= removedIndicesCount;
 
@@ -123,6 +126,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
       data,
       0,
       data.length,
+      json.encode(ProcessingUtil.eventLabels),
+      json.encode(ProcessingUtil.eventPosition)
     ]);
     // DraggableGraph.eventMarkersPosition.clear();
     // DraggableGraph.eventMarkersPosition.addAll(_eventPositionList.toList());
@@ -256,7 +261,12 @@ class ProcessingUtilImpl implements ProcessingUtil {
   @override
   void initializeSerial(Board board, double drawSurfaceWidth) {
     isAllocated = false;
-    _sampleRate = int.parse(board.maxSampleRate!);
+    channelCount = int.parse(board.maxNumberOfChannels!);
+    sampleRate = int.parse(board.maxSampleRate!);
+    _sampleRate = sampleRate;
+    packetLen = sampleRate * MAX_DISPLAY_SECONDS;
+
+
     ProcessingUtil.currentEventMarkers = 0;
     ProcessingUtil.eventLabels.clear();
     ProcessingUtil.eventPosition.clear();
@@ -270,12 +280,16 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   @override
-  Future<int> processSerialData(Uint8List samples, int displayTimeMs,
+  Future<List<Int16List>> processSerialData(Uint8List samples, int displayTimeMs,
       int deviceType, int deviceWidth, GraphDataProvider provider) async {
     // var jsSamples = samples.toList();
     js.context.callMethod(
-        "processSerialDataWeb", [samples, displayTimeMs, deviceType]);
-    return Future.value(1);
+        "processSerialDataWeb", [
+          samples, displayTimeMs, deviceType,
+          json.encode(ProcessingUtil.eventLabels),
+          json.encode(ProcessingUtil.eventPosition)
+        ]);
+    return Future.value([Int16List(1)]);
   }
 
   @override
@@ -319,7 +333,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   void onEventFound(sampleIndex, eventLabel) {
-    ProcessingUtil.eventMarkerNotifier.value = eventLabel;
+    ProcessingUtil.eventMarkerNotifier.value = [eventLabel, -1];
     // ProcessingUtil.eventMarkerNotifier.value = [-1, -1];
     
   }
@@ -378,6 +392,17 @@ class ProcessingUtilImpl implements ProcessingUtil {
     if (ProcessingUtil.eventLabels.isNotEmpty) {
       DraggableGraph.eventMarkersPosition.addAll(_eventPositionList.sublist(0, ProcessingUtil.eventLabels.length));
     }
+
+    DraggableGraph.eventMarkersLabels.clear();
+    int len = ProcessingUtil.eventLabels.length;
+    int startPositionIdx = DraggableGraph.startPositionIdx;
+    int endPositionIdx = DraggableGraph.endPositionIdx;
+    for (int i = 0; i < len; i++) {
+      // print("RANGE : $startPositionIdx - $endPositionIdx");
+      if (ProcessingUtil.eventPosition[i] >= startPositionIdx && ProcessingUtil.eventPosition[i] <= endPositionIdx ) {
+        DraggableGraph.eventMarkersLabels.add(ProcessingUtil.eventLabels[i]);
+      }
+    }
   }
 
   void onDrawingBufferAllocated(List<Int16List> dataBufferList,
@@ -414,6 +439,39 @@ class ProcessingUtilImpl implements ProcessingUtil {
   Future<void> dispose() async {
     ProcessingUtil.eventMarkerNotifier.removeListener(eventMarkerListener);
   }
+  
+  @override
+  List<int> processThresholdData(List<Int16List> data, int thresholdChannelCount, int drawSurfaceWidth, int selectedChannel, bool isAverageSamples) {
+    return [];
+  }
+  
+  @override
+  void initThreshold(int channelCount, int sampleRate, double drawSurfaceWidth) {
+    js.context.callMethod("initThreshold", [channelCount, sampleRate, drawSurfaceWidth]);
+  }
+  
+  @override
+  void setAveragedSampleCount(int avgSampleCount) {
+    js.context.callMethod("setAveragedSampleCount", [avgSampleCount]);
+  }
+  
+  @override
+  void setThreshold(double thresholdValue) {
+    js.context.callMethod("setThreshold", [thresholdValue]);
+  }
+  
+  @override
+  void setIsThresholding(bool flag) {
+    js.context.callMethod("setIsThresholding", [flag]);    
+  }
+  
+  @override
+  void setThresholdTriggerType(int eventThresholdTriggeredType) {
+    js.context.callMethod("setThresholdTriggerType", [eventThresholdTriggeredType]);    
+  }
+
+  @override
+  int thresholdingArraylength = 0;
 }
 
 // Factory function to create an instance

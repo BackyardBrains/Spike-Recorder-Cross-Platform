@@ -56,6 +56,9 @@ function initializeModule() {
       console.log("event.data.expansionBoardType: ", event.data.expansionBoardType);
       window.setExpansionBoardTypeDart(event.data.expansionBoardType);
     } else
+    if (event.data.message === "THRESHOLD_PROCESSED_ARRAY_LENGTH") { 
+      window.onThresholdProcessCallback(event.data.thresholdArrayLength);
+    } else
     if (event.data.message === "INPUT_SERIAL_BUFFER_FINISHED") {
       // console.log("INPUT_SERIAL_BUFFER_FINISHED: ", event.data.bufferViews, event.data.bufferCountViews);
       // window.onProcessingDone(event.data.channelIdx, event.data.bufferViews);
@@ -142,7 +145,7 @@ function initializeMicrophoneWeb(channelCount, sampleRate, drawSurfaceWidth) {
 }
 
 function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, displayTimeMs, startPositionIdx, endPositionIdx, eventLabels, eventPositions) {
-  mWorker.postMessage({
+  const microphoneData = {
     "message": "DISPLAY_MICROPHONE_DATA",
     "channelCount": channelCount,
     "displayTimeMs": displayTimeMs,
@@ -152,10 +155,11 @@ function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, display
     "eventLabels": eventLabels,
     "eventPositions": eventPositions,
 
-  });
+  };
+  mWorker.postMessage(microphoneData);
 }
 
-function processMicrophoneDataWeb(microphoneDataBuffers, channelIdx, samplesLength) {
+function processMicrophoneDataWeb(microphoneDataBuffers, channelIdx, samplesLength, eventLabels, eventPositions) {
   // console.log("processMicrophoneDataWeb", microphoneDataBuffers);
   // console.log(window.innerWidth);
   mWorker.postMessage({
@@ -164,6 +168,8 @@ function processMicrophoneDataWeb(microphoneDataBuffers, channelIdx, samplesLeng
     "channelIdx": channelIdx,
     "samplesLength": samplesLength,
     "drawSurfaceWidth": window.innerWidth,
+    "eventLabels": eventLabels,
+    "eventPositions": eventPositions,
   });
   // if (isProcessNow) {
   // } else {
@@ -199,7 +205,7 @@ function initializeSerialWeb(sampleRate, channelCount, drawSurfaceWidth){
     "drawSurfaceWidth": drawSurfaceWidth,
   });
 }
-function processSerialDataWeb(samples, displayTimeMs, deviceType){
+function processSerialDataWeb(samples, displayTimeMs, deviceType, eventLabels, eventPositions){
   // console.log("samples: ", samples);
   mWorker.postMessage({
     "message": "SEND_SERIAL_DATA_WEB",
@@ -209,6 +215,9 @@ function processSerialDataWeb(samples, displayTimeMs, deviceType){
     "deviceType": deviceType,
     // "deviceType": 5,
     "drawSurfaceWidth": window.innerWidth,
+    "eventLabels": eventLabels,
+    "eventPositions": eventPositions,
+
   });
 }
 function displaySerialDataWeb(displayTimeMs, deviceType, deviceWidth, startPositionIdx, endPositionIdx, eventLabels, eventPositions){
@@ -233,5 +242,53 @@ function setChannelFilterEnabled(channel, enabled) {
     "message": "SET_CHANNEL_FILTER_ENABLED",
     "channelIndex": channel,
     "enabled": enabled,
+  });
+}
+
+
+
+/* 
+  THRESHOLDING
+*/
+
+function initThreshold(channelCount, sampleRate, drawSurfaceWidth) {
+  console.log("initThreshold: ", channelCount, sampleRate, drawSurfaceWidth);
+  mWorker.postMessage({
+    "message": "INIT_THRESHOLD",
+    "channelCount": channelCount,
+    "sampleRate": sampleRate,
+    "drawSurfaceWidth": drawSurfaceWidth,
+  });
+}
+
+function setAveragedSampleCount(avgSampleCount) {
+  console.log("avgSampleCount: ", avgSampleCount);
+  mWorker.postMessage({
+    "message": "SET_THRESHOLD_AVERAGE_SAMPLE",
+    "avgSampleCount": avgSampleCount,
+  });
+}
+
+function setThreshold(thresholdValue) {
+  console.log("setThreshold: ", thresholdValue);
+  mWorker.postMessage({
+    "message": "SET_THRESHOLD_VALUE",
+    "thresholdValue": thresholdValue,
+  });
+}
+
+function setIsThresholding(isThresholding) {
+  console.log("setIsThresholding: ", isThresholding);
+  mWorker.postMessage({
+    "message": "SET_THRESHOLD_IS_THRESHOLDING",
+    "isThresholding": isThresholding,
+  });
+}
+
+function setThresholdTriggerType(eventThresholdTriggeredType) {
+  console.log("setThresholdTriggerType: ", eventThresholdTriggeredType);
+  mWorker.postMessage({
+    "message": "SET_THRESHOLD_TRIGGER_TYPE",
+    "eventThresholdTriggeredType": eventThresholdTriggeredType,
   });
 }

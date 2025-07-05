@@ -227,7 +227,9 @@ namespace backyardbrains {
                     applyFilters(i, channels[i], sampleCounters[i]);
                 // }
 
-                outSamples[i] = new short[sampleCounters[i]];
+                // STEVANUS
+                // we lost the address if using below code, just create another one.
+                // outSamples[i] = new short[sampleCounters[i]];
                 std::copy(channels[i], channels[i] + sampleCounters[i], outSamples[i]);
                 // EM_ASM({
                 //     console.log("SAMPLE : ", $0, $1, $2, $3);
@@ -266,8 +268,16 @@ namespace backyardbrains {
                 setSampleRateAndChannelCount(sampleRate, channelCount);
             } else if (backyardbrains::utils::SampleStreamUtils::isEventMsg(message)) {
                 eventIndices[eventCounter] = sampleIndex;
-                eventLabels[eventCounter++] = backyardbrains::utils::SampleStreamUtils::getEventNumber(
+                eventLabels[eventCounter] = backyardbrains::utils::SampleStreamUtils::getEventNumber(
                         message);
+                int num = std::stoi(eventLabels[eventCounter]);    
+                listener->onEventFound(sampleIndex, num);
+                // listener->onEventFound(1, 1);
+                // EM_ASM({
+                //     console.log("ON EVENT FOUND0000", $0, $1);
+                // }, sampleIndex, num);
+
+                eventCounter++;
             } else if (backyardbrains::utils::SampleStreamUtils::isExpansionBoardTypeMsg(message)) {
                 const int expansionBoardType = backyardbrains::utils::SampleStreamUtils::getExpansionBoardType(
                         message);

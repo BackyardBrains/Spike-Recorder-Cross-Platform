@@ -1,6 +1,15 @@
 //
 // Created by Tihomir Leka <tihomir at backyardbrains.com>
 //
+#include <cstring>
+#include <string>
+// #define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
+// void platform_log(const char *fmt, ...) {
+//     va_list args;
+//     va_start(args, fmt);
+//     vprintf(fmt, args);
+//     va_end(args);
+// }
 
 #include "ThresholdProcessor.h"
 
@@ -82,6 +91,7 @@ namespace backyardbrains {
             bool shouldReset = false;
             bool shouldResetLocalBuffer = false;
             int selectedChannel = getSelectedChannel();
+
             // reset buffers if selected channel has changed
             if (lastSelectedChannel != selectedChannel) {
                 //__android_log_print(ANDROID_LOG_DEBUG, TAG, "Resetting because channel has changed");
@@ -153,6 +163,7 @@ namespace backyardbrains {
             bool shouldResetLocalBuffer = false;
             int selectedChannel = getSelectedChannel();
             // reset buffers if selected channel has changed
+
             if (lastSelectedChannel != selectedChannel) {
                 //__android_log_print(ANDROID_LOG_DEBUG, TAG, "Resetting because channel has changed");
                 lastSelectedChannel = selectedChannel;
@@ -260,6 +271,7 @@ namespace backyardbrains {
                             // we hit the threshold, turn on dead period of 5ms
                             inDeadPeriod = true;
 
+
                             // create new samples for current threshold
                             for (j = 0; j < channelCount; j++) {
                                 prepareNewSamples(inSamples[j], inSampleCounts[j], j, i);
@@ -317,6 +329,7 @@ namespace backyardbrains {
                           buffer[i] + bufferSampleCount - copyFromIncoming);
             }
 
+
             int *counts = new int[averagedSampleCount]{0};
             for (i = 0; i < channelCount; i++) {
                 tmpSummedSampleCounts = summedSamplesCounts[i];
@@ -331,7 +344,9 @@ namespace backyardbrains {
                         tmpAveragedSamples[j] = 0;
                 std::copy(tmpAveragedSamples, tmpAveragedSamples + sampleCount, outSamples[i]);
                 outSamplesCounts[i] = sampleCount;
+
             }
+
             delete[] counts;
         }
 

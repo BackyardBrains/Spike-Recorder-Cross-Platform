@@ -11,3 +11,8 @@ dr_wav.c
 dr_wav.h
 
 jni-helper.c/h
+
+
+
+device init, init level median.
+setIsThresholding bindings

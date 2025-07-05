@@ -254,7 +254,6 @@ class ProcessingBindings {
     setNotchFilter = _lib!.lookupFunction<ProcessingSetNotchFilterNative,ProcessingSetNotchFilter>('processing_set_notch_filter');
 
     processMicrophoneStream = _lib!.lookupFunction<ProcessingProcessMicrophoneStreamNative,ProcessingProcessMicrophoneStream>('processing_process_microphone_stream');
-    processThresholdStream = _lib!.lookupFunction<ProcessingProcessThresholdStreamNative,ProcessingProcessThresholdStream>('processing_process_threshold_stream');
     processSampleStream = _lib!.lookupFunction<ProcessingProcessSampleStreamNative,ProcessingProcessSampleStream>('processing_process_sample_stream');
 
     // filterData = _lib!.lookupFunction<ProcessingFilterDataNative, ProcessingFilterData>('processing_filter_data');

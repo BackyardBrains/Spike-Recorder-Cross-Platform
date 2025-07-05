@@ -1,3 +1,0 @@
-/Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles/processing.dir
-/Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles/edit_cache.dir
-/Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/processing_plugin/build/CMakeFiles/rebuild_cache.dir

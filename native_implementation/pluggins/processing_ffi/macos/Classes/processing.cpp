@@ -50,9 +50,10 @@ using namespace backyardbrains::utils;
 // Constants
 static constexpr int32_t PROCESSING_MAX_EVENTS = 100;  // Same as MAX_EVENTS in SampleStreamProcessor
 static constexpr int32_t MAX_NUMBER_OF_SECONDS = 10;  // 10 seconds of buffer
-static constexpr int32_t BUFFER_MULTIPLIER = 2;  // 10 seconds of buffer
+static constexpr int32_t BUFFER_MULTIPLIER = 1;
 
 // Internal state variables
+static bool isProcessThresholding = false;
 static bool initialized = false;
 static int32_t current_sample_rate = PROCESSING_DEFAULT_SAMPLE_RATE;
 static int32_t current_channel_count = 1;
@@ -163,26 +164,25 @@ class CircularBuffer {
                               
                               for (int i = 0; i < sampleCount[chan]; i++) {
                                     try {
-                                         
-                                          // Store sample at current head position
-                                          int16_t temp_sample = samples[chan][i];
-                                         
-                                          buffer[chan][headIndex[chan]] = temp_sample;
-                                         
-                                          // Move head forward, wrapping around if needed
-                                          headIndex[chan] = (headIndex[chan] + 1) % bufferSize;
-                                         
-                                          // If head catches up to tail, move tail forward
-                                          if (headIndex[chan] == tailIndex[chan]) {
-                                               
-                                                tailIndex[chan] = (tailIndex[chan] + 1) % bufferSize;
-                                          }
+                                        // Store sample at current head position
+                                        int16_t temp_sample = samples[chan][i];
+                                        buffer[chan][headIndex[chan]] = temp_sample;
+                                        
+                                        // Move head forward, wrapping around if needed
+                                        headIndex[chan] = (headIndex[chan] + 1) % bufferSize;
+                                        
+                                        // If head catches up to tail, move tail forward
+                                        if (headIndex[chan] == tailIndex[chan]) {
+                                            
+                                            tailIndex[chan] = (tailIndex[chan] + 1) % bufferSize;
+                                        }
                                     } catch (const std::exception& e) {
-                                          log_debug("Error processing sample %d in channel %d: %s", i, chan, e.what());
-                                          throw; // Re-throw to be caught by outer catch
+                                        log_debug("Error processing sample %d in channel %d: %s", i, chan, e.what());
+                                        throw; // Re-throw to be caught by outer catch
                                     }
                               }
                         }
+
                   } catch (const std::exception& e) {
                         log_debug("Critical error in buffer processing: %s", e.what());
                         log_debug("State: headIndex=%d, tailIndex=%d, bufferSize=%d", headIndex, tailIndex, bufferSize);
@@ -237,6 +237,7 @@ class CircularBuffer {
                               outputBuffer[chan][i] = buffer[chan][bufferPos];
                         }
                   }
+
             }
       private:
             int sampleRate;
@@ -249,6 +250,7 @@ class CircularBuffer {
 
 //create a new static instance of CircularBuffer
 static CircularBuffer* circularBuffer = nullptr;
+static CircularBuffer* circularBufferThreshold = nullptr;
 
 
 class HeartbeatListener : public backyardbrains::utils::OnHeartbeatListener {
@@ -272,7 +274,10 @@ public:
 
 
     void onEventFound(int sampleIndex, int eventLabel) {
-
+        platform_log("EVENT FOUND\n");
+        platform_log(std::to_string(sampleIndex).c_str());
+        platform_log("EVENT LABLE\n");
+        platform_log(std::to_string(eventLabel).c_str());
         // EM_ASM({
         //     postMessage({
         //         "message": "EVENT_FOUND",
@@ -310,7 +315,7 @@ public:
       //   backyardbrains::utils::JniHelper::invokeVoid(vm, sampleSourceObj, "setExpansionBoardType",
       //                                                "(I)V",
       //                                                expansionBoardType);
-    }
+    }   
 
 private:
 
@@ -409,6 +414,7 @@ int32_t processing_init() {
         // Initialize the circular buffer
         if (circularBuffer == nullptr) {
             circularBuffer = new CircularBuffer(current_sample_rate, current_channel_count);
+            circularBufferThreshold = new CircularBuffer(current_sample_rate, current_channel_count);
         }
         
         initialized = true;
@@ -440,12 +446,14 @@ int32_t processing_set_sample_rate(int32_t sample_rate) {
     try {
         current_sample_rate = sample_rate;
         amModulationProcessor->setSampleRate( sample_rate );
+        thresholdProcessor->setSampleRate( sample_rate );
         sampleStreamProcessor->setSampleRate(sample_rate);
         fftProcessor->setSampleRate(sample_rate);
 
         // Re-setup the circular buffer when sample rate changes
         if (circularBuffer != nullptr) {
             circularBuffer->setup(current_sample_rate, current_channel_count);
+            circularBufferThreshold->setup(current_sample_rate, current_channel_count);
         }
         
         return 0;
@@ -466,12 +474,14 @@ int32_t processing_set_channel_count(int32_t channel_count) {
     try {
         current_channel_count = channel_count;
         amModulationProcessor->setChannelCount(channel_count);
+        thresholdProcessor->setChannelCount( channel_count );
         sampleStreamProcessor->setChannelCount(channel_count);
         fftProcessor->setChannelCount(channel_count);
         
         // Re-setup the circular buffer when channel count changes
         if (circularBuffer != nullptr) {
             circularBuffer->setup(current_sample_rate, current_channel_count);
+            circularBufferThreshold->setup(current_sample_rate, current_channel_count);
         }
         
         return 0;
@@ -492,6 +502,7 @@ int32_t processing_set_bits_per_sample(int32_t bits_per_sample) {
     try {
         current_bits_per_sample = bits_per_sample;
         sampleStreamProcessor->setBitsPerSample(bits_per_sample);
+        thresholdProcessor->setBitsPerSample(bits_per_sample);
         return 0;
     } catch (...) {
         return -3;
@@ -509,6 +520,7 @@ int32_t processing_set_selected_channel(int32_t selected_channel) {
     
     try {
         current_selected_channel = selected_channel;
+        thresholdProcessor->setSelectedChannel(selected_channel);        
         return 0;
     } catch (...) {
         return -3;
@@ -521,7 +533,8 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
     if (!initialized || !out_samples || !out_sample_counts || !in_data || length <= 0) {
         return -1;
     }
-
+    // isProcessThresholding = false;
+    
     try {
         // Process data using SampleStreamProcessor
         int* event_indices = new int[PROCESSING_MAX_EVENTS];
@@ -557,6 +570,7 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
       if (!initialized || !out_samples || !out_sample_counts || !in_data || length <= 0) {
             return -1;
       }
+    //   isProcessThresholding = false;
       //log_debug("Processing microphone data: length=%d", length);
 
       try {
@@ -619,6 +633,57 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
             return -3;
       }
 }
+
+// int32_t processing_process_threshold_stream(int16_t** out_samples, int32_t* out_sample_counts,
+//                                            const uint8_t* in_data, int32_t length) {
+//     if (!initialized || !out_samples || !out_sample_counts || !in_data || length <= 0) {
+//         return -1;
+//     }
+
+//     try {
+//         int32_t sample_count = length * 8 / current_bits_per_sample;
+//         int32_t frame_count = sample_count / current_channel_count;
+
+//         // Prepare deinterleaved input buffers for the threshold processor
+//         auto** in_samples = new int16_t*[current_channel_count];
+//         auto* in_sample_counts = new int[current_channel_count];
+//         for (int ch = 0; ch < current_channel_count; ch++) {
+//             in_samples[ch] = new int16_t[frame_count];
+//             in_sample_counts[ch] = frame_count;
+//         }
+
+//         const int16_t* ptr = reinterpret_cast<const int16_t*>(in_data);
+//         for (int frame = 0; frame < frame_count; ++frame) {
+//             for (int ch = 0; ch < current_channel_count; ++ch) {
+//                 in_samples[ch][frame] = ptr[frame * current_channel_count + ch];
+//             }
+//         }
+
+//         // Events are not used when processing stream data
+//         thresholdProcessor->process(
+//             out_samples,
+//             out_sample_counts,
+//             in_samples,
+//             in_sample_counts,
+//             nullptr,
+//             nullptr,
+//             0);
+
+//         if (circularBuffer != nullptr) {
+//             circularBuffer->addData(out_samples, out_sample_counts);
+//         }
+
+//         for (int ch = 0; ch < current_channel_count; ch++) {
+//             delete[] in_samples[ch];
+//         }
+//         delete[] in_samples;
+//         delete[] in_sample_counts;
+
+//         return 0;
+//     } catch (...) {
+//         return -3;
+//     }
+// }
 
 int32_t processing_process_playback_stream(int16_t** out_samples, int32_t* out_sample_counts,
                                          const uint8_t* in_data, int32_t length,
@@ -774,14 +839,22 @@ void processing_pause_threshold() {
     }
 }
 
+void processing_set_is_thresholding(bool isThresholding) {
+    isProcessThresholding = isThresholding;    
+}
+
 int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_counts,
-                                   const int16_t** in_samples, const int32_t* in_sample_counts,
+                                    int16_t** in_samples,  int32_t* in_sample_counts,
+                                    const int32_t* in_event_indices, const int32_t* in_event_labels, int32_t in_event_count,
                                    bool average_samples) {
     if (!initialized || !out_samples || !out_sample_counts || !in_samples || !in_sample_counts) {
         return -1;
     }
+    isProcessThresholding = true;
 
-    try {
+        // platform_log("FIRST\n");
+        // // platform_log(std::to_string(in_samples[0]).c_str());
+        // platform_log("\n");
         if (!average_samples) {
             thresholdProcessor->appendIncomingSamples(
                 reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
@@ -791,10 +864,16 @@ int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_
         }
 
         // For averaging samples, we need to pass empty arrays for events since they're not used
-        int* empty_event_indices = nullptr;
-        int* empty_events = nullptr;
-        int empty_event_count = 0;
+        // int* empty_event_indices = new int[1];
+        // int* empty_events = new int[1];
+        // int empty_event_count = 0;
+        int* empty_event_indices = const_cast<int*>(in_event_indices);
+        int* empty_events = const_cast<int*>(in_event_labels);
+        int empty_event_count = in_event_count;
 
+        // platform_log("SECOND\n");
+        // platform_log(std::to_string(in_event_indices[0]).c_str());
+        // platform_log("\n");
         thresholdProcessor->process(
             reinterpret_cast<short**>(const_cast<int16_t**>(out_samples)),
             const_cast<int*>(out_sample_counts),
@@ -804,10 +883,40 @@ int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_
             empty_events,
             empty_event_count
         );
+        // thresholdProcessor->process(
+        //     (out_samples),
+        //     (out_sample_counts),
+        //     // reinterpret_cast<short**>(in_samples),
+        //     reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
+        //     const_cast<int*>(in_sample_counts),
+        //     const_cast<int*>(empty_event_indices),
+        //     const_cast<int*>(empty_events),
+        //     empty_event_count
+        // );
+
+
+
+        // platform_log("LOG\n");
+        // for (int i = 0; i < out_sample_counts[0]; i++) {
+        //     platform_log( (std::to_string(out_samples[0][i])).c_str());
+        //     platform_log( ",");
+        // }
+        // platform_log("\n===\n");
+
+        // platform_log("THIRD\n");
+        // platform_log(std::to_string(out_sample_counts[0]).c_str());
+        // platform_log("\n");
+        if (circularBufferThreshold != nullptr) {
+            // circularBufferThreshold->addData(in_samples, (in_sample_counts));
+            circularBufferThreshold->addData(out_samples, (out_sample_counts));
+        }
+
+        // platform_log("FOURTH\n");
+        // platform_log(std::to_string(out_sample_counts[0]).c_str());
+        // platform_log("\n");
+
         return 0;
-    } catch (...) {
-        return -3;
-    }
+
 }
 
 void processing_set_bpm_processing(bool process_bpm) {
@@ -843,10 +952,11 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
             float_samples[i] = new float[sample_out_count];
         }
 
-  
         // Retrieve data from the circular buffer
+        if (isProcessThresholding) {
+            circularBufferThreshold->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
+        } else
         if (circularBuffer != nullptr) {
-            
             circularBuffer->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
             //log_debug("Circular: from_sample=%d, to_sample=%d", from_sample, to_sample);
         } else {
@@ -870,6 +980,10 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
             startIndex = from_sample;
             endIndex = to_sample;
         }
+        // platform_log("First\n");
+        // platform_log(std::to_string(endIndex).c_str());
+        // platform_log("\n");
+        
 
 
         backyardbrains::utils::DrawingUtils::prepareSignalForDrawing(
@@ -887,6 +1001,10 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
             // maxSamples,
             draw_surface_width
         );
+        // platform_log("Second\n");
+        // platform_log(std::to_string(out_sample_counts[0]).c_str());
+        // platform_log("\n");
+
         // platform_log("\nSTART\nMaxSamples:");
         // platform_log(std::to_string(maxSamples-1).c_str());
         // platform_log("===========\nSampleCount:");
@@ -915,7 +1033,7 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
         delete[] temp_samples;
         delete[] float_samples;
         
-        *out_event_count = outEventCount;
+        out_event_count[0] = outEventCount;
         return 0;
     } catch (...) {
         return -3;
@@ -1252,7 +1370,9 @@ void processing_cleanup() {
     // Clean up the circular buffer
     if (circularBuffer != nullptr) {
         delete circularBuffer;
+        delete circularBufferThreshold;
         circularBuffer = nullptr;
+        circularBufferThreshold = nullptr;
     }
     
     initialized = false;
@@ -1362,6 +1482,7 @@ int32_t processing_map(float* out_data, const float* in_data, int32_t length,
         return -3;
     }
 }
+
 
 
 // typedef void (*DartCallback)(int32_t);

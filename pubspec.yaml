@@ -69,6 +69,8 @@ dependencies:
   sound_stream_now: ^1.0.0
   serial_communication: ^0.0.2
   another_xlider: 3.0.2
+  dotted_line: 3.2.3
+  dropdown_button2: 2.3.9
 
   # flutter_recorder: 1.1.1 # it is slow
   # flutter_audio_waveforms: ^1.2.1+8

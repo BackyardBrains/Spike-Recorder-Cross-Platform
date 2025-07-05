@@ -104,6 +104,18 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   @override
+  void setAveragedSampleCount(int avgSampleCount) {
+    print("setAveragedSampleCount: $avgSampleCount");
+    pb.processingBindings.setAveragedSampleCount(avgSampleCount);
+  }
+
+  @override
+  void setThreshold(double thresholdValue) {
+    print("SET THRESHOLD: $thresholdValue");
+    pb.processingBindings.setThreshold(thresholdValue);
+  }
+
+  @override
   Future<bool> initializeMicrophone(
       int channelCount, int sampleRate, double drawSurfaceWidth) async {
     if (!_isInitialized) {
@@ -179,19 +191,21 @@ class ProcessingUtilImpl implements ProcessingUtil {
     inEventLabelsPtr = calloc<Int32>(ProcessingUtil.MAX_EVENT_MARKERS);
     ProcessingUtil.currentEventMarkers = 0;
     initEventMarkers(_sampleRate);
+    ProcessingUtil.eventMarkerNotifier.removeListener(eventMarkerListener);
     ProcessingUtil.eventMarkerNotifier.addListener(eventMarkerListener);
 
     return true;
   }
 
   @override
+  // List<Int16List> processMicrophoneData(Uint8List data, bool isAverageSamples, bool isThresholdingButton, int drawSurfaceWidth, int selectedChannel) {
   List<Int16List> processMicrophoneData(Uint8List data) {
     if (!_isInitialized) {
       throw StateError('ProcessingUtil not initialized. Call init() first.');
     }
-    ProcessingUtil.positionIndex =
-        (ProcessingUtil.positionIndex + data.length / 2).toInt() %
-            (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate * 2).toInt();
+    // ProcessingUtil.positionIndex =
+    //     (ProcessingUtil.positionIndex + data.length / 2).toInt() %
+    //         (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate * 2).toInt();
     // print("ProcessingUtil.positionIndex : $_sampleRate --  ${ProcessingUtil.positionIndex}");
 
     final outSampleCountsPtr = calloc<Int32>();
@@ -206,6 +220,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
       // Process the microphone data using pre-allocated buffer
       final result = pb.processingBindings.processMicrophoneStream(
           currentDataBuffer!, outSampleCountsPtr, inDataPtr, data.length);
+      if (result != 0) {
+        throw Exception('Failed to process microphone data: $result');
+      } else {
+      }
+
 
       // Free input data memory
       calloc.free(inDataPtr);
@@ -225,8 +244,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
       }
       for (int i = 0; i < removedIndicesCount; i++) {
         if (inEventIndicesPtr![i] == -1) {
-          print(
-              "INDEX: $i -- $removedIndicesCount __ ${inEventIndicesPtr![i]} : ${ProcessingUtil.eventLabels} @@ ${inEventIndicesPtr!.asTypedList(ProcessingUtil.currentEventMarkers)}");
+          // print(
+          //     "INDEX: $i -- $removedIndicesCount __ ${inEventIndicesPtr![i]} : ${ProcessingUtil.eventLabels} @@ ${inEventIndicesPtr!.asTypedList(ProcessingUtil.currentEventMarkers)}");
           if (ProcessingUtil.eventLabels.isNotEmpty) {
             ProcessingUtil.eventLabels.removeAt(0);
             ProcessingUtil.eventPosition.removeAt(0);
@@ -251,20 +270,17 @@ class ProcessingUtilImpl implements ProcessingUtil {
         //     "1ProcessingUtil.eventPosition ${ProcessingUtil.eventPosition.sublist(0, eventPositionLen)} --- ${inEventIndicesPtr!.asTypedList(eventPositionLen)}");
       }
 
-      if (result != 0) {
-        throw Exception('Failed to process microphone data: $result');
-      }
-
       // Create Dart view of the native memory
-      // final sampleCount = outSampleCountsPtr.value;
-      // Pointer<Pointer<Int16>> curDataBuffer = currentDataBuffer as Pointer<Pointer<Int16>>;
-      // final bufferViews = List<Int16List>.generate(
-      // 	_channelCount,
-      // 	(i) => (curDataBuffer.value + i).cast<Int16>().asTypedList(sampleCount)
-      // );
+      final sampleCount = outSampleCountsPtr.value;
+      Pointer<Pointer<Int16>> curDataBuffer = currentDataBuffer as Pointer<Pointer<Int16>>;
+      final bufferViews = List<Int16List>.generate(
+      	_channelCount,
+      	(i) => (curDataBuffer.value + i).cast<Int16>().asTypedList(sampleCount)
+      );
+      return bufferViews;
 
-      // return bufferViews;
-      return [];
+      
+      // return [];
     } finally {
       calloc.free(outSampleCountsPtr);
     }
@@ -373,6 +389,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       GraphDataProvider provider,
       int startPositionIdx,
       int endPositionIdx) {
+      // return [Int16List(0)];
     if (processedData.isNotEmpty) {
       // Convert Int16List to Float data for signal drawing
       int frameCount = processedData[0].length;
@@ -410,7 +427,6 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
       // Allocate and prepare input event indices
       // final inEventIndicesPtr = calloc<Int32>(0); // No events yet
-
       // int sampleResolution = (displayTimeMs*0.001 * _sampleRate).toInt();
 
       try {
@@ -432,7 +448,6 @@ class ProcessingUtilImpl implements ProcessingUtil {
           int sampleCount = outSampleCountsPtr.value;
           //print("sampleCount: $sampleCount");
           // Copy the prepared signal data
-
           //for (int i = 0; i < widget.channelCount; i++) {
           // Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
           //print("Sample count: $sampleCount");
@@ -453,6 +468,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
             // }
           }
           DraggableGraph.eventMarkersPosition.clear();
+          DraggableGraph.eventMarkersLabels.clear();
           var tempList =
               outEventIndicesPtr.asTypedList(ProcessingUtil.eventLabels.length);
           // print(
@@ -460,6 +476,18 @@ class ProcessingUtilImpl implements ProcessingUtil {
           for (double temp in tempList) {
             DraggableGraph.eventMarkersPosition.add(temp);
           }
+
+          int len = ProcessingUtil.eventLabels.length;
+          int startPositionIdx = DraggableGraph.startPositionIdx;
+          int endPositionIdx = DraggableGraph.endPositionIdx;
+          for (int i = 0; i < len; i++) {
+            // print("RANGE : $startPositionIdx - $endPositionIdx");
+            if (ProcessingUtil.eventPosition[i] >= startPositionIdx && ProcessingUtil.eventPosition[i] <= endPositionIdx ) {
+              DraggableGraph.eventMarkersLabels.add(ProcessingUtil.eventLabels[i]);
+            }
+          }
+
+
           // print(
           //     "DraggableGraph.eventMarkersPosition: ${DraggableGraph.eventMarkersPosition}");
 
@@ -502,6 +530,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     channelCount = int.parse(board.maxNumberOfChannels!);
     _channelCount = channelCount;
     sampleRate = int.parse(board.maxSampleRate!);
+    _sampleRate = sampleRate;
     packetLen = sampleRate * MAX_DISPLAY_SECONDS;
     
     // print("Initialize Serial === $result $channelCount $sampleRate -- PACKET LEN : $packetLen");
@@ -517,10 +546,18 @@ class ProcessingUtilImpl implements ProcessingUtil {
         "Initialize Serial === $channelCount $sampleRate -- PACKET LEN : $packetLen ${ProcessingUtil.drawingBuffers.length}");
     pb.processingBindings.setChannelCount(channelCount);
     pb.processingBindings.setSampleRate(sampleRate);
+
+    inEventIndicesPtr = calloc<Int32>(ProcessingUtil.MAX_EVENT_MARKERS);
+    inEventLabelsPtr = calloc<Int32>(ProcessingUtil.MAX_EVENT_MARKERS);
+    ProcessingUtil.currentEventMarkers = 0;
+    initEventMarkers(_sampleRate);
+    ProcessingUtil.eventMarkerNotifier.removeListener(eventMarkerListener);
+    ProcessingUtil.eventMarkerNotifier.addListener(eventMarkerListener);
+
   }
 
   @override
-  Future<int> processSerialData(Uint8List samples, int displayTimeMs,
+  Future<List<Int16List>> processSerialData(Uint8List samples, int displayTimeMs,
       int deviceType, int drawSurfaceWidth,
       [GraphDataProvider? provider]) async {
     // print("SERIAL DATA: $channelCount - ${samples.length} : $drawSurfaceWidth -- $sampleRate : $displayTimeMs DEVICETYPE: $deviceType");
@@ -549,15 +586,67 @@ class ProcessingUtilImpl implements ProcessingUtil {
     }
     int res = pb.processingBindings.processSampleStream(outSamplesPtr,
         outSampleCountsPtr, inDataPtr, samples.length, deviceType);
-    var list = outSamplesPtr[0].asTypedList(res);
-    var list2 = outSamplesPtr[1].asTypedList(res);
-    Int32List sampleCount = outSampleCountsPtr.asTypedList(channelCount);
+    int minCounter = 100000;
+    List<Int16List> buffer =[];
+    // if (res != 0) {
+      for (int i = 0; i < channelCount; i++) {
+        minCounter = min(outSampleCountsPtr[i], minCounter);
+        Int16List temp = outSamplesPtr[i].asTypedList(outSampleCountsPtr[i]);
+        Int16List arr = Int16List(outSampleCountsPtr[i]);
+        arr.setAll(0, temp);
+        buffer.add(arr);
+      }
+    // }
+    // Int32List sampleCount = outSampleCountsPtr.asTypedList(channelCount);
     // provider.inputListener(outSamplesPtr[0].asTypedList(sampleCount).buffer.asUint8List());
     // if (samples.reduce(max) > 250) {
     //   print("RES : $res - $samples === ${samples.length} @@@ : [1]=> $list [2]=> $list2");
     // }
-    // print("RES : $res - ${samples.length} : == $sampleCount");
+    // print("RES : $res - ${samples.length} : == ");
+      // Free input data memory
     calloc.free(inDataPtr);
+    int frameCount = minCounter;
+    int removedIndicesCount = 0;
+    // print("RES : ${inEventIndicesPtr![0]} - ${samples.length} : == ");
+    for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {
+      if (inEventIndicesPtr![i] - frameCount > 0) {
+        inEventIndicesPtr![i] -= frameCount;
+        ProcessingUtil.eventPosition[i] = inEventIndicesPtr![i];
+
+      } else {
+        if (inEventIndicesPtr![i] != -1) {
+        // print("inEventIndicesPtr![i] - frameCount:  ${inEventIndicesPtr![i]} - $frameCount");
+
+          removedIndicesCount++;
+          inEventIndicesPtr![i] = -1;
+          // DraggableGraph.eventMarkersPosition.removeAt(i);
+        }
+      }
+    }
+
+    for (int i = 0; i < removedIndicesCount; i++) {
+      if (inEventIndicesPtr![i] == -1) {
+        // print(
+        //     "INDEX: $i -- $removedIndicesCount __ ${inEventIndicesPtr![i]} : ${ProcessingUtil.eventLabels} @@ ${inEventIndicesPtr!.asTypedList(ProcessingUtil.currentEventMarkers)}");
+        if (ProcessingUtil.eventLabels.isNotEmpty) {
+          ProcessingUtil.eventLabels.removeAt(0);
+          ProcessingUtil.eventPosition.removeAt(0);
+        }
+      }
+    }
+    
+    int tempCurrentEvent = ProcessingUtil.currentEventMarkers;
+    ProcessingUtil.currentEventMarkers -= removedIndicesCount;
+    if (inEventIndicesPtr != null && inEventIndicesPtr![0] == -1) {
+      int eventPositionLen = ProcessingUtil.eventLabels.length;
+      for (int i = eventPositionLen; i >= 0; i--) {
+        inEventIndicesPtr![i] = ProcessingUtil.eventPosition[i];
+      }
+      for (int i = eventPositionLen; i < tempCurrentEvent; i++) {
+        inEventIndicesPtr![i] = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+      }
+    }
+
     // return;
     // }catch (err) {
     //   print("err process Sample Stream");
@@ -567,8 +656,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       calloc.free(outSamplesPtr[i]);
     }
     calloc.free(outSamplesPtr);
-
-    return Future.value(sampleCount[0]);
+    return Future.value(buffer);
   }
 
   @override
@@ -580,6 +668,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
       int startPositionIdx,
       int endPositionIdx) async {
     // Allocate memory for sample counts
+
+    
     var outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
     final outSampleCountsPtr = calloc<Int32>(channelCount);
     for (int i = 0; i < channelCount; i++) {
@@ -593,16 +683,18 @@ class ProcessingUtilImpl implements ProcessingUtil {
     final outEventCountPtr = calloc<Int32>(1);
 
     // Allocate and prepare input event indices
-    final inEventIndicesPtr = calloc<Int32>(0); // No events yet
+    // final inEventIndicesPtr = calloc<Int32>(0); // No events yet
     // print("drawSurfaceWidth : $drawSurfaceWidth");
     try {
+
+
       int result = pb.processingBindings.prepareForSignalDrawing(
           outSamplesPtr, // Pointer<Pointer<Float>>
           outSampleCountsPtr, // Pointer<Int32>
           outEventIndicesPtr, // Pointer<Float>
           outEventCountPtr, // Pointer<Int32>
-          inEventIndicesPtr, // Pointer<Int32>
-          0, // int (inEventCount)
+          inEventIndicesPtr!, // Pointer<Int32>
+          ProcessingUtil.currentEventMarkers, // int (inEventCount)
           // 0,                       // int (fromSample)
           // (displayTimeMs*0.001 * sampleRate * 1).toInt(),  // int (toSample)
           startPositionIdx, // int (fromSample)
@@ -610,23 +702,13 @@ class ProcessingUtilImpl implements ProcessingUtil {
           drawSurfaceWidth // int
           );
       if (result == 0) {
+        // print("startPositionIdx : $startPositionIdx");
         int sampleCount = outSampleCountsPtr.value;
-        // Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
-        // // Uint8List uint8Data = Uint8List.view(channelData.buffer);
-        // Uint8List uint8Data = Uint8List.fromList(channelData.buffer.asUint8List());
-        // print("uint8Data $sampleCount");
-        // print(uint8Data.sublist( uint8Data.length * 7 ~/ 8, uint8Data.length));
-        // print(channelData.sublist(0, 30));
-        // uint8Data.fillRange(0, (sampleCount * 1.99).toInt(), -77);
-        // provider.inputListener(uint8Data);
         int eventCount = outEventCountPtr.value;
         if (eventCount > 0) {
           // Float32List eventIndices = outEventIndicesPtr.asTypedList(eventCount);
         }
-        // uint8Data.fillRange(0, 100, 200);
-        // print("displaySerialData: $uint8Data");
 
-        // ProcessingUtil.drawingBuffers.clear();
         for (int i = 0; i < channelCount; i++) {
           final temp = outSamplesPtr[i].asTypedList(sampleCount);
           // final arrDouble = List.generate(sampleCount, (index) => temp[index].toDouble());
@@ -634,7 +716,29 @@ class ProcessingUtilImpl implements ProcessingUtil {
           ProcessingUtil.drawingBufferCounts[i] = sampleCount;
         }
 
-        return (Uint8List(0));
+        DraggableGraph.eventMarkersPosition.clear();
+        DraggableGraph.eventMarkersLabels.clear();
+        var tempList =
+            outEventIndicesPtr.asTypedList(ProcessingUtil.eventLabels.length);
+        // print(
+        //     "tempList: $tempList --- ${ProcessingUtil.currentEventMarkers}");
+        for (double temp in tempList) {
+          DraggableGraph.eventMarkersPosition.add(temp);
+        }
+
+        int len = ProcessingUtil.eventLabels.length;
+        int startPositionIdx = DraggableGraph.startPositionIdx;
+        int endPositionIdx = DraggableGraph.endPositionIdx;
+        for (int i = 0; i < len; i++) {
+          if (ProcessingUtil.eventPosition[i] >= startPositionIdx && ProcessingUtil.eventPosition[i] <= endPositionIdx ) {
+            DraggableGraph.eventMarkersLabels.add(ProcessingUtil.eventLabels[i]);
+          }
+        }
+        // print("RANGE : $startPositionIdx - $endPositionIdx");
+
+
+        //provider.inputListener(channelData);
+        // Get the number of events
       }
       for (int i = 0; i < channelCount; i++) {
         calloc.free(outSamplesPtr[i]);
@@ -644,7 +748,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       calloc.free(outSampleCountsPtr);
       calloc.free(outEventIndicesPtr);
       calloc.free(outEventCountPtr);
-      calloc.free(inEventIndicesPtr);
+      // calloc.free(inEventIndicesPtr);
     } catch (err) {
       print("err");
       print(err);
@@ -658,11 +762,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
     receivePort.listen((args) async {
       if (args is List) {
-        int data =
-            await processSerialData(args[0], args[1], args[2], args[3], null);
+        // int data =
+        //     await processSerialData(args[0], args[1], args[2], args[3], null);
 
-        // Send the result back to the main isolate
-        sendPort.send(data);
+        // // Send the result back to the main isolate
+        // sendPort.send(data);
       } else if (args == 'exit') {
         receivePort.close();
       }
@@ -710,8 +814,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
       calloc.free(inEventLabelsPtr!);
       inEventIndicesPtr = calloc<Int32>(ProcessingUtil.MAX_EVENT_MARKERS);
       inEventLabelsPtr = calloc<Int32>(ProcessingUtil.MAX_EVENT_MARKERS);
-      ProcessingUtil.eventPosition =
-          List.generate(ProcessingUtil.MAX_EVENT_MARKERS, (generator) => 0);
+      // ProcessingUtil.eventPosition.clear();
+      // for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
+      //   ProcessingUtil.eventPosition.add(0);
+      // }
+      ProcessingUtil.eventPosition = List.generate(ProcessingUtil.MAX_EVENT_MARKERS, (generator) => sampleRate * 10);
       for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
         inEventIndicesPtr![i] = sampleRate * 10;
       }
@@ -730,19 +837,107 @@ class ProcessingUtilImpl implements ProcessingUtil {
     ProcessingUtil.currentEventMarkers =
         (ProcessingUtil.currentEventMarkers + 1) %
             ProcessingUtil.MAX_EVENT_MARKERS;
-    print("ADD LISTENER");
 
     if (ProcessingUtil.currentEventMarkers > ProcessingUtil.MAX_EVENT_MARKERS) {
       ProcessingUtil.currentEventMarkers = 0;
     }
-    inEventLabelsPtr![ProcessingUtil.currentEventMarkers] =
-        list[0];
+    inEventLabelsPtr![ProcessingUtil.currentEventMarkers] = list[0];
     if (list[1] != -1) {
       inEventIndicesPtr![ProcessingUtil.currentEventMarkers] = list[1];
     }
 
     ProcessingUtil.eventLabels.add(list[0]);
+    // print("ADD LISTENER :  ${ProcessingUtil.eventLabels} === ${ProcessingUtil.eventPosition}");
   }
+  
+  bool isThresholdBufferInitialized = false;
+  @override
+  List<int> processThresholdData(List<Int16List> data, int thresholdChannelCount, int drawSurfaceWidth, int selectedChannel, bool isAverageSamples) {
+
+    final inSampleCountsPtr = calloc<Int32>(thresholdChannelCount);
+    final outSampleCountsPtr = calloc<Int32>(thresholdChannelCount);
+    final outSamplesPtr = calloc<Pointer<Int16>>(thresholdChannelCount);
+    // print("TempArrayData: $data");
+    Int16List tempArrayData = data[0];
+    // Int16List tempArrayData = Int16List.view(data.buffer);
+    final frameCount = tempArrayData.length;
+
+    for (int i = 0; i < thresholdChannelCount; i++) {
+      inSampleCountsPtr[i] = (frameCount);
+      outSamplesPtr[i] = calloc<Int16>( (_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS / 2).floor() ); // 5x for envelope
+    }
+
+    try {
+      // Prepare input data pointer
+      // int defaultChannelIndex = 1;
+      final inDataPtr = calloc<Pointer<Int16>>(thresholdChannelCount);
+      for (int i = 0; i < thresholdChannelCount; i++) {
+        inDataPtr[i] = calloc<Int16>( frameCount );
+        for (int j = 0; j < frameCount; j++) {
+          inDataPtr[i][j] = data[i][j];
+        }
+      }
+      // print("inDataPtr: ");
+
+      // Process the microphone data using pre-allocated buffer
+      final inEventLabelsPtr = calloc<Int32>(ProcessingUtil.eventLabels.length);
+      final inEventPositionPtr = calloc<Int32>(ProcessingUtil.eventLabels.length);
+      for (int i = 0; i < ProcessingUtil.eventLabels.length;  i++) {
+        inEventPositionPtr[i] = _sampleRate * 10 - ProcessingUtil.eventPosition[i] - frameCount;
+        inEventLabelsPtr[i] = ProcessingUtil.eventLabels[i];
+      }
+
+      // print("inEventLabelsPtr: ");
+      final result = pb.processingBindings.processThreshold(
+          outSamplesPtr, outSampleCountsPtr, inDataPtr, inSampleCountsPtr, inEventPositionPtr, inEventLabelsPtr,ProcessingUtil.eventLabels.length, isAverageSamples);
+
+      if (result != 0) {
+        print('Failed to process microphone data: $result');
+      }
+
+      // Free input data memory
+      int tempArrayCount = outSampleCountsPtr[0];
+      // print("tempArrayCount: ");
+      calloc.free(outSampleCountsPtr);
+      // calloc.free(inDataPtr);
+      for (int i = 0; i < thresholdChannelCount; i++) {
+        calloc.free(inDataPtr[i]);
+        calloc.free(outSamplesPtr[i]);
+      }
+      calloc.free(inDataPtr);
+      calloc.free(outSamplesPtr);
+      calloc.free(inSampleCountsPtr);
+      calloc.free(inEventLabelsPtr);
+      // print("tempArrayCount: $tempArrayCount");
+      return [tempArrayCount];
+    } catch(err){
+      print("err: $err");
+    }
+    finally {
+    }    
+    return [];
+  }
+  
+  @override
+  void initThreshold(int channelCount, int sampleRate, double drawSurfaceWidth) {
+    pb.processingBindings.init();
+    pb.processingBindings.setChannelCount(channelCount);
+    pb.processingBindings.setSampleRate(sampleRate);
+  }
+  
+  @override
+  void setThresholdTriggerType(int eventThresholdTriggeredType) {
+    // print("setThresholdTriggerType: ${listMenuOptions.indexOf(eventThresholdTriggeredType)}");
+    pb.processingBindings.setAveragingTriggerType(eventThresholdTriggeredType);
+  }
+  
+  @override
+  void setIsThresholding(bool flag) {
+    pb.processingBindings.setIsThresholding(flag);
+  }
+
+  @override
+  int thresholdingArraylength = 1;
 }
 
 // This function runs in the processing isolate
@@ -816,3 +1011,22 @@ ProcessingUtil createProcessingUtil() => ProcessingUtilImpl();
 // typedef DartCallbackDart = void Function(int);
 
 // final dartCallbackPointer = Pointer.fromFunction<DartCallbackNative>(dartCallback);
+
+
+
+Int16List uint8ListToInt16List(Uint8List uint8List, {Endian endian = Endian.little}) {
+  if (uint8List.length % 2 != 0) {
+    throw ArgumentError("Uint8List length must be an even number for Int16List conversion.");
+  }
+
+  final ByteData byteData = uint8List.buffer.asByteData(uint8List.offsetInBytes, uint8List.lengthInBytes);
+
+  final int numInt16 = uint8List.length ~/ 2;
+  final Int16List int16List = Int16List(numInt16);
+
+  for (int i = 0; i < numInt16; i++) {
+    int16List[i] = byteData.getInt16(i * 2, endian);
+  }
+
+  return int16List;
+}

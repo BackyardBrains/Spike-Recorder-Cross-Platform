@@ -26,6 +26,7 @@ namespace backyardbrains {
             /**
              * Triggered when SpikerBox sends expansion board type message when one is connected.
              */
+            virtual void onEventFound(int sampleIndex, int eventLabel) = 0;
             virtual void onExpansionBoardTypeDetection(int expansionBoardType) = 0;
             virtual void onHumanSpikerBoardState(int boardState) = 0;
             virtual void onHumanSpikerBoardAudioState(int boardState) = 0;

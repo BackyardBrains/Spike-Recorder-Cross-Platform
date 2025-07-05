@@ -549,10 +549,10 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
             
             // Pass channel_samples to amModulationProcessor, not out_samples
             amModulationProcessor->process(
-                  reinterpret_cast<short*>(const_cast<uint8_t*>(in_data)),
-                  channel_samples,  // Use channel_samples instead of out_samples
-                  sample_count,
-                  frame_count
+                reinterpret_cast<short*>(const_cast<uint8_t*>(in_data)),
+                channel_samples,  // Use channel_samples instead of out_samples
+                sample_count,
+                frame_count
             );
            
             // Add processed data to circular buffer

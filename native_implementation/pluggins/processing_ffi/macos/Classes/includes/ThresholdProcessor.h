@@ -59,7 +59,7 @@ namespace backyardbrains {
             // When threshold is hit we should have a dead period of 5ms before checking for next threshold hit
             static constexpr float DEAD_PERIOD_SECONDS = 0.005f;
             // Default number of samples that needs to be summed to get the averaged sample
-            static constexpr int DEFAULT_AVERAGED_SAMPLE_COUNT = 1;
+            static constexpr int DEFAULT_AVERAGED_SAMPLE_COUNT = 30;
             // Minimum number of seconds without a heartbeat before resetting the heartbeat helper
             static constexpr double DEFAULT_MIN_BPM_RESET_PERIOD_SECONDS = 3;
 

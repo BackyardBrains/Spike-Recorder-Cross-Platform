@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:another_xlider/models/handler.dart';
 import 'package:another_xlider/models/tooltip/tooltip.dart';
 import 'package:another_xlider/models/trackbar.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -18,6 +19,7 @@ import 'package:spikerbox_architecture/functionality/utils.dart';
 import 'package:spikerbox_architecture/message_identifier.dart';
 import 'package:spikerbox_architecture/models/models.dart';
 import 'package:spikerbox_architecture/models/processing_utils/processing_util.dart';
+import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
 import 'package:spikerbox_architecture/screen/setting_page.dart';
 import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
 import '../provider/provider_export.dart';
@@ -204,16 +206,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
   @override
   void initState() {
     super.initState();
+    context.read<ThresholdStatusProvider>().addListener(() {
+      bool isThresholding = context.read<ThresholdStatusProvider>().isThresholding;
+      if (isThresholding) {
+        int selectedThresholdChannelIdx = context.read<ThresholdStatusProvider>().selectedThresholdChannel;
+        int thresholdValue = context.read<ThresholdStatusProvider>().selectedThresholdParam[selectedThresholdChannelIdx];
+        processingUtil.setThreshold(thresholdValue.toDouble());
+      }
+    });
 
     // Initialize ProcessingUtil
     processingUtil = createProcessingUtil();
-    
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
-    
     // Initialize stream and set provider
     _graphStream = _graphStreamController.stream.asBroadcastStream();
     provider.setStreamOfData(_graphStream);
-    
+
     SchedulerBinding.instance.addPostFrameCallback((timeStamp) async {
       setSampleRate();
     });
@@ -325,8 +333,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
         //     newPoints[i] = a;
         //   }
         // }
-
-        
         }
         // await localPlugin.filterArrayElements(
         //   array: newPoints,
@@ -339,7 +345,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _frameDetect = FrameDetect(channelCount: widget.channelCount, minimumBytesToCheck: 50);
     _bitwiseUtil = BitwiseUtil(bitCount: widget.bitsData);
     _channelBytes = widget.channelCount * 2;
-
 
 
     _messageIdentifier = MessageIdentifier(onDeviceData: (Uint8List dt) {
@@ -378,13 +383,19 @@ class _GraphTemplateState extends State<GraphTemplate> {
           i += _channelBytes;
         } else {
           i++;
-          // Debugging.printing("bytes drop detected");
         }
       }
       _preprocessingBuffer.addBytes(Uint8List.fromList(frameCheckedData));
     }, onDeviceMessage: (Uint8List msg) async {
+      String rawMessage = String.fromCharCodes(msg);
+      // if (rawMessage.indexOf("EVNT") > -1) {
+      //   String responseMessage = MessageValueSet.fromUint8ListCommand(message: msg).value;
+      //   responseMessage = responseMessage.replaceAll(";", "");
+      //   int eventIndex = 
+      //   return;
+      // }
       String responseMessage = MessageValueSet.fromUint8ListCommand(message: msg).value;
-      print("responseMessage :  $responseMessage");
+      print("responseMessage :  $responseMessage - raw: $rawMessage");
       String? devices = checkConnectedDevices(responseMessage);
 
       if (devices == null) {
@@ -459,6 +470,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   _sampleRate = int.parse(board.maxSampleRate!);
                   double drawSurfaceWidth = MediaQuery.of(context).size.width;
                   processingUtil.initializeSerial(board, drawSurfaceWidth);
+                  ProcessingUtil.initializeDevice.value = 1;
+                  
+                  deviceChannelCount = int.parse(board.maxNumberOfChannels!);
                   context.read<ChannelColorProvider>().setSerialChannelCount(
                       int.parse(board.maxNumberOfChannels!));
                   context.read<ChannelFilterProvider>().setSerialChannelCount(
@@ -531,6 +545,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
           double startElementIdx = screenPositionToElementPosition(SoundWaveView.dragDetails!.position.dx, _sampleRate, ProcessingUtil.positionIndex, 
             TimeCalculateWidget.displayTimeMsLabel *0.001, TimeCalculateWidget.widthOfScale, MediaQuery.of(context).size.width, bufferPos);
           print("DIFFERENCES = $prevStartElementIdx - $startElementIdx = ${prevStartElementIdx - startElementIdx} | ${ProcessingUtil.positionIndex}");
+          print("LABELS: ${DraggableGraph.eventMarkersPosition} ${DraggableGraph.eventMarkersLabels} ||| ${ProcessingUtil.eventLabels.sublist(0, ProcessingUtil.currentEventMarkers)} - Sublist: ${ProcessingUtil.eventPosition.sublist(0, ProcessingUtil.currentEventMarkers)}");
+
           bufferPaddingLeft = bufferPaddingLeft - (prevStartElementIdx - startElementIdx);
           if (displayTimeMs == 10000) {
             bufferPaddingLeft = 0;
@@ -539,6 +555,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           //   bufferPaddingLeft = 0;
           // }
         }else {
+          print("LABELS: ${DraggableGraph.eventMarkersPosition} ${DraggableGraph.eventMarkersLabels} ||| ${ProcessingUtil.eventLabels.sublist(0, ProcessingUtil.currentEventMarkers)} - Sublist: ${ProcessingUtil.eventPosition.sublist(0, ProcessingUtil.currentEventMarkers)}");
           bufferPaddingLeft = 0;
         }
 
@@ -607,6 +624,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   final List<int> _baudRate = [222222, 230400, 500000];
   final List<int> _channelCount = [1, 2];
 
+  int deviceChannelCount = 1;
+
   String portName = "";
   bool isDeviceConnect = true;
   bool isDeviceSelected = false;
@@ -620,6 +639,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       backgroundColor: SoftwareColors.kBackGroundColor,
       body: _AdaptiveArea(
@@ -883,6 +903,19 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       SpikerBoxButton(
                         onTapButton: () {
                           isThresholdingButton = !isThresholdingButton;
+                          if (isThresholdingButton) {
+                            processingUtil.initThreshold(deviceChannelCount, _sampleRate, MediaQuery.of(context).size.width);
+                            print("initThreshold : ${_sampleRate}, $deviceChannelCount ===");
+                            processingUtil.setAveragedSampleCount(1);
+                            processingUtil.setThreshold(525);
+                            processingUtil.setIsThresholding(true);
+                          } else {
+                            processingUtil.setIsThresholding(false);
+                          }
+
+                          context.read<ThresholdStatusProvider>().setThresholdStatus(isThresholdingButton);
+                          context.read<ThresholdStatusProvider>().setThresholdChannel(0);
+
                           setState((){});
                         },
                         iconColor: isThresholdingButton? Colors.yellow : Colors.black,
@@ -892,11 +925,43 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         width: 20,
                       ),
                       if (isThresholdingButton) ... {
+
                         Center(
-                          child: SpikerBoxButton(
-                            onTapButton: (){
-                              isChoosingThresholdType = true;
-                            }, iconData: Icons.stacked_line_chart_rounded),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton2(
+                              customButton: generateSpikerBoxDecorate(
+                                eventThresholdTriggeredType == "Signal" ? Icon(Icons.stacked_line_chart_outlined) : Center(child: Text(eventThresholdTriggeredType.substring(0,2),))
+                              ),
+                              items: listMenuLabels.map( (item) => DropdownMenuItem<String>(
+                                  value:item,
+                                  child: Text(item),
+                                )).toList(),
+                              onChanged: (value) {
+                                print("TRIGGER TYPE : $value");
+                                eventThresholdTriggeredType = value!;
+                                int triggerType = listMenuOptions.indexOf(eventThresholdTriggeredType);
+                                processingUtil.setThresholdTriggerType(triggerType);
+                                context.read<ThresholdStatusProvider>().selectedThresholdTriggerType = listMenuOptions.indexOf(eventThresholdTriggeredType);
+                                setState(() {
+                                  
+                                });
+                              },
+                              dropdownStyleData: DropdownStyleData(
+                                width: 140,
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(4),
+                                  color: Colors.grey.shade100,
+                                ),
+                                offset: const Offset(0, 0),
+                              ),
+                            ),
+                          ),          
+
+                          // child: SpikerBoxButton(
+                          //   onTapButton: (){
+                          //     isChoosingThresholdType = true;
+                          //   }, iconData: Icons.stacked_line_chart_rounded),
                         ),
                         SizedBox(
                           width: 20,
@@ -906,11 +971,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           width:200,
                           height:30,
                           child: FlutterSlider(
+                            onDragging: (handlerIndex, lowerValue, upperValue) {
+                              print("handlerIndex:  $handlerIndex $lowerValue - $upperValue");
+                              if (handlerIndex == 1) {
+                                thresholdSliderValue = lowerValue.floor();
+                                processingUtil.setAveragedSampleCount(lowerValue.floor());
+                                setState(() {
+                                });
+                              }
+                            },
+                            onDragCompleted: (handlerIndex, lowerValue, upperValue) {
+                            },
                             tooltip: FlutterSliderTooltip(
                               disabled: true,
                             ),
-                            min: 0,
-                            max: 1000,
+                            min: 1,
+                            max: 50,
                             handler: FlutterSliderHandler(
                               child: Material(
                                 type: MaterialType.canvas,
@@ -939,16 +1015,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                 borderRadius: BorderRadius.circular(0),
                                 color: Colors.grey.withOpacity(0.5)
                               ),
-                            ), values: [100],
+                            ), values: [thresholdSliderValue.floorToDouble()],
                           )
                         ),
+                        Container(
+                          margin: EdgeInsets.only(top: 15, left:10),
+                          height: 30,
+                          child: Text(thresholdSliderValue.toString(), style:TextStyle(color: Colors.white)),
+                        ),
+                        
+                        
                         // Container(
                         //   width:50,
                         //   height:30,
                         //   child: TextField(
                         //     controller: thresholdValueController,
                         //   )
-
                         // )
                       },
                       const SizedBox(
@@ -969,13 +1051,23 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                     itemBuilder: (context, index) {
                                       return GestureDetector(
                                         onTap: () {
-                                          if (listOfBoard != null) {
-                                            Provider.of<ConstantProvider>(context, listen: false).setBaudRate(int.parse(listOfBoard![index].connectDevices.maxSampleRate.toString()));
-                                            Provider.of<ConstantProvider>(context, listen: false).setChannelCount(int.parse(listOfBoard![index].connectDevices.maxNumberOfChannels.toString()));
-                                            Provider.of<ConstantProvider>(context, listen: false).setBitData(int.parse(listOfBoard![index].connectDevices.sampleResolution.toString()));
-                                          }
+                                          print("DISCONNECT USB2");
+                                          // Future.delayed(Duration(milliseconds: 1500), () {
+                                          //   _serialUtil.closePort();
+                                          //   final provider = Provider.of<GraphDataProvider>(context, listen: false);
+                                          //   listenToMicrophone(1, provider);
+                                          // });
+
                                         },
-                                        child: SpikerBoxButton(onTapButton: () {}, iconData: Icons.usb),
+                                        child: SpikerBoxButton(onTapButton: () {
+                                          print("DISCONNECT USB");
+                                          _serialUtil.closePort();
+                                          listenToMicrophone(1, null);
+                                          Future.delayed(Duration(milliseconds: 1500), () {
+                                            // final provider = Provider.of<GraphDataProvider>(context, listen: false);
+                                          });
+
+                                        }, iconData: Icons.usb),
                                       );
                                     }),
                               );
@@ -1035,6 +1127,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
                   serialDataSubscription = _serialUtil.dataStream?.listen((event) async {
                     if (!dummyDataStatus && !isAudioListen) {
+                      arr = [processingUtil.thresholdingArraylength];
+
                       int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
                       if (isDeviceConnect) {
                         _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: _availablePorts.last);
@@ -1042,26 +1136,57 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       }
                       if (_isDataIdentified) {
                         if (!GraphTemplate.isPlayerPaused) {
-                          processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((sampleCount) {
-                            totalSampleCount += sampleCount;
-                            // print("totalSampleCount: $totalSampleCount");
+                          processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((samples) {
+                            totalSampleCount += samples[0].length;
                             if (totalSampleCount > sampleCountToDisplay) {
                               totalSampleCount = 0;
-                              processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, (displayTimeMs * 0.001 * _sampleRate).floor());
+                              if (isThresholdingButton) {
+                                double displayTimeDivision = (displayTimeMs / 10000);
+                                double gap = (arr[0] * (1 - displayTimeDivision));
+                                int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+                                int toSample = maxSamples - (gap/2).floor();
+                                int fromSample = toSample - arr[0] + (gap).floor();
+                                DraggableGraph.startPositionIdx = fromSample;
+                                DraggableGraph.endPositionIdx = toSample;
+
+                                processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+                              } else {
+                                int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+                                int maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
+                                DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
+                                DraggableGraph.endPositionIdx = maxSamples;
+
+                                processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, maxDisplaySamples);
+                              }
                             }
                           });
                         } else {
                           if (SoundWaveView.dragDetails != null) {
                             // int fromSample = (-bufferPaddingLeft).toInt();
                             // int toSample = (fromSample + displayTimeMs * 0.001 * _sampleRate).toInt();
-                            int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
-                            int toSample = (maxSamples + bufferPaddingLeft).toInt();
-                            toSample = min(maxSamples, toSample);
-                            int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
+                            totalSampleCount += 2;
+                            if (totalSampleCount > sampleCountToDisplay) {
+                              totalSampleCount = 0;
+
+                              int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+                              int toSample = (maxSamples + bufferPaddingLeft).toInt();
+                              toSample = min(maxSamples, toSample);
+                              int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
+                              DraggableGraph.startPositionIdx = fromSample;
+                              DraggableGraph.endPositionIdx = toSample;
 
 
-                            // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
-                            processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+                              // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+                              if (isThresholdingButton) {
+                                double displayTimeDivision = (displayTimeMs / 10000);
+                                double gap = (arr[0] * (1 - displayTimeDivision));
+                                toSample = maxSamples - (gap/2).floor();
+                                fromSample = toSample - arr[0] + (gap).floor();
+                                processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+                              } else {
+                                processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+                              }
+                            }
                           } else {
                           }                          
                         }
@@ -1074,14 +1199,32 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         if (isDeviceSelected) { // !isDeviceConnect &&
                           _isDataIdentified = true;
                           // STEVE
-                          processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((sampleCount) {
-                            totalSampleCount += sampleCount;
+                          // processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((sampleCount) {
+                          //   totalSampleCount += sampleCount;
+                          processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((samples) {
+                            totalSampleCount += samples[0].length;
                             if (totalSampleCount > sampleCountToDisplay) {
                               totalSampleCount = 0;
-                              processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, (displayTimeMs * 0.001 * _sampleRate).floor());
+                              if (isThresholdingButton) {
+                                double displayTimeDivision = (displayTimeMs / 10000);
+                                double gap = (arr[0] * (1 - displayTimeDivision));
+                                int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+                                int toSample = maxSamples - (gap/2).floor();
+                                int fromSample = toSample - arr[0] + (gap).floor();
+                                DraggableGraph.startPositionIdx = fromSample;
+                                DraggableGraph.endPositionIdx = toSample;
+                                processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+                              } else {
+                                int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+                                int maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
+                                DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
+                                DraggableGraph.endPositionIdx = maxSamples;
+
+                                processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, (maxDisplaySamples).floor());
+                              }
+                              
                             }
                           });
-
                         }
                       }
                     }                    
@@ -1294,25 +1437,70 @@ class _GraphTemplateState extends State<GraphTemplate> {
           //   print("isDeviceConnect: $isDeviceConnect - $isDeviceSelected EVENT: $event");
           // } else {
           if (!GraphTemplate.isPlayerPaused) {
-            int sampleCount = await processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+            List<Int16List> samples = await processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+            // print("Zamples: $samples && ");
+            int sampleCount = samples[0].length;
+
+            if (isThresholdingButton) {
+              if (kIsWeb) {
+              } else {
+                int selectedChannel = context.read<ThresholdStatusProvider>().selectedThresholdChannel;
+                bool isAverageSamples = true;
+                arr = processingUtil.processThresholdData(samples, samples.length, drawSurfaceWidth, selectedChannel, isAverageSamples);
+              }
+
+            }
+
             totalSampleCount += sampleCount;
             if (totalSampleCount > sampleCountToDisplay) {
               totalSampleCount = 0;
+              if (isThresholdingButton) {
+                double displayTimeDivision = (displayTimeMs / 10000);
+                double gap = (arr[0] * (1 - displayTimeDivision));
+                int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+                int toSample = maxSamples - (gap/2).floor();
+                int fromSample = toSample - arr[0] + (gap).floor();
+                DraggableGraph.startPositionIdx = fromSample;
+                DraggableGraph.endPositionIdx = toSample;
+                await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+              } else {
+                int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+                int maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
+                DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
+                DraggableGraph.endPositionIdx = maxSamples;
+                await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, maxDisplaySamples);                
+              }
               // await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
-              await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, (displayTimeMs * 0.001 * _sampleRate).floor());
               provider.inputListener(Uint8List(0));
             }
           } else {
             // await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
             // int fromSample = (-bufferPaddingLeft).toInt();
             // int toSample = (fromSample + displayTimeMs * 0.001 * _sampleRate).toInt();
-            int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
-            int toSample = (maxSamples + bufferPaddingLeft).toInt();
-            toSample = min(maxSamples, toSample);
-            int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
 
-            // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
-            await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+            if (isThresholdingButton) {
+              double displayTimeDivision = (displayTimeMs / 10000);
+              double gap = (arr[0] * (1 - displayTimeDivision));
+              int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+              int toSample = maxSamples - (gap/2).floor();
+              int fromSample = toSample - arr[0] + (gap).floor();
+              DraggableGraph.startPositionIdx = fromSample;
+              DraggableGraph.endPositionIdx = toSample;
+
+              await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+
+
+            } else {
+              int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+              int toSample = (maxSamples + bufferPaddingLeft).toInt();
+              toSample = min(maxSamples, toSample);
+              int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
+              DraggableGraph.startPositionIdx = fromSample;
+              DraggableGraph.endPositionIdx = toSample;
+              // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+              await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+
+            }
 
             provider.inputListener(Uint8List(0));
           }
@@ -1355,10 +1543,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
             _isDataIdentified = true;
             // STEVE
             if (!GraphTemplate.isPlayerPaused) {
-              int sampleCount = await processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);            
+              List<Int16List> samples = await processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+              int sampleCount = samples[0].length;
+
+              if (isThresholdingButton) {
+                int selectedChannel = context.read<ThresholdStatusProvider>().selectedThresholdChannel;
+                bool isAverageSamples = true;
+                processingUtil.processThresholdData(samples, samples.length, drawSurfaceWidth, selectedChannel, isAverageSamples);
+              }
+
               totalSampleCount += sampleCount;
               if (totalSampleCount> sampleCountToDisplay) {
                 totalSampleCount = 0;
+                DraggableGraph.startPositionIdx = 0;
+                DraggableGraph.endPositionIdx = (displayTimeMs * 0.001 * _sampleRate).floor();
+
                 await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, (displayTimeMs * 0.001 * _sampleRate).floor());
                 provider.inputListener(Uint8List(0));
               }
@@ -1370,6 +1569,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               int toSample = (maxSamples + bufferPaddingLeft).toInt();
               toSample = min(maxSamples, toSample);
               int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
+              DraggableGraph.startPositionIdx = fromSample;
+              DraggableGraph.endPositionIdx = toSample;
 
               // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
               await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
@@ -1608,10 +1809,20 @@ class _GraphTemplateState extends State<GraphTemplate> {
   
   TextEditingController thresholdValueController = TextEditingController();
   
+  List<String> listMenuOptions = ["Ev", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9"];
+  List<String> listMenuLabels = ["Signal", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "Ev"];
+  
+  String eventThresholdTriggeredType = "Signal";
+
+  
   void listenToMicrophone(channelCount, provider) {
+    if (provider == null) {
+      provider = Provider.of<GraphDataProvider>(context, listen: false);      
+    }
     isDeviceConnect = true;
     isDeviceSelected = false;
     _isDataIdentified = false;
+    deviceChannelCount = channelCount;
     foundDevices = "";
     Future.delayed(const Duration(seconds: 2)).then((value) async {
       print("_messageIdentifier.messageState");
@@ -1674,35 +1885,74 @@ class _GraphTemplateState extends State<GraphTemplate> {
       microphoneUtil.micStream.addListener(micListener);    
       isDeviceConnect = true;
       isDeviceSelected = false;
+      ProcessingUtil.initializeDevice.value = 0;
 
     });
   }
 
+  List<int> arr = [];
+  
+  int thresholdSliderValue = 1;
   void micListener(){
     // print("miCLISTENER DATA");
     int channelCount = 1;
+    int selectedThresholdChannel = 0;
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     // print("isAUDIO LISTEN: $isAudioListen");
     if (isAudioListen) {
-      //_preprocessingBuffer.addBytes(event);
-      // List<Int16List> processedData = 
-      if (!GraphTemplate.isPlayerPaused) {
-        // print("microphoneUtil.micStream.value");
-        // print(microphoneUtil.micStream.value);
-        processingUtil.processMicrophoneData(microphoneUtil.micStream.value);
+      if (!GraphTemplate.isPlayerPaused) {       
+        if (isThresholdingButton) {
+          if (kIsWeb) {
+            processingUtil.processMicrophoneData(microphoneUtil.micStream.value);
+          } else {
+            List<Int16List> tempData = processingUtil.processMicrophoneData(microphoneUtil.micStream.value);
+            bool isAverageSamples = true;
+            arr = processingUtil.processThresholdData(tempData, tempData.length, MediaQuery.of(context).size.width.floor(), selectedThresholdChannel, isAverageSamples);
+          }
+        } else {
+          processingUtil.processMicrophoneData(microphoneUtil.micStream.value); 
+        }
       }
       // _preGraphBuffer.addBytes(event);
       
       // if (drawIdx == 3) {
       int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
       if (!GraphTemplate.isPlayerPaused) {
-        processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, (displayTimeMs*0.001 * microphoneUtil.sampleRate).floor() );
+        if (isThresholdingButton) {
+          if (kIsWeb) {
+            arr = [processingUtil.thresholdingArraylength];
+          }
+          double displayTimeDivision = (displayTimeMs / 10000);
+          double gap = (arr[0] * (1 - displayTimeDivision));
+          int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+          int toSample = maxSamples - (gap/2).floor();
+          int fromSample = toSample - arr[0] + (gap).floor();
+          // print("GAP THRESHOLD: $gap - Start : $fromSample -- (${(gap/2).floor()}) - END: $toSample -- ${ (arr[0]-gap/2).floor() }");
+          DraggableGraph.startPositionIdx = fromSample;
+          DraggableGraph.endPositionIdx = toSample;
+          processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+          // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, (0 + gap/2).floor(), (arr[0] - gap/2).floor() );
+        } else {
+          // DraggableGraph.startPositionIdx = 0;
+          // DraggableGraph.endPositionIdx = (displayTimeMs*0.001 * microphoneUtil.sampleRate).floor();
+          int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+          int maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
+          DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
+          DraggableGraph.endPositionIdx = maxSamples;
+          // print("RANGE MASK : ${DraggableGraph.startPositionIdx} -- ${DraggableGraph.endPositionIdx}");
+          
+          processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, maxDisplaySamples );
+        }
       } else {
         double startElementIdx = 0.0;
 
         // if (ProcessingUtil.positionIndex > 0) {
           if (SoundWaveView.dragDetails != null) {
+            if (kIsWeb) {
+              arr = [processingUtil.thresholdingArraylength, processingUtil.thresholdingArraylength];
+            }
+
             // int level = calculateLevel(displayTimeMs, _sampleRate.toDouble(), drawSurfaceWidth.toDouble(), arrCounts, 0);
             // double divider = ;
             // print("bufferPaddingLeft : $bufferPaddingLeft");
@@ -1713,15 +1963,36 @@ class _GraphTemplateState extends State<GraphTemplate> {
             int toSample = (maxSamples + bufferPaddingLeft).toInt();
             toSample = min(maxSamples, toSample);
             int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
-            // int toSample = (displayTimeMs * 0.001 * _sampleRate).toInt() ;
+            // int toSample = (displayTimeMs * 0.001 * _sampleRate).toInt();
             // print("fromSample - toSample : $fromSample _ $toSample  ${bufferPaddingLeft} ${displayTimeMs * 0.001 * _sampleRate} ${bufferPos[1]}");
-            processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
-            // print("level: $level @@ ${ProcessingUtil.positionIndex} | ${TimeCalculateWidget.prevDisplayTimeMsLabel} - ${TimeCalculateWidget.displayTimeMsLabel} | $prevStartElementIdx $startElementIdx ${prevStartElementIdx - startElementIdx}");
-            // print("level: $level @@ ${ProcessingUtil.positionIndex} | ${TimeCalculateWidget.prevWidthOfScale} - ${TimeCalculateWidget.widthOfScale} | $prevStartElementIdx $startElementIdx ${prevStartElementIdx - startElementIdx}");
-            // print("bufferPos[1].toInt() - bufferPaddingLeft.toInt(): ${bufferPos[1].toInt()} - ${bufferPaddingLeft.toInt()} == ${bufferPos[1].toInt() - bufferPaddingLeft.toInt()}");
+            if (isThresholdingButton) {
+              // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, arr[0] );
 
+              double displayTimeDivision = (displayTimeMs / 10000);
+              double gap = (arr[0] * (1 - displayTimeDivision));
+              int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+              int toSample = maxSamples - (gap/2).floor();
+              int fromSample = toSample - arr[0] + (gap).floor();
+
+              DraggableGraph.startPositionIdx = fromSample;
+              DraggableGraph.endPositionIdx = toSample;
+              processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+              // processingUtil.prepareDisplayMicrophoneThresholdData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, arr[0], (0 + gap/2).floor(), (arr[0] - gap/2).floor() );
+              // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, (0 + gap/2).floor(), (arr[0] - gap/2).floor() );
+
+            } else {
+              DraggableGraph.startPositionIdx = fromSample;
+              DraggableGraph.endPositionIdx = toSample;
+              processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+            }
           } else {
             // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, 10 * _sampleRate );
+            if (isThresholdingButton) {
+              DraggableGraph.startPositionIdx = 0;
+              DraggableGraph.endPositionIdx = arr[0];
+              processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, arr[0] );
+            } else {
+            }
           }
         // } else {
         //   // List<double> pos = [0, 10.0 * _sampleRate];

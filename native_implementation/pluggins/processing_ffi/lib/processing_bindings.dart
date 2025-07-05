@@ -45,6 +45,18 @@ typedef ProcessingProcessMicrophoneStream = int Function(
     Pointer<Int32> outSampleCounts,
     Pointer<Uint8> inData, 
     int length);
+
+// typedef ProcessingProcessThresholdStreamNative = Int32 Function(
+//     Pointer<Pointer<Int16>> outSamples,
+//     Pointer<Int32> outSampleCounts,
+//     Pointer<Uint8> inData,
+//     Int32 length);
+// typedef ProcessingProcessThresholdStream = int Function(
+//     Pointer<Pointer<Int16>> outSamples,
+//     Pointer<Int32> outSampleCounts,
+//     Pointer<Uint8> inData,
+//     int length);
+
 typedef ProcessingProcessSampleStreamNative = Int32 Function(
     Pointer<Pointer<Int16>> outSamples, 
     Pointer<Int32> outSampleCounts,
@@ -104,6 +116,13 @@ typedef ProcessingGetInformation = int Function(
     Pointer<Int32> outInfo,
 );
 
+typedef ProcessingSetIsThresholdingNative = Int32 Function(
+    Bool outInfo,
+);
+typedef ProcessingSetIsThresholding = int Function(
+    bool outInfo,
+);
+
 
 typedef ProcessingResetFftNormalizationNative = Void Function();
 typedef ProcessingResetFftNormalization = void Function();
@@ -140,6 +159,9 @@ typedef ProcessingProcessThresholdNative = Int32 Function(
     Pointer<Int32> outSampleCounts,
     Pointer<Pointer<Int16>> inSamples,
     Pointer<Int32> inSampleCounts,
+    Pointer<Int32> inEventIndices,
+    Pointer<Int32> inEventLabels,
+    Int32 inEventCount,
     Bool averageSamples);
 
 typedef ProcessingProcessThreshold = int Function(
@@ -147,6 +169,10 @@ typedef ProcessingProcessThreshold = int Function(
     Pointer<Int32> outSampleCounts,
     Pointer<Pointer<Int16>> inSamples,
     Pointer<Int32> inSampleCounts,
+    Pointer<Int32> inEventIndices,
+    Pointer<Int32> inEventLabels,
+    int inEventCount,
+    // const int32_t* in_event_indices, int32_t in_event_count,
     bool averageSamples);
 
 typedef ProcessingSetBpmProcessingNative = Void Function(Int32 processBpm);
@@ -192,6 +218,7 @@ class ProcessingBindings {
   late final ProcessingSetNotchFilter setNotchFilter;
   late final ProcessingSetChannelFilterEnabled setChannelFilterEnabled;
   late final ProcessingProcessMicrophoneStream processMicrophoneStream;
+  // late final ProcessingProcessThresholdStream processThresholdStream;
   late final ProcessingProcessSampleStream processSampleStream;
   late final ProcessingFilterData filterData;
   late final ProcessingRms rms;
@@ -213,6 +240,7 @@ class ProcessingBindings {
   late final ProcessingCleanup cleanup;
   
   late final ProcessingGetInformation getInformation;
+  late final ProcessingSetIsThresholding setIsThresholding;
 
   ProcessingBindings(DynamicLibrary dynamicLibrary) {
     // _lib ??= _loadLibrary();
@@ -256,6 +284,7 @@ class ProcessingBindings {
     setChannelFilterEnabled = _lib!.lookupFunction<ProcessingSetChannelFilterEnabledNative, ProcessingSetChannelFilterEnabled>('processing_set_channel_filter_enabled');
 
     processMicrophoneStream = _lib!.lookupFunction<ProcessingProcessMicrophoneStreamNative,ProcessingProcessMicrophoneStream>('processing_process_microphone_stream');
+    // processThresholdStream = _lib!.lookupFunction<ProcessingProcessThresholdStreamNative,ProcessingProcessThresholdStream>('processing_process_threshold_stream');
     processSampleStream = _lib!.lookupFunction<ProcessingProcessSampleStreamNative,ProcessingProcessSampleStream>('processing_process_sample_stream');
 
     // filterData = _lib!.lookupFunction<ProcessingFilterDataNative, ProcessingFilterData>('processing_filter_data');
@@ -293,6 +322,8 @@ class ProcessingBindings {
     prepareForSignalDrawing = _lib!.lookupFunction<ProcessingPrepareForSignalDrawingNative, ProcessingPrepareForSignalDrawing>('processing_prepare_for_signal_drawing');
     
     getInformation = _lib!.lookupFunction<ProcessingGetInformationNative, ProcessingGetInformation>('processing_get_information');
+
+    setIsThresholding = _lib!.lookupFunction<ProcessingSetIsThresholdingNative, ProcessingSetIsThresholding>('processing_set_is_thresholding');
 
     cleanup = _lib!.lookupFunction<ProcessingCleanupNative, ProcessingCleanup>('processing_cleanup');
 

@@ -30,11 +30,11 @@ namespace backyardbrains {
                      inEventIndices, inEventCount, fromSample, toSample, drawSurfaceWidth);
 
             float xStep = (float) drawSurfaceWidth / (outSampleCounts[0] - 1);
-            if (inEventCount > 0 ) {
-                EM_ASM({
-                    console.log( "AFTER : ", $0, $1, $2, $3 );
-                }, outEventIndices[0], outEventCount[0], xStep, outEventIndices[0] * xStep);
-            }
+            // if (inEventCount > 0 ) {
+            //     EM_ASM({
+            //         console.log( "AFTER : ", $0, $1, $2, $3 );
+            //     }, outEventIndices[0], outEventCount[0], xStep, outEventIndices[0] * xStep);
+            // }
             int sampleIndex = 0;
             for (int i = 0; i < inEventCount; i++)
                 outEventIndices[i] *= xStep;

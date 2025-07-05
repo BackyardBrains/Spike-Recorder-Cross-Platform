@@ -1,5 +1,12 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:another_xlider/another_xlider.dart';
+import 'package:another_xlider/models/handler.dart';
+import 'package:another_xlider/models/tooltip/tooltip.dart';
+import 'package:another_xlider/models/trackbar.dart';
+import 'package:dotted_line/dotted_line.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_audio_waveforms/flutter_audio_waveforms.dart'
@@ -11,6 +18,7 @@ import 'package:spikerbox_architecture/models/processing_utils/processing_util.d
 import 'package:spikerbox_architecture/provider/graph_gain_provider.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'package:spikerbox_architecture/provider/isgraphplay_provider.dart';
+import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
 import 'package:spikerbox_architecture/provider/vertical_dragprovider.dart';
 import 'package:spikerbox_architecture/provider/data_type_status.dart';
 import 'package:spikerbox_architecture/provider/channel_color_provider.dart';
@@ -140,6 +148,7 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
 
   @override
   Widget build(BuildContext context) {
+
     widthOfScreen = MediaQuery.of(context).size.width;
     return Consumer<GraphDataProvider>(
         builder: (context, graphDataProvider, _) {
@@ -226,7 +235,10 @@ class DraggableSection extends StatelessWidget {
 
 class DraggableGraph extends StatefulWidget {
   const DraggableGraph({super.key});
+  static int startPositionIdx = 0;
+  static int endPositionIdx = 0;
   static List<double> eventMarkersPosition = [];
+  static List<int> eventMarkersLabels = [];
 
   @override
   State<DraggableGraph> createState() => _DraggableGraphState();
@@ -240,9 +252,12 @@ class _DraggableGraphState extends State<DraggableGraph> {
   List<bool> showWaveform = [];
   double widthChart = 800;
   double heightChart = 600;
+  // double defaultGain = 0.5 * 0.25;
+  double defaultGain = 0.125;
+  
   FocusNode keyboardFocusNode = FocusNode();
   Debouncer debouncerKeyboard = Debouncer(milliseconds: 77);
-
+  
   @override
   void initState() {
     super.initState();
@@ -257,13 +272,26 @@ class _DraggableGraphState extends State<DraggableGraph> {
     Future.delayed(Duration(seconds: 1), () {
       initializeGraph();
       keyboardFocusNode.requestFocus();
+      // init Threshold Value
     });
+
+    Timer.periodic(Duration(seconds: 1), (_){
+      keyboardFocusNode.requestFocus();
+    });
+    
+    ProcessingUtil.initializeDevice.removeListener(initialiceDeviceListener);
+    ProcessingUtil.initializeDevice.addListener(initialiceDeviceListener);
+    selectedThresholdIdx = context.read<ThresholdStatusProvider>().selectedThresholdChannel;
+    // if (thresholdMarkerTop[selectedThresholdIdx] == -10000) {
+    //   initLevelMedian(1);
+    // }
   }
 
   void initializeGraph() {
     print("initializeGraph");
     widthChart = MediaQuery.of(context).size.width;
-    channelCount = ProcessingUtil.drawingBuffers.length;
+
+    channelCount = ProcessingUtil.drawingBuffers.length == 0 ? 1 : ProcessingUtil.drawingBuffers.length;
     heightChart = MediaQuery.of(context).size.height /
         (channelCount == 0 ? 1 : channelCount);
     topChartY.clear();
@@ -273,21 +301,105 @@ class _DraggableGraphState extends State<DraggableGraph> {
     for (int i = 0; i < channelCount; i++) {
       double top = (heightChart * i);
       topChartY.add(top);
-      midChartY.add((top + heightChart / 2 - 18));
-      gainChannel.add(0.25);
+      midChartY.add((top + heightChart / 2 - thresholdIconTopDifference));
+      gainChannel.add(defaultGain);
       topDroplet = midChartY.last;
       showWaveform.add(true);
     }
+
+    isInitializedGraph = true;
     // double topChartY = heightChart * idx;
+  }
+
+  // void addThresholdInteractionControls(List<Widget> thresholdAdditionalControls) {
+  //   thresholdAdditionalControls.add(
+  //     SizedBox(
+  //       child: Transform.rotate(
+  //         angle: -90 * pi / 180,
+  //         child: Icon(
+  //           Icons.water_drop,
+  //           color: Colors.green,
+  //           size: 36,
+  //         ),
+  //       ),
+  //     )
+  //   );
+  // }
+
+
+  void addThresholdControls(List<Widget> thresholdControls) {
+    thresholdControls.addAll(
+      [                      
+        Center(
+        ),
+        SizedBox(
+          width: 20,
+        ),
+        Container(
+          margin: EdgeInsets.fromLTRB(0, 10, 0, 0),
+          width:200,
+          height:30,
+          child: FlutterSlider(
+            tooltip: FlutterSliderTooltip(
+              disabled: true,
+            ),
+            min: 0,
+            max: 1000,
+            handler: FlutterSliderHandler(
+              child: Material(
+                type: MaterialType.canvas,
+                color: Colors.grey.shade500,
+                elevation: 3,
+                child: Container(
+                    padding: EdgeInsets.all(5),
+                    // child: Icon(Icons.adjust, size: 25,)
+                  ),
+              ),                                                          
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(0),
+                color: Colors.grey,
+                border: Border.all(width: 3, color: Colors.white),
+              )
+            ),
+            trackBar: FlutterSliderTrackBar(
+              inactiveTrackBarHeight: 70,
+              activeTrackBarHeight: 70,
+              inactiveTrackBar: BoxDecoration(
+                borderRadius: BorderRadius.circular(0),
+                color: Colors.grey,
+                border: Border.all(width: 3, color: Colors.black45),
+              ),
+              activeTrackBar: BoxDecoration(
+                borderRadius: BorderRadius.circular(0),
+                color: Colors.grey.withOpacity(0.5)
+              ),
+            ), values: [100],
+          )
+        ),
+        const SizedBox(
+          width: 10,
+        ),
+      ]
+
+    );
+
   }
 
   void addChartControls(
       List<Widget> charts, int idx, int channelCount, BuildContext context) {
     double leftDroplet = 5;
-    final colorProvider =
-        Provider.of<ChannelColorProvider>(context, listen: false);
+    final colorProvider = Provider.of<ChannelColorProvider>(context, listen: false);
+
+
+    selectedThresholdIdx = context.read<ThresholdStatusProvider>().selectedThresholdChannel;
+    bool isThresholding = context.read<ThresholdStatusProvider>().isThresholding;
+    if (!isThresholding) {
+      keyboardCharacter = "";
+    }
     final isAudio = Provider.of<DataStatusProvider>(context, listen: false)
         .isMicrophoneData;
+
+
     Color channelColor = isAudio
         ? (idx < colorProvider.audioColors.length
             ? colorProvider.audioColors[idx]
@@ -295,15 +407,29 @@ class _DraggableGraphState extends State<DraggableGraph> {
         : (idx < colorProvider.serialColors.length
             ? colorProvider.serialColors[idx]
             : SoftwareColors.kGraphColor);
+
+    Color selectedChannelColor = isAudio
+        ? (idx < colorProvider.audioColors.length
+            ? colorProvider.audioColors[selectedThresholdIdx]
+            : SoftwareColors.kGraphColor)
+        : (idx < colorProvider.serialColors.length
+            ? colorProvider.serialColors[selectedThresholdIdx]
+            : SoftwareColors.kGraphColor);       
+    // if (selectedThresholdIdx != 0) {
+    //   print("colorProvider.serialColors[selectedThresholdIdx] :  ${selectedThresholdIdx}");
+    // }
     charts.add(Positioned(
       top: midChartY[idx].toDouble() - 15,
       left: leftDroplet,
       child: GestureDetector(
         onTap: () {
+          double prevVal = gainChannel[idx];
           gainChannel[idx] *= 3;
+          selectedThresholdMarker = idx;
           // GraphGainProvider graphGainProvider =
           //     Provider.of<GraphGainProvider>(context, listen: false);
           // graphGainProvider.setGain(graphGainProvider.gain * 3);
+          setThresholdMarker(idx, thresholdMarkerTop, thresholdValue, prevVal, gainChannel[idx]);
         },
         child: Container(
           decoration: BoxDecoration(
@@ -314,17 +440,45 @@ class _DraggableGraphState extends State<DraggableGraph> {
         ),
       ),
     ));
+
     charts.add(Positioned(
       top: midChartY[idx],
       child: GestureDetector(
         onTap: () {
+          if (selectedThresholdIdx != idx) {
+            Future.delayed(Duration(seconds: 1), (){
+              changeActiveThresholdIdx(idx);
+            });
+          }
+          selectedThresholdIdx = idx;
+          context.read<ThresholdStatusProvider>().setThresholdChannel(idx);
+          // print("selectedThresholdIdx: $selectedThresholdIdx --- ${context.read<ThresholdStatusProvider>().selectedThresholdChannel}");
           setState(() {
             showWaveform[idx] = !showWaveform[idx];
           });
         },
         onVerticalDragUpdate: (details) {
+          if (selectedThresholdIdx != idx) {
+            Future.delayed(Duration(seconds: 1), (){
+              changeActiveThresholdIdx(idx);
+            });
+          }
+          selectedThresholdIdx = idx;
+          context.read<ThresholdStatusProvider>().setThresholdChannel(idx);
+          
           midChartY[idx] = details.globalPosition.dy;
-          topChartY[idx] = midChartY[idx] + 18 - heightChart / 2;
+          topChartY[idx] = midChartY[idx] + thresholdIconTopDifference - heightChart / 2;
+          
+          levelMedian[idx] = midChartY[idx] + thresholdIconTopDifference;
+          double currentY = thresholdPositionY[idx];
+          double median =
+              levelMedian[idx] == -1 ? initialLevelMedian[idx] : levelMedian[idx];
+          int tempMedianDistance =
+              ((currentY + thresholdIconTopDifference - median).floor()).floor();
+          thresholdValue[idx] = ((signalMultiplierChannel[idx] * tempMedianDistance).floor()).abs();
+          print("Current Y: $currentY, $median, $tempMedianDistance ${thresholdValue[idx]}");
+          context.read<ThresholdStatusProvider>().setThresholdParams(thresholdValue);
+
         },
         child: Container(
           child: Transform.rotate(
@@ -352,6 +506,156 @@ class _DraggableGraphState extends State<DraggableGraph> {
         // ),
       ),
     ));
+    final thresholdTriggerType = context.read<ThresholdStatusProvider>().selectedThresholdTriggerType;
+    if (isThresholding && thresholdTriggerType == -1) {
+      charts.add(Positioned(
+        right: 5,
+        // top: midChartY[idx],
+        top: markerOutOfRange == 1
+            ? 50
+            : markerOutOfRange == 2
+                ? MediaQuery.of(context).size.height * 0.95
+                : thresholdMarkerTop[selectedThresholdIdx],        
+        child: GestureDetector(
+            onVerticalDragUpdate: (dragUpdateVerticalDetails) {
+              forceThreshold = 1;
+              int c = selectedThresholdIdx;
+
+              double currentY =
+                  dragUpdateVerticalDetails.globalPosition.dy - thresholdIconTopDifference;
+              thresholdPositionY[c] = currentY;
+
+
+              print('MOVING Threshold Marker: $currentY ${initialLevelMedian} ${levelMedian}');
+              print(levelMedian[c] == -1
+                  ? initialLevelMedian[c]
+                  : levelMedian[c]);
+              // double heightFactor = 32767 / (MediaQuery.of(context).size.height/2);
+
+              // double heightFactor = (gainChannel[c] / signalMultiplier);
+              double median =
+                  levelMedian[c] == -1 ? initialLevelMedian[c] : levelMedian[c];
+
+
+              int tempMedianDistance =
+                  ((currentY + thresholdIconTopDifference - median).floor()).floor();
+              print("tempThresholdValue: $tempMedianDistance - $signalMultiplierChannel[c] ${(currentY + thresholdIconTopDifference - median).floor()} ${levelMedian[c]}");
+              if (currentY > 50 &&
+                  currentY < MediaQuery.of(context).size.height * 0.95) {
+                markerOutOfRange = 0;
+              }
+              if (markerOutOfRange == 0) {
+                if (currentY < 50) {
+                  markerOutOfRange = 1;
+                } else if (currentY >
+                    MediaQuery.of(context).size.height * 0.95) {
+                  markerOutOfRange = 2;
+                } else {
+                  markerOutOfRange = 0;
+                  // old calculation
+                  // thresholdValue[c] = tempThresholdValue;
+                  thresholdValue[c] = ((signalMultiplierChannel[c] * tempMedianDistance).floor()).abs();
+                  print("tempThresholdValue: ${thresholdValue[c]} - $signalMultiplierChannel[c] $tempMedianDistance");
+
+                  // List<int> thresholdParam = context.read<ThresholdStatusProvider>().selectedThresholdParam;
+                  // thresholdParam[c] 
+                  context.read<ThresholdStatusProvider>().setThresholdParams(thresholdValue);
+                  thresholdMarkerTop[c] = currentY;
+                }
+              }
+
+              double scaleRatio = 1;
+              if (isAudio) {
+                // scaleRatio = listChannelAudio[listIndexAudio[c].floor()] /
+                //     listChannelAudio[defaultListIndexAudio];
+              } else {
+                // scaleRatio = listChannelSerial[listIndexSerial[c].floor()] /
+                //     listChannelSerial[defaultListIndexSerial];
+              }
+              double curDistance = thresholdMarkerTop[c] + thresholdIconTopDifference - median;
+              listMedianDistance[c] = curDistance * scaleRatio;
+              print('thresholdMarkerTop[c]');
+              print(thresholdValue[c]);
+              print(listMedianDistance[c]);
+
+              setState(() {});
+            },
+            
+            child: Transform.rotate(
+              angle: -90 * pi / 180,
+              child: Icon(
+                showWaveform[idx] ? Icons.water_drop_outlined : Icons.water_drop_outlined,
+                color: selectedChannelColor,
+                size: 36,
+              ),
+            ),
+          ),
+
+        ),
+      );
+      if (markerOutOfRange == 0) {
+        charts.add(Positioned(
+            top: thresholdMarkerTop[selectedThresholdIdx] + thresholdIconTopDifference,
+            right: 20,
+            child: Container(
+              width: MediaQuery.of(context).size.width,
+              child: DottedLine(
+                direction: Axis.horizontal,
+                lineLength: double.infinity,
+                lineThickness: 1.0,
+                dashLength: 4.0,
+                dashColor: selectedChannelColor,
+                dashRadius: 0.0,
+                dashGapLength: 4.0,
+                dashGapColor: Colors.transparent,
+                dashGapRadius: 0.0,
+              ),
+            )));
+      }      
+      
+    } else 
+    if (isThresholding && thresholdTriggerType >= 0 && thresholdTriggerType < 10){
+      double width = (MediaQuery.of(context).size.width / 2);
+      double height = (MediaQuery.of(context).size.height);
+      charts.add(
+        Positioned(
+        top: height * 0.25,
+        left: width,
+        child: SizedBox(
+          width:1,
+          height: height * 0.5,
+          child: DottedLine(
+            direction: Axis.vertical,
+            alignment: WrapAlignment.center,
+            lineLength: double.infinity,
+            lineThickness: 1.0,
+            dashLength: 4.0,
+            dashColor: Colors.white,
+            dashRadius: 0.0,
+            dashGapLength: 4.0,
+            dashGapColor: Colors.transparent,
+            dashGapRadius: 0.0,
+          ),
+        ),
+      ));
+      if (thresholdTriggerType == 0) {
+        charts.add(
+          Positioned(
+            top: height * 0.25 - 30,
+            left: width - 20,
+            child: SizedBox(
+              height:20,
+              width:40,
+              child: Center(
+                child: Text(keyboardCharacter?? "", style: TextStyle(color: Colors.white, backgroundColor: Colors.red),),
+              ),
+            )
+          )
+        );
+      }
+
+    }
+    
     charts.add(Positioned(
       top: midChartY[idx].toDouble() + 35,
       left: leftDroplet,
@@ -360,7 +664,10 @@ class _DraggableGraphState extends State<DraggableGraph> {
           // GraphGainProvider graphGainProvider =
           //     Provider.of<GraphGainProvider>(context, listen: false);
           // graphGainProvider.setGain(graphGainProvider.gain * 0.25);
-          gainChannel[idx] *= 0.25;
+          double prevVal = gainChannel[idx];
+          gainChannel[idx] /= 3;
+          setThresholdMarker(idx, thresholdMarkerTop, thresholdValue, prevVal, gainChannel[idx]);
+
         },
         child: Container(
           decoration: BoxDecoration(
@@ -376,11 +683,52 @@ class _DraggableGraphState extends State<DraggableGraph> {
   bool isLoading = true;
 
   double topDroplet = 0;
+  
+  int selectedThresholdMarker = 0;
+  
+  bool isThresholdingButton = false;  
+  bool isChoosingThresholdType = false;
+  
+  // int  signalMultiplier = (150).floor();
+  double signalMultiplier = 525 / 75;
+  List<double> signalMultiplierChannel = [0,0,0,0,0,0];
+  
+  List<double> thresholdMarkerTop = [
+    -10000,
+    -10000,
+    -10000,
+    -10000,
+    -10000,
+    -10000
+  ];
+  List<double> snapshotAveragedSamples = [1];
+  List<double> thresholdPositionY = [0, 0, 0, 0, 0, 0];
+  List<int> thresholdValue = [10, 25, 25, 25, 25, 25];
+  List<double> listMedianDistance = [0, 0, 0, 0, 0, 0];
+  
+  int thresholdType = -1;
+  int selectedThresholdIdx = 0;
+  int forceThreshold = 1;
+  int markerOutOfRange = 0;
+  int excessiveTopGain = 0;
+  int excessiveBottomGain = 0;
+
+
+  List<double> levelMedian = [-1, -1, -1, -1, -1, -1];
+  List<double> initialLevelMedian = [0, 0, 0, 0, 0, 0];
+  
+  bool isInitializedGraph = false;
+  
+  int thresholdIconTopDifference = 18;
+  
+  double initialThresholdScale = 0.25;
+
   bool _isNumeric(String s) {
     // A simple regular expression to validate if the string is a single digit.
     return s.isNotEmpty && s.length == 1 && RegExp(r'^[0-9]$').hasMatch(s);
   }
 
+  String? keyboardCharacter;
   void _handleKeyEvent(KeyEvent event) {
     if (event is KeyDownEvent) {
       // debouncerKeyboard.run(() {
@@ -388,6 +736,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
 
         // Check if the character is a digit (0-9)
         if (character != null && _isNumeric(character)) {
+          keyboardCharacter = character;
           print("CHARACTER : $character");
           ProcessingUtil.eventMarkerNotifier.value = [int.parse(character), -1];
           // ProcessingUtil.eventMarkerNotifier.value = [-1, -1];
@@ -405,8 +754,17 @@ class _DraggableGraphState extends State<DraggableGraph> {
     //       builder: (context, graphGainProvider, _) {
     final colorProvider = context.watch<ChannelColorProvider>();
     final dataStatus = context.watch<DataStatusProvider>();
+    
+    // final thresholdStatus = context.watch<ThresholdStatusProvider>();
+    bool isThresholding = context.read<ThresholdStatusProvider>().isThresholding;
+
+    if (isInitializedGraph && thresholdMarkerTop[selectedThresholdIdx] == -10000) {
+      initLevelMedian(1, 0);
+    }      
+
     bool isAudio = dataStatus.isMicrophoneData;
     List<Widget> charts = [];
+    // List<Widget> thresholdControls = [];
     if (!isLoading) {
       if (ProcessingUtil.drawingBuffers.isNotEmpty &&
           channelCount != ProcessingUtil.drawingBuffers.length) {
@@ -417,6 +775,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
       // Ensure waveform visibility list matches the current channel count
       if (showWaveform.length != ProcessingUtil.drawingBuffers.length) {
         if (showWaveform.length < ProcessingUtil.drawingBuffers.length) {
+
           showWaveform.addAll(List<bool>.filled(
               ProcessingUtil.drawingBuffers.length - showWaveform.length,
               true));
@@ -444,6 +803,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
         sampleCounts.add(ProcessingUtil.drawingBufferCounts[idx]);
         // sampleCounts.add(curBuffer.length);
       }
+
 
       for (idx = 0; idx < channelCount; idx++) {
         Int16List curBuffer = temp[idx];
@@ -502,9 +862,9 @@ class _DraggableGraphState extends State<DraggableGraph> {
                   levelMedian: heightChart / 2,
                   strokeWidth: 1,
                   eventMarkersNumber:
-                      (ProcessingUtil.eventLabels),
+                      (DraggableGraph.eventMarkersLabels),
                   eventMarkersPosition: DraggableGraph
-                          .eventMarkersPosition.isEmpty
+                          .eventMarkersPosition.isEmpty || isThresholding
                       ? []
                       : (DraggableGraph.eventMarkersPosition),
                   // eventMarkersNumber: List.generate(100, (idx) => (idx + 1) % 7),
@@ -528,7 +888,9 @@ class _DraggableGraphState extends State<DraggableGraph> {
       for (idx = 0; idx < channelCount; idx++) {
         addChartControls(charts, idx, channelCount, context);
       }
+      // addThresholdControls(thresholdControls);
 
+      // charts.addAll(thresholdControls);
 // */
 // */
       return KeyboardListener(
@@ -581,6 +943,188 @@ class _DraggableGraphState extends State<DraggableGraph> {
       // print(arrayIdx);
     }
     // return buffer;
+  }
+
+
+  setThresholdMarker(int c, List<double> thresholdMarkerTop, List<int> thresholdValue, double prevVal, double curVal) {
+    List<int> thresholdParams = [thresholdValue[c]];
+
+    double heightFactor = curVal / (prevVal);
+    double heightScale = 1 / heightFactor;
+
+    double median = levelMedian[c] == -1 ? initialLevelMedian[c] : levelMedian[c];
+    double medianDistance = listMedianDistance[c];
+    
+    double tempMarkerTop = median + medianDistance * heightFactor - thresholdIconTopDifference;
+    thresholdMarkerTop[c] = tempMarkerTop;
+    print("TEMP MARKER TOP : $tempMarkerTop $median + $medianDistance * $heightFactor ($prevVal / ${gainChannel[c]}) --- ($signalMultiplier * ${gainChannel[c]}) - $thresholdIconTopDifference");
+    
+    signalMultiplierChannel[c] = signalMultiplierChannel[c] * heightScale;
+    listMedianDistance[c] = thresholdMarkerTop[c] + thresholdIconTopDifference - median;
+    thresholdValue[c] = ((signalMultiplierChannel[c] * listMedianDistance[c]).floor()).abs();
+    print("thresholdValue[c]: ${thresholdValue[c]} === ${signalMultiplierChannel[c]} ${listMedianDistance[c]} * $heightScale}");
+    
+    // print("TEMP MARKER TOP: $tempMarkerTop = $median + $listMedianDistance ( $signalMultiplier * ${gainChannel[c]})");
+    // thresholdMarkerTop[c] = calculatedMedian - halfMaxIntValue - thresholdIconTopDifference;
+    // thresholdValue[c] = ((thresholdMarkerTop[c] +
+    //                 thresholdIconTopDifference -
+    //                 calculatedMedian)
+    //             .floor() *
+    //         heightFactor)
+    //     .floor();
+    // // print("halfMaxIntValue: ${thresholdMarkerTop[c]} $calculatedMedian $halfMaxIntValue - $thresholdIconTopDifference ---- ${thresholdValue[c]}");
+    // // print("Threshold Value : ${thresholdValue[c]} = ${thresholdMarkerTop[c] + thresholdIconTopDifference - calculatedMedian }");
+    // // -75 position = 1000 threshold == gain 0.125
+    // // 1000 = -75 * a * 0.125 = > a = 8000 /-75 => a=106
+    // listMedianDistance[c] = thresholdMarkerTop[c] + thresholdIconTopDifference - calculatedMedian;
+    // // print("thresholdValue: $thresholdValue");
+    // // print("Threshold Value : ${thresholdValue[c]} = ${thresholdMarkerTop[c] + thresholdIconTopDifference - calculatedMedian }");    
+    // context.read<ThresholdStatusProvider>().setThresholdParams(thresholdParams);
+  }
+  // setThresholdMarker(int c, List<double> thresholdMarkerTop,
+  //   List<int> thresholdValue, double prevVal, double curVal) {
+
+  //   double scaleRatio = 1;
+  //   bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+  //   if (isAudioListen) {
+  //     scaleRatio = gainChannel[c];
+  //   } else {
+  //     scaleRatio = gainChannel[c];
+  //   }
+  //   // if (isAudioListen) {
+  //   //   scaleRatio = listChannelAudio[listDefaultIndex[c]] / curVal;
+  //   // } else {
+  //   //   scaleRatio = listChannelSerial[listDefaultIndex[c]] / curVal;
+  //   // }
+
+  //   double tempMarkerTop = thresholdMarkerTop[c];
+  //   final double prevScaleRatio = scaleRatio;
+  //   final double prevTempMarkerTop = tempMarkerTop;
+
+  //   double median = levelMedian[c] == -1 ? initialLevelMedian[c] : levelMedian[c];
+  //   double medianDistance = listMedianDistance[c];
+
+  //   print('medianDistance');
+  //   print(medianDistance);
+  //   int iconMarkerTop = 18;
+
+
+  //   if (scaleRatio == 1)
+  //     // return;
+  //     tempMarkerTop = median + medianDistance * scaleRatio - iconMarkerTop;
+  //   else if (scaleRatio < 1) {
+  //     if (excessiveTopGain - 1 > 0) {
+  //       excessiveTopGain--;
+  //       return;
+  //     } else {
+  //       excessiveTopGain = 0;
+  //     }
+
+  //     print(tempMarkerTop);
+  //     scaleRatio = scaleRatio;
+  //     // tempMarkerTop = tempMarkerTop + thresholdMarkerTop[0] * scaleRatio;
+  //     tempMarkerTop = median + medianDistance * scaleRatio - iconMarkerTop;
+  //     print(tempMarkerTop);
+  //     print("-----------");
+  //     // scaleRatio = scaleRatio * -1;
+  //   } else {
+  //     //UP or +
+  //     if (excessiveBottomGain - 1 > 0) {
+  //       excessiveBottomGain--;
+  //       print('excessiveBottomGain return');
+  //       print(excessiveBottomGain);
+
+  //       return;
+  //     } else {
+  //       excessiveBottomGain = 0;
+  //     }
+
+  //     // print("decreasing? " +
+  //     //     prevVal.toString() +
+  //     //     " _ " +
+  //     //     curVal.toString() +
+  //     //     " : " +
+  //     //     scaleRatio.toString());
+  //     // print(tempMarkerTop);
+  //     // print(median);
+  //     // print(medianDistance);
+  //     // scaleRatio = 1 - scaleRatio;
+  //     // tempMarkerTop = tempMarkerTop + thresholdMarkerTop[0] * scaleRatio;
+  //     tempMarkerTop = median + medianDistance * scaleRatio - iconMarkerTop;
+
+  //     // print(tempMarkerTop);
+  //     // print("-----------");
+  //   }
+
+  //   if (tempMarkerTop < 50) {
+  //     excessiveTopGain++;
+  //     markerOutOfRange = 1;
+  //     thresholdMarkerTop[c] = tempMarkerTop;
+  //   } else if (tempMarkerTop > MediaQuery.of(context).size.height * 0.95) {
+  //     excessiveBottomGain++;
+
+  //     markerOutOfRange = 2;
+  //     thresholdMarkerTop[c] = tempMarkerTop;
+  //     // listIndexAudio[c] = listChannelAudio.indexOf(prevVal).toDouble();
+  //     // channelGains[c] = prevVal;
+  //   } else {
+  //     excessiveTopGain = 0;
+  //     excessiveBottomGain = 0;
+  //     markerOutOfRange = 0;
+  //     thresholdMarkerTop[c] = tempMarkerTop;
+  //   }
+  //   double heightFactor = (gainChannel[c] / signalMultiplier);
+  // }  
+
+  void initLevelMedian(int channelsLength, int selectedIdx) {
+    print("Channels Length: $channelsLength");
+    for (int c = 0; c < channelsLength; c++) {
+      signalMultiplierChannel[c] = signalMultiplier;
+      double heightScale = (signalMultiplier * gainChannel[c] / initialThresholdScale );
+      double calculatedMedian =
+          (c * MediaQuery.of(context).size.height / channelsLength) +
+              MediaQuery.of(context).size.height / channelsLength / 2;
+
+      // final halfMaxIntValue =
+      //     MediaQuery.of(context).size.height / channelsLength / 8;
+      final halfMaxIntValue =
+          MediaQuery.of(context).size.height / channelsLength / 8;
+
+      thresholdMarkerTop[c] = calculatedMedian - halfMaxIntValue - thresholdIconTopDifference;
+      thresholdPositionY[c] = thresholdMarkerTop[c];
+
+      thresholdValue[c] = ((thresholdMarkerTop[c] +
+                      thresholdIconTopDifference -
+                      calculatedMedian)
+                  .floor() *
+              heightScale)
+          .floor();
+      print("halfMaxIntValue: [$c] ${thresholdMarkerTop[c]} $calculatedMedian $halfMaxIntValue - $thresholdIconTopDifference ---- ${thresholdValue[c]}");
+      print("Threshold Value : [$c] ${thresholdValue[c]} = ${thresholdMarkerTop[c] + thresholdIconTopDifference - calculatedMedian }");
+      // -75 position = 1000 threshold == gain 0.125
+      // 1000 = -75 * a * 0.125 = > a = 8000 /-75 => a=106
+      initialLevelMedian[c] = calculatedMedian;
+      listMedianDistance[c] = thresholdMarkerTop[c] + thresholdIconTopDifference - calculatedMedian;
+    }
+  }
+
+  void thresholdMenuListener() {
+    print("thresholdMenuListener");
+    keyboardFocusNode.requestFocus();
+  }
+  
+  void changeActiveThresholdIdx(int idx) {
+    initLevelMedian(channelCount, idx);
+  }
+
+  void initialiceDeviceListener() {
+    if (ProcessingUtil.initializeDevice.value == 0 ) {
+      initLevelMedian(1, 0);
+    } else {
+      Future.delayed(Duration(seconds: 1), (){
+        initLevelMedian(channelCount, 0);
+      });
+    }
   }
 }
 

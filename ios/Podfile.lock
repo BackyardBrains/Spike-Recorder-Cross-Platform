@@ -14,6 +14,8 @@ PODS:
     - FlutterMacOS
   - permission_handler_apple (9.3.0):
     - Flutter
+  - processing_ffi (0.0.1):
+    - Flutter
   - sound_stream_now (0.0.1):
     - Flutter
   - url_launcher_ios (0.0.1):
@@ -27,6 +29,7 @@ DEPENDENCIES:
   - native_add (from `.symlinks/plugins/native_add/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
+  - processing_ffi (from `.symlinks/plugins/processing_ffi/ios`)
   - sound_stream_now (from `.symlinks/plugins/sound_stream_now/ios`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
 
@@ -45,21 +48,24 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/path_provider_foundation/darwin"
   permission_handler_apple:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
+  processing_ffi:
+    :path: ".symlinks/plugins/processing_ffi/ios"
   sound_stream_now:
     :path: ".symlinks/plugins/sound_stream_now/ios"
   url_launcher_ios:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
-  audio_session: 9bb7f6c970f21241b19f5a3658097ae459681ba0
+  audio_session: 19e9480dbdd4e5f6c4543826b2e8b0e4ab6145fe
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
-  just_audio: 4e391f57b79cad2b0674030a00453ca5ce817eed
-  mic_stream: 5b34e9b3939173b7d42ad30a92d704b72221bacf
-  native_add: da3180bfd05c18abe0988fe7bed071091d60cec4
-  path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
-  permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
-  sound_stream_now: fe87750c04ca5f56ac648d1431a5055bd663bc33
-  url_launcher_ios: 694010445543906933d732453a59da0a173ae33d
+  just_audio: a42c63806f16995daf5b219ae1d679deb76e6a79
+  mic_stream: 9e7c9fe19d0d8bd0d273bd5428bbd13cab6f4429
+  native_add: c340be14b972e1ee448a7024e985825dc2107bac
+  path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
+  permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
+  processing_ffi: 8069a9c10f1e630403cffae4b276b294d1609e44
+  sound_stream_now: dc25979946047a4d0e8191d8b2024887493178a5
+  url_launcher_ios: 5334b05cef931de560670eeae103fd3e431ac3fe
 
 PODFILE CHECKSUM: 5ca07cf6785cddfcbe5432f9f1d5729eed3228c8
 

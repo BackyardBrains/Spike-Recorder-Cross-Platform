@@ -1832,6 +1832,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
         microphoneUtil.micStream.removeListener(micListener);
         microphoneUtil.micStream = ValueNotifier(Uint8List(0));
         context.read<DataStatusProvider>().setMicrophoneDataStatus(true);
+        Provider.of<ConstantProvider>(context, listen: false).setChannelCount(channelCount);
+        Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(microphoneUtil.sampleRate.floor());
+
       }catch(err){
         print("er remove listener");
         print(err);
@@ -1898,6 +1901,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     int channelCount = 1;
     int selectedThresholdChannel = 0;
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
+
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     // print("isAUDIO LISTEN: $isAudioListen");
     if (isAudioListen) {

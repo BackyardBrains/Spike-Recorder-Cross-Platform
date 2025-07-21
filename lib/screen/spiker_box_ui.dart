@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/functionality/debouncer.dart';
 import 'package:spikerbox_architecture/models/processing_utils/processing_util.dart';
+import 'package:spikerbox_architecture/provider/devices_provider.dart';
 import 'package:spikerbox_architecture/provider/graph_gain_provider.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'package:spikerbox_architecture/provider/isgraphplay_provider.dart';
@@ -279,8 +280,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
       keyboardFocusNode.requestFocus();
     });
     
-    ProcessingUtil.initializeDevice.removeListener(initialiceDeviceListener);
-    ProcessingUtil.initializeDevice.addListener(initialiceDeviceListener);
+    ProcessingUtil.initializeDevice.removeListener(initializeDeviceListener);
+    ProcessingUtil.initializeDevice.addListener(initializeDeviceListener);
     selectedThresholdIdx = context.read<ThresholdStatusProvider>().selectedThresholdChannel;
     // if (thresholdMarkerTop[selectedThresholdIdx] == -10000) {
     //   initLevelMedian(1);
@@ -291,7 +292,10 @@ class _DraggableGraphState extends State<DraggableGraph> {
     print("initializeGraph");
     widthChart = MediaQuery.of(context).size.width;
 
-    channelCount = ProcessingUtil.drawingBuffers.length == 0 ? 1 : ProcessingUtil.drawingBuffers.length;
+    // channelCount = ProcessingUtil.drawingBuffers.length == 0 ? 1 : ProcessingUtil.drawingBuffers.length;
+    channelCount = context.read<ConstantProvider>().getChannelCount();
+    print("initializeGraphChannelCount $channelCount");
+
     heightChart = MediaQuery.of(context).size.height /
         (channelCount == 0 ? 1 : channelCount);
     topChartY.clear();
@@ -444,6 +448,11 @@ class _DraggableGraphState extends State<DraggableGraph> {
     charts.add(Positioned(
       top: midChartY[idx],
       child: GestureDetector(
+        onDoubleTap: () {
+          showWaveform[idx] = !showWaveform[idx];
+          setState(() {
+          });
+        },
         onTap: () {
           if (selectedThresholdIdx != idx) {
             Future.delayed(Duration(seconds: 1), (){
@@ -454,7 +463,6 @@ class _DraggableGraphState extends State<DraggableGraph> {
           context.read<ThresholdStatusProvider>().setThresholdChannel(idx);
           // print("selectedThresholdIdx: $selectedThresholdIdx --- ${context.read<ThresholdStatusProvider>().selectedThresholdChannel}");
           setState(() {
-            showWaveform[idx] = !showWaveform[idx];
           });
         },
         onVerticalDragUpdate: (details) {
@@ -475,7 +483,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
               levelMedian[idx] == -1 ? initialLevelMedian[idx] : levelMedian[idx];
           int tempMedianDistance =
               ((currentY + thresholdIconTopDifference - median).floor()).floor();
-          thresholdValue[idx] = ((signalMultiplierChannel[idx] * tempMedianDistance).floor()).abs();
+          double tempValue = (signalMultiplierChannel[idx] * tempMedianDistance);
+          thresholdValue[idx] = (tempValue.floor()).abs();
           print("Current Y: $currentY, $median, $tempMedianDistance ${thresholdValue[idx]}");
           context.read<ThresholdStatusProvider>().setThresholdParams(thresholdValue);
 
@@ -574,9 +583,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
               }
               double curDistance = thresholdMarkerTop[c] + thresholdIconTopDifference - median;
               listMedianDistance[c] = curDistance * scaleRatio;
-              print('thresholdMarkerTop[c]');
-              print(thresholdValue[c]);
-              print(listMedianDistance[c]);
+              print('thresholdMarkerTop[c] - thresholdValue : ${thresholdValue[c]} - ${listMedianDistance[c]} @@@ ${signalMultiplierChannel[c]}');
 
               setState(() {});
             },
@@ -661,13 +668,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
       left: leftDroplet,
       child: GestureDetector(
         onTap: () {
-          // GraphGainProvider graphGainProvider =
-          //     Provider.of<GraphGainProvider>(context, listen: false);
-          // graphGainProvider.setGain(graphGainProvider.gain * 0.25);
-          double prevVal = gainChannel[idx];
-          gainChannel[idx] /= 3;
-          setThresholdMarker(idx, thresholdMarkerTop, thresholdValue, prevVal, gainChannel[idx]);
-
+          decreaseGain(idx);
         },
         child: Container(
           decoration: BoxDecoration(
@@ -729,6 +730,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
   }
 
   String? keyboardCharacter;
+  
+  bool isThresholding = false;
   void _handleKeyEvent(KeyEvent event) {
     if (event is KeyDownEvent) {
       // debouncerKeyboard.run(() {
@@ -756,21 +759,24 @@ class _DraggableGraphState extends State<DraggableGraph> {
     final dataStatus = context.watch<DataStatusProvider>();
     
     // final thresholdStatus = context.watch<ThresholdStatusProvider>();
-    bool isThresholding = context.read<ThresholdStatusProvider>().isThresholding;
+    if (isThresholding != context.read<ThresholdStatusProvider>().isThresholding) {
+      thresholdMenuListener();
+    } 
+    isThresholding = context.read<ThresholdStatusProvider>().isThresholding;
 
-    if (isInitializedGraph && thresholdMarkerTop[selectedThresholdIdx] == -10000) {
-      initLevelMedian(1, 0);
-    }      
+    // if (isInitializedGraph && thresholdMarkerTop[selectedThresholdIdx] == -10000) {
+    //   initLevelMedian(1, 0);
+    // }      
 
     bool isAudio = dataStatus.isMicrophoneData;
     List<Widget> charts = [];
     // List<Widget> thresholdControls = [];
     if (!isLoading) {
-      if (ProcessingUtil.drawingBuffers.isNotEmpty &&
-          channelCount != ProcessingUtil.drawingBuffers.length) {
-        channelCount = ProcessingUtil.drawingBuffers.length;
-        initializeGraph();
-      }
+      // if (ProcessingUtil.drawingBuffers.isNotEmpty &&
+      //     channelCount != ProcessingUtil.drawingBuffers.length) {
+      //   channelCount = ProcessingUtil.drawingBuffers.length;
+      //   initializeGraph();
+      // }
 
       // Ensure waveform visibility list matches the current channel count
       if (showWaveform.length != ProcessingUtil.drawingBuffers.length) {
@@ -1111,20 +1117,41 @@ class _DraggableGraphState extends State<DraggableGraph> {
   void thresholdMenuListener() {
     print("thresholdMenuListener");
     keyboardFocusNode.requestFocus();
+    // initializeDeviceListener();
   }
   
   void changeActiveThresholdIdx(int idx) {
-    initLevelMedian(channelCount, idx);
+    // initLevelMedian(channelCount, idx);
   }
 
-  void initialiceDeviceListener() {
+  void initializeDeviceListener() {
+    print("Initial Device Listener");
     if (ProcessingUtil.initializeDevice.value == 0 ) {
+      initializeGraph();
       initLevelMedian(1, 0);
+
     } else {
       Future.delayed(Duration(seconds: 1), (){
+        initializeGraph();
         initLevelMedian(channelCount, 0);
+        for (int i = 0; i < channelCount; i++) {
+          decreaseGain(i);
+          decreaseGain(i);
+          decreaseGain(i);
+        }
       });
     }
+  }
+  
+
+  void decreaseGain(int idx) {
+    // GraphGainProvider graphGainProvider =
+    //     Provider.of<GraphGainProvider>(context, listen: false);
+    // graphGainProvider.setGain(graphGainProvider.gain * 0.25);
+    double prevVal = gainChannel[idx];
+    gainChannel[idx] /= 3;
+    setThresholdMarker(idx, thresholdMarkerTop, thresholdValue, prevVal, gainChannel[idx]);
+
   }
 }
 

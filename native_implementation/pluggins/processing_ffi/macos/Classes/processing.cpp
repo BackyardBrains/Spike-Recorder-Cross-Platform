@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <string>
 #define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
-void platform_log(const char *fmt, ...) {
+void platform_log_processing(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     vprintf(fmt, args);
@@ -81,6 +81,12 @@ static AutocorrelationAnalysis* autocorrelationAnalysis = nullptr;
 static IsiAnalysis* isiAnalysis = nullptr;
 static AverageSpikeAnalysis* averageSpikeAnalysis = nullptr;
 static CrossCorrelationAnalysis* crossCorrelationAnalysis = nullptr;
+
+static int PROCESSING_MAX_FFT_WINDOWS_COUNT = 1;
+static constexpr float FFT_PROCESSING_TIME = 10.0f;
+static constexpr float FFT_SAMPLE_RATE = 128; // 2^7
+static constexpr int FFT_WINDOW_TIME_LENGTH = 4; // 2^2
+static constexpr int FFT_WINDOW_OVERLAP_PERCENT = 99;
 
 
 #ifdef _WIN32
@@ -274,10 +280,10 @@ public:
 
 
     void onEventFound(int sampleIndex, int eventLabel) {
-        platform_log("EVENT FOUND\n");
-        platform_log(std::to_string(sampleIndex).c_str());
-        platform_log("EVENT LABLE\n");
-        platform_log(std::to_string(eventLabel).c_str());
+        // platform_log("EVENT FOUND\n");
+        // platform_log(std::to_string(sampleIndex).c_str());
+        // platform_log("EVENT LABLE\n");
+        // platform_log(std::to_string(eventLabel).c_str());
         // EM_ASM({
         //     postMessage({
         //         "message": "EVENT_FOUND",
@@ -445,10 +451,16 @@ int32_t processing_set_sample_rate(int32_t sample_rate) {
     
     try {
         current_sample_rate = sample_rate;
+
+        uint32_t FFT_WINDOW_SAMPLE_COUNT = static_cast<const uint32_t>(FFT_WINDOW_TIME_LENGTH * FFT_SAMPLE_RATE); // 2^9
+        int FFT_WINDOW_SAMPLE_DIFF_COUNT = (int) (FFT_WINDOW_SAMPLE_COUNT * (1.0f - (FFT_WINDOW_OVERLAP_PERCENT / 100.0f)));
         amModulationProcessor->setSampleRate( sample_rate );
         thresholdProcessor->setSampleRate( sample_rate );
         sampleStreamProcessor->setSampleRate(sample_rate);
         fftProcessor->setSampleRate(sample_rate);
+
+
+        PROCESSING_MAX_FFT_WINDOWS_COUNT = (int) ((FFT_PROCESSING_TIME * FFT_SAMPLE_RATE) / FFT_WINDOW_SAMPLE_DIFF_COUNT);
 
         // Re-setup the circular buffer when sample rate changes
         if (circularBuffer != nullptr) {
@@ -599,7 +611,6 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
                   sample_count,
                   frame_count
             );
-           
             // Add processed data to circular buffer
             if (circularBuffer != nullptr) {
                 int32_t* frame_counts = new int32_t[1];
@@ -748,22 +759,34 @@ int32_t processing_normalize_signal(float* out_data, const int16_t* in_data, int
 }
 
 int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
-                             int32_t* out_window_size, const int16_t** in_samples,
+                             int32_t* out_window_size, int32_t* out_frequency_counter, 
+                             const int16_t** in_samples,
                              const int32_t* in_sample_counts) {
     if (!initialized || !out_fft || !out_window_count || !out_window_size || !in_samples || !in_sample_counts) {
         return -1;
     }
 
     try {
+        // int frequencyCounter = 0;
         fftProcessor->process(
             out_fft,
-            PROCESSING_MAX_FFT_WINDOWS,  // Maximum window count
-            *out_window_count,
-            *out_window_size,
+            PROCESSING_MAX_FFT_WINDOWS_COUNT,  // Maximum window count
+            out_window_count[current_selected_channel],
+            // out_window_size[current_selected_channel],
+            out_frequency_counter[current_selected_channel],
             current_channel_count,
             reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
             const_cast<int*>(in_sample_counts)
         );
+        // platform_log_processing("\n out_fft 0 0\n");
+        // platform_log_processing(std::to_string(out_fft[0][0]).c_str());
+        // platform_log_processing("\n out_fft 0 1\n");
+        // platform_log_processing(std::to_string(out_fft[0][1]).c_str());
+        // platform_log_processing("\n out_fft 0 2\n");
+        // platform_log_processing(std::to_string(out_fft[0][2]).c_str());
+        // platform_log("\nout_window_size\n");
+        // platform_log(std::to_string(out_window_size[0]).c_str());
+        
         return 0;
     } catch (...) {
         return -3;
@@ -1044,7 +1067,7 @@ int32_t processing_prepare_fft_for_drawing(float* out_vertices, int16_t* out_ind
                                          float* out_colors, int32_t* out_vertex_count,
                                          int32_t* out_index_count, int32_t* out_color_count,
                                          float** fft_data, int32_t window_count,
-                                         int32_t window_size, float width, float height) {
+                                         int32_t window_size, int32_t target_window_count,float width, float height) {
     if (!initialized || !out_vertices || !out_indices || !out_colors ||
         !out_vertex_count || !out_index_count || !out_color_count ||
         !fft_data || window_count <= 0 || window_size <= 0) {
@@ -1052,25 +1075,74 @@ int32_t processing_prepare_fft_for_drawing(float* out_vertices, int16_t* out_ind
     }
 
     try {
+            
+        // int16_t** channel_samples = new int16_t*[current_channel_count];
+        // for (int i = 0; i < current_channel_count; i++) {
+        //       channel_samples[i] = new int16_t[frame_count]{0};
+        // }
+
+        // platform_log_processing("\n CREATING BUFFER 0\n");
+        // window_count = window_count * 0.5;
+        float** in_fft_data = new float*[target_window_count];
+        int index = 0;
+        for (int i = 0; i < target_window_count; ++i) {
+            index = PROCESSING_MAX_FFT_WINDOWS_COUNT - target_window_count + i;
+            auto tmpSamples = fft_data[index];
+            // windowSize = env->GetArrayLength(tmpSamples);
+            in_fft_data[i] = new float[window_size]{0};
+            std::copy(tmpSamples, tmpSamples + window_size, in_fft_data[i]);
+        }
+        // platform_log_processing("\n TEMP BUFFER CREATED 0\n");
+        // return 0;
+
+        // int windowCount = ( (6.0 * 128) / (512 * 0.01) );
+        // int windowSize = ( (32 * 128) );
+        // out_vertices = new float(windowCount * windowSize * 2);
+        // out_indices = new short(windowCount * windowSize * 6);
+        // out_colors = new float(windowCount * windowSize * 4);
+
         int vertexCount = 0;
         int indexCount = 0;
         int colorCount = 0;
+
+
         backyardbrains::utils::DrawingUtils::prepareFftForDrawing(
             out_vertices,
-            reinterpret_cast<short*>(out_indices),
+            (out_indices),
             out_colors,
             vertexCount,
             indexCount,
             colorCount,
-            fft_data,
-            window_count,
+            in_fft_data,
+            target_window_count,
             window_size,
             width,
             height
         );
-        *out_vertex_count = vertexCount;
-        *out_index_count = indexCount;
-        *out_color_count = colorCount;
+
+
+        // CHANGE IN WEB
+        out_vertex_count[current_selected_channel] = vertexCount;
+        out_index_count[current_selected_channel] = indexCount;
+        out_color_count[current_selected_channel] = colorCount;
+
+        for (int i = 0; i < target_window_count; ++i) {
+            delete[] in_fft_data[i];
+        }
+        delete[] in_fft_data;
+        
+        // platform_log_processing("\n TEMP BUFFER DELETED 0\n");
+        // platform_log("indexCount !!! \n");
+        // platform_log(std::to_string(indexCount).c_str());
+        // platform_log("\ncolorCount !!! \n");
+        // platform_log(std::to_string(colorCount).c_str());
+        // platform_log("\nVertex Count !!! \n");
+        // platform_log(std::to_string(vertexCount).c_str());
+        // platform_log("\n !!! \n");
+
+        // *out_vertex_count = vertexCount;
+        // *out_index_count = indexCount;
+        // *out_color_count = colorCount;
         return 0;
     } catch (...) {
         return -3;

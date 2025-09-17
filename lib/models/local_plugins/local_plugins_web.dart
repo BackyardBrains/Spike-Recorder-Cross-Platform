@@ -8,6 +8,7 @@ import 'dart:js' as js;
 
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'package:spikerbox_architecture/screen/graph_template.dart';
+import 'package:spikerbox_architecture/widget/fft_painter.dart';
 
 LocalPlugin getLocalPlugins() => LocalPluginWeb();
 
@@ -40,6 +41,8 @@ class LocalPluginWeb implements LocalPlugin {
     js.context['onDataBufferAllocated'] = onDataBufferAllocated;
     js.context['onProcessingDone'] = onProcessingDone;
     js.context['onPostDisplay'] = onPostDisplay;
+    js.context['onCallbackProcessFft'] = onCallbackProcessFft;
+    js.context['onCallbackPrepareFftDrawing'] = onCallbackPrepareFftDrawing;
     js.context['setExpansionBoardTypeDart'] = setExpansionBoardTypeDart;
     js.context.callMethod("initializeModule", []);
   }
@@ -177,15 +180,85 @@ class LocalPluginWeb implements LocalPlugin {
       }
     }
   }
-  void onPostDisplay(channelData, channelCounts) {
-    // int len = channelData.length;
-    // for (int i = 0; i < len; i++) {
 
-    //   ProcessingUtil.drawingBuffers[i].setAll(0, channelData[0]);
-    //   ProcessingUtil.drawingBufferCounts[i] = channelCounts[i];
-    // }
+  int thresholdSliderValue = 1;
+  
+  double FFT_WIDGET_HEIGHT = 0.3;
+  
+  int FFT_30HZ_LENGTH = 32;
+  int FFT_WINDOW_TIME_LENGTH = 4;
+
+  void onPostDisplay(channelData, channelCounts) {
     postDisplayStreamController.sink.add(Uint8List(0));
 
+    for (int i = 0; i < channelCounts.length; i++) {
+      int windowCount = ( (10.0 * 128) / (512 * 0.01).floor() ).floor();
+      int windowSize = (FFT_30HZ_LENGTH * FFT_WINDOW_TIME_LENGTH);
+      List<int> inSampleCounts = [];
+      inSampleCounts.add(channelData[i].length);
+      // print("inSampleCounts: ${channelData[i].length}");
+      int channelCount = 1;
+      ProcessingUtil? processingUtil = GraphTemplate.processingUtil;
+      if (processingUtil != null) {
+        processingUtil.processFftMicrophoneData([Int16List.fromList(channelData[i])], [windowCount], [windowSize], inSampleCounts, channelCount);
+      }
+    }
+  }
+
+
+
+
+Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outColorList) {
+  // Ensure the input list has a multiple of 4 elements (R, G, B, A).
+  if (fftColorList.length % 4 != 0) {
+    // throw ArgumentError('The RGBA color list must have a length that is a multiple of 4.');
+  }
+
+  final int colorCount = fftColorList.length ~/ 4;
+
+  for (int i = 0; i < colorCount; i++) {
+    // Read the four float components (R, G, B, A)
+    double R = fftColorList[i * 4];
+    double G = fftColorList[i * 4 + 1];
+    double B = fftColorList[i * 4 + 2];
+    double A = fftColorList[i * 4 + 3];
+    
+    int r = (R * 255).round();
+    int g = (G * 255).round();
+    int b = (B * 255).round();
+    int a = (A * 255).round();   
+    outColorList[i] = (a << 24) | (r << 16) | (g << 8) | b;
+  }
+
+  return outColorList;
+}    
+  void onCallbackPrepareFftDrawing(resultFft, selectedChannelIdx) {
+    // print("onCallbackPrepareFftDrawing");
+    // print(resultFft);
+
+    ProcessingUtil? processingUtil = GraphTemplate.processingUtil;
+    processingUtil?.onCallbackPrepareFftDrawingWeb(resultFft, selectedChannelIdx);
+  }
+  
+  void onCallbackProcessFft(out_window_count, out_window_size, out_fft_data, selectedChannel, channelCounts) {
+    // print("onCallbackProcessFft out_fft_data: $selectedChannel $channelCounts");
+    // print("onCallbackProcessFft");
+    ProcessingUtil? processingUtil = GraphTemplate.processingUtil;
+    processingUtil?.window_count.setAll(0, out_window_count);
+    processingUtil?.window_size.setAll(0, out_window_size);
+    // print("onCallbackProcessFft1 ${processingUtil!.window_count[0]}");
+    
+    if (processingUtil!.window_count[selectedChannel] > 0) {
+      int windowCounter = out_window_count[selectedChannel];
+      // print("out_fft_data ${out_fft_data.length}");
+      for (int i = 0; i < windowCounter; i++) {
+        // int outSize = out_window_count[0];
+        Float32List out_fft_list = out_fft_data[i];
+        // print("out_fft_list ${processingUtil.out_fft.length}");
+        processingUtil.out_fft[selectedChannel].setAll(0, out_fft_list);
+        processingUtil.fftBuffer.put(processingUtil.out_fft, 0, windowCounter);
+      }
+    }
   }
 
 

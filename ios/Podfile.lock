@@ -63,7 +63,7 @@ SPEC CHECKSUMS:
   native_add: c340be14b972e1ee448a7024e985825dc2107bac
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
   permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
-  processing_ffi: 8069a9c10f1e630403cffae4b276b294d1609e44
+  processing_ffi: 89c8c96d0eb4f1ec6b365c7fdc7353089cd0ffef
   sound_stream_now: dc25979946047a4d0e8191d8b2024887493178a5
   url_launcher_ios: 5334b05cef931de560670eeae103fd3e431ac3fe
 

@@ -85,7 +85,8 @@ PROCESSING_API int32_t processing_map(float* out_data, const float* in_data, int
 
 // FFT processing
 PROCESSING_API int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
-                             int32_t* out_window_size, const int16_t** in_samples,
+                             int32_t* out_window_size, int32_t* out_frequency_counter, 
+                             const int16_t** in_samples,
                              const int32_t* in_sample_counts);
 PROCESSING_API void processing_reset_fft_normalization();
 
@@ -184,6 +185,13 @@ PROCESSING_API void processing_average_spike_analysis(const char* file_path,
                                      float** norm_bottom_std_line,
                                      int32_t batch_spike_count);
 
+
+PROCESSING_API int32_t processing_prepare_fft_for_drawing(float* out_vertices, int16_t* out_indices,
+                                         float* out_colors, int32_t* out_vertex_count,
+                                         int32_t* out_index_count, int32_t* out_color_count,
+                                         float** fft_data, int32_t window_count,
+                                         int32_t window_size, int32_t target_window_count, float width, float height);
+                                     
 #ifdef __cplusplus
 }
 #endif

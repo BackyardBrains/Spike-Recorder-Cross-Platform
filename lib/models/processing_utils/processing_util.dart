@@ -2,8 +2,11 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:spikerbox_architecture/models/CircularFloatArrayBuffer.dart';
+import 'package:spikerbox_architecture/models/FftDrawBuffer.dart';
 import 'package:spikerbox_architecture/models/default_config_model.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
+import 'package:spikerbox_architecture/widget/fft_painter.dart';
 // import 'dart:ffi';
 
 // Conditional export based on platform
@@ -73,6 +76,8 @@ abstract class ProcessingUtil {
       int toSample,
       int drawSurfaceWidth);
 
+
+  int prepareForFftDrawing(int windowCount, int windowSize, int targetWindowCount, double width, double height);
   // Set band filter
   Future<int> setBandFilter(double lowCutOffFreq, double highCutOffFreq);
 
@@ -100,4 +105,18 @@ abstract class ProcessingUtil {
   void setThresholdTriggerType(int eventThresholdTriggeredType) {}
 
   void setIsThresholding(bool bool);
+
+
+  List<Float32List> out_fft = [];
+  List<int> window_count = [];
+  List<int> window_size = [];
+  void processFftMicrophoneData(List<Int16List> in_samples, List<int> windowCount, List<int> windowSize, List<int> in_sample_counts, int channelCount);
+  void onCallbackPrepareFftDrawingWeb(int resultFftDraw, int selectedChannelIdx);
+
+  CircularFloatArrayBuffer fftBuffer = CircularFloatArrayBuffer(500, 500);
+  static FftDrawData? fftDrawData;
+  static FftDrawBuffer? fftDrawBuffer;
+
+  
+
 }

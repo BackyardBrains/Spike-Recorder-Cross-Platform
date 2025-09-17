@@ -16,6 +16,7 @@ import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/functionality/debouncer.dart';
 import 'package:spikerbox_architecture/models/processing_utils/processing_util.dart';
 import 'package:spikerbox_architecture/provider/devices_provider.dart';
+import 'package:spikerbox_architecture/provider/fft_status_provider.dart';
 import 'package:spikerbox_architecture/provider/graph_gain_provider.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'package:spikerbox_architecture/provider/isgraphplay_provider.dart';
@@ -24,6 +25,7 @@ import 'package:spikerbox_architecture/provider/vertical_dragprovider.dart';
 import 'package:spikerbox_architecture/provider/data_type_status.dart';
 import 'package:spikerbox_architecture/provider/channel_color_provider.dart';
 import 'package:spikerbox_architecture/screen/graph_template.dart';
+import 'package:spikerbox_architecture/widget/fft_painter.dart';
 
 import '../constant/const_export.dart';
 import '../widget/widget_export.dart';
@@ -50,6 +52,7 @@ class _SpikerBoxUiState extends State<SpikerBoxUi> {
       DraggableSection(),
       TimeCalculateWidget(),
       DraggableRectangle(),
+      FftSection(),
     ]);
     return Stack(
       children: listUIElements,
@@ -841,11 +844,16 @@ class _DraggableGraphState extends State<DraggableGraph> {
           buffer =
               (curBuffer).sublist(0, min(curBuffer.length, outSampleCount));
         } else {
+          // 410
+          // print("$idx OUT SAMPLE COUNT VS CURBUFFER: ${curBuffer.length} - ${outSampleCount}");
           buffer = (curBuffer).sublist(0, outSampleCount);
         }
 
         // print("buffer $outSampleCount vs ${buffer.length} $channelCount");
         if (showWaveform[idx]) {
+          widthChart = MediaQuery.of(context).size.width;
+          heightChart = MediaQuery.of(context).size.height;
+
           charts.add(
             Positioned(
               top: topChartY[idx].toDouble(),
@@ -859,6 +867,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
                   activeColor: Colors.transparent,
                   maxDuration: const Duration(days: 1),
                   elapsedDuration: const Duration(hours: 0),
+                  // samples: buffer.toList(),
                   samples: buffer.toList(),
                   height: heightChart,
                   width: widthChart,
@@ -1272,5 +1281,49 @@ class _DraggableRectangleState extends State<DraggableRectangle> {
         }
       });
     });
+  }
+}
+
+
+class FftSection extends StatefulWidget {
+  const FftSection({super.key});
+
+  @override
+  State<FftSection> createState() => _FftSectionState();
+}
+class _FftSectionState extends State<FftSection> {
+  @override
+  void initState() {
+    super.initState();
+    Stream<List<double>> dataStream =
+        Provider.of<GraphDataProvider>(context, listen: false)
+                .outputGraphStream ??
+            const Stream.empty();
+    dataStream.listen((data) {
+      setState(() {});
+    });
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    bool isFftShowing = context.read<FftStatusProvider>().isFftShowing;
+    // print("ProcessingUtil.fftDrawData == null :   ${ProcessingUtil.fftDrawData == null}");
+    return Positioned(
+      left:0,
+      bottom: 150,
+      child: 
+        // ProcessingUtil.fftDrawData == null?
+        !isFftShowing || ProcessingUtil.fftDrawData == null?
+        Container()
+        :
+        Container(
+          width: MediaQuery.of(context).size.width,
+          height: MediaQuery.of(context).size.height * 0.2,
+          // color: Colors.red,
+          child: CustomPaint(
+            painter: FftPainter(fftData: ProcessingUtil.fftDrawData!)
+          ),
+        )
+    );
   }
 }

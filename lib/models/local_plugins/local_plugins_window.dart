@@ -18,6 +18,7 @@ class LocalPluginWindow implements LocalPlugin {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
 
     await native_add.spawnHelperIsolate();
+    print("spawnHelperIsolate :  $channelCountBuffer");
     for (int i = 0; i < channelCountBuffer; i++) {
       _bufferHandlerOnDemand[i] = BufferHandlerOnDemand(
         onDataAvailable: (Uint8List newList) {
@@ -104,5 +105,10 @@ class LocalPluginWindow implements LocalPlugin {
   StreamController<Uint8List> postDisplayStreamController =
       StreamController<Uint8List>();
   
+  int MAX_DISPLAY_SECONDS = 10000;
+  
+  int channelCount = 1;
+  int sampleRate = 10000;
+  int packetLen = 100000;
 
 }

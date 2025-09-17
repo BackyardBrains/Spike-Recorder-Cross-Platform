@@ -1,11 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+// import 'dart:ffi';
 import 'dart:isolate';
 import 'dart:typed_data';
 // import 'dart:ffi';
+import 'package:spikerbox_architecture/models/CircularFloatArrayBuffer.dart';
+import 'package:spikerbox_architecture/models/FftDrawBuffer.dart';
 import 'package:spikerbox_architecture/models/default_config_model.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
+import 'package:spikerbox_architecture/widget/fft_painter.dart';
 
 import 'processing_util.dart';
 import 'dart:js' as js;
@@ -25,16 +29,38 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   @override
   Future<bool> init() async {
-    _isInitialized = true;
     js.context['onEventPositionAllocated'] = onEventPositionAllocated;
     js.context['onEventPositionCalculated'] = onEventPositionCalculated;
     js.context['onEventFound'] = onEventFound;
     js.context['onSerialParsedCallback'] = onSerialParsedCallback;
     js.context['onDrawingBufferAllocated'] = onDrawingBufferAllocated;
     js.context['onThresholdProcessCallback'] = onThresholdProcessCallback;
-
+    js.context['onSendingFftBuffer'] = onSendingFftBuffer;
+    initFft();
+    _isInitialized = true;
     return true;
   }
+  void onSendingFftBuffer( 
+    // List<Float32List> out_fft_data, Int16List out_window_count, Int16List out_window_size, Int16List out_frequency_counter, Int16List inSamples, Int16List inSampleCounts,
+    List<Float32List> out_fft_data, Int16List out_window_count, Int16List out_window_size, Int16List out_frequency_counter, 
+    Float32List out_fft_vertices, Int16List out_fft_indices, Float32List out_fft_colors, Int16List out_fft_vertex_count, Int16List out_fft_index_count, Int16List out_fft_color_count 
+  ) {
+    print("INIT FFT BUFFER SENDING vertices:${this.out_fft_indices != null} indices:${out_fft_colors != null} colors:${out_fft_vertex_count != null} vertex_count:${out_fft_index_count != null} index_count:${out_fft_color_count != null} color_count:${out_fft_data != null}");
+
+    this.out_fft_data = out_fft_data;
+    this.out_window_count = out_window_count;
+    this.out_window_size = out_window_size;
+    this.out_frequency_counter = out_frequency_counter;
+
+    this.out_fft_vertices = out_fft_vertices;
+    this.out_fft_indices = out_fft_indices;
+    this.out_fft_colors = out_fft_colors;
+    this.out_fft_vertex_count = out_fft_vertex_count;
+    this.out_fft_index_count = out_fft_index_count;
+    this.out_fft_color_count = out_fft_color_count;
+
+  }
+  
   void onThresholdProcessCallback( int frameCount ) {
     thresholdingArraylength = frameCount;
   }
@@ -472,6 +498,227 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   @override
   int thresholdingArraylength = 0;
+  
+  @override
+  List<Float32List> out_fft = [];
+  
+  @override
+  List<int> window_count = [];
+  
+  @override
+  List<int> window_size = [];
+
+  List<List<double>>? out_fft_data;
+  Int16List? out_window_count;
+  Int16List? out_window_size;
+  Int16List? out_frequency_counter;
+
+  Float32List? out_fft_vertices;
+  Int16List? out_fft_indices;
+  Float32List? out_fft_colors;
+  Int16List? out_fft_vertex_count;
+  Int16List? out_fft_index_count;
+  Int16List? out_fft_color_count;
+  List<Float32List> fft = List.generate(500, (idx)=>Float32List(500));
+
+  @override
+  CircularFloatArrayBuffer fftBuffer = CircularFloatArrayBuffer(500, 500);
+  
+
+  Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outColorList) {
+    // Ensure the input list has a multiple of 4 elements (R, G, B, A).
+    if (fftColorList.length % 4 != 0) {
+      print("The RGBA color list must have a length that is a multiple of 4.");
+      // throw ArgumentError('The RGBA color list must have a length that is a multiple of 4.');
+    }
+
+    final int colorCount = fftColorList.length ~/ 4;
+
+    for (int i = 0; i < colorCount; i++) {
+      // Read the four float components (R, G, B, A)
+      double R = fftColorList[i * 4];
+      double G = fftColorList[i * 4 + 1];
+      double B = fftColorList[i * 4 + 2];
+      double A = fftColorList[i * 4 + 3];
+      
+      int r = (R * 255).round();
+      int g = (G * 255).round();
+      int b = (B * 255).round();
+      int a = (A * 255).round();   
+      outColorList[i] = (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    return outColorList;
+  }  
+
+
+  @override
+  int prepareForFftDrawing(int windowCount, int windowSize, int targetWindowCount, double width, double height){
+    // return 0;
+
+      // print("FFT DRAWING out_fft_vertices: ${out_fft_vertices!=null}| indices:${this.out_fft_indices != null} colors:${out_fft_colors != null} vertexCount:${out_fft_vertex_count != null} IndexCount:${out_fft_index_count != null} Color Count:${out_fft_color_count != null} outfftData:${out_fft_data != null}");
+    if (out_fft_vertices != null && out_fft_indices != null && out_fft_colors != null 
+        && out_fft_vertex_count != null && out_fft_index_count != null && out_fft_color_count != null 
+          && out_fft_data != null){
+
+      // print("PREPARE FFT DRAWING : ${windowCount} -- ${windowSize} ||| ${width} ___ ${height}");
+      // print("PREPARE FFT DRAWING : ${fft}");
+      // if (out_fft_color_count![0] != 0) {
+        int selectedChannelIdx = 0;
+        int maxWindowCount = out_fft.length;
+        int count = fftBuffer.get(fft);
+        // print("BUFFER COUNT : ${count}");
+
+        if (count > 0) {
+          // print("FFT BUFFER GET COUNT: $count");
+          ProcessingUtil.fftDrawBuffer!.add(fft, count);
+
+          // Pointer<Pointer<Float>> drawBuffer = calloc<Pointer<Float>>(windowCount);
+          List<List<double>> drawBuffer = List.generate(windowCount, (_) => []);
+          int len = ProcessingUtil.fftDrawBuffer!.buffer[0].length;
+          for (int i = 0; i < windowCount; i++) {
+            List<double> temp = List.generate(len, (_) => 0);
+            temp.setAll(0, ProcessingUtil.fftDrawBuffer!.buffer[i]);
+            drawBuffer[i] = temp;
+          }
+          js.context.callMethod("prepareFftDrawing", [
+            drawBuffer,
+            selectedChannelIdx,
+            windowCount,
+            windowSize,
+            targetWindowCount,
+            width,
+            height
+          ]);
+
+          // int vertexCount = out_fft_vertex_count![selectedChannelIdx];
+          // int indicesCountRaw = out_fft_index_count![selectedChannelIdx];
+          // int indicesCount = indicesCountRaw;
+          // int colorCountRaw = out_fft_color_count![selectedChannelIdx];
+          // int colorCount = out_fft_color_count![selectedChannelIdx] ~/ 4;
+          // Int32List colorList = Int32List(colorCount);
+          // Float32List fftColorList = Float32List.fromList(out_fft_colors!);
+          // Int16List indicesList = Int16List.fromList(out_fft_indices!);
+
+          // convertRgbaFloat32ListToInt32(fftColorList, colorList);
+          
+          // ProcessingUtil.fftDrawData = FftDrawData(
+          //     vertices: Float32List.fromList(out_fft_vertices!), colors: colorList, 
+          //     indices: Uint16List.fromList(out_fft_indices!), 
+          //     vertexCount: vertexCount, 
+          //     colorCount: colorList.length, 
+          //     indexCount: indicesCount, 
+          //     scaleX: 1, scaleY: 1);          
+        }
+    }
+    return 0;
+  }
+  
+  void initFft() {
+    print("INIT FFT000");
+    int windowCount = ( (10.0 * 128) / (512 * 0.01).floor() ).floor();
+    int windowSize = ( (32 * 4) ).floor();
+
+    // out_fft_vertices = List<double>.generate(windowCount * windowSize * 2, (_) => 0);
+    // out_fft_indices = List<int>.generate(windowCount * windowSize * 6, (_) => 0);
+    // out_fft_colors = List<double>.generate(windowCount * windowSize * 4, (_) => 0);
+    int selectedChannel = 0;
+    js.context.callMethod("initFft", [windowCount, windowSize, channelCount, selectedChannel]);
+    ProcessingUtil.fftDrawBuffer = FftDrawBuffer(windowCount, windowSize);
+  }
+
+  
+  @override
+  void processFftMicrophoneData(List<Int16List> in_samples, List<int> windowCount, List<int> windowSize, List<int> in_sample_counts, int channelCount) async {
+    // print("processFftMicrophoneData EXIST");
+    int selectedChannel = 0;
+    int signs = -1;
+    if (window_count.isEmpty) {
+      print("FFT DATA POINTER EXIST??  out fft data : ${out_fft_data == null}");
+      out_fft.clear();
+      out_fft = List<Float32List>.generate(windowCount[selectedChannel], (idx)=> Float32List(windowSize[selectedChannel]));
+    }
+
+    if (windowCount.isNotEmpty) {
+      window_count.clear();
+      window_count.addAll(windowCount);
+      window_size.clear();
+      window_size.addAll(windowSize);
+    }
+
+    List<Int32List> inSamples = List.generate(channelCount, (_) => Int32List(0));
+    // print("inSamples: ${in_sample_counts}");
+
+    for (int i = 0; i < channelCount; i++) {
+      int sampleCount = in_sample_counts[i];
+      inSamples[i] = Int32List(sampleCount);
+      signs = signs * -1;
+      for (int j = 0; j < sampleCount; j++) {
+        inSamples[i][j] = in_samples[i][j];
+        // inSamples[i][j] = (Random().nextInt(100) + 100) * signs;
+      }
+    }
+    // print("inSamples: ${inSamples[0].length}");
+
+    js.context.callMethod("processFftMicrophoneData", [
+      channelCount,
+      selectedChannel,
+      windowCount,
+      windowSize,
+      in_samples,
+      in_sample_counts,
+    ]);
+
+    // Pointer<Int32> inSampleCounts = calloc<Int32>(channelCount);
+    // List<int> inSampleCounts = List<int>.generate(channelCount, (_) => 0);
+    // for (int i = 0; i < channelCount; i++) {
+    //   inSampleCounts[i] = in_sample_counts[i];
+    // }
+
+
+    // window_count.setAll(0, out_window_count!.toList());
+    // window_size.setAll(0, out_window_size!.toList());
+
+    // if (window_count[0] > 0) {
+    //   int windowCounter = out_window_count![selectedChannel];
+    //   for (int i = 0; i < windowCounter; i++) {
+    //     int outSize = out_window_count![0];
+    //     Float32List out_fft_list = Float32List.fromList(out_fft_data![i]);
+    //     out_fft[i].setAll(0, out_fft_list);
+    //     fftBuffer.put(out_fft, 0, windowCounter);
+    //   }
+    // }
+
+    // inSamples.clear();
+
+    // (out_window_count!).clear();
+    // (out_window_size!).clear();
+    // (out_frequency_counter!).clear();
+    // (inSampleCounts).clear();
+
+  }
+  
+  @override
+  void onCallbackPrepareFftDrawingWeb(int resultFftDraw, int selectedChannelIdx) {
+    int vertexCount = out_fft_vertex_count![selectedChannelIdx];
+    int indicesCountRaw = out_fft_index_count![selectedChannelIdx];
+    int indicesCount = indicesCountRaw;
+    int colorCountRaw = out_fft_color_count![selectedChannelIdx];
+    int colorCount = out_fft_color_count![selectedChannelIdx] ~/ 4;
+    Int32List colorList = Int32List(colorCount);
+    Float32List fftColorList = Float32List.fromList(out_fft_colors!);
+    Int16List indicesList = Int16List.fromList(out_fft_indices!);
+
+    convertRgbaFloat32ListToInt32(fftColorList, colorList);
+    
+    ProcessingUtil.fftDrawData = FftDrawData(
+        vertices: Float32List.fromList(out_fft_vertices!), colors: colorList, 
+        indices: Uint16List.fromList(out_fft_indices!), 
+        vertexCount: vertexCount, 
+        colorCount: colorList.length, 
+        indexCount: indicesCount, 
+        scaleX: 1, scaleY: 1);
+  }
 }
 
 // Factory function to create an instance

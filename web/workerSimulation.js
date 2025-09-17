@@ -103,9 +103,118 @@ let displayTimeMs;
 let isThresholding = false;
 let thresholdArrayLength = 0;
 
+/* FFT */
+let out_window_countPtr;
+let out_window_count;
+let out_window_sizePtr;
+let out_window_size;
+let out_frequency_counter;
+
+let out_fft_data;
+let out_fft_data_2d;
+let out_fft_vertices;
+let out_fft_indices;
+let out_fft_colors;
+let out_fft_vertex_count;
+let out_fft_index_count;
+let out_fft_color_count;
+
+let out_fft_dataPtr;
+let out_fft_verticesPtr;
+let out_fft_indicesPtr;
+let out_fft_colorsPtr;
+let out_fft_vertex_countPtr;
+let out_fft_index_countPtr;
+let out_fft_color_countPtr;
+let out_frequency_counterPtr;
+let inSamplesFftPtr;
+let inSampleCountsFftPtr;
+
 var tempOnMessage = self.onmessage;
 self.onmessage = async function (eventFromMain) {
     switch (eventFromMain.data.message) {
+        case "INIT_FFT":
+            let fftChannelCount = eventFromMain.data.channelCount;
+            let windowCount = eventFromMain.data.windowCount;
+            let windowSize = eventFromMain.data.windowSize;
+            out_fft_dataPtr = Module._malloc(windowCount * windowSize * Module.HEAPF32.BYTES_PER_ELEMENT);
+            let out_fft_dataStart = out_fft_dataPtr / Module.HEAPF32.BYTES_PER_ELEMENT;
+            out_fft_data = Module.HEAPF32.subarray(out_fft_dataStart, (out_fft_dataStart + windowCount * windowSize));
+            console.log("INIT FFT STARTED");
+
+            out_fft_verticesPtr = Module._malloc(windowCount * windowSize * 2 * Module.HEAPF32.BYTES_PER_ELEMENT);
+            let out_fft_verticesStart = out_fft_verticesPtr / Module.HEAPF32.BYTES_PER_ELEMENT;
+            out_fft_vertices = Module.HEAPF32.subarray(out_fft_verticesStart, (out_fft_verticesStart + windowCount * windowSize * 2));
+
+            out_fft_indicesPtr = Module._malloc(windowCount * windowSize * 6 * Module.HEAP16.BYTES_PER_ELEMENT);
+            let out_fft_indicesStart = out_fft_indicesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            out_fft_indices = Module.HEAP16.subarray(out_fft_indicesStart, (out_fft_indicesStart + windowCount * windowSize * 6));
+
+            out_fft_colorsPtr = Module._malloc(windowCount * windowSize * 4 * Module.HEAPF32.BYTES_PER_ELEMENT);
+            let out_fft_colorsStart = out_fft_colorsPtr / Module.HEAPF32.BYTES_PER_ELEMENT;
+            out_fft_colors = Module.HEAPF32.subarray(out_fft_colorsStart, (out_fft_colorsStart + windowCount * windowSize * 4));
+
+            out_fft_vertex_countPtr = Module._malloc(fftChannelCount * Module.HEAP16.BYTES_PER_ELEMENT);
+            let out_fft_vertex_countStart = out_fft_vertex_countPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            out_fft_vertex_count = Module.HEAP16.subarray(out_fft_vertex_countStart, (out_fft_vertex_countStart + fftChannelCount));
+
+            out_fft_index_countPtr = Module._malloc(fftChannelCount * Module.HEAP16.BYTES_PER_ELEMENT);
+            let out_fft_index_countStart = out_fft_index_countPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            out_fft_index_count = Module.HEAP16.subarray(out_fft_index_countStart, (out_fft_index_countStart + fftChannelCount));
+
+            out_fft_color_countPtr = Module._malloc(fftChannelCount * Module.HEAP32.BYTES_PER_ELEMENT);
+            let out_fft_color_countStart = out_fft_color_countPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            out_fft_color_count = Module.HEAP32.subarray(out_fft_color_countStart, (out_fft_color_countStart + fftChannelCount));
+
+            out_window_countPtr = Module._malloc(fftChannelCount * Module.HEAP16.BYTES_PER_ELEMENT);
+            let out_window_countStart = out_window_countPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            out_window_count = Module.HEAP16.subarray(out_window_countStart, (out_window_countStart + fftChannelCount));
+
+            out_window_sizePtr = Module._malloc(fftChannelCount * Module.HEAP16.BYTES_PER_ELEMENT);
+            let out_window_sizeStart = out_window_sizePtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            out_window_size = Module.HEAP16.subarray(out_window_sizeStart, (out_window_sizeStart + fftChannelCount));
+            
+            out_frequency_counterPtr = Module._malloc(fftChannelCount * Module.HEAP16.BYTES_PER_ELEMENT);
+            let out_frequency_counterStart = out_frequency_counterPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            out_frequency_counter = Module.HEAP16.subarray(out_frequency_counterStart, (out_frequency_counterStart + fftChannelCount));
+
+            console.log("INIT FFT FINISHED");
+
+            // inSamplesFftPtr = Module._malloc(fftChannelCount * Module.HEAP16.BYTES_PER_ELEMENT * sampleLength);
+            // let inSamplesFftStart = inSamplesFftPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            // let in_samples_fft = Module.HEAP16.subarray(inSamplesFftStart, (inSamplesFftStart + sampleLength));
+
+            // inSampleCountsFftPtr = Module._malloc(fftChannelCount * Module.HEAP16.BYTES_PER_ELEMENT);
+            // let inSampleCountsFftStart = inSampleCountsFftPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            // let in_sample_counts_fft = Module.HEAP16.subarray(inSampleCountsFftStart, (inSampleCountsFftStart + fftChannelCount));
+// List<Float32List> out_fft_data, Int16List out_window_count, Int16List out_window_size, Int16List out_frequency_counter, Int16List inSamples, Int16List inSampleCounts,
+// Float32List out_fft_vertices, Int16List out_fft_indices, Float32List out_fft_colors, Int16List out_fft_vertex_count, Int16List out_fft_index_count, Int16List out_fft_color_count 
+            out_fft_data_2d = [];
+            for (let i = 0; i < windowCount; i++) {
+                out_fft_data_2d[i] = out_fft_data.subarray(i * windowSize, (i + 1) * windowSize);
+            }
+            const fftData = {
+                "message": "INIT_FFT_BUFFER_FINISHED",
+                "out_fft_data": out_fft_data_2d,
+                "out_window_count": out_window_count,
+                "out_window_size": out_window_size,
+                "out_frequency_counter": out_frequency_counter,
+                // "in_samples_fft": in_samples_fft,
+                // "in_sample_counts_fft": in_sample_counts_fft,
+                "out_fft_vertices": out_fft_vertices,
+                "out_fft_indices": out_fft_indices,
+                "out_fft_colors": out_fft_colors,
+                "out_fft_vertex_count": out_fft_vertex_count,
+                "out_fft_index_count": out_fft_index_count,
+                "out_fft_color_count": out_fft_color_count,
+                "out_frequency_counter": out_frequency_counter,
+            };
+           
+            postMessage(fftData);
+            // List<Float32List> out_fft_data, Int16List out_window_count, Int16List out_window_size, Int16List out_frequency_counter, Int16List inSamples, Int16List inSampleCounts,
+            // Float32List out_fft_vertices, Int16List out_fft_indices, Float32List out_fft_colors, Int16List out_fft_vertex_count, Int16List out_fft_index_count, Int16List out_fft_color_count 
+                    
+        break;
         case "INITIALIZE_MICROPHONE":
             console.log("Module" , Module, Module._processing_process_threshold);
             sampleRate = eventFromMain.data.sampleRate;
@@ -191,6 +300,98 @@ self.onmessage = async function (eventFromMain) {
             workerChannelPort = eventFromMain.data.simulationWorkerChannelPort;
 
         break;
+        case "PROCESS_FFT_MICROPHONE_DATA":
+            channelCount = eventFromMain.data.channelCount;
+            let selectedChannel = eventFromMain.data.selectedChannel;
+            let windowCountFft = eventFromMain.data.windowCount["o"];
+            let windowSizeFft = eventFromMain.data.windowSize["o"];
+            let inSamples = eventFromMain.data.inSamples["o"];
+            let inSampleCounts = eventFromMain.data.inSampleCounts["o"];
+            
+            let sampleLength = inSamples[0].length;
+            let inSamplesFftPtr = Module._malloc(channelCount * Module.HEAP16.BYTES_PER_ELEMENT * sampleLength);
+            let inSamplesFftPtrStart = inSamplesFftPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            let inSamplesFftBuffer = Module.HEAP16.subarray(inSamplesFftPtrStart, (inSamplesFftPtrStart + sampleLength));
+            
+            let inSampleCountsFftPtr = Module._malloc(channelCount * Module.HEAP32.BYTES_PER_ELEMENT);
+            let inSampleCountsFftPtrStart = inSampleCountsFftPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            let inSampleCountsFftBuffer = Module.HEAP32.subarray(inSampleCountsFftPtrStart, (inSampleCountsFftPtrStart + sampleLength));
+
+
+            // let outWindowCountRaw = Module._malloc(channelCount * Module.HEAP32.BYTES_PER_ELEMENT);
+            let outWindowCountArray = out_window_count;
+            // outWindowCountArray[selectedChannel] = windowCountFft;
+            outWindowCountArray.set(windowCountFft);
+
+            // let outWindowSizeRaw = Module._malloc(channelCount * Module.HEAP32.BYTES_PER_ELEMENT);
+            let outWindowSizeArray = out_window_size;
+            // outWindowSizeArray[selectedChannel] = windowSizeFft;
+            outWindowSizeArray.set(windowSizeFft);
+            // arrSampleCounts[selectedChannel] = inSamples.length;
+
+            // console.log("outWindowCountArray: ", outWindowCountArray);
+            // console.log("outWindowSizeArray: ", outWindowSizeArray);
+
+            for (let i = 0; i < channelCount; i++) {
+                inSamplesFftBuffer.set(inSamples[i], i * sampleLength);
+                inSampleCountsFftBuffer[i] = inSampleCounts[i];
+            }
+            // PROCESSING_API int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
+            //     int32_t* out_window_size, int32_t* out_frequency_counter, 
+            //     const int16_t** in_samples,
+            //     const int32_t* in_sample_counts) {
+
+            let resultFft = Module._processing_process_fft(out_fft_dataPtr, out_window_count, out_window_size, out_frequency_counter, inSamplesFftPtr, inSampleCountsFftPtr);
+
+            Module._free(inSamplesFftPtr);
+            Module._free(inSampleCountsFftPtr);
+            // Module._free(outWindowCountRaw);
+            // Module._free(outWindowSizeRaw);
+
+            postMessage({
+                "message": "PROCESS_FFT_MICROPHONE_DATA_FINISHED",
+                "resultFft": resultFft,
+                "out_window_count": out_window_count, 
+                "out_window_size": out_window_size, 
+                "out_fft_data": out_fft_data_2d, 
+                "selectedChannel": selectedChannel,
+                "channelCounts": channelCount                
+            });
+
+        break;
+        case "PROCESS_PREPARE_FFT_DRAWING":
+            let drawBufferFft = eventFromMain.data.drawBuffer["o"];
+            let selectedChannelIdx = eventFromMain.data.selectedChannelIdx;
+            let windowCountDrawFft = eventFromMain.data.windowCount;
+            let windowSizeDrawFft = eventFromMain.data.windowSize;
+            let targetWindowCountFft = eventFromMain.data.targetWindowCount;
+            let widthFft = eventFromMain.data.width;
+            let heightFft = eventFromMain.data.height;
+
+            let drawBufferFftPtr = Module._malloc(windowCountDrawFft * windowSizeDrawFft * Module.HEAPF32.BYTES_PER_ELEMENT);
+            let drawBufferFftPtrStart = drawBufferFftPtr / Module.HEAPF32.BYTES_PER_ELEMENT;
+            let drawBufferFftBuffer = Module.HEAPF32.subarray(drawBufferFftPtrStart, (drawBufferFftPtrStart + windowCountDrawFft * windowSizeDrawFft));
+            for (let i = 0; i < windowCountDrawFft; i++) {
+                try {
+                    let temp = drawBufferFftBuffer.subarray(i * windowSizeDrawFft, (i + 1) * windowSizeDrawFft);
+                    temp.set(drawBufferFft[i]);
+    
+                } catch(err) {
+                    console.log("err: ", err);
+                }
+            }
+
+            let resultDrawingFft = Module._processing_prepare_fft_for_drawing(out_fft_verticesPtr, out_fft_indicesPtr, out_fft_colorsPtr, 
+                out_fft_vertex_countPtr, out_fft_index_countPtr, out_fft_color_countPtr, 
+                drawBufferFftPtr, windowCountDrawFft, windowSizeDrawFft, targetWindowCountFft, widthFft, heightFft);
+
+            postMessage({
+                "message": "PROCESS_PREPARE_FFT_DRAWING_FINISHED",
+                "resultFft": resultDrawingFft,
+                "selectedChannelIdx": selectedChannelIdx,   
+            });
+            Module._free(drawBufferFftPtr);
+        break;
         case "DISPLAY_MICROPHONE_DATA":
             // _drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
             channelCount = eventFromMain.data.channelCount;
@@ -252,7 +453,6 @@ self.onmessage = async function (eventFromMain) {
                     outEventCountPtr,        // Pointer<Int32>
                     inEventIndicesPtr,       // Pointer<Int32>
                     inTotalEvents,                       // int (inEventCount)
-
                     // 0,                       // int (fromSample)
                     // Math.floor(displayTimeMs * 0.001 * sampleRate),  // int (toSample)
                     startPositionIdx,                       // int (fromSample)
@@ -443,7 +643,7 @@ self.onmessage = async function (eventFromMain) {
             cutOffFrequency = eventFromMain.data.cutOffFrequency;
             q = eventFromMain.data.q;
 
-            var result = Module._initHighPassFilter(channelCount, sampleRate, cutOffFrequency, q);
+            Module._initHighPassFilter(channelCount, sampleRate, cutOffFrequency, q);
             break;
 
         case "webInitLowPassFilter":
@@ -451,7 +651,7 @@ self.onmessage = async function (eventFromMain) {
             sampleRate = eventFromMain.data.sampleRate;
             cutOffFrequency = eventFromMain.data.cutOffFrequency;
             q = eventFromMain.data.q;
-            var result = Module._initLowPassFilter(channelCount, sampleRate, cutOffFrequency, q);
+            Module._initLowPassFilter(channelCount, sampleRate, cutOffFrequency, q);
             break;
         case "INITIALIZE_SERIAL":
             Module._processing_init();

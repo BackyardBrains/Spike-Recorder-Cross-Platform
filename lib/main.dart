@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/provider/custom_slider_provider.dart';
+import 'package:spikerbox_architecture/provider/fft_status_provider.dart';
 import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
 import 'package:spikerbox_architecture/screen/page_route_screen.dart';
 import 'provider/provider_export.dart';
@@ -36,6 +37,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => ChannelColorProvider()),
         ChangeNotifierProvider(create: (_) => ChannelFilterProvider()),
         ChangeNotifierProvider(create: (_) => CustomRangeSliderProvider()),
+        ChangeNotifierProvider(create: (_) => FftStatusProvider()),
         ChangeNotifierProvider(create: (_) => ThresholdStatusProvider()),
       ],
       child: const MyApp(),

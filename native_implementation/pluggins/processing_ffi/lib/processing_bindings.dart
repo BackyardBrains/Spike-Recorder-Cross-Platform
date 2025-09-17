@@ -98,6 +98,7 @@ typedef ProcessingProcessFftNative = Int32 Function(
     Pointer<Pointer<Float>> outFft,
     Pointer<Int32> outWindowCount,
     Pointer<Int32> outWindowSize,
+    Pointer<Int32> outFrequencyCounter,
     Pointer<Pointer<Int16>> inSamples,
     Pointer<Int32> inSampleCounts
 );
@@ -105,8 +106,39 @@ typedef ProcessingProcessFft = int Function(
     Pointer<Pointer<Float>> outFft,
     Pointer<Int32> outWindowCount,
     Pointer<Int32> outWindowSize,
+    Pointer<Int32> outFrequencyCounter,
     Pointer<Pointer<Int16>> inSamples,
     Pointer<Int32> inSampleCounts
+);
+
+typedef ProcessingPrepareFftDrawingNative= Int32 Function(
+    Pointer<Float> outVertices,
+    Pointer<Int16> outIndices,
+    Pointer<Float> outColors,
+    Pointer<Int32> outVertexCount,
+    Pointer<Int32> outIndexCount,
+    Pointer<Int32> outColorCount,
+    Pointer<Pointer<Float>> fftData,
+    Int32 windowCount,
+    Int32 windowSize,  
+    Int32 targetWindowCount,
+    Float width,
+    Float height,
+);
+
+typedef ProcessingPrepareFftDrawing = int Function(
+    Pointer<Float> outVertices,
+    Pointer<Int16> outIndices,
+    Pointer<Float> outColors,
+    Pointer<Int32> outVertexCount,
+    Pointer<Int32> outIndexCount,
+    Pointer<Int32> outColorCount,
+    Pointer<Pointer<Float>> fftData,
+    int windowCount,
+    int windowSize,
+    int targetWindowCount,
+    double width,
+    double height,
 );
 
 typedef ProcessingGetInformationNative = Int32 Function(
@@ -122,6 +154,7 @@ typedef ProcessingSetIsThresholdingNative = Int32 Function(
 typedef ProcessingSetIsThresholding = int Function(
     bool outInfo,
 );
+
 
 
 typedef ProcessingResetFftNormalizationNative = Void Function();
@@ -224,6 +257,7 @@ class ProcessingBindings {
   late final ProcessingRms rms;
   late final ProcessingMap map;
   late final ProcessingProcessFft processFft;
+  late final ProcessingPrepareFftDrawing prepareFftDrawing;
   late final ProcessingResetFftNormalization resetFftNormalization;
   late final ProcessingIsAudioStreamAmModulated isAudioStreamAmModulated;
   late final ProcessingGetAveragedSampleCount getAveragedSampleCount;
@@ -294,6 +328,7 @@ class ProcessingBindings {
     map = _lib!.lookupFunction<ProcessingMapNative, ProcessingMap>('processing_map');
 
     processFft = _lib!.lookupFunction<ProcessingProcessFftNative, ProcessingProcessFft>('processing_process_fft');
+    prepareFftDrawing = _lib!.lookupFunction<ProcessingPrepareFftDrawingNative, ProcessingPrepareFftDrawing>('processing_prepare_fft_for_drawing');
 
     resetFftNormalization = _lib!.lookupFunction<ProcessingResetFftNormalizationNative, ProcessingResetFftNormalization>('processing_reset_fft_normalization');
 

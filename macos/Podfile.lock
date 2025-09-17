@@ -18,7 +18,11 @@ PODS:
     - FlutterMacOS
   - processing_ffi (0.0.1):
     - FlutterMacOS
+  - screen_retriever (0.0.1):
+    - FlutterMacOS
   - url_launcher_macos (0.0.1):
+    - FlutterMacOS
+  - window_manager (0.2.0):
     - FlutterMacOS
 
 DEPENDENCIES:
@@ -30,7 +34,9 @@ DEPENDENCIES:
   - native_add (from `Flutter/ephemeral/.symlinks/plugins/native_add/macos`)
   - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
   - processing_ffi (from `Flutter/ephemeral/.symlinks/plugins/processing_ffi/macos`)
+  - screen_retriever (from `Flutter/ephemeral/.symlinks/plugins/screen_retriever/macos`)
   - url_launcher_macos (from `Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos`)
+  - window_manager (from `Flutter/ephemeral/.symlinks/plugins/window_manager/macos`)
 
 SPEC REPOS:
   trunk:
@@ -53,8 +59,12 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin
   processing_ffi:
     :path: Flutter/ephemeral/.symlinks/plugins/processing_ffi/macos
+  screen_retriever:
+    :path: Flutter/ephemeral/.symlinks/plugins/screen_retriever/macos
   url_launcher_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos
+  window_manager:
+    :path: Flutter/ephemeral/.symlinks/plugins/window_manager/macos
 
 SPEC CHECKSUMS:
   audio_session: 728ae3823d914f809c485d390274861a24b0904e
@@ -66,7 +76,9 @@ SPEC CHECKSUMS:
   native_add: 54703c7242d3e9d29f7d47f1a3a886cd22e5be48
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
   processing_ffi: 11ea5a375c9b83f5d1ff554953bb1eacdc6db486
+  screen_retriever: 59634572a57080243dd1bf715e55b6c54f241a38
   url_launcher_macos: c82c93949963e55b228a30115bd219499a6fe404
+  window_manager: 3a1844359a6295ab1e47659b1a777e36773cd6e8
 
 PODFILE CHECKSUM: dac0ddf03d136db544afc27b87cc6c08492e67b9
 

@@ -98,9 +98,9 @@ PROCESSING_API int32_t processing_map(float* out_data, const float* in_data, int
 
 // FFT processing
 // STEVE COMMENTED THIS OUT
-// PROCESSING_API int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
-//                              int32_t* out_window_size, const int16_t** in_samples,
-//                              const int32_t* in_sample_counts);
+PROCESSING_API int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
+                             int32_t* out_window_size, const int16_t** in_samples,
+                             const int32_t* in_sample_counts);
 PROCESSING_API void processing_reset_fft_normalization();
 
 // AM modulation detection
@@ -206,8 +206,42 @@ PROCESSING_API int32_t processing_prepare_for_signal_drawing(
 //                                      int32_t batch_spike_count);
 PROCESSING_API short processing_pass_pointers(short* ptrExpBoardType);
 
+
+PROCESSING_API int32_t processing_prepare_fft_for_drawing(float* out_vertices, int16_t* out_indices,
+                                         float* out_colors, int32_t* out_vertex_count,
+                                         int32_t* out_index_count, int32_t* out_color_count,
+                                         float** fft_data, int32_t window_count,
+                                         int32_t window_size, float width, float height);
+                                           
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif // PROCESSING_H
+
+
+
+
+// public class FftDrawData {
+
+//     public float[] vertices;
+//     public short[] indices;
+//     public float[] colors;
+
+//     public int vertexCount;
+//     public int indexCount;
+//     public int colorCount;
+
+//     public float scaleX;
+//     public float scaleY;
+
+//     public FftDrawData(int maxSegments) {
+//         vertices = new float[maxSegments * 2];
+//         indices = new short[maxSegments * 6];
+//         colors = new float[maxSegments * 4];
+//         vertexCount = 0;
+//         indexCount = 0;
+//         colorCount = 0;
+//     }
+// }

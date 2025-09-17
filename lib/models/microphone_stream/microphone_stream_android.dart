@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:mic_stream/mic_stream.dart';
 import 'package:sound_stream_now/sound_stream_now.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -25,33 +26,43 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
   Stream<Uint8List>? stream;
   late StreamSubscription<Uint8List>? listen;
 
-  final RecorderStream _recorder = RecorderStream();
+  late final RecorderStream _recorder;
   // PlayerStream _player = PlayerStream();
   late StreamSubscription _recorderStatus;
 
   @override
   Future<void> init() async {
     await requestMicrophonePermission();
+    
+    // _recorder = RecorderStream();
 
     // _recorderStatus = _recorder.status.listen((status) {
     //   status == SoundStreamStatus.Playing;
     // });
 
     // micStream = addListenAudioStreamController.stream.asBroadcastStream();
+    var microphoneStream = (await MicStream.microphone(
+            audioSource: AudioSource.DEFAULT,
+            sampleRate: 44100,
+            channelConfig: ChannelConfig.CHANNEL_IN_MONO,
+            audioFormat: AudioFormat.ENCODING_PCM_16BIT));
     micStream = addListenAudioStreamController;
-
-    _recorder.audioStream.listen((data) {
-      // addListenAudioStreamController.add(data);
-      addListenAudioStreamController.value = (data);
+    microphoneStream?.listen((onData) {
+      micStream?.value = onData;
     });
 
-    await Future.wait([
-      _recorder.initialize(showLogs: true),
-      // _player.initialize(),
-    ]);
-    _recorder.audioStream.asBroadcastStream();
+    // _recorder.audioStream.listen((data) {
+    //   // addListenAudioStreamController.add(data);
+    //   addListenAudioStreamController.value = (data);
+    // });
 
-    await _recorder.start();
+    // await Future.wait([
+    //   _recorder.initialize(showLogs: true),
+    //   // _player.initialize(),
+    // ]);
+    // _recorder.audioStream.asBroadcastStream();
+
+    // await _recorder.start();
   }
 
   Future<void> requestMicrophonePermission() async {

@@ -894,28 +894,28 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_normalize_signal(float* out_data, 
 
 // FFT processing
 // STEVE COMMENTED THIS OUT
-// EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
-//                              int32_t* out_window_size, const int16_t** in_samples,
-//                              const int32_t* in_sample_counts) {
-//     if (!initialized || !out_fft || !out_window_count || !out_window_size || !in_samples || !in_sample_counts) {
-//         return -1;
-//     }
+EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
+                             int32_t* out_window_size, const int16_t** in_samples,
+                             const int32_t* in_sample_counts) {
+    if (!initialized || !out_fft || !out_window_count || !out_window_size || !in_samples || !in_sample_counts) {
+        return -1;
+    }
 
-//     try {
-//         fftProcessor->process(
-//             out_fft,
-//             PROCESSING_MAX_FFT_WINDOWS,  // Maximum window count
-//             *out_window_count,
-//             *out_window_size,
-//             current_channel_count,
-//             reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
-//             const_cast<int*>(in_sample_counts)
-//         );
-//         return 0;
-//     } catch (...) {
-//         return -3;
-//     }
-// }
+    try {
+        fftProcessor->process(
+            out_fft,
+            PROCESSING_MAX_FFT_WINDOWS,  // Maximum window count
+            *out_window_count,
+            *out_window_size,
+            current_channel_count,
+            reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
+            const_cast<int*>(in_sample_counts)
+        );
+        return 0;
+    } catch (...) {
+        return -3;
+    }
+}
 
 EXTERNC FUNCTION_ATTRIBUTE void processing_reset_fft_normalization() {
     if (initialized && fftProcessor) {
@@ -1071,6 +1071,7 @@ EXTERNC FUNCTION_ATTRIBUTE void processing_set_bpm_processing(bool process_bpm) 
         thresholdProcessor->setBpmProcessing(process_bpm);
     }
 }
+
 
 int isEventNotEmpty = -1;
 #ifdef __EMSCRIPTEN__
@@ -1229,42 +1230,42 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
     }
 }
 
-// EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_fft_for_drawing(float* out_vertices, int16_t* out_indices,
-//                                          float* out_colors, int32_t* out_vertex_count,
-//                                          int32_t* out_index_count, int32_t* out_color_count,
-//                                          float** fft_data, int32_t window_count,
-//                                          int32_t window_size, float width, float height) {
-//     if (!initialized || !out_vertices || !out_indices || !out_colors ||
-//         !out_vertex_count || !out_index_count || !out_color_count ||
-//         !fft_data || window_count <= 0 || window_size <= 0) {
-//         return -1;
-//     }
+EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_fft_for_drawing(float* out_vertices, int16_t* out_indices,
+                                         float* out_colors, int32_t* out_vertex_count,
+                                         int32_t* out_index_count, int32_t* out_color_count,
+                                         float** fft_data, int32_t window_count,
+                                         int32_t window_size, float width, float height) {
+    if (!initialized || !out_vertices || !out_indices || !out_colors ||
+        !out_vertex_count || !out_index_count || !out_color_count ||
+        !fft_data || window_count <= 0 || window_size <= 0) {
+        return -1;
+    }
 
-//     try {
-//         int vertexCount = 0;
-//         int indexCount = 0;
-//         int colorCount = 0;
-//         backyardbrains::utils::DrawingUtils::prepareFftForDrawing(
-//             out_vertices,
-//             reinterpret_cast<short*>(out_indices),
-//             out_colors,
-//             vertexCount,
-//             indexCount,
-//             colorCount,
-//             fft_data,
-//             window_count,
-//             window_size,
-//             width,
-//             height
-//         );
-//         *out_vertex_count = vertexCount;
-//         *out_index_count = indexCount;
-//         *out_color_count = colorCount;
-//         return 0;
-//     } catch (...) {
-//         return -3;
-//     }
-// }
+    try {
+        int vertexCount = 0;
+        int indexCount = 0;
+        int colorCount = 0;
+        backyardbrains::utils::DrawingUtils::prepareFftForDrawing(
+            out_vertices,
+            reinterpret_cast<short*>(out_indices),
+            out_colors,
+            vertexCount,
+            indexCount,
+            colorCount,
+            fft_data,
+            window_count,
+            window_size,
+            width,
+            height
+        );
+        *out_vertex_count = vertexCount;
+        *out_index_count = indexCount;
+        *out_color_count = colorCount;
+        return 0;
+    } catch (...) {
+        return -3;
+    }
+}
 
 // EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_spikes_for_drawing(float* out_vertices, float* out_colors,
 //                                             int32_t* out_vertex_count, int32_t* out_color_count,

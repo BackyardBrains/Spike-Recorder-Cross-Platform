@@ -19,9 +19,11 @@ import 'package:spikerbox_architecture/functionality/utils.dart';
 import 'package:spikerbox_architecture/message_identifier.dart';
 import 'package:spikerbox_architecture/models/models.dart';
 import 'package:spikerbox_architecture/models/processing_utils/processing_util.dart';
+import 'package:spikerbox_architecture/provider/fft_status_provider.dart';
 import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
 import 'package:spikerbox_architecture/screen/setting_page.dart';
 import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
+import 'package:window_manager/window_manager.dart';
 import '../provider/provider_export.dart';
 import '../widget/widget_export.dart';
 import 'graph_page_widget/sound_wave_view.dart';
@@ -32,6 +34,7 @@ import 'package:another_xlider/another_xlider.dart';
 class GraphTemplate extends StatefulWidget {
   static bool isPlayerPaused = false;
   static Board? selectedBoard;
+  static ProcessingUtil? processingUtil;
   const GraphTemplate({super.key, required this.bitsData, required this.channelCount, required this.baudRate});
 
   final int bitsData;
@@ -41,7 +44,7 @@ class GraphTemplate extends StatefulWidget {
   State<GraphTemplate> createState() => _GraphTemplateState();
 }
 
-class _GraphTemplateState extends State<GraphTemplate> {
+class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   List<double> bufferPos = [0, 0];
 
   var envelopeSizes = [];
@@ -217,6 +220,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     // Initialize ProcessingUtil
     processingUtil = createProcessingUtil();
+    GraphTemplate.processingUtil = processingUtil;
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
     // Initialize stream and set provider
     _graphStream = _graphStreamController.stream.asBroadcastStream();
@@ -571,6 +575,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   @override
   void dispose() {
     (processingUtil as ProcessingUtilImpl).dispose();
+    GraphTemplate.processingUtil = null;
     super.dispose();
   }
 
@@ -1032,6 +1037,23 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         //     controller: thresholdValueController,
                         //   )
                         // )
+                      },
+                      
+                      if (!isThresholdingButton) ... {
+                        SpikerBoxButton(
+                          onTapButton: () {
+                            isFftButton = !isFftButton;
+                            if (isFftButton) {
+                              context.read<FftStatusProvider>().setFftVisibility(true);
+                            } else {
+                              context.read<FftStatusProvider>().setFftVisibility(false);
+                            }
+
+                            setState((){});
+                          },
+                          iconColor: isFftButton? Colors.yellow : Colors.black,
+                          iconData: Icons.abc,
+                        ),
                       },
                       const SizedBox(
                         width: 10,
@@ -1804,6 +1826,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   Board? selectedBoard;
   
   bool isThresholdingButton = false;
+  bool isFftButton = false;
   
   bool isChoosingThresholdType = false;
   
@@ -1850,6 +1873,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         print("WEB SAMPLE RATE : ${microphoneUtil.sampleRate}");
         _sampleRate = microphoneUtil.sampleRate.toInt();
       } else {
+        print("NATIVE SAMPLE RATE : ${microphoneUtil.sampleRate}");
         double? tempSampleRate = await MicStream.sampleRate;
         if (tempSampleRate != null) {
           _sampleRate = tempSampleRate.toInt();
@@ -1896,6 +1920,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
   List<int> arr = [];
   
   int thresholdSliderValue = 1;
+  
+  double FFT_WIDGET_HEIGHT = 0.3;
+  
+  int FFT_30HZ_LENGTH = 32;
+  int FFT_WINDOW_TIME_LENGTH = 4;
   void micListener(){
     // print("miCLISTENER DATA");
     int channelCount = 1;
@@ -1908,20 +1937,37 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (!GraphTemplate.isPlayerPaused) {       
         if (isThresholdingButton) {
           if (kIsWeb) {
-            processingUtil.processMicrophoneData(microphoneUtil.micStream.value);
+            processingUtil.processMicrophoneData(microphoneUtil.micStream.value);           
           } else {
             List<Int16List> tempData = processingUtil.processMicrophoneData(microphoneUtil.micStream.value);
             bool isAverageSamples = true;
             arr = processingUtil.processThresholdData(tempData, tempData.length, MediaQuery.of(context).size.width.floor(), selectedThresholdChannel, isAverageSamples);
           }
         } else {
-          processingUtil.processMicrophoneData(microphoneUtil.micStream.value); 
+          List<Int16List> tempData = processingUtil.processMicrophoneData(microphoneUtil.micStream.value); 
+          // if (isFftButton) {
+          if (!kIsWeb) {
+            int windowCount = ( (10.0 * 128) / (512 * 0.01).floor() ).floor();
+            // int windowSize = ( (32 * 128) ).floor();
+            // double windowSize = MediaQuery.of(context).size.height * FFT_WIDGET_HEIGHT;
+            int windowSize = (FFT_30HZ_LENGTH * FFT_WINDOW_TIME_LENGTH);
+            List<int> inSampleCounts = [];
+            // print("KISWEB inSampleCounts: ${tempData[0].length}");
+            for (var data in tempData){
+              inSampleCounts.add(data.length);
+            }
+            processingUtil.processFftMicrophoneData(tempData, [windowCount], [windowSize], inSampleCounts, channelCount);
+            
+          }
+          // }
         }
       }
       // _preGraphBuffer.addBytes(event);
       
       // if (drawIdx == 3) {
+      // int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt() * MediaQuery.of(context).devicePixelRatio.toInt();
       int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+      // print("Pixel Ratio: ${MediaQuery.of(context).size.width.toInt()} --- ${MediaQuery.of(context).devicePixelRatio.toInt()}");
       if (!GraphTemplate.isPlayerPaused) {
         if (isThresholdingButton) {
           if (kIsWeb) {
@@ -1944,9 +1990,33 @@ class _GraphTemplateState extends State<GraphTemplate> {
           int maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
           DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
           DraggableGraph.endPositionIdx = maxSamples;
-          // print("RANGE MASK : ${DraggableGraph.startPositionIdx} -- ${DraggableGraph.endPositionIdx}");
-          
+          // print("RANGE MASK : ${DraggableGraph.startPositionIdx} -- ${DraggableGraph.endPositionIdx} || ${maxDisplaySamples} || ${maxSamples}");
+
           processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, maxDisplaySamples );
+          if (isFftButton) {
+            Size screenSize = MediaQuery.of(context).size;
+            // int windowCount = processingUtil.window_count[0];
+            // double windowSize = processingUtil.window_size[0].toDouble();
+            // processingUtil.prepareForFftDrawing(windowCount, windowSize.floor(), screenSize.width.toInt(), (screenSize.height * FFT_WIDGET_HEIGHT).toInt());
+            int maxWindowCount = ( (10.0 * 128) / (512 * 0.01).floor() ).floor() ;
+            int windowCount = maxWindowCount;
+            int drawEndIndex = DraggableGraph.endPositionIdx;
+            int drawStartIndex = DraggableGraph.startPositionIdx;
+            // double drawWidthMax = maxDisplaySamples.toDouble();
+            // int targetWindowCount = (maxWindowCount * (drawEndIndex - drawStartIndex) / drawWidthMax).floor();
+            int targetWindowCount = (maxWindowCount * (drawEndIndex - drawStartIndex) / maxSamples).floor();
+
+            // double windowSize = MediaQuery.of(context).size.height * FFT_WIDGET_HEIGHT;
+            int windowSize = (FFT_30HZ_LENGTH * FFT_WINDOW_TIME_LENGTH);
+            // print("CALCULATION1: (maxWindowCount * (drawEndIndex - drawStartIndex) / drawWidthMax).floor()");
+            // print("CALCULATION2: (${drawEndIndex - drawStartIndex})");
+            // print("CALCULATION3: ($maxWindowCount * ($drawEndIndex - $drawStartIndex) / $maxSamples).floor() = $targetWindowCount :: $maxSamples");
+            // print("INDEX: $drawStartIndex -- $drawEndIndex : $drawWidthMax $targetWindowCount vs $windowCount");
+            // jint maxWindowCount = env->GetArrayLength(in);
+            // jint windowCount = static_cast<jint>(maxWindowCount * (drawEndIndex - drawStartIndex) /
+            //                                      drawWidthMax);
+            processingUtil.prepareForFftDrawing(windowCount, windowSize, targetWindowCount, screenSize.width, (screenSize.height * FFT_WIDGET_HEIGHT));
+          }
         }
       } else {
         double startElementIdx = 0.0;
@@ -1997,6 +2067,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
               processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, arr[0] );
             } else {
             }
+          }
+
+
+          if (isFftButton) {
+            Size screenSize = MediaQuery.of(context).size;
+            int maxWindowCount = ( (10.0 * 128) / (512 * 0.01).floor() ).floor() ;
+            int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+
+            int windowCount = maxWindowCount;
+            int drawEndIndex = DraggableGraph.endPositionIdx;
+            int drawStartIndex = DraggableGraph.startPositionIdx;
+            int targetWindowCount = (maxWindowCount * (drawEndIndex - drawStartIndex) / maxSamples).floor();
+
+            int windowSize = (FFT_30HZ_LENGTH * FFT_WINDOW_TIME_LENGTH);            
+            print("prepareForFftDrawing wc: $windowCount ws:$windowSize twc:$targetWindowCount ${screenSize.width} ${screenSize.height * FFT_WIDGET_HEIGHT}");
+            processingUtil.prepareForFftDrawing(windowCount, windowSize, targetWindowCount, screenSize.width, (screenSize.height * FFT_WIDGET_HEIGHT));
           }
         // } else {
         //   // List<double> pos = [0, 10.0 * _sampleRate];

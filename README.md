@@ -16,3 +16,15 @@ jni-helper.c/h
 
 device init, init level median.
 setIsThresholding bindings
+
+
+
+The setChannelFilterEnabled method was being optimized away by the compiler because it was considered "unused" or "dead code". Even though the method was:
+✅ Declared in the header file
+✅ Implemented in the source file
+✅ Called from other code
+✅ Compiling successfully when built manually
+
+
+
+Previous Issue when drawing FFT is because the memory is not using the correct address,

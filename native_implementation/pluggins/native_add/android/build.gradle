@@ -25,13 +25,14 @@ rootProject.allprojects {
 apply plugin: 'com.android.library'
 
 android {
+    namespace 'com.example.native_add'
     // Bumping the plugin compileSdkVersion requires all clients of this plugin
     // to bump the version in their app.
     compileSdkVersion 31
 
     // Bumping the plugin ndkVersion requires all clients of this plugin to bump
     // the version in their app and to download a newer version of the NDK.
-    ndkVersion "23.1.7779620"
+    ndkVersion "21.4.7075529"
 
 //     externalNativeBuild {
 //    cmake {
@@ -48,7 +49,7 @@ android {
     externalNativeBuild {
         cmake {
             path "../src/CMakeLists.txt"
-             version "3.10.2"
+             version "3.18.1"
 
             // The default CMake version for the Android Gradle Plugin is 3.10.2.
             // https://developer.android.com/studio/projects/install-ndk#vanilla_cmake

@@ -64,7 +64,23 @@ function initializeModule() {
       // window.onProcessingDone(event.data.channelIdx, event.data.bufferViews);
       window.onProcessingDone(event.data.bufferViews, event.data.bufferCountViews);
       window.onEventPositionCalculated();
-      
+    } else
+    if (event.data.message === "PROCESS_FFT_MICROPHONE_DATA_FINISHED") {
+      //out_window_count, out_window_size, out_fft_data, selectedChannel,channelCounts
+      window.onCallbackProcessFft(event.data.out_window_count, event.data.out_window_size, event.data.out_fft_data, event.data.selectedChannel, event.data.channelCounts);
+    } else
+    if (event.data.message === "INIT_FFT_BUFFER_FINISHED") {
+      console.log("INIT_FFT_BUFFER_FINISHED: ", event.data.out_fft_data, event.data.out_window_count, event.data.out_window_size, event.data.out_frequency_counter, event.data.out_fft_vertices, event.data.out_fft_indices, event.data.out_fft_colors, event.data.out_fft_vertex_count, event.data.out_fft_index_count, event.data.out_fft_color_count);
+      // List<Float32List> out_fft_data, Int16List out_window_count, Int16List out_window_size, Int16List out_frequency_counter, Int16List inSamples, Int16List inSampleCounts,
+      // Float32List out_fft_vertices, Int16List out_fft_indices, Float32List out_fft_colors, Int16List out_fft_vertex_count, Int16List out_fft_index_count, Int16List out_fft_color_count 
+  
+      window.onSendingFftBuffer(event.data.out_fft_data, event.data.out_window_count, event.data.out_window_size, event.data.out_frequency_counter, //event.data.in_samples_fft, event.data.in_sample_counts_fft
+        event.data.out_fft_vertices, event.data.out_fft_indices, event.data.out_fft_colors, event.data.out_fft_vertex_count, event.data.out_fft_index_count, event.data.out_fft_color_count);
+      window.onEventPositionCalculated();
+    } else
+    if (event.data.message === "PROCESS_PREPARE_FFT_DRAWING_FINISHED") { 
+      // console.log("PROCESS_PREPARE_FFT_DRAWING_FINISHED: ", event.data.resultFft, event.data.selectedChannelIdx);
+      window.onCallbackPrepareFftDrawing(event.data.resultFft, event.data.selectedChannelIdx);
     }
 
     
@@ -290,5 +306,48 @@ function setThresholdTriggerType(eventThresholdTriggeredType) {
   mWorker.postMessage({
     "message": "SET_THRESHOLD_TRIGGER_TYPE",
     "eventThresholdTriggeredType": eventThresholdTriggeredType,
+  });
+}
+
+function initFft(windowCount, windowSize, channelCount,selectedChannel) {
+  console.log("initFft: ", windowCount, windowSize);
+  mWorker.postMessage({
+    "message": "INIT_FFT",
+    "channelCount": channelCount,
+    "selectedChannel": selectedChannel,
+    "windowCount": windowCount,
+    "windowSize": windowSize,
+  });
+}
+
+function processFftMicrophoneData(channelCount, selectedChannel, windowCount, windowSize, inSamples, inSampleCounts) {
+  mWorker.postMessage({
+    "message": "PROCESS_FFT_MICROPHONE_DATA",
+    "channelCount": channelCount,
+    "selectedChannel": selectedChannel,
+    "windowCount": windowCount,
+    "windowSize": windowSize,
+    "inSamples": inSamples,
+    "inSampleCounts": inSampleCounts,
+  });
+}
+
+// drawBuffer,
+// windowCount,
+// windowSize,
+// targetWindowCount,
+// width,
+// height
+
+function prepareFftDrawing(drawBuffer, selectedChannelIdx, windowCount, windowSize, targetWindowCount, width, height) {
+  mWorker.postMessage({
+    "message": "PROCESS_PREPARE_FFT_DRAWING",
+    "drawBuffer": drawBuffer,
+    "selectedChannelIdx": selectedChannelIdx,
+    "windowCount": windowCount,
+    "windowSize": windowSize,
+    "targetWindowCount": targetWindowCount,
+    "width": width,
+    "height": height,
   });
 }

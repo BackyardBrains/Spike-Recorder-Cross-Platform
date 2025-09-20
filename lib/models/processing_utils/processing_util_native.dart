@@ -1125,7 +1125,6 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
         int selectedChannelIdx = 0;
         int maxWindowCount = out_fft.length;
         int count = fftBuffer.get(fft);
-        // print("FFT BUFFER : $fftBuffer");
 
         if (count > 0) {
           ProcessingUtil.fftDrawBuffer!.add(fft, count);
@@ -1161,6 +1160,10 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
 
           convertRgbaFloat32ListToInt32(fftColorList, colorList);
           out_fft_colors!.asTypedList(channelCount);
+          // Counter: 65536, 194310, 32768 | 131072 194310
+          // print("Counter: $vertexCount, $indicesCount, $colorCount | $colorCountRaw $indicesCountRaw");
+          // print("Color List: $colorList"); -16777088, -16777088,
+ 
           // print("VertexCount: $vertexCount");
           // print("IndexCount: $indicesCountRaw");
           // print("ColorCount: $colorCount ?==? ${colorList.length}");

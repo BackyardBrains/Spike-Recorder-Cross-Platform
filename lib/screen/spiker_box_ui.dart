@@ -52,7 +52,11 @@ class _SpikerBoxUiState extends State<SpikerBoxUi> {
       DraggableSection(),
       TimeCalculateWidget(),
       DraggableRectangle(),
-      FftSection(),
+      Positioned(
+        left:0,
+        top: MediaQuery.of(context).size.height * 0.2,
+        child: FftSection()
+      ),
     ]);
     return Stack(
       children: listUIElements,
@@ -1307,6 +1311,7 @@ class _FftSectionState extends State<FftSection> {
   @override
   Widget build(BuildContext context) {
     bool isFftShowing = context.read<FftStatusProvider>().isFftShowing;
+    // print("ProcessingUtil.fftDrawData == null :   ${MediaQuery.of(context).size.width}");
     // print("ProcessingUtil.fftDrawData == null :   ${ProcessingUtil.fftDrawData == null}");
     return Positioned(
       left:0,

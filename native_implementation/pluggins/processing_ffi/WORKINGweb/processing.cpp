@@ -894,11 +894,19 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_normalize_signal(float* out_data, 
 
 // FFT processing
 // STEVE COMMENTED THIS OUT
-EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
-                             int32_t* out_window_size, const int16_t** in_samples,
+EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_fft(float* _out_fft, int32_t* out_window_count,
+                             int32_t* out_window_size, int16_t* _in_samples,
                              const int32_t* in_sample_counts) {
-    if (!initialized || !out_fft || !out_window_count || !out_window_size || !in_samples || !in_sample_counts) {
+    if (!initialized || !_out_fft || !out_window_count || !out_window_size || !_in_samples || !in_sample_counts) {
         return -1;
+    }
+    float** out_fft = new float*[out_window_count[0]];
+    for (int cu = 0; cu < out_window_count[0]; cu++) {
+        out_fft[cu] = &_out_fft[cu * out_window_size[0]];
+    }
+    int16_t** in_samples = new int16_t*[out_window_count[0]];
+    for (int cu = 0; cu < out_window_count[0]; cu++) {
+        in_samples[cu] = &_in_samples[cu * out_window_size[0]];
     }
 
     try {
@@ -908,7 +916,8 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_fft(float** out_fft, int32
             *out_window_count,
             *out_window_size,
             current_channel_count,
-            reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
+            // reinterpret_cast<short**>(const_cast<int16_t**>(in_samples)),
+            in_samples,
             const_cast<int*>(in_sample_counts)
         );
         return 0;
@@ -1233,12 +1242,16 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
 EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_fft_for_drawing(float* out_vertices, int16_t* out_indices,
                                          float* out_colors, int32_t* out_vertex_count,
                                          int32_t* out_index_count, int32_t* out_color_count,
-                                         float** fft_data, int32_t window_count,
+                                         float* _fft_data, int32_t window_count,
                                          int32_t window_size, float width, float height) {
     if (!initialized || !out_vertices || !out_indices || !out_colors ||
         !out_vertex_count || !out_index_count || !out_color_count ||
-        !fft_data || window_count <= 0 || window_size <= 0) {
+        !_fft_data || window_count <= 0 || window_size <= 0) {
         return -1;
+    }
+    float** fft_data = new float*[window_count];
+    for (int cu = 0; cu < window_count; cu++) {
+        fft_data[cu] = &_fft_data[cu * window_size];
     }
 
     try {

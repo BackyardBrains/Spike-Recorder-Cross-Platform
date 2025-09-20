@@ -43,6 +43,7 @@ class FftDrawBuffer {
         for (int i = length; i < windowCount; i++) {
             // System.arraycopy(buffer[i], 0, buffer[counter++], 0, windowSize);
             // buffer[counter++].setAll(0, buffer[i].buffer.asFloat32List(0, windowSize));
+            // WRONG IN THIS PART
             // buffer[counter++] = (buffer[i].buffer.asFloat32List(0, windowSize));
             buffer[counter++] = (buffer[i].sublist(0, windowSize));
         }

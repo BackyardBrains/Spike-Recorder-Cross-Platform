@@ -68,6 +68,12 @@ namespace backyardbrains {
             float yOffset = 0;
             float xWidth = width / widthSegments;
             float yHeight = height / heightSegments;
+
+            // EM_ASM({
+            //     // Width / Width Segments:  256 255 256 128
+            //     console.log( "Width / Width Segments: ", $0, $1, $2, $3 );
+            // }, width, widthSegments, windowCount, windowSize);        
+    
             int currentVertex = 0;
             int currentIndex = 0;
             int currentColor = 0;

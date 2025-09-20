@@ -259,7 +259,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
         localPlugin.postDisplayStream?.listen((event) {
           bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
           if (isAudioListen) {
-            provider.inputListener(event);
+            provider.inputListener(event);            
           }
         });
       },
@@ -881,246 +881,255 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
               ),
             ],
           ),
-          child2: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          child2: Positioned(
+            left: 0,
+            top: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+              width: MediaQuery.of(context).size.width,
+              height: MediaQuery.of(context).size.height,
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      SpikerBoxButton(
-                          onTapButton: () async {
-                            context.read<SoftwareConfigProvider>().settingStatus(true);
-                          },
-                          iconData: Icons.settings),
-                      const SizedBox(
-                        width: 10,
-                      ),
-                      // SpikerBoxButton(
-                      //     onTapButton: () async {}, iconData: Icons.graphic_eq),
-                      // const SizedBox(
-                      //   width: 10,
-                      // ),
-                      SpikerBoxButton(
-                        onTapButton: () {
-                          isThresholdingButton = !isThresholdingButton;
-                          if (isThresholdingButton) {
-                            processingUtil.initThreshold(deviceChannelCount, _sampleRate, MediaQuery.of(context).size.width);
-                            print("initThreshold : ${_sampleRate}, $deviceChannelCount ===");
-                            processingUtil.setAveragedSampleCount(1);
-                            processingUtil.setThreshold(525);
-                            processingUtil.setIsThresholding(true);
-                          } else {
-                            processingUtil.setIsThresholding(false);
-                          }
-
-                          context.read<ThresholdStatusProvider>().setThresholdStatus(isThresholdingButton);
-                          context.read<ThresholdStatusProvider>().setThresholdChannel(0);
-
-                          setState((){});
-                        },
-                        iconColor: isThresholdingButton? Colors.yellow : Colors.black,
-                        iconData: Icons.graphic_eq_outlined,
-                      ),
-                      const SizedBox(
-                        width: 20,
-                      ),
-                      if (isThresholdingButton) ... {
-
-                        Center(
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton2(
-                              customButton: generateSpikerBoxDecorate(
-                                eventThresholdTriggeredType == "Signal" ? Icon(Icons.stacked_line_chart_outlined) : Center(child: Text(eventThresholdTriggeredType.substring(0,2),))
-                              ),
-                              items: listMenuLabels.map( (item) => DropdownMenuItem<String>(
-                                  value:item,
-                                  child: Text(item),
-                                )).toList(),
-                              onChanged: (value) {
-                                print("TRIGGER TYPE : $value");
-                                eventThresholdTriggeredType = value!;
-                                int triggerType = listMenuOptions.indexOf(eventThresholdTriggeredType);
-                                processingUtil.setThresholdTriggerType(triggerType);
-                                context.read<ThresholdStatusProvider>().selectedThresholdTriggerType = listMenuOptions.indexOf(eventThresholdTriggeredType);
-                                setState(() {
-                                  
-                                });
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          SpikerBoxButton(
+                              onTapButton: () async {
+                                context.read<SoftwareConfigProvider>().settingStatus(true);
                               },
-                              dropdownStyleData: DropdownStyleData(
-                                width: 140,
-                                padding: const EdgeInsets.symmetric(vertical: 6),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(4),
-                                  color: Colors.grey.shade100,
-                                ),
-                                offset: const Offset(0, 0),
-                              ),
-                            ),
-                          ),          
-
-                          // child: SpikerBoxButton(
-                          //   onTapButton: (){
-                          //     isChoosingThresholdType = true;
-                          //   }, iconData: Icons.stacked_line_chart_rounded),
-                        ),
-                        SizedBox(
-                          width: 20,
-                        ),
-                        Container(
-                          margin: EdgeInsets.fromLTRB(0, 10, 0, 0),
-                          width:200,
-                          height:30,
-                          child: FlutterSlider(
-                            onDragging: (handlerIndex, lowerValue, upperValue) {
-                              print("handlerIndex:  $handlerIndex $lowerValue - $upperValue");
-                              if (handlerIndex == 1) {
-                                thresholdSliderValue = lowerValue.floor();
-                                processingUtil.setAveragedSampleCount(lowerValue.floor());
-                                setState(() {
-                                });
+                              iconData: Icons.settings),
+                          const SizedBox(
+                            width: 10,
+                          ),
+                          // SpikerBoxButton(
+                          //     onTapButton: () async {}, iconData: Icons.graphic_eq),
+                          // const SizedBox(
+                          //   width: 10,
+                          // ),
+                          SpikerBoxButton(
+                            onTapButton: () {
+                              isThresholdingButton = !isThresholdingButton;
+                              if (isThresholdingButton) {
+                                processingUtil.initThreshold(deviceChannelCount, _sampleRate, MediaQuery.of(context).size.width);
+                                print("initThreshold : ${_sampleRate}, $deviceChannelCount ===");
+                                processingUtil.setAveragedSampleCount(1);
+                                processingUtil.setThreshold(525);
+                                processingUtil.setIsThresholding(true);
+                              } else {
+                                processingUtil.setIsThresholding(false);
                               }
+              
+                              context.read<ThresholdStatusProvider>().setThresholdStatus(isThresholdingButton);
+                              context.read<ThresholdStatusProvider>().setThresholdChannel(0);
+              
+                              setState((){});
                             },
-                            onDragCompleted: (handlerIndex, lowerValue, upperValue) {
-                            },
-                            tooltip: FlutterSliderTooltip(
-                              disabled: true,
-                            ),
-                            min: 1,
-                            max: 50,
-                            handler: FlutterSliderHandler(
-                              child: Material(
-                                type: MaterialType.canvas,
-                                color: Colors.grey.shade500,
-                                elevation: 3,
-                                child: Container(
-                                    padding: EdgeInsets.all(5),
-                                    // child: Icon(Icons.adjust, size: 25,)
+                            iconColor: isThresholdingButton? Colors.yellow : Colors.black,
+                            iconData: Icons.graphic_eq_outlined,
+                          ),
+                          const SizedBox(
+                            width: 20,
+                          ),
+                          if (isThresholdingButton) ... {
+              
+                            Center(
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton2(
+                                  customButton: generateSpikerBoxDecorate(
+                                    eventThresholdTriggeredType == "Signal" ? Icon(Icons.stacked_line_chart_outlined) : Center(child: Text(eventThresholdTriggeredType.substring(0,2),))
                                   ),
-                              ),                                                          
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(0),
-                                color: Colors.grey,
-                                border: Border.all(width: 3, color: Colors.white),
+                                  items: listMenuLabels.map( (item) => DropdownMenuItem<String>(
+                                      value:item,
+                                      child: Text(item),
+                                    )).toList(),
+                                  onChanged: (value) {
+                                    print("TRIGGER TYPE : $value");
+                                    eventThresholdTriggeredType = value!;
+                                    int triggerType = listMenuOptions.indexOf(eventThresholdTriggeredType);
+                                    processingUtil.setThresholdTriggerType(triggerType);
+                                    context.read<ThresholdStatusProvider>().selectedThresholdTriggerType = listMenuOptions.indexOf(eventThresholdTriggeredType);
+                                    setState(() {
+                                      
+                                    });
+                                  },
+                                  dropdownStyleData: DropdownStyleData(
+                                    width: 140,
+                                    padding: const EdgeInsets.symmetric(vertical: 6),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(4),
+                                      color: Colors.grey.shade100,
+                                    ),
+                                    offset: const Offset(0, 0),
+                                  ),
+                                ),
+                              ),          
+              
+                              // child: SpikerBoxButton(
+                              //   onTapButton: (){
+                              //     isChoosingThresholdType = true;
+                              //   }, iconData: Icons.stacked_line_chart_rounded),
+                            ),
+                            SizedBox(
+                              width: 20,
+                            ),
+                            Container(
+                              margin: EdgeInsets.fromLTRB(0, 10, 0, 0),
+                              width:200,
+                              height:30,
+                              child: FlutterSlider(
+                                onDragging: (handlerIndex, lowerValue, upperValue) {
+                                  print("handlerIndex:  $handlerIndex $lowerValue - $upperValue");
+                                  if (handlerIndex == 1) {
+                                    thresholdSliderValue = lowerValue.floor();
+                                    processingUtil.setAveragedSampleCount(lowerValue.floor());
+                                    setState(() {
+                                    });
+                                  }
+                                },
+                                onDragCompleted: (handlerIndex, lowerValue, upperValue) {
+                                },
+                                tooltip: FlutterSliderTooltip(
+                                  disabled: true,
+                                ),
+                                min: 1,
+                                max: 50,
+                                handler: FlutterSliderHandler(
+                                  child: Material(
+                                    type: MaterialType.canvas,
+                                    color: Colors.grey.shade500,
+                                    elevation: 3,
+                                    child: Container(
+                                        padding: EdgeInsets.all(5),
+                                        // child: Icon(Icons.adjust, size: 25,)
+                                      ),
+                                  ),                                                          
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(0),
+                                    color: Colors.grey,
+                                    border: Border.all(width: 3, color: Colors.white),
+                                  )
+                                ),
+                                trackBar: FlutterSliderTrackBar(
+                                  inactiveTrackBarHeight: 70,
+                                  activeTrackBarHeight: 70,
+                                  inactiveTrackBar: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(0),
+                                    color: Colors.grey,
+                                    border: Border.all(width: 3, color: Colors.black45),
+                                  ),
+                                  activeTrackBar: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(0),
+                                    color: Colors.grey.withOpacity(0.5)
+                                  ),
+                                ), values: [thresholdSliderValue.floorToDouble()],
                               )
                             ),
-                            trackBar: FlutterSliderTrackBar(
-                              inactiveTrackBarHeight: 70,
-                              activeTrackBarHeight: 70,
-                              inactiveTrackBar: BoxDecoration(
-                                borderRadius: BorderRadius.circular(0),
-                                color: Colors.grey,
-                                border: Border.all(width: 3, color: Colors.black45),
-                              ),
-                              activeTrackBar: BoxDecoration(
-                                borderRadius: BorderRadius.circular(0),
-                                color: Colors.grey.withOpacity(0.5)
-                              ),
-                            ), values: [thresholdSliderValue.floorToDouble()],
-                          )
-                        ),
-                        Container(
-                          margin: EdgeInsets.only(top: 15, left:10),
-                          height: 30,
-                          child: Text(thresholdSliderValue.toString(), style:TextStyle(color: Colors.white)),
-                        ),
-                        
-                        
-                        // Container(
-                        //   width:50,
-                        //   height:30,
-                        //   child: TextField(
-                        //     controller: thresholdValueController,
-                        //   )
-                        // )
-                      },
-                      
-                      if (!isThresholdingButton) ... {
-                        SpikerBoxButton(
-                          onTapButton: () {
-                            isFftButton = !isFftButton;
-                            if (isFftButton) {
-                              context.read<FftStatusProvider>().setFftVisibility(true);
-                            } else {
-                              context.read<FftStatusProvider>().setFftVisibility(false);
-                            }
-
-                            setState((){});
+                            Container(
+                              margin: EdgeInsets.only(top: 15, left:10),
+                              height: 30,
+                              child: Text(thresholdSliderValue.toString(), style:TextStyle(color: Colors.white)),
+                            ),
+                            
+                            
+                            // Container(
+                            //   width:50,
+                            //   height:30,
+                            //   child: TextField(
+                            //     controller: thresholdValueController,
+                            //   )
+                            // )
                           },
-                          iconColor: isFftButton? Colors.yellow : Colors.black,
-                          iconData: Icons.abc,
-                        ),
-                      },
-                      const SizedBox(
-                        width: 10,
+                          
+                          if (!isThresholdingButton) ... {
+                            SpikerBoxButton(
+                              onTapButton: () {
+                                isFftButton = !isFftButton;
+                                if (isFftButton) {
+                                  context.read<FftStatusProvider>().setFftVisibility(true);
+                                } else {
+                                  context.read<FftStatusProvider>().setFftVisibility(false);
+                                }
+              
+                                setState((){});
+                              },
+                              iconColor: isFftButton? Colors.yellow : Colors.black,
+                              iconData: Icons.abc,
+                            ),
+                          },
+                          const SizedBox(
+                            width: 10,
+                          ),
+                          StreamBuilder<List<ComDataWithBoard>>(
+                              stream: connectDeviceList(),
+                              builder: (context, snapshot) {
+                                if (snapshot.hasData) {
+                                  listOfBoard = snapshot.data!;
+                                  return SizedBox(
+                                    height: 50,
+                                    child: ListView.builder(
+                                        padding: EdgeInsets.zero,
+                                        scrollDirection: Axis.horizontal,
+                                        shrinkWrap: true,
+                                        itemCount: listOfBoard?.length,
+                                        itemBuilder: (context, index) {
+                                          return GestureDetector(
+                                            onTap: () {
+                                              print("DISCONNECT USB2");
+                                              // Future.delayed(Duration(milliseconds: 1500), () {
+                                              //   _serialUtil.closePort();
+                                              //   final provider = Provider.of<GraphDataProvider>(context, listen: false);
+                                              //   listenToMicrophone(1, provider);
+                                              // });
+              
+                                            },
+                                            child: SpikerBoxButton(onTapButton: () {
+                                              print("DISCONNECT USB");
+                                              _serialUtil.closePort();
+                                              listenToMicrophone(1, null);
+                                              Future.delayed(Duration(milliseconds: 1500), () {
+                                                // final provider = Provider.of<GraphDataProvider>(context, listen: false);
+                                              });
+              
+                                            }, iconData: Icons.usb),
+                                          );
+                                        }),
+                                  );
+                                } else {
+                                  return Container();
+                                }
+                              })
+                        ],
                       ),
-                      StreamBuilder<List<ComDataWithBoard>>(
-                          stream: connectDeviceList(),
-                          builder: (context, snapshot) {
-                            if (snapshot.hasData) {
-                              listOfBoard = snapshot.data!;
-                              return SizedBox(
-                                height: 50,
-                                child: ListView.builder(
-                                    padding: EdgeInsets.zero,
-                                    scrollDirection: Axis.horizontal,
-                                    shrinkWrap: true,
-                                    itemCount: listOfBoard?.length,
-                                    itemBuilder: (context, index) {
-                                      return GestureDetector(
-                                        onTap: () {
-                                          print("DISCONNECT USB2");
-                                          // Future.delayed(Duration(milliseconds: 1500), () {
-                                          //   _serialUtil.closePort();
-                                          //   final provider = Provider.of<GraphDataProvider>(context, listen: false);
-                                          //   listenToMicrophone(1, provider);
-                                          // });
-
-                                        },
-                                        child: SpikerBoxButton(onTapButton: () {
-                                          print("DISCONNECT USB");
-                                          _serialUtil.closePort();
-                                          listenToMicrophone(1, null);
-                                          Future.delayed(Duration(milliseconds: 1500), () {
-                                            // final provider = Provider.of<GraphDataProvider>(context, listen: false);
-                                          });
-
-                                        }, iconData: Icons.usb),
-                                      );
-                                    }),
-                              );
-                            } else {
-                              return Container();
-                            }
-                          })
+                      Row(
+                        children: [
+                          SpikerBoxButton(
+                            onTapButton: () {},
+                            iconData: Icons.fiber_manual_record,
+                            iconColor: Colors.red,
+                          ),
+                          const SizedBox(
+                            width: 10,
+                          ),
+                          SpikerBoxButton(onTapButton: () {}, iconData: Icons.menu)
+                        ],
+                      )
                     ],
                   ),
-                  Row(
-                    children: [
-                      SpikerBoxButton(
-                        onTapButton: () {},
-                        iconData: Icons.fiber_manual_record,
-                        iconColor: Colors.red,
-                      ),
-                      const SizedBox(
-                        width: 10,
-                      ),
-                      SpikerBoxButton(onTapButton: () {}, iconData: Icons.menu)
-                    ],
-                  )
+                  BottomButtons(
+                    pauseButton: (bool isPlay) {
+                      Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(isPlay);
+                      _toPauseGraph = isPlay;
+                    },
+                  ),
                 ],
               ),
-              BottomButtons(
-                pauseButton: (bool isPlay) {
-                  Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(isPlay);
-                  _toPauseGraph = isPlay;
-                },
-              ),
-            ],
+            ),
           )),
       floatingActionButton: kIsWeb
           ? FloatingActionButton.extended(
@@ -1848,8 +1857,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     deviceChannelCount = channelCount;
     foundDevices = "";
     Future.delayed(const Duration(seconds: 2)).then((value) async {
-      print("_messageIdentifier.messageState");
-      print(_messageIdentifier.messageState);
+      // print("_messageIdentifier.messageState");
+      // print(_messageIdentifier.messageState);
       // Initialize both utils
       try{
         microphoneUtil.micStream.removeListener(micListener);
@@ -1948,16 +1957,13 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
           // if (isFftButton) {
           if (!kIsWeb) {
             int windowCount = ( (10.0 * 128) / (512 * 0.01).floor() ).floor();
-            // int windowSize = ( (32 * 128) ).floor();
-            // double windowSize = MediaQuery.of(context).size.height * FFT_WIDGET_HEIGHT;
             int windowSize = (FFT_30HZ_LENGTH * FFT_WINDOW_TIME_LENGTH);
             List<int> inSampleCounts = [];
             // print("KISWEB inSampleCounts: ${tempData[0].length}");
             for (var data in tempData){
               inSampleCounts.add(data.length);
             }
-            processingUtil.processFftMicrophoneData(tempData, [windowCount], [windowSize], inSampleCounts, channelCount);
-            
+            processingUtil.processFftMicrophoneData(tempData, [windowCount], [windowSize], inSampleCounts, channelCount);            
           }
           // }
         }
@@ -1965,8 +1971,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       // _preGraphBuffer.addBytes(event);
       
       // if (drawIdx == 3) {
-      // int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt() * MediaQuery.of(context).devicePixelRatio.toInt();
-      int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+      int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt() * MediaQuery.of(context).devicePixelRatio.toInt() * 2;
+      // print("Pixel Ratio: ${MediaQuery.of(context).devicePixelRatio.toInt()}");
+      // int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
       // print("Pixel Ratio: ${MediaQuery.of(context).size.width.toInt()} --- ${MediaQuery.of(context).devicePixelRatio.toInt()}");
       if (!GraphTemplate.isPlayerPaused) {
         if (isThresholdingButton) {
@@ -1993,7 +2000,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
           // print("RANGE MASK : ${DraggableGraph.startPositionIdx} -- ${DraggableGraph.endPositionIdx} || ${maxDisplaySamples} || ${maxSamples}");
 
           processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, maxDisplaySamples );
-          if (isFftButton) {
+          if (isFftButton ) {
             Size screenSize = MediaQuery.of(context).size;
             // int windowCount = processingUtil.window_count[0];
             // double windowSize = processingUtil.window_size[0].toDouble();
@@ -2420,13 +2427,15 @@ class _AdaptiveAreaState extends State<_AdaptiveArea> {
         child: Stack(
           children: [
             widget.child1,
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-              child: widget.child2,
-            ),
+            widget.child2,
+            // Padding(
+            //   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+            //   child: widget.child2,
+            // ),
             softwareSetting.isSettingEnable
                 ? Container(
-                    color: Colors.black54.withOpacity(0.9),
+                    // color: Colors.black54.withOpacity(0.9),
+                    color: Colors.red,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
                       child: widget.child3,

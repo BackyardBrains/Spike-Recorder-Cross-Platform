@@ -279,6 +279,9 @@ class FftPainter extends CustomPainter {
     // Draw scale values
     // final double freqAxisValuesXOffset = _axisNotchSize10 + _axisValueXOffset;
     double xMultiplier = 0.59;
+    if (kIsWeb) {
+      xMultiplier = 0.59;
+    } else
     if (Platform.isAndroid || Platform.isIOS) {
       xMultiplier = 1.15;
     } else {

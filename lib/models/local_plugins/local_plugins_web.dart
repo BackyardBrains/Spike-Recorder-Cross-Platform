@@ -190,19 +190,6 @@ class LocalPluginWeb implements LocalPlugin {
 
   void onPostDisplay(channelData, channelCounts) {
     postDisplayStreamController.sink.add(Uint8List(0));
-
-    for (int i = 0; i < channelCounts.length; i++) {
-      int windowCount = ( (10.0 * 128) / (512 * 0.01).floor() ).floor();
-      int windowSize = (FFT_30HZ_LENGTH * FFT_WINDOW_TIME_LENGTH);
-      List<int> inSampleCounts = [];
-      inSampleCounts.add(channelData[i].length);
-      // print("inSampleCounts: ${channelData[i].length}");
-      int channelCount = 1;
-      ProcessingUtil? processingUtil = GraphTemplate.processingUtil;
-      if (processingUtil != null) {
-        processingUtil.processFftMicrophoneData([Int16List.fromList(channelData[i])], [windowCount], [windowSize], inSampleCounts, channelCount);
-      }
-    }
   }
 
 
@@ -239,24 +226,47 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
     ProcessingUtil? processingUtil = GraphTemplate.processingUtil;
     processingUtil?.onCallbackPrepareFftDrawingWeb(resultFft, selectedChannelIdx);
   }
-  
+
   void onCallbackProcessFft(out_window_count, out_window_size, out_fft_data, selectedChannel, channelCounts) {
     // print("onCallbackProcessFft out_fft_data: $selectedChannel $channelCounts");
-    // print("onCallbackProcessFft");
     ProcessingUtil? processingUtil = GraphTemplate.processingUtil;
-    processingUtil?.window_count.setAll(0, out_window_count);
-    processingUtil?.window_size.setAll(0, out_window_size);
+    // print("onCallbackProcessFft $out_window_count $out_window_size  ||| ${processingUtil?.window_count}" );
+    int windowCount = ( (10.0 * 128) / (512 * 0.01).floor() ).floor();
+    int windowSize = ( (32 * 4) ).floor();
+    try {
+      if (processingUtil != null && processingUtil.window_count.isEmpty) {
+
+        processingUtil.window_count.clear();
+        processingUtil.window_count.addAll([windowCount]);
+        processingUtil.window_size.clear();
+        processingUtil.window_size.addAll([windowSize]);
+        if (processingUtil.out_fft.isEmpty) {
+          processingUtil.out_fft.clear();
+          processingUtil.out_fft = List<Float32List>.generate(windowCount, (idx)=> Float32List(windowSize));
+        }
+      } else {
+        processingUtil?.window_count.setAll(0, out_window_count);
+        processingUtil?.window_size.setAll(0, out_window_size);
+      }
+      
+    }catch(err){
+      print("err $err");
+    }
     // print("onCallbackProcessFft1 ${processingUtil!.window_count[0]}");
-    
     if (processingUtil!.window_count[selectedChannel] > 0) {
-      int windowCounter = out_window_count[selectedChannel];
-      // print("out_fft_data ${out_fft_data.length}");
-      for (int i = 0; i < windowCounter; i++) {
+      int windowCounterFft = out_window_count[selectedChannel];
+      int windowSizeFft = out_window_size[selectedChannel];
+      print("windowCounterFft $windowCounterFft ||| windowSizeFft $windowSizeFft ||| windowSize: $windowSize");
+      // print("windowCounter $windowCounter ||| out_fft_data ${out_fft_data.length}");
+      // print("processingUtil.fftBuffer : ${processingUtil.fftBuffer}");
+      // return;
+
+      for (int i = 0; i < windowCounterFft; i++) {
         // int outSize = out_window_count[0];
-        Float32List out_fft_list = out_fft_data[i];
+        Float32List out_fft_list = out_fft_data[i].sublist(0, windowSizeFft);
         // print("out_fft_list ${processingUtil.out_fft.length}");
-        processingUtil.out_fft[selectedChannel].setAll(0, out_fft_list);
-        processingUtil.fftBuffer.put(processingUtil.out_fft, 0, windowCounter);
+        processingUtil.out_fft[i].setAll(0, out_fft_list);
+        processingUtil.fftBuffer.put(processingUtil.out_fft, 0, windowCount);
       }
     }
   }

@@ -13,6 +13,8 @@ PODS:
     - FlutterMacOS
   - native_add (0.0.1):
     - FlutterMacOS
+  - nwbfile_plugin (0.0.1):
+    - FlutterMacOS
   - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -32,6 +34,7 @@ DEPENDENCIES:
   - just_audio (from `Flutter/ephemeral/.symlinks/plugins/just_audio/darwin`)
   - mic_stream (from `Flutter/ephemeral/.symlinks/plugins/mic_stream/macos`)
   - native_add (from `Flutter/ephemeral/.symlinks/plugins/native_add/macos`)
+  - nwbfile_plugin (from `Flutter/ephemeral/.symlinks/plugins/nwbfile_plugin/macos`)
   - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
   - processing_ffi (from `Flutter/ephemeral/.symlinks/plugins/processing_ffi/macos`)
   - screen_retriever (from `Flutter/ephemeral/.symlinks/plugins/screen_retriever/macos`)
@@ -55,6 +58,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/mic_stream/macos
   native_add:
     :path: Flutter/ephemeral/.symlinks/plugins/native_add/macos
+  nwbfile_plugin:
+    :path: Flutter/ephemeral/.symlinks/plugins/nwbfile_plugin/macos
   path_provider_foundation:
     :path: Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin
   processing_ffi:
@@ -74,6 +79,7 @@ SPEC CHECKSUMS:
   libserialport: 1cb25e66ef3c92a8e59c2ea3820302c3fa2268cd
   mic_stream: 3cf878a5923acdf190d7503a7a93173c1bc1c5b8
   native_add: 54703c7242d3e9d29f7d47f1a3a886cd22e5be48
+  nwbfile_plugin: 99abb86875be02f791f5823586f414119df7f256
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
   processing_ffi: 11ea5a375c9b83f5d1ff554953bb1eacdc6db486
   screen_retriever: 59634572a57080243dd1bf715e55b6c54f241a38

@@ -13,6 +13,7 @@ import 'package:spikerbox_architecture/widget/fft_painter.dart';
 export 'processing_util_native.dart'
     if (dart.library.html) 'processing_util_web.dart';
 
+
 // The abstract interface all implementations must follow
 abstract class ProcessingUtil {
   static int positionIndex = 0;
@@ -117,6 +118,6 @@ abstract class ProcessingUtil {
   static FftDrawData? fftDrawData;
   static FftDrawBuffer? fftDrawBuffer;
 
-  
+  Future<bool> initWithConfig(Int32List config);
 
 }

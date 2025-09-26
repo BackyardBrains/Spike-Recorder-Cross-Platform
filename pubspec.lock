@@ -410,6 +410,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
+  nwbfile_plugin:
+    dependency: "direct main"
+    description:
+      path: "native_implementation/pluggins/nwbfile_plugin"
+      relative: true
+    source: path
+    version: "0.0.1"
   package_config:
     dependency: transitive
     description:

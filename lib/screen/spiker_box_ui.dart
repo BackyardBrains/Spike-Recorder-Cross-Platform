@@ -51,7 +51,7 @@ class _SpikerBoxUiState extends State<SpikerBoxUi> {
     listUIElements.addAll([
       DraggableSection(),
       TimeCalculateWidget(),
-      DraggableRectangle(),
+      // DraggableRectangle(),
       Positioned(
         left:0,
         top: MediaQuery.of(context).size.height * 0.2,

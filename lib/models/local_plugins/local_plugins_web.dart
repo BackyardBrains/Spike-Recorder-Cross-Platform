@@ -256,7 +256,7 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
     if (processingUtil!.window_count[selectedChannel] > 0) {
       int windowCounterFft = out_window_count[selectedChannel];
       int windowSizeFft = out_window_size[selectedChannel];
-      print("windowCounterFft $windowCounterFft ||| windowSizeFft $windowSizeFft ||| windowSize: $windowSize");
+      // print("windowCounterFft $windowCounterFft ||| windowSizeFft $windowSizeFft ||| windowSize: $windowSize");
       // print("windowCounter $windowCounter ||| out_fft_data ${out_fft_data.length}");
       // print("processingUtil.fftBuffer : ${processingUtil.fftBuffer}");
       // return;

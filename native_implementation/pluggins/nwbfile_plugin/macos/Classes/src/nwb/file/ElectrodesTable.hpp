@@ -1,0 +1,126 @@
+#pragma once
+
+#include <string>
+
+#include "../../io/BaseIO.hpp"
+#include "../hdmf/table/DynamicTable.hpp"
+#include "../hdmf/table/ElementIdentifiers.hpp"
+#include "../hdmf/table/VectorData.hpp"
+#include "../../spec/core.hpp"
+
+namespace AQNWB::NWB
+{
+/**
+ * @brief Represents a table containing electrode metadata.
+ */
+class ElectrodesTable : public DynamicTable
+{
+public:
+  // Register the ElectrodesTable as a subclass of Container
+  // REGISTER_SUBCLASS(ElectrodesTable, "core")
+  REGISTER_SUBCLASS(ElectrodesTable, AQNWB::SPEC::CORE::namespaceName)
+
+  /**
+   * @brief Constructor.
+   * @param io The shared pointer to the BaseIO object.
+   * extracellular electrodes").
+   */
+  ElectrodesTable(std::shared_ptr<IO::BaseIO> io);
+
+  // required so we can call create
+  ElectrodesTable(const std::string& path, std::shared_ptr<IO::BaseIO> io);
+
+  /**
+   * @brief Destructor.
+   */
+  ~ElectrodesTable();
+
+  /**
+   * @brief Initializes the ElectrodesTable.
+   *
+   * Initializes the ElectrodesTable by creating NWB related attributes and
+   * adding required columns.
+   *
+   * @param description The description of the table (default: "metadata about
+   * extracellular electrodes")
+   * @return Status::Success if successful, otherwise Status::Failure.
+   */
+  Status initialize(const std::string& description =
+                        "metadata about extracellular electrodes");
+
+  /**
+   * @brief Finalizes the ElectrodesTable.
+   *
+   * Finalizes the ElectrodesTable by adding the required columns and writing
+   * the data to the file.
+   * @return Status::Success if successful, otherwise Status::Failure.
+   */
+  Status finalize();
+
+  /**
+   * @brief Sets up the ElectrodesTable by adding electrodes and their metadata.
+   * @param channelsInput The vector of Channel objects to add to the table.
+   */
+  void addElectrodes(std::vector<Channel> channelsInput);
+
+  /**
+   * @brief The path to the ElectrodesTable.
+   */
+  inline const static std::string electrodesTablePath =
+      "/general/extracellular_ephys/electrodes";
+
+  DEFINE_REGISTERED_FIELD(
+      readLocationColumn,
+      VectorDataTyped<std::string>,
+      "location",
+      "the location of channel within the subject e.g. brain region")
+
+  DEFINE_REGISTERED_FIELD(
+      readGroupNameColumn,
+      VectorDataTyped<std::string>,
+      "group_name",
+      "the name of the ElectrodeGroup this electrode is a part of")
+
+private:
+  /**
+   * @brief The global indices for each electrode.
+   */
+  std::vector<int> m_electrodeNumbers;
+
+  /**
+   * @brief The names of the ElectrodeGroup object for each electrode.
+   */
+  std::vector<std::string> m_groupNames;
+
+  /**
+   * @brief The location names for each electrode.
+   */
+  std::vector<std::string> m_locationNames;
+
+  /**
+   * @brief The references to the ElectrodeGroup object for each electrode.
+   */
+  std::vector<std::string> m_groupReferences;
+
+  /**
+   * @brief The references path to the ElectrodeGroup
+   */
+  inline const static std::string m_groupPathBase =
+      "/general/extracellular_ephys";
+
+  /**
+   * @brief The row ids data object for write
+   */
+  std::unique_ptr<ElementIdentifiers> m_electrodeDataset;
+
+  /**
+   * @brief The group names column for write
+   */
+  std::unique_ptr<VectorData> m_groupNamesDataset;
+
+  /**
+   * @brief The locations column for write
+   */
+  std::unique_ptr<VectorData> m_locationsDataset;
+};
+}  // namespace AQNWB::NWB

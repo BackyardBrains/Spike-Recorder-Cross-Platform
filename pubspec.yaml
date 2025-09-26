@@ -37,6 +37,8 @@ dependencies:
   #   path : native_implementation/pluggins/processing_plugin/
   processing_ffi:
     path : native_implementation/pluggins/processing_ffi/
+  nwbfile_plugin:
+    path : native_implementation/pluggins/nwbfile_plugin/
 
   mic_stream:
     path : native_implementation/pluggins/mic_stream/

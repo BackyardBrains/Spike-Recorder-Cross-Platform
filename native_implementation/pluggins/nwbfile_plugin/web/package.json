@@ -1,0 +1,27 @@
+{
+  "name": "nwbfile-plugin-web",
+  "version": "1.0.0",
+  "description": "NWB File Plugin compiled for Web with Emscripten",
+  "main": "dist/nwbfile_plugin.js",
+  "scripts": {
+    "build": "./build.sh",
+    "clean": "rm -rf build dist",
+    "install-deps": "echo 'Please install Emscripten manually'",
+    "test": "echo 'No tests configured yet'"
+  },
+  "keywords": [
+    "nwb",
+    "neuroscience",
+    "hdf5",
+    "emscripten",
+    "webassembly"
+  ],
+  "author": "NWB Plugin Team",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
+

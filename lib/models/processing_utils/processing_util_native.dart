@@ -48,6 +48,18 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   // @override
   // var currentDataBuffer;
+  @override
+  Future<bool> initWithConfig(Int32List config) async {
+    final result = pb.processingBindings.init();
+    if (result != 0) {
+      print('Failed to initialize processing: $result');
+      return false;
+    }
+    pb.processingBindings.setSampleRate(config[0]);
+    pb.processingBindings.setChannelCount(config[1]);
+    
+    return Future.value(true);
+  }
 
   @override
   Future<bool> init() async {

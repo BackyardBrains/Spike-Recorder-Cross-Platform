@@ -15,9 +15,11 @@ import 'package:mic_stream/mic_stream.dart';
 import 'package:native_add/model/model.dart';
 import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/constant/const_export.dart';
+import 'package:spikerbox_architecture/functionality/debouncer.dart';
 import 'package:spikerbox_architecture/functionality/utils.dart';
 import 'package:spikerbox_architecture/message_identifier.dart';
 import 'package:spikerbox_architecture/models/models.dart';
+import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
 import 'package:spikerbox_architecture/models/processing_utils/processing_util.dart';
 import 'package:spikerbox_architecture/provider/fft_status_provider.dart';
 import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
@@ -35,6 +37,7 @@ class GraphTemplate extends StatefulWidget {
   static bool isPlayerPaused = false;
   static Board? selectedBoard;
   static ProcessingUtil? processingUtil;
+  static NWBFileUtil? nwbFileUtil;
   const GraphTemplate({super.key, required this.bitsData, required this.channelCount, required this.baudRate});
 
   final int bitsData;
@@ -60,7 +63,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   final double endValue = 22000;
   int _sampleRate = 44100;
   double displayTimeMs = 10000;
-
+  
 
   late Ticker ticker;
   final StreamController<Uint8List> _graphStreamController = StreamController();
@@ -221,6 +224,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     // Initialize ProcessingUtil
     processingUtil = createProcessingUtil();
     GraphTemplate.processingUtil = processingUtil;
+    GraphTemplate.nwbFileUtil = createNwbFileUtil();
+
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
     // Initialize stream and set provider
     _graphStream = _graphStreamController.stream.asBroadcastStream();
@@ -1109,14 +1114,56 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                       Row(
                         children: [
                           SpikerBoxButton(
-                            onTapButton: () {},
+                            onTapButton: () {
+                              if (isRecording == 0) {
+                                isRecording = 1;
+                                print("!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
+                                GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount);
+                              } else 
+                              if (isRecording == 1) {
+                                isRecording = 2;
+                              } else {
+                                isRecording = 0;
+                              }
+                            },
                             iconData: Icons.fiber_manual_record,
                             iconColor: Colors.red,
                           ),
                           const SizedBox(
                             width: 10,
                           ),
-                          SpikerBoxButton(onTapButton: () {}, iconData: Icons.menu)
+                          if (isRecording != 1) ... {
+                            SpikerBoxButton(onTapButton: () async {
+                              print("INIT NWB FILE");
+                              isLoadingFile = 1;
+                              Int32List arrConfig = Int32List(10);
+                              Int32List arrSampleCount = Int32List(widget.channelCount);
+                              Int16List arrSamples = Int16List(1);
+                              // await GraphTemplate.nwbFileUtil?.readElectricalSeries(arrSampleCount, arrChannelCount, 0, 1);
+                              // DEMO
+                              await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, 1, 0, 1);
+                              loadedMaxSamples = arrConfig[5];
+                              int sampleRateConfig = arrConfig[0];
+                              _sampleRate = sampleRateConfig;
+                              
+                              print("sampleRateConfig: $sampleRateConfig");
+                              double arrSamplesLength = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRateConfig;
+                              // double arrSamplesLength = maxSamples.toDouble();
+                              arrSamples = Int16List(arrSamplesLength.floor());
+
+                              await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, arrSamplesLength.floor(), 0, 1);
+                              loadedArrSamples = Int16List(arrSamplesLength.floor());
+                              loadedArrSamples.setAll(0, arrSamples);
+                              loadedArrChannelCount.setAll(0, arrSampleCount);
+                              processingUtil.initWithConfig(arrConfig);
+                              GraphTemplate.isPlayerPaused = true;
+                              // isLoadingFile = 2;
+                              setState(() {
+                                
+                              });
+
+                            }, iconData: Icons.menu)
+                          },
                         ],
                       )
                     ],
@@ -1934,6 +1981,14 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   
   int FFT_30HZ_LENGTH = 32;
   int FFT_WINDOW_TIME_LENGTH = 4;
+  
+  int isRecording = 0;
+  
+  int isLoadingFile = 0;
+  int loadedMaxSamples = 0;
+  Int16List loadedArrSamples = Int16List(200);
+  Int32List loadedArrChannelCount = Int32List(1);
+
   void micListener(){
     // print("miCLISTENER DATA");
     int channelCount = 1;
@@ -1942,6 +1997,29 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     // print("isAUDIO LISTEN: $isAudioListen");
+    if (isLoadingFile == 2) {
+      int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+      // int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+      // int maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
+      // DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
+      // DraggableGraph.endPositionIdx = maxSamples;
+      // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, maxDisplaySamples );
+
+      // int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+      int maxSamples = loadedMaxSamples;
+      int toSample = (maxSamples + bufferPaddingLeft).toInt();
+      toSample = min(maxSamples, toSample);
+      int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
+      processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+
+
+
+      // print("RANGE MASK : ${DraggableGraph.startPositionIdx} -- ${DraggableGraph.endPositionIdx} || ${maxDisplaySamples} || ${maxSamples} ${_sampleRate}");
+    } else
+    if (isLoadingFile == 1) {
+      isLoadingFile = 2;
+      List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples.buffer.asUint8List());
+    } else
     if (isAudioListen) {
       if (!GraphTemplate.isPlayerPaused) {       
         if (isThresholdingButton) {
@@ -1949,11 +2027,51 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
             processingUtil.processMicrophoneData(microphoneUtil.micStream.value);           
           } else {
             List<Int16List> tempData = processingUtil.processMicrophoneData(microphoneUtil.micStream.value);
+            Int32List samplesCount = Int32List(tempData.length);
+            
+            int counterLen = 0;
+            int channelIdx = 0;
+            Int16List flattenedList = Int16List.fromList(tempData.expand((list) {
+              samplesCount[channelIdx] = list.length;
+              counterLen += list.length;
+              channelIdx++;
+              return list;
+            }).toList());
+
+            if (isRecording == 1) {
+              print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0) 11 -- $isRecording");
+              GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0);
+            } else 
+            if (isRecording == 2) {
+              isRecording = 0;
+              print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1)");
+              GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1);
+            }
             bool isAverageSamples = true;
             arr = processingUtil.processThresholdData(tempData, tempData.length, MediaQuery.of(context).size.width.floor(), selectedThresholdChannel, isAverageSamples);
           }
         } else {
           List<Int16List> tempData = processingUtil.processMicrophoneData(microphoneUtil.micStream.value); 
+          Int32List samplesCount = Int32List(tempData.length);
+
+          int counterLen = 0;
+          int channelIdx = 0;
+          Int16List flattenedList = Int16List.fromList(tempData.expand((list) {
+            samplesCount[channelIdx] = list.length;
+            counterLen += list.length;
+            channelIdx++;
+            return list;
+          }).toList());
+          if (isRecording == 1) {
+            print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0) 22 -- $isRecording");
+            GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0);
+          } else 
+          if (isRecording == 2) {
+            isRecording = 0;
+            print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1)");
+            GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1);
+          }
+
           // if (isFftButton) {
           if (!kIsWeb) {
             int windowCount = ( (10.0 * 128) / (512 * 0.01).floor() ).floor();
@@ -1969,9 +2087,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
         }
       }
       // _preGraphBuffer.addBytes(event);
-      
+
       // if (drawIdx == 3) {
-      int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt() * MediaQuery.of(context).devicePixelRatio.toInt() * 2;
+      int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt() * MediaQuery.of(context).devicePixelRatio.toInt() ;
       // print("Pixel Ratio: ${MediaQuery.of(context).devicePixelRatio.toInt()}");
       // int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
       // print("Pixel Ratio: ${MediaQuery.of(context).size.width.toInt()} --- ${MediaQuery.of(context).devicePixelRatio.toInt()}");
@@ -1997,6 +2115,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
           int maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
           DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
           DraggableGraph.endPositionIdx = maxSamples;
+          // print("RANGE MASK :");
           // print("RANGE MASK : ${DraggableGraph.startPositionIdx} -- ${DraggableGraph.endPositionIdx} || ${maxDisplaySamples} || ${maxSamples}");
 
           processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, maxDisplaySamples );
@@ -2420,6 +2539,17 @@ class _AdaptiveArea extends StatefulWidget {
 }
 
 class _AdaptiveAreaState extends State<_AdaptiveArea> {
+  Debouncer debouncerScrollTimeline = Debouncer(milliseconds: 3);
+  
+  double horizontalDragX = 0;
+  
+  double horizontalDragXFix = 0;
+
+  String strMaxTime = '';
+
+  String strMinTime = '';
+
+  double maxTime = 0;
   @override
   Widget build(BuildContext context) {
     return Consumer<SoftwareConfigProvider>(builder: (context, softwareSetting, snapshot) {
@@ -2432,6 +2562,9 @@ class _AdaptiveAreaState extends State<_AdaptiveArea> {
             //   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
             //   child: widget.child2,
             // ),
+            if (GraphTemplate.isPlayerPaused)... {
+              getTimeScrubWidget()
+            },
             softwareSetting.isSettingEnable
                 ? Container(
                     // color: Colors.black54.withOpacity(0.9),
@@ -2447,6 +2580,108 @@ class _AdaptiveAreaState extends State<_AdaptiveArea> {
       );
     });
   }
+  
+  getTimeScrubWidget() {
+    return Positioned(
+      left: 0,
+      bottom: 100,
+      child: GestureDetector(
+        onTapDown: (onTapDownDetails) {
+          print("onTapDownDetails");
+          horizontalDragX = onTapDownDetails.localPosition.dx - 50;
+          if (horizontalDragX < 0) {
+            horizontalDragX = 0;
+          }
+          if (horizontalDragX >
+              MediaQuery.of(context).size.width - 100 - 20) {
+            horizontalDragX = MediaQuery.of(context).size.width - 100 - 20;
+          }
+
+          strMinTime =
+              getStrMinTime(horizontalDragX, horizontalDragXFix, maxTime);
+          setState(() {});
+
+          debouncerScrollTimeline.run(() {
+            if (kIsWeb) {
+              // js.context.callMethod(
+              //     'setScrollValue', [horizontalDragX, horizontalDragXFix]);
+            } else {}
+          });
+        },
+        onHorizontalDragUpdate: (dragUpdateHorizontalDetails) {
+          print("onHorizontalDragUpdate");
+          horizontalDragX =
+              dragUpdateHorizontalDetails.globalPosition.dx - 50;
+          if (horizontalDragX < 0) {
+            horizontalDragX = 0;
+          }
+          if (horizontalDragX >
+              MediaQuery.of(context).size.width - 100 - 20) {
+            horizontalDragX = MediaQuery.of(context).size.width - 100 - 20;
+          }
+
+          strMinTime =
+              getStrMinTime(horizontalDragX, horizontalDragXFix, maxTime);
+          setState(() {});
+
+          debouncerScrollTimeline.run(() {
+            if (kIsWeb) {
+              // js.context.callMethod(
+              //     'setScrollValue', [horizontalDragX, horizontalDragXFix]);
+            } else {}
+          });
+        },
+        child: Container(
+            color: const Color(0xFF505050),
+            margin: const EdgeInsets.only(left: 50, right: 50),
+            width: MediaQuery.of(context).size.width - 100,
+            height: 20,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: horizontalDragX,
+                  child: Container(
+                    // color: Colors.green,
+                    color: const Color(0xFF808080),
+                    width: 20,
+                    height: 20,
+                  ),
+                )
+              ],
+            )),
+      ),
+    );    
+  }
+  
+  String getStrMinTime(horizontalDragX, horizontalDragXFix, maxTime) {
+    String strMinTime = '';
+    double minTime = horizontalDragX / horizontalDragXFix * maxTime;
+    // print("minTime");
+    // print(minTime);
+    if (minTime > 3600) {
+      final lastDecimals =
+          (minTime - minTime.floor()).toStringAsFixed(3).replaceFirst("0.", "");
+      strMinTime =
+          ((minTime / 3600).floor() % (3600 * 24)).toString().padLeft(2, "0") +
+              ":" +
+              ((minTime / 60).floor() % 3600).toString().padLeft(2, "0") +
+              ":" +
+              (minTime.floor() % 60).toString().padLeft(2, "0") +
+              " " +
+              lastDecimals;
+    } else {
+      final lastDecimals =
+          (minTime - minTime.floor()).toStringAsFixed(3).replaceFirst("0.", "");
+      strMinTime = ((minTime / 60).floor() % 3600).toString().padLeft(2, "0") +
+          ":" +
+          (minTime.floor() % 60).toString().padLeft(2, "0") +
+          " " +
+          lastDecimals;
+    }
+    // print("minTime");
+    // print(strMinTime);
+    return strMinTime;
+  }  
 }
 
 class _GraphArea extends StatefulWidget {

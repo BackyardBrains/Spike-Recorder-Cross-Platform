@@ -124,3 +124,6 @@ void main() async {
   print("   config[3] = Group Index - Index within the electrode group");
   print("   config[4] = BitVolts (µV) - Conversion factor from raw values to voltage");
 }
+
+
+

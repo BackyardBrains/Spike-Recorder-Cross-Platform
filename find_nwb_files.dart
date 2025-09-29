@@ -81,3 +81,6 @@ void main() async {
   print("\n💡 You can also manually search for .nwb files using:");
   print("   find /Users/macbook -name '*.nwb' -type f 2>/dev/null");
 }
+
+
+

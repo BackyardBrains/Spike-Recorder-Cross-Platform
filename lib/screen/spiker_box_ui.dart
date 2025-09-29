@@ -260,8 +260,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
   List<bool> showWaveform = [];
   double widthChart = 800;
   double heightChart = 600;
-  // double defaultGain = 0.5 * 0.25;
-  double defaultGain = 0.125;
+  double defaultGain = 0.25 * 0.25;
+  // double defaultGain = 0.125;
   
   FocusNode keyboardFocusNode = FocusNode();
   Debouncer debouncerKeyboard = Debouncer(milliseconds: 77);

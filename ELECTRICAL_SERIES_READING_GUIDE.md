@@ -479,3 +479,6 @@ void main() async {
 - **Missing timestamps**: Some files use `starting_time` + `rate` instead of explicit timestamps
 
 This guide should give you a comprehensive understanding of how to read electrical series data from NWB files using various approaches!
+
+
+

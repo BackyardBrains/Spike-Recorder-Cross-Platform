@@ -13,6 +13,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:mic_stream/mic_stream.dart';
 // import 'package:flutter_libserialport/flutter_libserialport.dart';
 import 'package:native_add/model/model.dart';
+import 'package:nwbfile_plugin/nwbfile_plugin.dart';
 import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/constant/const_export.dart';
 import 'package:spikerbox_architecture/functionality/debouncer.dart';
@@ -34,6 +35,8 @@ import 'package:spikerbox_architecture/models/microphone_stream/microphone_strea
 import 'package:another_xlider/another_xlider.dart';
 
 class GraphTemplate extends StatefulWidget {
+  static int isLoadingFile = 0;
+
   static bool isPlayerPaused = false;
   static Board? selectedBoard;
   static ProcessingUtil? processingUtil;
@@ -212,6 +215,44 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   @override
   void initState() {
     super.initState();
+
+    scrubNotifier.addListener(() async {
+      List<int> timeScrub = scrubNotifier.value;
+      // nwbfile_seek_electrical_series(outSamples, outSampleCounts, outConfig, startTimeStamp, endTimeStamp, selectedChannel, channelCount)
+      Int16List arrSamples = Int16List(1);
+      loadedMaxSamples = loadedConfig[5];
+      int sampleRateConfig = loadedConfig[0];
+
+      double arrSamplesLength = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRateConfig;
+      // double arrSamplesLength = maxSamples.toDouble();
+      arrSamples = Int16List(arrSamplesLength.floor());
+      Int32List arrSampleCount = Int32List(widget.channelCount);
+
+      double percentage = timeScrub[0] / timeScrub[1];
+      // double percentage = 0.1;
+      // double startSeekSample = (arrSamplesLength * percentage);
+      double startSeekSample = loadedMaxSamples * percentage;
+      // double endSeekSample = arrSamplesLength; // (arrSamplesLength - startSeekSample).floor()
+      double endSeekSample = min(startSeekSample + arrSamplesLength, loadedMaxSamples.toDouble()); // (arrSamplesLength - startSeekSample).floor()
+      if (startSeekSample + arrSamplesLength > loadedMaxSamples) {
+        return;
+      } else {
+
+      }
+
+
+      await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
+      print("Percentage: $percentage @@@ Config: $loadedConfig ||| scrubNotifier: ${timeScrub} ${(arrSamplesLength * percentage).floor()}, ${(arrSamplesLength - startSeekSample).floor()}");
+      
+      loadedArrSamples = Int16List(arrSampleCount[0].floor());
+      loadedArrSamples.setAll(0, arrSamples.sublist(0, arrSampleCount[0].floor()));
+      loadedArrChannelCount.setAll(0, arrSampleCount);
+      processingUtil.initWithConfig(loadedConfig);
+      
+      GraphTemplate.isLoadingFile = 1;
+      GraphTemplate.isPlayerPaused = true;
+
+    });
     context.read<ThresholdStatusProvider>().addListener(() {
       bool isThresholding = context.read<ThresholdStatusProvider>().isThresholding;
       if (isThresholding) {
@@ -469,7 +510,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
               // print(listOfBoard);
               // print(connectedBoards);
               for (Board board in connectedBoards) {
-                if (board.uniqueName == foundDevices) {
+                if (board.uniqueName == foundDevices) {   
                   GraphTemplate.selectedBoard = board;
                   // HARDCODE
                   deviceType = listOfDevices.indexOf("$foundDevices;") + 1;
@@ -553,8 +594,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
             TimeCalculateWidget.prevDisplayTimeMsLabel *0.001, TimeCalculateWidget.prevWidthOfScale, MediaQuery.of(context).size.width, bufferPos);
           double startElementIdx = screenPositionToElementPosition(SoundWaveView.dragDetails!.position.dx, _sampleRate, ProcessingUtil.positionIndex, 
             TimeCalculateWidget.displayTimeMsLabel *0.001, TimeCalculateWidget.widthOfScale, MediaQuery.of(context).size.width, bufferPos);
-          print("DIFFERENCES = $prevStartElementIdx - $startElementIdx = ${prevStartElementIdx - startElementIdx} | ${ProcessingUtil.positionIndex}");
-          print("LABELS: ${DraggableGraph.eventMarkersPosition} ${DraggableGraph.eventMarkersLabels} ||| ${ProcessingUtil.eventLabels.sublist(0, ProcessingUtil.currentEventMarkers)} - Sublist: ${ProcessingUtil.eventPosition.sublist(0, ProcessingUtil.currentEventMarkers)}");
+          // print("DIFFERENCES = $prevStartElementIdx - $startElementIdx = ${prevStartElementIdx - startElementIdx} | ${ProcessingUtil.positionIndex}");
+          // print("LABELS: ${DraggableGraph.eventMarkersPosition} ${DraggableGraph.eventMarkersLabels} ||| ${ProcessingUtil.eventLabels.sublist(0, ProcessingUtil.currentEventMarkers)} - Sublist: ${ProcessingUtil.eventPosition.sublist(0, ProcessingUtil.currentEventMarkers)}");
 
           bufferPaddingLeft = bufferPaddingLeft - (prevStartElementIdx - startElementIdx);
           if (displayTimeMs == 10000) {
@@ -653,6 +694,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     return Scaffold(
       backgroundColor: SoftwareColors.kBackGroundColor,
       body: _AdaptiveArea(
+          notifier: scrubNotifier,
           child1: const _GraphArea(),
           child3: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -1135,7 +1177,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                           if (isRecording != 1) ... {
                             SpikerBoxButton(onTapButton: () async {
                               print("INIT NWB FILE");
-                              isLoadingFile = 1;
+                              GraphTemplate.isLoadingFile = 1;
                               Int32List arrConfig = Int32List(10);
                               Int32List arrSampleCount = Int32List(widget.channelCount);
                               Int16List arrSamples = Int16List(1);
@@ -1144,16 +1186,26 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                               await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, 1, 0, 1);
                               loadedMaxSamples = arrConfig[5];
                               int sampleRateConfig = arrConfig[0];
+                              
+                              loadedConfig.setAll(0, arrConfig);
                               _sampleRate = sampleRateConfig;
+
+                              AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
+                              // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
                               
                               print("sampleRateConfig: $sampleRateConfig");
                               double arrSamplesLength = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRateConfig;
                               // double arrSamplesLength = maxSamples.toDouble();
                               arrSamples = Int16List(arrSamplesLength.floor());
 
-                              await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, arrSamplesLength.floor(), 0, 1);
-                              loadedArrSamples = Int16List(arrSamplesLength.floor());
-                              loadedArrSamples.setAll(0, arrSamples);
+                              // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, arrSamplesLength.floor(), 0, 1);
+                              double startSeekSample = 0;
+                              double endSeekSample = arrSamplesLength; // (arrSamplesLength - startSeekSample).floor()
+
+                              await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
+                              // print("ARRCONFIG: ${arrSamples[0]}");
+                              loadedArrSamples = Int16List(arrSampleCount[0].floor());
+                              loadedArrSamples.setAll(0, arrSamples.sublist(0, arrSampleCount[0].floor()));
                               loadedArrChannelCount.setAll(0, arrSampleCount);
                               processingUtil.initWithConfig(arrConfig);
                               GraphTemplate.isPlayerPaused = true;
@@ -1984,10 +2036,12 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   
   int isRecording = 0;
   
-  int isLoadingFile = 0;
   int loadedMaxSamples = 0;
+  Int32List loadedConfig = Int32List(10);
   Int16List loadedArrSamples = Int16List(200);
   Int32List loadedArrChannelCount = Int32List(1);
+  
+  ValueNotifier<List<int>> scrubNotifier = ValueNotifier([]);
 
   void micListener(){
     // print("miCLISTENER DATA");
@@ -1997,7 +2051,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     // print("isAUDIO LISTEN: $isAudioListen");
-    if (isLoadingFile == 2) {
+    if (GraphTemplate.isLoadingFile == 2) {
       int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
       // int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
       // int maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
@@ -2005,8 +2059,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       // DraggableGraph.endPositionIdx = maxSamples;
       // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, 0, maxDisplaySamples );
 
-      // int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
-      int maxSamples = loadedMaxSamples;
+      int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+      // int maxSamples = loadedMaxSamples;
       int toSample = (maxSamples + bufferPaddingLeft).toInt();
       toSample = min(maxSamples, toSample);
       int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
@@ -2016,8 +2070,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
       // print("RANGE MASK : ${DraggableGraph.startPositionIdx} -- ${DraggableGraph.endPositionIdx} || ${maxDisplaySamples} || ${maxSamples} ${_sampleRate}");
     } else
-    if (isLoadingFile == 1) {
-      isLoadingFile = 2;
+    if (GraphTemplate.isLoadingFile == 1) {
+      GraphTemplate.isLoadingFile = 2;
       List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples.buffer.asUint8List());
     } else
     if (isAudioListen) {
@@ -2528,28 +2582,29 @@ class SetFrequencyWidget extends StatelessWidget {
 }
 
 class _AdaptiveArea extends StatefulWidget {
-  const _AdaptiveArea({required this.child1, required this.child3, required this.child2});
+  const _AdaptiveArea({required this.child1, required this.child3, required this.child2, required this.notifier});
 
   final Widget child1;
   final Widget child2;
   final Widget child3;
+  final ValueNotifier<List<int>> notifier;
 
   @override
-  State<_AdaptiveArea> createState() => _AdaptiveAreaState();
+  State<_AdaptiveArea> createState() => AdaptiveAreaState();
 }
 
-class _AdaptiveAreaState extends State<_AdaptiveArea> {
+class AdaptiveAreaState extends State<_AdaptiveArea> {
   Debouncer debouncerScrollTimeline = Debouncer(milliseconds: 3);
   
-  double horizontalDragX = 0;
+  static double horizontalDragX = 0;
   
-  double horizontalDragXFix = 0;
+  static double horizontalDragXFix = 0;
 
-  String strMaxTime = '';
+  static String strMaxTime = '';
 
-  String strMinTime = '';
+  static String strMinTime = '';
 
-  double maxTime = 0;
+  static double maxTime = 0;
   @override
   Widget build(BuildContext context) {
     return Consumer<SoftwareConfigProvider>(builder: (context, softwareSetting, snapshot) {
@@ -2563,7 +2618,26 @@ class _AdaptiveAreaState extends State<_AdaptiveArea> {
             //   child: widget.child2,
             // ),
             if (GraphTemplate.isPlayerPaused)... {
-              getTimeScrubWidget()
+              getTimeScrubWidget(),
+              if (GraphTemplate.isLoadingFile == 2) ...{
+                // strMinTime = "00:00 000";
+                Positioned(
+                  left: 50,
+                  bottom: 110,
+                  child: Text(strMinTime,
+                      textAlign: TextAlign.left, style: TextStyle(color: Colors.white)),
+                ),
+                Positioned(
+                  right: 50,
+                  bottom: 110,
+                  child: Container(
+                      width: 150,
+                      child: Text(strMaxTime,
+                          textAlign: TextAlign.right,
+                          style: TextStyle(color: Colors.white))),
+                )
+              }
+
             },
             softwareSetting.isSettingEnable
                 ? Container(
@@ -2582,12 +2656,17 @@ class _AdaptiveAreaState extends State<_AdaptiveArea> {
   }
   
   getTimeScrubWidget() {
+    horizontalDragXFix = MediaQuery.of(context).size.width - 100 - 20;    
+    strMinTime =
+        getStrMinTime(horizontalDragX, horizontalDragXFix, maxTime);    
+    strMaxTime =
+        getStrMinTime(horizontalDragXFix, horizontalDragXFix, maxTime);
+
     return Positioned(
       left: 0,
-      bottom: 100,
+      bottom: 140,
       child: GestureDetector(
         onTapDown: (onTapDownDetails) {
-          print("onTapDownDetails");
           horizontalDragX = onTapDownDetails.localPosition.dx - 50;
           if (horizontalDragX < 0) {
             horizontalDragX = 0;
@@ -2599,6 +2678,7 @@ class _AdaptiveAreaState extends State<_AdaptiveArea> {
 
           strMinTime =
               getStrMinTime(horizontalDragX, horizontalDragXFix, maxTime);
+          print("onTapDownDetails : $strMinTime");
           setState(() {});
 
           debouncerScrollTimeline.run(() {
@@ -2609,7 +2689,7 @@ class _AdaptiveAreaState extends State<_AdaptiveArea> {
           });
         },
         onHorizontalDragUpdate: (dragUpdateHorizontalDetails) {
-          print("onHorizontalDragUpdate");
+          // print("onHorizontalDragUpdate");
           horizontalDragX =
               dragUpdateHorizontalDetails.globalPosition.dx - 50;
           if (horizontalDragX < 0) {
@@ -2625,6 +2705,11 @@ class _AdaptiveAreaState extends State<_AdaptiveArea> {
           setState(() {});
 
           debouncerScrollTimeline.run(() {
+            // reload the loaded samples
+            // print("debouncerScrollTimeline: $horizontalDragX");
+            widget.notifier.value = [horizontalDragX.toInt(), horizontalDragXFix.toInt()];
+            // widget.notifier.value = [100, 200];
+            // nwbfile_seek_electrical_series(outSamples, outSampleCounts, outConfig, startTimeStamp, endTimeStamp, selectedChannel, channelCount)
             if (kIsWeb) {
               // js.context.callMethod(
               //     'setScrollValue', [horizontalDragX, horizontalDragXFix]);
@@ -2655,9 +2740,9 @@ class _AdaptiveAreaState extends State<_AdaptiveArea> {
   
   String getStrMinTime(horizontalDragX, horizontalDragXFix, maxTime) {
     String strMinTime = '';
-    double minTime = horizontalDragX / horizontalDragXFix * maxTime;
     // print("minTime");
-    // print(minTime);
+    // print("horizontalDragX / horizontalDragXFix * maxTime: $horizontalDragX / $horizontalDragXFix * $maxTime}");
+    double minTime = horizontalDragX / horizontalDragXFix * maxTime;
     if (minTime > 3600) {
       final lastDecimals =
           (minTime - minTime.floor()).toStringAsFixed(3).replaceFirst("0.", "");

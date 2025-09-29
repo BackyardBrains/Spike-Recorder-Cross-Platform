@@ -747,3 +747,6 @@ class _ElectricalSeriesScreenState extends State<ElectricalSeriesScreen> {
     );
   }
 }
+
+
+

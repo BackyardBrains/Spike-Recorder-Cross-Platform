@@ -228,7 +228,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     // print("ProcessingUtil.positionIndex : $_sampleRate --  ${ProcessingUtil.positionIndex}");
 
     final outSampleCountsPtr = calloc<Int32>();
-
+    // print("PROCESS MICROPHONE DATA: ${data.length}");
     try {
       // Prepare input data pointer
       final inDataPtr = calloc<Uint8>(data.length);
@@ -240,7 +240,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       final result = pb.processingBindings.processMicrophoneStream(
           currentDataBuffer!, outSampleCountsPtr, inDataPtr, data.length);
       if (result != 0) {
-        throw Exception('Failed to process microphone data: $result');
+        // throw Exception('Failed to process microphone data: $result');
       } else {
       }
 

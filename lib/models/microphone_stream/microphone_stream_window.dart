@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:mic_stream/mic_stream.dart';
+import 'package:spikerbox_architecture/screen/graph_template.dart';
 // import 'package:record/record.dart';
 
 import 'microphone_stream_check.dart';
@@ -33,7 +34,9 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
             audioFormat: AudioFormat.ENCODING_PCM_16BIT));
     micStream = addListenAudioStreamController;
     microphoneStream?.listen((onData) {
-      micStream?.value = onData;
+      if (GraphTemplate.isLoadingFile < 3) {
+        micStream?.value = onData;
+      }
     });
 
 

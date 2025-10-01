@@ -580,6 +580,13 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
 int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out_sample_counts,
                                            const uint8_t* in_data, int32_t length) {
       if (!initialized || !out_samples || !out_sample_counts || !in_data || length <= 0) {
+        // platform_log_processing("PROCESS MICROPHONE STREAM ERROR\n");
+        // platform_log_processing( std::to_string(initialized).c_str());
+        // platform_log_processing("out_samples: %p\n", out_samples);
+        // platform_log_processing("out_sample_counts: %p\n", out_sample_counts);
+        // platform_log_processing("in_data: %p\n", in_data);
+        // platform_log_processing("length: %d\n", length);
+        // platform_log_processing("\n");
             return -1;
       }
     //   isProcessThresholding = false;

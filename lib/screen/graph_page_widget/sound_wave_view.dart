@@ -62,6 +62,7 @@ class _BottomButtonsState extends State<BottomButtons> {
   @override
   Widget build(BuildContext context) {
     bool isGraphStatus = context.read<GraphResumePlayProvider>().graphStatus;
+    // print("IS GRAPH STATUS: $isGraphStatus");
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,

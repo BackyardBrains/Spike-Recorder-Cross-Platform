@@ -219,6 +219,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   void initState() {
     super.initState();
 
+
     scrubNotifier.addListener(() async {
       List<int> timeScrub = scrubNotifier.value;
       // nwbfile_seek_electrical_series(outSamples, outSampleCounts, outConfig, startTimeStamp, endTimeStamp, selectedChannel, channelCount)
@@ -257,6 +258,16 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       
       GraphTemplate.isLoadingFile = 1;
       GraphTemplate.isPlayerPaused = true;
+
+      Future.delayed(Duration(milliseconds: 100), () async{
+        context.read<GraphDataProvider>().addListener(() {
+          print("GraphDataProvider LISTENER");
+          if (context.read<GraphDataProvider>().isRewind) {
+            context.read<GraphDataProvider>().resetGraphBuffer();
+            startOpeningFile();
+          } 
+        });
+      });
 
     });
     context.read<ThresholdStatusProvider>().addListener(() {
@@ -1182,50 +1193,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                           ),
                           if (isRecording != 1) ... {
                             SpikerBoxButton(onTapButton: () async {
-                              print("INIT NWB FILE");
-                              GraphTemplate.isLoadingFile = 1;
-                              Int32List arrConfig = Int32List(10);
-                              Int32List arrSampleCount = Int32List(widget.channelCount);
-                              Int16List arrSamples = Int16List(1);
-                              // await GraphTemplate.nwbFileUtil?.readElectricalSeries(arrSampleCount, arrChannelCount, 0, 1);
-                              // DEMO
-                              await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, 1, 0, 1);
-                              loadedMaxSamples = arrConfig[5];
-                              int sampleRateConfig = arrConfig[0];
                               
-                              loadedConfig.setAll(0, arrConfig);
-                              loadedMaxSamples = arrConfig[5];
-                              _sampleRate = sampleRateConfig;
-
-                              AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
-                              // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
-                              
-                              print("sampleRateConfig: $sampleRateConfig");
-                              double arrSamplesLength = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRateConfig;
-                              // double arrSamplesLength = maxSamples.toDouble();
-                              arrSamples = Int16List(arrSamplesLength.floor());
-
-                              // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, arrSamplesLength.floor(), 0, 1);
-                              double startSeekSample = 0;
-                              double endSeekSample = arrSamplesLength; // (arrSamplesLength - startSeekSample).floor()
-                              startSeekSampleIdx = startSeekSample.floor();
-                              endSeekSampleIdx = endSeekSample.floor();
-
-                              await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
-                              print("Start Seek Sample: $startSeekSample --- End Seek Sample: $endSeekSample");
-                              
-                              loadedArrSamples = Int16List(arrSampleCount[0].floor());
-                              loadedArrSamples.setAll(0, arrSamples.sublist(0, arrSampleCount[0].floor()));
-                              loadedArrChannelCount.setAll(0, arrSampleCount);
-                              processingUtil.initWithConfig(arrConfig);
-
-                              GraphTemplate.isPlayerPaused = true;
-                              microphoneUtil.micStream.value = Uint8List(0);
-                              Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
-                              // isLoadingFile = 2;
-                              setState(() {
-                                
-                              });
+                              startOpeningFile();
 
                             }, iconData: Icons.menu)
                           },
@@ -1235,6 +1204,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                   ),
                   BottomButtons(
                     pauseButton: (bool isPlay) async {
+                      print("setGraphResumePlay PLAYBACK PAUSE BUTTON");
                       Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(isPlay);
                       _toPauseGraph = isPlay;
 
@@ -1250,6 +1220,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                         print("STOP SOUND");
                         soloud?.setDataIsEnded(loadedFileStream!);
                         soloud?.stop(loadedSoundHandle!);
+                        timerPlaybackLoadedFile?.cancel();
                         GraphTemplate.isLoadingFile = 2;
                       } else {
 
@@ -1261,58 +1232,18 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                           channels: SoLoud.Channels.mono,
                           format: SoLoud.BufferType.s16le,
                           onBuffering: (isBuffering, handle, time) async {
-                            // debugPrint('started buffering? $isBuffering  with '
-                            //     'handle: $handle at time $time');
                             if (context.mounted) {
-                              if (time == 0) {
-                                // microphoneUtil.micStream.value = Uint8List(0);
 
-
-                              } 
-                              else
-                              if (time > 0) {
-
-                                print("START SEEK SAMPLE ENDED $time  $startSeekSampleIdx | $endSeekSampleIdx --- $loadedMaxSamples");
-                                return;
-                                // double startSeekSample = endSeekSampleIdx.toDouble();
-                                // double endSeekSample = (loadedMaxSamples).toDouble(); // (arrSamplesLength - startSeekSample).floor()
-                                // startSeekSampleIdx = startSeekSample.floor();
-                                // endSeekSampleIdx = endSeekSample.floor();
-
-                                // print("ARR SAMPLES ZERO");
-                                // Int32List arrSampleCount = Int32List(widget.channelCount);
-                                // Int16List arrSamples = Int16List(endSeekSampleIdx - startSeekSampleIdx);
-                                // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
-                                // print("ARR SAMPLES0: ${arrSampleCount[0]}");
-                                // // soloud!.addAudioDataStream(loadedFileStream!, loadedArrSamples.buffer.asUint8List());
-
-                                // // loadedArrSamples = Int16List(arrSampleCount[0].floor());
-                                // // loadedArrSamples.setAll(0, arrSamples.sublist(0, arrSampleCount[0].floor()));
-                                // // loadedArrChannelCount.setAll(0, arrSampleCount);
-                                // // processingUtil.initWithConfig(loadedConfig);
-
-                                // GraphTemplate.isLoadingFile = 2;
-                                // GraphTemplate.isPlayerPaused = true;
-                                // // soloud?.setDataIsEnded(loadedFileStream!);
-                                // // soloud?.stop(loadedSoundHandle!);
-
-                                // Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(true);
-                                // timerPlaybackLoadedFile?.cancel();
-
-                              }
-                              // setState(() {
-                              //   streamBuffering.value = !streamBuffering.value;
-                              // });
                             }
                           },                          
                         );
                         
-                        print("TIME 0");
                         
                         // insert old samples, if samplesLength == 0 return null,
                         double startSeekSample = startSeekSampleIdx.toDouble();
                         double maxScreenSamples = ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate;
                         double endSeekSample = 0; // (arrSamplesLength - startSeekSample).floor()
+                        print("TIME 0 $startSeekSample | $maxScreenSamples | $loadedMaxSamples | $endSeekSample");
                         // scenario 1: 3 seconds recorded audio : start 0 => END 210000
                         // scenario 2: 700000 samples recorded audio : start 200000 => END 680000  
                         if (loadedMaxSamples < maxScreenSamples) {
@@ -1321,70 +1252,98 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                           if (startSeekSampleIdx + maxScreenSamples > loadedMaxSamples) {
                             endSeekSample = loadedMaxSamples.toDouble();
                           } else {
-                            endSeekSample = startSeekSample + maxScreenSamples;
+                            endSeekSample = loadedMaxSamples.toDouble();
                           }
                         }
                         startSeekSampleIdx = startSeekSample.floor();
                         // endSeekSampleIdx = endSeekSample.floor();
-                        endSeekSampleIdx = loadedMaxSamples;
+                        endSeekSampleIdx = (loadedMaxSamples - startSeekSample).floor();
 
                         print("ARR SAMPLES ZERO : $loadedMaxSamples | $startSeekSample | $endSeekSample");
                         Int32List arrSampleCount = Int32List(widget.channelCount);
-                        Int16List arrSamples = Int16List(loadedMaxSamples - startSeekSampleIdx);
+                        // Int16List arrSamples = Int16List(loadedMaxSamples - startSeekSampleIdx);
+                        Int16List arrSamples = Int16List(loadedMaxSamples);
                         // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
-                        await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), (loadedMaxSamples).floor(), 0, 1);
+                        // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), (loadedMaxSamples).floor(), 0, 1);
+                        await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSampleIdx).floor(), (loadedMaxSamples).floor(), 0, 1);
                         loadedArrSamples = Int16List(arrSampleCount[0].floor());
-                        loadedArrSamples.setAll(0, arrSamples);
+                        loadedArrSamples.setAll(0, arrSamples.sublist(0, arrSampleCount[0].floor()));
                         loadedArrChannelCount.setAll(0, arrSampleCount);
                         soloud!.addAudioDataStream(loadedFileStream!, loadedArrSamples.buffer.asUint8List());
 
+                        print("ADDED DATA STREAM");
 
                         timerPlaybackLoadedFile?.cancel();
                         timerPlaybackLoadedStartIndex = 0;
                         timerPlaybackLoadedEndIndex = 0;
-                        int sampleDivider = 128;
+                        int rawSampleDivider = 128;
+                        double playbackFactor = _sampleRate / 1000 ;
+                        // 1000 *  1000 /48000
+                        int initialStartSeekSampleIdx = startSeekSampleIdx;
                         int loadedMaxSamplesPlayback = loadedMaxSamples - startSeekSampleIdx;
                         Future.delayed(Duration(milliseconds: 100), () {
-                          timerPlaybackLoadedFile = Timer.periodic(Duration(microseconds: (1000000 / (_sampleRate / sampleDivider)).floor()), (timer) async {
-                            // print("timerPlaybackLoadedFile ADD AUDIO");
+                          int prevTime = DateTime.now().millisecondsSinceEpoch;
+                          // timerPlaybackLoadedFile = Timer.periodic(Duration(microseconds: (1000000 / (_sampleRate / rawSampleDivider)).floor()), (timer) async {
+                          timerPlaybackLoadedFile = Timer.periodic(Duration(milliseconds: (50).floor()), (timer) async {
+                            GraphTemplate.isLoadingFile = 4;
+                            int timeDiff = DateTime.now().millisecondsSinceEpoch - prevTime;
+                            int sampleDivider = (timeDiff * playbackFactor).floor();
+                            prevTime = DateTime.now().millisecondsSinceEpoch;
+                            // print("timerPlaybackLoadedFile ADD AUDIO ||| $loadedMaxSamplesPlayback |||| $timerPlaybackLoadedStartIndex + $sampleDivider = $timerPlaybackLoadedEndIndex");
                             try {
                               timerPlaybackLoadedEndIndex = timerPlaybackLoadedStartIndex + sampleDivider;
+                              bool isPlaybackEnding = false;
                               if (timerPlaybackLoadedEndIndex > loadedMaxSamplesPlayback) {
                                 timerPlaybackLoadedEndIndex = loadedMaxSamplesPlayback - 1;
+                                isPlaybackEnding = true;
                               }
                               Uint8List sublistArray = loadedArrSamples.sublist(timerPlaybackLoadedStartIndex, timerPlaybackLoadedEndIndex).buffer.asUint8List();
+                              // print("SUBLIST ARRAY: ${timerPlaybackLoadedStartIndex}, ${timerPlaybackLoadedEndIndex}");
                               // soloud!.addAudioDataStream(loadedFileStream!, sublistArray);
                               timerPlaybackLoadedStartIndex = (timerPlaybackLoadedStartIndex + sampleDivider);
                               if (timerPlaybackLoadedStartIndex > loadedMaxSamplesPlayback) {
                                 timerPlaybackLoadedStartIndex = loadedMaxSamplesPlayback - 1;
+                                isPlaybackEnding = true;
+                              }
 
-                                double startSeekSampleLocal = endSeekSampleIdx.toDouble();
-                                double endSeekSampleLocal = (loadedMaxSamples).toDouble(); // (arrSamplesLength - startSeekSample).floor()
-                                startSeekSampleIdx = startSeekSample.floor();
-                                endSeekSampleIdx = endSeekSample.floor();
-
+                              if (isPlaybackEnding) {
                                 print("ARR SAMPLES ZERO");
-                                Int32List arrSampleCount = Int32List(widget.channelCount);
-                                Int16List arrSamples = Int16List(endSeekSampleIdx - startSeekSampleIdx);
-                                await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSampleLocal).floor(), endSeekSampleLocal.floor(), 0, 1);
-                                print("ARR SAMPLES0: ${arrSampleCount[0]}");
+                                // Int32List arrSampleCount = Int32List(widget.channelCount);
+                                // Int16List arrSamples = Int16List(endSeekSampleIdx - startSeekSampleIdx);
+                                // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSampleLocal).floor(), endSeekSampleLocal.floor(), 0, 1);
+                                // print("ARR SAMPLES0: ${arrSampleCount[0]}");
                                 GraphTemplate.isLoadingFile = 2;
-                                GraphTemplate.isPlayerPaused = true;
+                                GraphTemplate.isPlayerPaused = false;
 
-                                Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(true);
+                                if (context.mounted) {
+                                  print("setGraphResumePlay PLAYBACK ENDING");
+                                  Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
+                                }
 
                                 timerPlaybackLoadedStartIndex = 0;
                                 timerPlaybackLoadedEndIndex = 0;
-                                startSeekSampleIdx = startSeekSample.floor();
-                                endSeekSampleIdx = endSeekSample.floor();
+                                startSeekSampleIdx = 0;
+                                endSeekSampleIdx = 0;
+                                
+                                startSeekSample = 0;
+                                endSeekSample = 0;
                                 
 
                                 double playbackPercentage = (timerPlaybackLoadedStartIndex) / (loadedMaxSamplesPlayback);
                                 AdaptiveAreaState.horizontalDragX = playbackPercentage * AdaptiveAreaState.horizontalDragXFix;                                
                                 timerPlaybackLoadedFile?.cancel();
+                                soloud!.setDataIsEnded(loadedFileStream!);
+                                soloud!.stop(loadedSoundHandle!);
+                                setState(() {
+                                  
+                                });
                                 return;
+
+                              } else {
+                                startSeekSampleIdx = initialStartSeekSampleIdx + timerPlaybackLoadedStartIndex;
+                                endSeekSampleIdx = initialStartSeekSampleIdx + timerPlaybackLoadedEndIndex;
                               }
-                              GraphTemplate.isLoadingFile = 3;
+                              GraphTemplate.isLoadingFile = 4;
                               processingUtil.processMicrophoneData(sublistArray);
                               microphoneUtil.micStream.value = Uint8List(0);
 
@@ -1394,19 +1353,19 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                               setState(() {});
                             }catch(err) {     
                               // timerPlaybackLoadedFile?.cancel();                                 
-                              // print("ERR: $err ||| $timerPlaybackLoadedEndIndex | $timerPlaybackLoadedStartIndex | $loadedMaxSamplesPlayback");
+                              print("ERR: $err ||| $timerPlaybackLoadedEndIndex | $timerPlaybackLoadedStartIndex | $loadedMaxSamplesPlayback");
                             }
                           });
                           soloud!.play(loadedFileStream!).then((soundHandle) {
                             loadedSoundHandle = soundHandle;
                           });
-
                         });
                         
+                        print("ADDED DATA STREAM2");
 
 
                         GraphTemplate.isLoadingFile = 3;
-                        processingUtil.initWithConfig(loadedConfig);
+                        await processingUtil.initWithConfig(loadedConfig);
                         print("START SEEK SAMPLE INITIAL 0000 $startSeekSampleIdx ${arrSampleCount[0].floor()} == $loadedMaxSamples");
                         if (startSeekSampleIdx > 0 && arrSampleCount[0].floor() > 0) {
                           int startInitialIndex = (startSeekSampleIdx ~/ maxScreenSamples.floor()) * maxScreenSamples.floor();
@@ -1424,6 +1383,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                           processingUtil.processMicrophoneData(tempLoadedArrSamples.buffer.asUint8List());
                           // microphoneUtil.micStream.value = tempLoadedArrSamples.buffer.asUint8List();
                           microphoneUtil.micStream.value = Uint8List(0);
+                        } else {
+                          GraphTemplate.isLoadingFile = 4;
+                          // microphoneUtil.micStream.value = Uint8List(0);
                         }
                         
 
@@ -2650,6 +2612,55 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
         return const SizedBox.shrink();
       }
     });
+  }
+  
+  void startOpeningFile() async {
+    print("INIT NWB FILE");
+    GraphTemplate.isLoadingFile = 1;
+    Int32List arrConfig = Int32List(10);
+    Int32List arrSampleCount = Int32List(widget.channelCount);
+    Int16List arrSamples = Int16List(1);
+    // await GraphTemplate.nwbFileUtil?.readElectricalSeries(arrSampleCount, arrChannelCount, 0, 1);
+    // DEMO
+    await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, 1, 0, 1);
+    loadedMaxSamples = arrConfig[5];
+    int sampleRateConfig = arrConfig[0];
+    
+    loadedConfig.setAll(0, arrConfig);
+    loadedMaxSamples = arrConfig[5];
+    _sampleRate = sampleRateConfig;
+
+    AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
+    // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
+    
+    print("sampleRateConfig: $sampleRateConfig");
+    double arrSamplesLength = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRateConfig;
+    // double arrSamplesLength = maxSamples.toDouble();
+    arrSamples = Int16List(arrSamplesLength.floor());
+
+    // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, arrSamplesLength.floor(), 0, 1);
+    double startSeekSample = 0;
+    double endSeekSample = arrSamplesLength; // (arrSamplesLength - startSeekSample).floor()
+    startSeekSampleIdx = startSeekSample.floor();
+    endSeekSampleIdx = endSeekSample.floor();
+
+    await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
+    print("Start Seek Sample: $startSeekSample --- End Seek Sample: $endSeekSample");
+    
+    loadedArrSamples = Int16List(arrSampleCount[0].floor());
+    loadedArrSamples.setAll(0, arrSamples.sublist(0, arrSampleCount[0].floor()));
+    loadedArrChannelCount.setAll(0, arrSampleCount);
+    processingUtil.initWithConfig(arrConfig);
+
+    GraphTemplate.isPlayerPaused = true;
+    microphoneUtil.micStream.value = Uint8List(0);
+    print("setGraphResumePlay PLAYBACK INIT");
+    Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
+    // isLoadingFile = 2;
+    setState(() {
+      
+    });
+
   }
 
 }

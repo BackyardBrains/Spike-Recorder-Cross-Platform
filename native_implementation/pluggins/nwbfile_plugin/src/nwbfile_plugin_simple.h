@@ -12,7 +12,7 @@ int sum(int a, int b);
 int sum_long_running(int a, int b);
 
 // NWB processing functions
-int32_t processing_init(const char* path);
+int32_t processing_init(const char* path, int sampleRate, int channelCount, const char* deviceInfo, const char* deviceManufacturer);
 int32_t get_nwb_file_size();
 int32_t get_nwb_file_data(char* buffer, int buffer_size);
 void cleanup_nwb_data();

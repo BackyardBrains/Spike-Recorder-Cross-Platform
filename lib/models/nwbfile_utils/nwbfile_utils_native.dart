@@ -8,12 +8,14 @@ import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
 
 class NwbFileUtilImpl implements NWBFileUtil {
   @override
-  Future<bool> processingInit(int sampleRate, int channelCount) async {
+  Future<bool> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer) async {
     final path = (await getApplicationDocumentsDirectory()).path;
     print("NWB file path: $path");
     Pointer<Char> charPointer = path.toString().toNativeUtf8().cast<Char>();
+    Pointer<Char> deviceInfoPointer = deviceInfo.toNativeUtf8().cast<Char>();
+    Pointer<Char> deviceManufacturerPointer = deviceManufacturer.toNativeUtf8().cast<Char>();
 
-    nwb.processingInit(charPointer,sampleRate, channelCount);
+    nwb.processingInit(charPointer, sampleRate, channelCount, deviceInfoPointer, deviceManufacturerPointer);
     return Future.value(true);
   }
 
@@ -80,38 +82,42 @@ class NwbFileUtilImpl implements NWBFileUtil {
   }
 
   @override
-  Future<bool> seekElectricalSeries(Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startTimeStamp, int endTimeStamp, int selectedChannel, int channelCount) {
+  Future<bool> seekElectricalSeries(Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {
     Pointer<Int16> outSamplesPtr = calloc<Int16>(outSamples.length);
     Pointer<Int32> outSamplesCountPtr = calloc<Int32>(outSamplesCount.length);
     Pointer<Int32> outConfigPtr = calloc<Int32>(10); // Allocate for 5 config parameters
     try {
-      print("🎯 Seeking electrical series data...");
+      int numChannelsToRead = endChannel - startChannel + 1;
+      print("🎯 Seeking electrical series data (Multi-Channel)...");
       print("   Time range: $startTimeStamp to $endTimeStamp");
-      print("   Channel: $selectedChannel");
-      print("   Expected samples: ${endTimeStamp - startTimeStamp}");
+      print("   Channels: $startChannel to $endChannel ($numChannelsToRead channels)");
+      print("   Expected samples per channel: ${endTimeStamp - startTimeStamp}");
+      print("   Expected total data points: ${(endTimeStamp - startTimeStamp) * numChannelsToRead}");
       
-      int result = nwb.nwbfile_seek_electrical_series(outSamplesPtr, outSamplesCountPtr, outConfigPtr, startTimeStamp, endTimeStamp, selectedChannel, channelCount);
+      int result = nwb.nwbfile_seek_electrical_series(outSamplesPtr, outSamplesCountPtr, outConfigPtr, startTimeStamp, endTimeStamp, startChannel, endChannel);
       
-      print("📊 Seek result: $result");
+      print("📊 Seek result: $result == $startChannel, $endChannel");
       
       if (result == 0) {
         // Success - copy data back from native memory
-        int actualSampleCount = outSamplesCountPtr.value;
-        print("📊 Actual samples read: $actualSampleCount");
+        int actualDataPoints = outSamplesCountPtr.value;
+        int samplesPerChannel = actualDataPoints ~/ numChannelsToRead;
+        print("📊 Actual data points read: $actualDataPoints");
+        print("📊 Samples per channel: $samplesPerChannel");
         
-        // Copy the data back to the Dart list
-        if (actualSampleCount > 0 && actualSampleCount <= outSamples.length) {
-          for (int i = 0; i < actualSampleCount; i++) {
+        // Copy the data back to the Dart list (interleaved format)
+        if (actualDataPoints > 0 && actualDataPoints <= outSamples.length) {
+          for (int i = 0; i < actualDataPoints; i++) {
             outSamples[i] = outSamplesPtr[i];
           }
-          outSamplesCount[0] = actualSampleCount;
+          outSamplesCount[0] = actualDataPoints;
           
           // Copy configuration parameters
           for (int i = 0; i < 5 && i < outConfig.length; i++) {
             outConfig[i] = outConfigPtr[i];
           }
           
-          print("✅ Successfully copied $actualSampleCount samples from seek operation");
+          print("✅ Successfully copied $actualDataPoints data points from seek operation");
           
           // Print configuration parameters
           print("📋 Recording Configuration:");
@@ -121,17 +127,24 @@ class NwbFileUtilImpl implements NWBFileUtil {
           print("   Group Index: ${outConfig[3]}");
           print("   BitVolts (µV): ${outConfig[4]}");
           
-          // Print first few samples for verification
-          if (actualSampleCount > 0) {
-            print("📈 First 5 samples from seek:");
-            for (int i = 0; i < 5 && i < actualSampleCount; i++) {
-              print("   Sample ${startTimeStamp + i}: ${outSamples[i]}");
+          // Print first few samples for verification (interleaved format)
+          if (samplesPerChannel > 0) {
+            print("📈 First 5 samples from seek (interleaved format):");
+            int samplesToShow = (samplesPerChannel < 5) ? samplesPerChannel : 5;
+            for (int i = 0; i < samplesToShow; i++) {
+              String sampleInfo = "Sample ${startTimeStamp + i}: ";
+              for (int ch = 0; ch < numChannelsToRead; ch++) {
+                int idx = ch * samplesPerChannel + i;
+                sampleInfo += "Ch${startChannel + ch}=${outSamples[idx]}";
+                if (ch < numChannelsToRead - 1) sampleInfo += ", ";
+              }
+              print("   $sampleInfo");
             }
           }
           
           return Future.value(true);
         } else {
-          print("❌ Invalid sample count from seek: $actualSampleCount");
+          print("❌ Invalid data point count from seek: $actualDataPoints");
           return Future.value(false);
         }
       } else {

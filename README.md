@@ -30,3 +30,16 @@ The setChannelFilterEnabled method was being optimized away by the compiler beca
 Previous Issue when drawing FFT is because the memory is not using the correct address,
 // WRONG IN THIS PART
 // buffer[counter++] = (buffer[i].buffer.asFloat32List(0, windowSize));
+
+
+
+// RECORDING
+
+// LOADING
+
+// PLAYBACK
+pauseButton
+// Stopping Audio Playback
+GraphTemplate.isLoadingFile = 2; // standby mode to draw the current state, scrub also end at this state
+// Playing Audio
+

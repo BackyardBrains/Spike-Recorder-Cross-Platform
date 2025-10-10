@@ -37,7 +37,7 @@ FFI_PLUGIN_EXPORT int sum(int a, int b);
 FFI_PLUGIN_EXPORT int sum_long_running(int a, int b);
 
 // Processing initialization function
-FFI_PLUGIN_EXPORT int32_t processing_init(const char* path);
+FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int channelCount, const char* deviceInfo, const char* deviceManufacturer);
 FFI_PLUGIN_EXPORT int32_t get_nwb_file_size();
 FFI_PLUGIN_EXPORT int32_t get_nwb_file_data(uint8_t* buffer, int buffer_size);
 FFI_PLUGIN_EXPORT void cleanup_nwb_data();

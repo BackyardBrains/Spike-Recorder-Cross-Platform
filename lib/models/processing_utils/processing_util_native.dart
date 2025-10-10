@@ -228,7 +228,6 @@ class ProcessingUtilImpl implements ProcessingUtil {
     // print("ProcessingUtil.positionIndex : $_sampleRate --  ${ProcessingUtil.positionIndex}");
 
     final outSampleCountsPtr = calloc<Int32>();
-    // print("PROCESS MICROPHONE DATA: ${data.length}");
     try {
       // Prepare input data pointer
       final inDataPtr = calloc<Uint8>(data.length);
@@ -237,9 +236,12 @@ class ProcessingUtilImpl implements ProcessingUtil {
       }
 
       // Process the microphone data using pre-allocated buffer
+      // print("PROCESS MICROPHONE DATA1: ${data.length}");
       final result = pb.processingBindings.processMicrophoneStream(
           currentDataBuffer!, outSampleCountsPtr, inDataPtr, data.length);
+      // print("ERROR PROCESS MICROPHONE DATA: ${data.length} $result");
       if (result != 0) {
+
         // throw Exception('Failed to process microphone data: $result');
       } else {
       }
@@ -289,6 +291,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
         // print(
         //     "1ProcessingUtil.eventPosition ${ProcessingUtil.eventPosition.sublist(0, eventPositionLen)} --- ${inEventIndicesPtr!.asTypedList(eventPositionLen)}");
       }
+      // print("PROCESS MICROPHONE DATA2: ${data.length}");
 
       // Create Dart view of the native memory
       final sampleCount = outSampleCountsPtr.value;
@@ -600,7 +603,6 @@ class ProcessingUtilImpl implements ProcessingUtil {
   Future<List<Int16List>> processSerialData(Uint8List samples, int displayTimeMs,
       int deviceType, int drawSurfaceWidth,
       [GraphDataProvider? provider]) async {
-    // print("SERIAL DATA: $channelCount - ${samples.length} : $drawSurfaceWidth -- $sampleRate : $displayTimeMs DEVICETYPE: $deviceType");
     var outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
     for (int i = 0; i < channelCount; i++) {
       outSamplesPtr[i] = calloc<Int16>(drawSurfaceWidth * 5); // 5x for envelope
@@ -655,11 +657,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
       } else {
         if (inEventIndicesPtr![i] != -1) {
-        // print("inEventIndicesPtr![i] - frameCount:  ${inEventIndicesPtr![i]} - $frameCount");
-
           removedIndicesCount++;
           inEventIndicesPtr![i] = -1;
-          // DraggableGraph.eventMarkersPosition.removeAt(i);
         }
       }
     }

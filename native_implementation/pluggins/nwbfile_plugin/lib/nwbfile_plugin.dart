@@ -12,12 +12,12 @@ import 'nwbfile_plugin_bindings_generated.dart';
 /// They will block the Dart execution while running the native function, so
 /// only do this for native functions which are guaranteed to be short-lived.
 int sum(int a, int b) => _bindings.sum(a, b);
-int processingInit(Pointer<Char> path, int sampleRate, int channelCount) => _bindings.processing_init(path, sampleRate, channelCount);
+int processingInit(Pointer<Char> path, int sampleRate, int channelCount, Pointer<Char> deviceInfo, Pointer<Char> deviceManufacturer) => _bindings.processing_init(path, sampleRate, channelCount, deviceInfo, deviceManufacturer);
 int nwbfile_add_electrical_series(Pointer<Int16> inSamples, Pointer<Int32> numSamples, int selectedChannel, int channelCount, int isFinishRecording) => _bindings.nwbfile_add_electrical_series(inSamples, numSamples,selectedChannel, channelCount, isFinishRecording);
 int nwbfile_read_electrical_series(Pointer<Int16> outSamples, Pointer<Int32> outSampleCounts, int selectedChannel, int channelCount) => _bindings.nwbfile_read_electrical_series(outSamples, outSampleCounts,selectedChannel, channelCount);
 
-/// Seek and read a specific time range from electrical series data
-int nwbfile_seek_electrical_series(Pointer<Int16> outSamples, Pointer<Int32> outSampleCounts, Pointer<Int32> outConfig, int startTimeStamp, int endTimeStamp, int selectedChannel, int channelCount) => _bindings.nwbfile_seek_electrical_series(outSamples, outSampleCounts, outConfig, startTimeStamp, endTimeStamp, selectedChannel, channelCount);
+/// Seek and read a specific time range from electrical series data (multi-channel support)
+int nwbfile_seek_electrical_series(Pointer<Int16> outSamples, Pointer<Int32> outSampleCounts, Pointer<Int32> outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) => _bindings.nwbfile_seek_electrical_series(outSamples, outSampleCounts, outConfig, startTimeStamp, endTimeStamp, startChannel, endChannel);
 
 /// NWB file data functions for iOS
 int getNwbFileSize() => _bindings.get_nwb_file_size();

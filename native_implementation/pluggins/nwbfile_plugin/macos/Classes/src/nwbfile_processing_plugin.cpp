@@ -11,6 +11,7 @@
 #include "nwb/NWBFile.hpp"
 #include "nwb/misc/AnnotationSeries.hpp"
 #include "nwb/RecordingContainers.hpp"
+#include "nwb/device/Device.hpp"
 #include "nwb/ecephys/ElectricalSeries.hpp"
 #include <H5Cpp.h>
 
@@ -125,7 +126,7 @@ std::vector<AQNWB::Types::ChannelVector> recordingArrays;
 std::vector<AQNWB::Types::SizeType> containerIndexes;
 std::string outputPath;
 
-FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int channelCount) {
+FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int channelCount, const char* deviceInfo, const char* deviceManufacturer) {
     try {
         H5::Exception::dontPrint();
         std::cout << "AQNWB Recording Workflow Example" << std::endl;
@@ -134,7 +135,7 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
         // 1) Create the I/O object
         // /Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents
         // /Users/macbook/Library/Containers/com.example.nwbapplication/Data/Downloads/
-        outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording2.nwb";
+        outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
         // std::shared_ptr<AQNWB::IO::BaseIO> io = AQNWB::createIO("HDF5", outputPath);
         io = AQNWB::createIO("HDF5", outputPath);
         auto openStatus = io->open(AQNWB::IO::FileMode::Overwrite);
@@ -148,7 +149,6 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
         recordingContainers = std::make_unique<AQNWB::NWB::RecordingContainers>();
     
         // 3) Create and initialize the NWBFile
-        // std::unique_ptr<AQNWB::NWB::NWBFile> nwbfile = std::make_unique<AQNWB::NWB::NWBFile>(io);
         nwbfile = std::make_unique<AQNWB::NWB::NWBFile>(io);
         auto initStatus = nwbfile->initialize(AQNWB::generateUuid(),
                                                 "Example ecephys session",
@@ -157,6 +157,16 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
             std::cerr << "Failed to initialize NWB file" << std::endl;
             return 1;
         }
+
+        // 3.5) Add device information (AFTER NWBFile initialization)
+        std::cout << "Adding device information..." << std::endl;
+        std::unique_ptr<AQNWB::NWB::Device> device = 
+            std::make_unique<AQNWB::NWB::Device>("/general/devices/recording_device", io);
+        
+        // Initialize the device with description and manufacturer
+        device->initialize(deviceInfo, deviceManufacturer);
+        
+        std::cout << "Device information added successfully" << std::endl;
         std::cout << "Init Status: " << initStatus << "  " << channelCount << std::endl;
 
         // 4) Create recording metadata (ElectrodesTable)
@@ -165,7 +175,7 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
         std::vector<AQNWB::Types::ChannelVector> tempRecordingArrays;
         {
             AQNWB::Types::ChannelVector array1;
-            const std::string groupName = "Channel";
+            const std::string groupName = "Array1";
             const AQNWB::Types::SizeType groupIndex = 0;
             for (AQNWB::Types::SizeType ch = 0; ch < channelCount; ++ch) {
                 // name, groupName, groupIndex, localIndex, globalIndex, conversion, samplingRate, bitVolts
@@ -175,10 +185,9 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
                     groupIndex,
                     ch,               // local index within array
                     ch,               // global index across system (mock)
-                    // 1e6f,             // convert uV->V
-                    1.0f,             // convert uV->V
-                    sampleRate,          // sampling rate
-                    1.0f            // bitVolts
+                    1e6f,             // convert uV->V (correct conversion factor)
+                    static_cast<float>(sampleRate),  // sampling rate
+                    0.195f            // bitVolts (correct bit volts)
                 );
             }
             tempRecordingArrays.emplace_back(std::move(array1));
@@ -192,18 +201,17 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
     
         std::cout << "Recording arrays & table created: " << channelCount << std::endl;
         std::vector<std::string> recordingNames = {"ElectricalSeries1"};
-        // std::vector<AQNWB::Types::SizeType> containerIndexes;
-        for (int i = 0; i < channelCount; i++) {
-            auto elecSeriesStatus = nwbfile->createElectricalSeries(
-                recordingArrays,
-                recordingNames,
-                AQNWB::IO::BaseDataType::I16,
-                recordingContainers.get(),
-                containerIndexes);
-            if (elecSeriesStatus != AQNWB::Types::Success) {
-                std::cerr << "Failed to create ElectricalSeries" << std::endl;
-                return 1;
-            }    
+        
+        // Create ONE ElectricalSeries for all channels (not one per channel)
+        auto elecSeriesStatus = nwbfile->createElectricalSeries(
+            recordingArrays,
+            recordingNames,
+            AQNWB::IO::BaseDataType::I16,
+            recordingContainers.get(),
+            containerIndexes);
+        if (elecSeriesStatus != AQNWB::Types::Success) {
+            std::cerr << "Failed to create ElectricalSeries" << std::endl;
+            return 1;
         }
     
         std::cout << "START RECORDING" << 111.0 << std::endl;
@@ -227,11 +235,19 @@ int mutliplier = 0;
 int numSamplesCounter = 0;
 FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* samplesCount, int selectedChannel, int channelCount, int isFinishRecording) {
     std::cout << "AQNWB nwbfile_add_electrical_series" << std::endl;
-    short** arrSamples = new short*[channelCount];
-    for (int i = 0; i < channelCount; i++) {
-        arrSamples[i] = new short[samplesCount[i]];
-        std::copy(inSamples + i * samplesCount[i], inSamples + (i + 1) * samplesCount[i], arrSamples[i]);
+    
+    // Validate input parameters
+    if (!inSamples || !samplesCount || channelCount <= 0) {
+        std::cerr << "Invalid input parameters" << std::endl;
+        return -1;
     }
+    
+    short** arrSamples = new short*[channelCount];
+    try {
+        for (int i = 0; i < channelCount; i++) {
+            arrSamples[i] = new short[samplesCount[i]];
+            std::copy(inSamples + i * samplesCount[i], inSamples + (i + 1) * samplesCount[i], arrSamples[i]);
+        }
 
     // auto elecTableStatus = nwbfile->createElectrodesTable(recordingArrays);
     // if (elecTableStatus != AQNWB::Types::Success) {
@@ -251,101 +267,104 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* s
     // const AQNWB::Types::SizeType numSamples = 1000; // samples per write
     const AQNWB::Types::SizeType numSamples = samplesCount[0]; // samples per write
 
+    std::cout << "AQNWB NUM SAMPLES " << samplesCount[0] << std::endl;
     // timestamps at 30 kHz
-    std::vector<double> timestamps(numSamples);
+    std::vector<double> timestamps(numSamples );
     const double samplingRate = static_cast<double>(channels[0].getSamplingRate());
     const double dt = 1.0 / samplingRate;
+    // mutliplier = 0;
     numSamplesCounter += numSamples;
     mutliplier = numSamplesCounter / samplingRate;
-    // mutliplier = 0;
     for (AQNWB::Types::SizeType i = 0; i < numSamples; ++i) {
-        timestamps[i] = mutliplier * samplingRate + static_cast<double>(i) * dt;
+        timestamps[i] = (numSamplesCounter + i) * dt;
     }
     // file_log_nwbfile("timestamps: %f", timestamps[0]);
     std::cout << "TIMESTAMPS " << timestamps[0] << std::endl;
+    std::cout << "TIMESTAMPS " << timestamps[1] << std::endl;
 
-    // write data per-channel
-    // ERR: total channel got wrong
-    int channelIndex = 0;
-    for (const auto& ch : channels) {
-        auto writeStatus = recordingContainers->writeElectricalSeriesData(
-            containerIndex,
-            ch,
-            samplesCount[channelIndex],
-            static_cast<const void*>(arrSamples[channelIndex]),
-            static_cast<const void*>(timestamps.data()));
+        // Write data per-channel (original approach)
+        int channelIndex = 0;
+        for (const auto& ch : channels) {
+            auto writeStatus = recordingContainers->writeElectricalSeriesData(
+                containerIndex,
+                ch,
+                samplesCount[channelIndex],
+                static_cast<const void*>(arrSamples[channelIndex]),
+                static_cast<const void*>(timestamps.data()));
 
-        if (writeStatus != AQNWB::Types::Success) {
-            std::cerr << "Failed to write data for channel " << ch.getName() << writeStatus << std::endl;
+            if (writeStatus != AQNWB::Types::Success) {
+                std::cout << "WRITE ERROR " << samplesCount[channelIndex] << " CHANNEL: " << channelIndex << std::endl;
+                std::cerr << "Failed to write data for channel " << ch.getName() << writeStatus << std::endl;
+                // Clean up memory before returning
+                for (int i = 0; i < channelCount; i++) {
+                    delete[] arrSamples[i];
+                }
+                delete[] arrSamples;
+                return 1;
+            }
+            channelIndex++;        
+        }
+
+        // Ensure data is flushed to disk
+        auto flushStatus = io->flush();
+        if (flushStatus != AQNWB::Types::Success) {
+            std::cerr << "Flush failed" << std::endl;
+            // Clean up memory before returning
+            for (int i = 0; i < channelCount; i++) {
+                delete[] arrSamples[i];
+            }
+            delete[] arrSamples;
             return 1;
         }
-        channelIndex++;        
-    }
 
-    // Add more annotations to existing series BEFORE finalizing
-    std::cout << "\n=== Adding More Annotations ===" << std::endl;       
-    // Ensure data is flushed to disk AFTER adding all annotations
-    auto flushStatus = io->flush();
-    if (flushStatus != AQNWB::Types::Success) {
-        std::cerr << "Flush failed" << std::endl;
-        return 1;
-    }
-
-    if (isFinishRecording == 1) {
+        if (isFinishRecording == 1) {
         // 8) Stop recording and finalize the file
-        auto stopRecordingStatus = io->stopRecording();
-        if (stopRecordingStatus != AQNWB::Types::Success) {
-            std::cerr << "Failed to stop recording" << std::endl;
-            return 1;
-        }
-    
-        auto finalizeStatus = nwbfile->finalize();
-        if (finalizeStatus != AQNWB::Types::Success) {
-            std::cerr << "Failed to finalize NWB file" << std::endl;
-            return 1;
-        }
-    
-        std::cout << "Successfully wrote example recording to: " << outputPath << std::endl;
-            
-        std::shared_ptr<AQNWB::IO::BaseIO> readio = AQNWB::createIO("HDF5", outputPath);
-        readio->open(AQNWB::IO::FileMode::ReadOnly);
-        auto readNWBFile =
-            AQNWB::NWB::RegisteredType::create<AQNWB::NWB::NWBFile>("/", readio);
-            
-        // read annotation series
-        std::cout << "Reading annotation series..." << std::endl;
-            
-        // Read all annotation series after adding new ones
-        std::cout << "\n=== Reading All Annotation Series (After Adding New Ones) ===" << std::endl;
-        // Store the NWB file data in our global buffer
-        // For now, we'll create a simple mock NWB file structure
-        g_nwb_file_data.clear();
+            auto stopRecordingStatus = io->stopRecording();
+            if (stopRecordingStatus != AQNWB::Types::Success) {
+                std::cerr << "Failed to stop recording" << std::endl;
+                return 1;
+            }
         
-        // Create a simple mock NWB file header
-        std::string mock_nwb_content = 
-            "NWB File WRITE\n"
-            "Version: 2.0\n"
-            "Created: " + outputPath + "\n"
-            "Electrodes: 4\n"
-            "ElectricalSeries: 1\n"
-            "Data Points: 1000\n"
-            "Sampling Rate: 30000 Hz\n"
-            "File Size: Mock Data\n";
+            auto finalizeStatus = nwbfile->finalize();
+            if (finalizeStatus != AQNWB::Types::Success) {
+                std::cerr << "Failed to finalize NWB file" << std::endl;
+                return 1;
+            }
         
-        g_nwb_file_data.assign(mock_nwb_content.begin(), mock_nwb_content.end());
-        g_nwb_file_ready = true;
+            std::cout << "Successfully wrote example recording to: " << outputPath << std::endl;
     
+            // Clean up memory
+            for (int i = 0; i < channelCount; i++) {
+                delete[] arrSamples[i];
+            }
+            delete[] arrSamples;
+        
+            // Close IO after finalization (matching reference order)
+            auto closeStatus = io->close();
+            if (closeStatus != AQNWB::Types::Success) {
+                std::cerr << "Failed to close IO" << std::endl;
+                return 1;
+            }
+            std::cout << "\n=== IO CLOSED ===" << std::endl;
+
+        } else {
+            // Clean up memory for non-finishing calls
+            for (int i = 0; i < channelCount; i++) {
+                delete[] arrSamples[i];
+            }
+            delete[] arrSamples;
+        }
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Error in nwbfile_add_electrical_series: " << e.what() << std::endl;
+        // Clean up memory in case of exception
         for (int i = 0; i < channelCount; i++) {
             delete[] arrSamples[i];
         }
         delete[] arrSamples;
-    
-        auto closeStatus = io->close();
-        if (closeStatus != AQNWB::Types::Success) {
-            std::cerr << "Failed to close IO" << std::endl;
-            return 1;
-        }
+        return 1;
     }
+    
     return 0; // Success
 }
 
@@ -353,7 +372,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* s
 FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples, int* outSamplesCount, int selectedChannel, int channelCount) {
     std::cout << "AQNWB nwbfile_read_electrical_series" << std::endl;
     
-    outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording2.nwb";
+    outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
     // 1. Open the NWB file for reading
     // std::shared_ptr<BaseIO> io = AQNWB::createIO("HDF5", filePath);
     // auto openStatus = io->open(FileMode::ReadOnly);
@@ -1088,11 +1107,11 @@ FFI_PLUGIN_EXPORT int32_t debug_nwb_file_structure(const char* filePath) {
     }
 }
 
-FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int* outSamplesCount, int* outConfig, int startTimeStamp, int endTimeStamp, int selectedChannel, int channelCount) {
-    std::cout << "🎯 AQNWB nwbfile_seek_electrical_series" << std::endl;
+FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int* outSamplesCount, int* outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {
+    std::cout << "🎯 AQNWB nwbfile_seek_electrical_series (Multi-Channel)" << std::endl;
     std::cout << "   Seeking from sample " << startTimeStamp << " to " << endTimeStamp << std::endl;
-    std::cout << "   Channel: " << selectedChannel << " (total channels: " << channelCount << ")" << std::endl;
-    
+    std::cout << "   Channels: " << startChannel << " to " << endChannel << " (inclusive)" << std::endl;
+
     // Validate input parameters
     if (startTimeStamp < 0 || endTimeStamp < 0 || startTimeStamp >= endTimeStamp) {
         std::cerr << "❌ Invalid timestamp range: start=" << startTimeStamp << ", end=" << endTimeStamp << std::endl;
@@ -1100,13 +1119,16 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int*
         return -1;
     }
     
-    if (selectedChannel < 0 || selectedChannel >= channelCount) {
-        std::cerr << "❌ Invalid channel: " << selectedChannel << " (max: " << (channelCount - 1) << ")" << std::endl;
+    if (startChannel < 0 || endChannel < 0 || startChannel > endChannel) {
+        std::cerr << "❌ Invalid channel range: start=" << startChannel << ", end=" << endChannel << std::endl;
         *outSamplesCount = 0;
         return -1;
     }
     
-    outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording2.nwb";
+    int numChannelsToRead = endChannel - startChannel + 1;
+    std::cout << "   Number of channels to read: " << numChannelsToRead << std::endl;
+    
+    outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
     std::string filePath = outputPath;
     
     // Open AQNWB file
@@ -1134,7 +1156,53 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int*
     try {
         metadataFile = std::make_unique<H5::H5File>(filePath, H5F_ACC_RDONLY);
         std::cout << "✅ Opened HDF5 file for metadata extraction" << std::endl;
+
         
+
+        try{
+            H5::Group deviceGroup = metadataFile->openGroup("/general/devices/recording_device");
+            std::cout << "✅ Device group opened successfully" << std::endl;
+            // Read device description
+            std::string deviceDescription = "";
+            try {
+                H5::Attribute descAttr = deviceGroup.openAttribute("description");
+                H5::StrType strType(H5::PredType::C_S1, H5T_VARIABLE);
+                std::string description;
+                descAttr.read(strType, description);
+                deviceDescription = description;
+                std::cout << "📋 Device Description: " << description << std::endl;
+            } catch (const H5::Exception& e) {
+                std::cout << "⚠️  Could not read device description: " << e.getDetailMsg() << std::endl;
+            }
+            
+            // Read device manufacturer
+            try {
+                H5::Attribute manufAttr = deviceGroup.openAttribute("manufacturer");
+                H5::StrType strType(H5::PredType::C_S1, H5T_VARIABLE);
+                std::string manufacturer;
+                manufAttr.read(strType, manufacturer);
+                std::cout << "🏭 Device Manufacturer: " << manufacturer << std::endl;
+            } catch (const H5::Exception& e) {
+                std::cout << "⚠️  Could not read device manufacturer: " << e.getDetailMsg() << std::endl;
+            }
+            
+            // if (description.find("Audio|||") > -1) {
+            int res = deviceDescription.find("Audio|||");
+            if (res != std::string::npos){
+                outConfig[6] = 0;
+                std::cout << "✅ Audio Device Detected " << std::endl;
+            } else{ 
+                outConfig[6] = 1;
+                std::cerr << "✅ Serial Device Detected" << std::endl;
+            }
+    
+        }catch(const H5::Exception& e){
+            std::cout << "⚠️  Could not open device group: " << e.getDetailMsg() << std::endl;
+        }
+
+
+
+
         // 1. Read sample rate from various possible locations
         bool sampleRateFound = false;
         
@@ -1377,9 +1445,9 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int*
             return -1;
         }
         
-        // Validate channel selection
-        if (selectedChannel >= static_cast<int>(totalChannels)) {
-            std::cerr << "❌ Invalid channel: " << selectedChannel << " (max: " << (totalChannels - 1) << ")" << std::endl;
+        // Validate channel range
+        if (endChannel >= static_cast<int>(totalChannels)) {
+            std::cerr << "❌ Invalid channel range: end=" << endChannel << " (max: " << (totalChannels - 1) << ")" << std::endl;
             *outSamplesCount = 0;
             return -1;
         }
@@ -1387,12 +1455,14 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int*
         // Calculate the number of samples to read
         int samplesToRead = endTimeStamp - startTimeStamp;
         std::cout << "📊 Samples to read: " << samplesToRead << std::endl;
+        std::cout << "📊 Channels to read: " << numChannelsToRead << std::endl;
         
-        // Read data for the selected channel within the specified time range
-        std::vector<int16_t> channelData(samplesToRead);
+        // Read data for multiple channels within the specified time range
+        // Data will be stored in interleaved format: [ch0_sample0, ch1_sample0, ..., chN_sample0, ch0_sample1, ch1_sample1, ...]
+        std::vector<int16_t> multiChannelData(samplesToRead * numChannelsToRead);
         
         if (rank == 1) {
-            // 1D data - read partial range
+            // 1D data - read partial range (treat as single channel)
             hsize_t offset[1] = {static_cast<hsize_t>(startTimeStamp)};
             hsize_t count[1] = {static_cast<hsize_t>(samplesToRead)};
             dataspace.selectHyperslab(H5S_SELECT_SET, count, offset);
@@ -1401,46 +1471,71 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int*
             hsize_t memDims[1] = {static_cast<hsize_t>(samplesToRead)};
             H5::DataSpace memSpace(1, memDims);
             
-            // Read the data
-            dataset.read(channelData.data(), H5::PredType::NATIVE_INT16, memSpace, dataspace);
+            // Read the data directly into multiChannelData (single channel case)
+            dataset.read(multiChannelData.data(), H5::PredType::NATIVE_INT16, memSpace, dataspace);
             
         } else {
-            // 2D data - read specific channel within time range
-            // Define hyperslab to read one channel within the time range
-            hsize_t offset[2] = {static_cast<hsize_t>(startTimeStamp), static_cast<hsize_t>(selectedChannel)};
-            hsize_t count[2] = {static_cast<hsize_t>(samplesToRead), 1};
+            // 2D data - read multiple channels within time range
+            // Read all requested channels at once for efficiency
+            hsize_t offset[2] = {static_cast<hsize_t>(startTimeStamp), static_cast<hsize_t>(startChannel)};
+            hsize_t count[2] = {static_cast<hsize_t>(samplesToRead), static_cast<hsize_t>(numChannelsToRead)};
             dataspace.selectHyperslab(H5S_SELECT_SET, count, offset);
             
-            // Define memory space
-            hsize_t memDims[1] = {static_cast<hsize_t>(samplesToRead)};
-            H5::DataSpace memSpace(1, memDims);
+            // Define memory space for interleaved data
+            hsize_t memDims[2] = {static_cast<hsize_t>(samplesToRead), static_cast<hsize_t>(numChannelsToRead)};
+            H5::DataSpace memSpace(2, memDims);
             
-            // Read the data
-            dataset.read(channelData.data(), H5::PredType::NATIVE_INT16, memSpace, dataspace);
+            // Read the data in channel-major format (samples x channels)
+            std::vector<int16_t> tempData(samplesToRead * numChannelsToRead);
+            dataset.read(tempData.data(), H5::PredType::NATIVE_INT16, memSpace, dataspace);
+            
+            // Convert from channel-major to interleaved format
+            // tempData is [sample0_ch0, sample0_ch1, ..., sample1_ch0, sample1_ch1, ...]
+            // We want [ch0_sample0, ch1_sample0, ..., ch0_sample1, ch1_sample1, ...]
+            for (int sample = 0; sample < samplesToRead; sample++) {
+                for (int ch = 0; ch < numChannelsToRead; ch++) {
+                    int sourceIdx = sample * numChannelsToRead + ch;
+                    int destIdx = ch * samplesToRead + sample;
+                    multiChannelData[destIdx] = tempData[sourceIdx];
+                }
+            }
         }
         
-        std::cout << "✅ Successfully read " << samplesToRead << " samples from channel " << selectedChannel << std::endl;
+        std::cout << "✅ Successfully read " << samplesToRead << " samples from channels " << startChannel << " to " << endChannel << std::endl;
         std::cout << "   Time range: samples " << startTimeStamp << " to " << (endTimeStamp - 1) << std::endl;
+        std::cout << "   Total data points: " << (samplesToRead * numChannelsToRead) << std::endl;
         
-        // Copy data to output buffer
-        *outSamplesCount = samplesToRead;
-        for (int i = 0; i < samplesToRead; ++i) {
-            outSamples[i] = channelData[i];
+        // Copy data to output buffer (interleaved format)
+        *outSamplesCount = samplesToRead * numChannelsToRead;
+        for (int i = 0; i < samplesToRead * numChannelsToRead; ++i) {
+            outSamples[i] = multiChannelData[i];
         }
         
-        // Print first and last few samples for verification
-        std::cout << "🔍 First 5 samples from seek operation:" << std::endl;
+        // Print first and last few samples for verification (multi-channel format)
+        std::cout << "🔍 First 5 samples from seek operation (interleaved format):" << std::endl;
         int samplesToShow = (samplesToRead < 5) ? samplesToRead : 5;
         for (int i = 0; i < samplesToShow; ++i) {
-            std::cout << "  Sample " << (startTimeStamp + i) << ": " << outSamples[i] << std::endl;
+            std::cout << "  Sample " << (startTimeStamp + i) << ": ";
+            for (int ch = 0; ch < numChannelsToRead; ch++) {
+                int idx = ch * samplesToRead + i;
+                std::cout << "Ch" << (startChannel + ch) << "=" << outSamples[idx];
+                if (ch < numChannelsToRead - 1) std::cout << ", ";
+            }
+            std::cout << std::endl;
         }
         
         if (samplesToRead > 5) {
-            std::cout << "🔍 Last 5 samples from seek operation:" << std::endl;
+            std::cout << "🔍 Last 5 samples from seek operation (interleaved format):" << std::endl;
             int startIdx = samplesToRead - 5;
             if (startIdx < 0) startIdx = 0;
             for (int i = startIdx; i < samplesToRead; ++i) {
-                std::cout << "  Sample " << (startTimeStamp + i) << ": " << outSamples[i] << std::endl;
+                std::cout << "  Sample " << (startTimeStamp + i) << ": ";
+                for (int ch = 0; ch < numChannelsToRead; ch++) {
+                    int idx = ch * samplesToRead + i;
+                    std::cout << "Ch" << (startChannel + ch) << "=" << outSamples[idx];
+                    if (ch < numChannelsToRead - 1) std::cout << ", ";
+                }
+                std::cout << std::endl;
             }
         }
         
@@ -1448,7 +1543,8 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int*
         std::cout << "📈 Seek operation summary:" << std::endl;
         std::cout << "   Requested range: " << startTimeStamp << " to " << endTimeStamp << std::endl;
         std::cout << "   Samples returned: " << samplesToRead << std::endl;
-        std::cout << "   Channel: " << selectedChannel << std::endl;
+        std::cout << "   Channels: " << startChannel << " to " << endChannel << " (" << numChannelsToRead << " channels)" << std::endl;
+        std::cout << "   Total data points: " << (samplesToRead * numChannelsToRead) << std::endl;
         
         io->close();
         h5file->close();

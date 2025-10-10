@@ -40,7 +40,7 @@ FFI_PLUGIN_EXPORT int sum_long_running(int a, int b) {
 }
 
 // Processing initialization function
-FFI_PLUGIN_EXPORT int32_t processing_init(const char* path) {
+FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int channelCount, const char* deviceInfo, const char* deviceManufacturer) {
     try {
       H5::Exception::dontPrint();
       printf("AAQNWB Recording Workflow Example\n");

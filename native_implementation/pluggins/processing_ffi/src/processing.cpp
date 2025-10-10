@@ -986,15 +986,7 @@ PROCESSING_API int32_t processing_prepare_for_signal_drawing(int16_t** out_sampl
             circularBufferThreshold->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
         } else
         if (circularBuffer != nullptr) {
-            // circularBuffer->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
-            circularBuffer->getDataForDrawing(temp_samples, 0, 441000);
-            // platform_log_processing("GET BUFFER DATA\n");
-            // std::string str = std::to_string(temp_samples[0][441000-1]);
-            // str += std::to_string(temp_samples[0][441000-2]);
-            // str += std::to_string(temp_samples[0][441000-3]);
-            // str += std::to_string(temp_samples[0][441000-4]);
-            // platform_log_processing(str.c_str());
-            
+            circularBuffer->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
             //log_debug("Circular: from_sample=%d, to_sample=%d", from_sample, to_sample);
         } else {
             // Clean up and return error if no circular buffer is available
@@ -1006,7 +998,6 @@ PROCESSING_API int32_t processing_prepare_for_signal_drawing(int16_t** out_sampl
             delete[] float_samples;
             return -2;
         }
-
         // Call DrawingUtils to prepare the signal for drawing
         int outEventCount = 0;
         int samplesCount = to_sample - from_sample;

@@ -44,10 +44,10 @@ class GraphTemplate extends StatefulWidget {
   static Board? selectedBoard;
   static ProcessingUtil? processingUtil;
   static NWBFileUtil? nwbFileUtil;
-  const GraphTemplate({super.key, required this.bitsData, required this.channelCount, required this.baudRate});
+  GraphTemplate({super.key, required this.bitsData, required this.channelCount, required this.baudRate});
 
   final int bitsData;
-  final int channelCount;
+  int channelCount = 1;
   final int baudRate;
   @override
   State<GraphTemplate> createState() => _GraphTemplateState();
@@ -248,7 +248,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       endSeekSampleIdx = endSeekSample.floor();
 
 
-      await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
+      await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 0);
       print("Percentage: $percentage @@@ Config: $loadedConfig ||| scrubNotifier: ${timeScrub} ${(arrSamplesLength * percentage).floor()}, ${(arrSamplesLength - startSeekSample).floor()}");
       
       loadedArrSamples = Int16List(arrSampleCount[0].floor());
@@ -499,6 +499,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
           Provider.of<ConstantProvider>(context, listen: false).setBaudRate(foundDevices == "HHIBOX" ? 500000 : 222222);
           Provider.of<ConstantProvider>(context, listen: false).setChannelCount(int.parse(value.maxNumberOfChannels.toString()));
+          widget.channelCount = int.parse(value.maxNumberOfChannels.toString());
+          print("widget.channelCount: $widget.channelCount");
+          
           Provider.of<ConstantProvider>(context, listen: false).setBitData(int.parse(value.sampleResolution.toString()));
           Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(int.parse(value.maxSampleRate.toString()));
 
@@ -1174,15 +1177,17 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                         children: [
                           SpikerBoxButton(
                             onTapButton: () {
+                              print("STATUS RECORDING: $isRecording");
                               if (isRecording == 0) {
                                 isRecording = 1;
                                 print("!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
-                                GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount);
-                              } else 
-                              if (isRecording == 1) {
-                                isRecording = 2;
+                                GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device", "SpikeRecorder Systems");
                               } else {
-                                isRecording = 0;
+                                if (isRecording == 1) {
+                                  isRecording = 2;
+                                } else {
+                                  isRecording = 0;
+                                }
                               }
                             },
                             iconData: Icons.fiber_manual_record,
@@ -1265,7 +1270,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                         Int16List arrSamples = Int16List(loadedMaxSamples);
                         // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
                         // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), (loadedMaxSamples).floor(), 0, 1);
-                        await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSampleIdx).floor(), (loadedMaxSamples).floor(), 0, 1);
+                        await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSampleIdx).floor(), (loadedMaxSamples).floor(), 0, 0);
                         loadedArrSamples = Int16List(arrSampleCount[0].floor());
                         loadedArrSamples.setAll(0, arrSamples.sublist(0, arrSampleCount[0].floor()));
                         loadedArrChannelCount.setAll(0, arrSampleCount);
@@ -1373,7 +1378,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                           // int endInitialIndex = 240000;
                           Int32List arrSampleCountInitial = Int32List(widget.channelCount);
                           Int16List arrSamplesInitial = Int16List(endInitialIndex);
-                          await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, 1);
+                          await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, 0);
 
                           Int16List tempLoadedArrSamples = Int16List(arrSampleCountInitial[0].floor());
                           tempLoadedArrSamples.setAll(0, arrSamplesInitial.sublist(0, arrSampleCountInitial[0].floor()));
@@ -2209,7 +2214,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   int loadedMaxSamples = 0;
   Int32List loadedConfig = Int32List(10);
   Int16List loadedArrSamples = Int16List(200);
-  Int32List loadedArrChannelCount = Int32List(1);
+  Int32List loadedArrChannelCount = Int32List(2);
 
   int startSeekSampleIdx = 0;
   int endSeekSampleIdx = 0;
@@ -2244,14 +2249,17 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
       processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
 
-
+      
 
       // print("RANGE MASK : ${DraggableGraph.startPositionIdx} -- ${DraggableGraph.endPositionIdx} || ${maxDisplaySamples} || ${maxSamples} ${_sampleRate}");
     } else
     if (GraphTemplate.isLoadingFile == 1) {
       GraphTemplate.isLoadingFile = 2;
-      print("PROCESS MICROPHONE DATA LOADED 1: ${GraphTemplate.isLoadingFile}");
+      // print("PROCESS MICROPHONE DATA LOADED 1: ${GraphTemplate.isLoadingFile} ${loadedArrChannelCount[0]} ${loadedArrSamples.length} ");
+      // List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples.sublist(0, loadedArrChannelCount[0]).buffer.asUint8List());
       List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples.buffer.asUint8List());
+      // List<Int16List> tempData = processingUtil.processMicrophoneData(Uint8List(0));
+      microphoneUtil.micStream.value = Uint8List(0);
     } else
     if (isAudioListen) {
       if (GraphTemplate.isLoadingFile == 3) {
@@ -2265,24 +2273,29 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
             processingUtil.processMicrophoneData(microphoneUtil.micStream.value);           
           } else {
             List<Int16List> tempData = processingUtil.processMicrophoneData(microphoneUtil.micStream.value);
-            Int32List samplesCount = Int32List(tempData.length);
+            tempData.add(Int16List.fromList(tempData[0]));
+            Int32List samplesCount = Int32List(tempData.length * 2);
             
             int counterLen = 0;
             int channelIdx = 0;
             Int16List flattenedList = Int16List.fromList(tempData.expand((list) {
-              samplesCount[channelIdx] = list.length;
-              counterLen += list.length;
+              samplesCount[channelIdx] = tempData[channelIdx].length;
+              counterLen += tempData[channelIdx].length;
               channelIdx++;
               return list;
             }).toList());
 
             if (isRecording == 1) {
-              print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0) 11 -- $isRecording");
+              print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0) 11 -- $isRecording ${samplesCount}");
+              // STEVE
               GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0);
+              // GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 0);
             } else 
             if (isRecording == 2) {
               isRecording = 0;
-              print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1)");
+              // STEVE
+              print("END RECORDING!!! GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1)");
+              // print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 1)");
               GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1);
             }
             bool isAverageSamples = true;
@@ -2291,24 +2304,30 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
         } else {
           // print("PROCESS MICROPHONE DATA LOADED 4 : ${GraphTemplate.isLoadingFile}");            
           List<Int16List> tempData = processingUtil.processMicrophoneData(microphoneUtil.micStream.value); 
-          Int32List samplesCount = Int32List(tempData.length);
-
+          tempData.add(Int16List.fromList(tempData[0]));
+          Int32List samplesCount = Int32List(tempData.length * widget.channelCount);
+          
           int counterLen = 0;
           int channelIdx = 0;
           Int16List flattenedList = Int16List.fromList(tempData.expand((list) {
-            samplesCount[channelIdx] = list.length;
-            counterLen += list.length;
+            samplesCount[channelIdx] = tempData[channelIdx].length;
+            counterLen += tempData[channelIdx].length;
             channelIdx++;
             return list;
           }).toList());
+
           if (isRecording == 1) {
-            print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0) 22 -- $isRecording");
+            print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 0) 22 -- $isRecording");
+            // STEVE
             GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0);
+            // GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 0);
           } else 
           if (isRecording == 2) {
             isRecording = 0;
-            print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1)");
+            print("ENDING RECORDING GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 1)");
+            // STEVE
             GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1);
+            // GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 1);
           }
 
           // if (isFftButton) {
@@ -2622,7 +2641,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     Int16List arrSamples = Int16List(1);
     // await GraphTemplate.nwbFileUtil?.readElectricalSeries(arrSampleCount, arrChannelCount, 0, 1);
     // DEMO
-    await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, 1, 0, 1);
+    await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, 1, 0, 0);
     loadedMaxSamples = arrConfig[5];
     int sampleRateConfig = arrConfig[0];
     
@@ -2633,10 +2652,15 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
     // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
     
-    print("sampleRateConfig: $sampleRateConfig");
+    print("sampleRateConfig: $sampleRateConfig $arrConfig");
     double arrSamplesLength = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRateConfig;
     // double arrSamplesLength = maxSamples.toDouble();
-    arrSamples = Int16List(arrSamplesLength.floor());
+    
+    // // Calculate total data points needed for multi-channel reading
+    // int samplesPerChannel = arrSamplesLength.floor();
+    // int numChannels = 2; // Reading channels 0-1
+    // int totalDataPoints = samplesPerChannel * numChannels;
+    arrSamples = Int16List(arrSamplesLength.floor() * widget.channelCount);
 
     // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, arrSamplesLength.floor(), 0, 1);
     double startSeekSample = 0;
@@ -2644,12 +2668,14 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     startSeekSampleIdx = startSeekSample.floor();
     endSeekSampleIdx = endSeekSample.floor();
 
-    await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
-    print("Start Seek Sample: $startSeekSample --- End Seek Sample: $endSeekSample");
+    await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, widget.channelCount - 1);
+    print("Start Seek Sample: $startSeekSample --- End Seek Sample: $endSeekSample ||| arrSampleCount : ${arrSampleCount}");
     
-    loadedArrSamples = Int16List(arrSampleCount[0].floor());
-    loadedArrSamples.setAll(0, arrSamples.sublist(0, arrSampleCount[0].floor()));
-    loadedArrChannelCount.setAll(0, arrSampleCount);
+    int totalChannelCount = loadedConfig[1];
+    double initialSampleCount = arrSampleCount[0].floor() / totalChannelCount;
+    loadedArrSamples = Int16List(initialSampleCount.floor());
+    loadedArrSamples.setAll(0, arrSamples.sublist(0, initialSampleCount.floor()));
+    loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
     processingUtil.initWithConfig(arrConfig);
 
     GraphTemplate.isPlayerPaused = true;

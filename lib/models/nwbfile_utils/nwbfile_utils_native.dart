@@ -21,7 +21,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
 
   @override
   Future<bool> addElectricalSeries(Int16List data, Int32List samplesCount, int selectedChannel,int channelCount, int isFinishRecording) {
-    // print("addElectricalSeries: $isFinishRecording");
+    // print("addElectricalSeries: $isFinishRecording SamplesCOUNT: $samplesCount DATA: $data");
     Pointer<Int16> dataPtr = calloc<Int16>(data.length);
     dataPtr.asTypedList(data.length).setAll(0, data);
     Pointer<Int32> samplesCountPtr = calloc<Int32>(samplesCount.length);
@@ -95,9 +95,12 @@ class NwbFileUtilImpl implements NWBFileUtil {
       print("   Expected total data points: ${(endTimeStamp - startTimeStamp) * numChannelsToRead}");
       
       int result = nwb.nwbfile_seek_electrical_series(outSamplesPtr, outSamplesCountPtr, outConfigPtr, startTimeStamp, endTimeStamp, startChannel, endChannel);
-      
       print("📊 Seek result: $result == $startChannel, $endChannel");
-      
+
+      if (endChannel == 1) {
+        return Future.value(true);
+      }
+
       if (result == 0) {
         // Success - copy data back from native memory
         int actualDataPoints = outSamplesCountPtr.value;
@@ -152,6 +155,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
         return Future.value(false);
       }
     } finally {
+      print("🔄 Freeing memory...");
       outSamples.setAll(0, outSamplesPtr.asTypedList(outSamples.length));
       outSamplesCount.setAll(0, outSamplesCountPtr.asTypedList(outSamplesCount.length));
       outConfig.setAll(0, outConfigPtr.asTypedList(10));
@@ -159,6 +163,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
       calloc.free(outSamplesPtr);
       calloc.free(outSamplesCountPtr);
       calloc.free(outConfigPtr);
+      print("🔄 Freeing memory... Done");
     }
   }
 }

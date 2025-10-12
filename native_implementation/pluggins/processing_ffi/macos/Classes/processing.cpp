@@ -495,7 +495,7 @@ int32_t processing_set_channel_count(int32_t channel_count) {
             circularBuffer->setup(current_sample_rate, current_channel_count);
             circularBufferThreshold->setup(current_sample_rate, current_channel_count);
         }
-        
+
         return 0;
     } catch (...) {
         return -3;
@@ -1582,3 +1582,25 @@ int32_t processing_map(float* out_data, const float* in_data, int32_t length,
 //     std::cerr << "C++: Dart callback not set." << std::endl;
 //   }
 // }
+
+
+PROCESSING_API int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw, int* samplesCountRaw, int selectedChannel, int channelCount) {
+    if (!initialized || !circularBuffer) {
+        return -1;
+    }
+
+    short** inSamples = new short*[channelCount];
+    for (int i = 0; i < channelCount; i++) {
+        inSamples[i] = new short[samplesCountRaw[i]];
+        std::copy(inSamplesRaw + i * samplesCountRaw[i], inSamplesRaw + (i + 1) * samplesCountRaw[i], inSamples[i]);
+    }
+
+
+    try {
+        circularBuffer->setup(current_sample_rate, current_channel_count);
+        circularBuffer->addData(inSamples, samplesCountRaw);
+        return 0;
+    } catch (...) {
+        return -3;
+    }
+}

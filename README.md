@@ -43,3 +43,8 @@ pauseButton
 GraphTemplate.isLoadingFile = 2; // standby mode to draw the current state, scrub also end at this state
 // Playing Audio
 
+
+
+
+Find out why it is crashing
+InjectDataResult from loadedFile

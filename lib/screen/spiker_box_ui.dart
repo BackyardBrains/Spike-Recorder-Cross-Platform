@@ -492,7 +492,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
               ((currentY + thresholdIconTopDifference - median).floor()).floor();
           double tempValue = (signalMultiplierChannel[idx] * tempMedianDistance);
           thresholdValue[idx] = (tempValue.floor()).abs();
-          print("Current Y: $currentY, $median, $tempMedianDistance ${thresholdValue[idx]}");
+          // print("Current Y: $currentY, $median, $tempMedianDistance ${thresholdValue[idx]}");
           context.read<ThresholdStatusProvider>().setThresholdParams(thresholdValue);
 
         },
@@ -784,6 +784,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
       //   channelCount = ProcessingUtil.drawingBuffers.length;
       //   initializeGraph();
       // }
+      // print("SHOW WAVEFORM: ${showWaveform.length} --- ${ProcessingUtil.drawingBuffers.length}");
 
       // Ensure waveform visibility list matches the current channel count
       if (showWaveform.length != ProcessingUtil.drawingBuffers.length) {

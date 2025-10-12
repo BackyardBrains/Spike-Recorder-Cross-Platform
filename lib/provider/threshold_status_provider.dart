@@ -14,7 +14,7 @@ class ThresholdStatusProvider extends ChangeNotifier {
     notifyListeners();
   }  
   void setThresholdParams(List<int> selectedThresholdParams) {
-    print("setThresholdParams: $selectedThresholdParams");
+    // print("setThresholdParams: $selectedThresholdParams");
     selectedThresholdParam.setAll(0, selectedThresholdParams);
     notifyListeners();
   }  

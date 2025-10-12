@@ -237,6 +237,23 @@ typedef ProcessingPrepareForSignalDrawing = int Function(
 typedef ProcessingCleanupNative = Void Function();
 typedef ProcessingCleanup = void Function();
 
+
+
+// processing_nwbfile_inject_data_result
+typedef ProcessingNwbfileInjectDataResultNative = Int32 Function(
+    Pointer<Int16> outFft,
+    Pointer<Int32> samplesCount,
+    Int32 selectedChannel,
+    Int32 channelCount,
+);
+typedef ProcessingNwbfileInjectDataResult = int Function(
+    Pointer<Int16> outFft,
+    Pointer<Int32> samplesCount,
+    int selectedChannel,
+    int channelCount,
+);
+
+
 class ProcessingBindings {
   static DynamicLibrary? _lib;
   static ProcessingBindings? _instance;
@@ -273,6 +290,8 @@ class ProcessingBindings {
   late final ProcessingPrepareForSignalDrawing prepareForSignalDrawing;
   late final ProcessingCleanup cleanup;
   
+  late final ProcessingNwbfileInjectDataResult nwbfileInjectDataResult;
+
   late final ProcessingGetInformation getInformation;
   late final ProcessingSetIsThresholding setIsThresholding;
 
@@ -361,6 +380,8 @@ class ProcessingBindings {
     setIsThresholding = _lib!.lookupFunction<ProcessingSetIsThresholdingNative, ProcessingSetIsThresholding>('processing_set_is_thresholding');
 
     cleanup = _lib!.lookupFunction<ProcessingCleanupNative, ProcessingCleanup>('processing_cleanup');
+    
+    nwbfileInjectDataResult = _lib!.lookupFunction<ProcessingNwbfileInjectDataResultNative, ProcessingNwbfileInjectDataResult>('processing_nwbfile_inject_data_result');
 
 
 

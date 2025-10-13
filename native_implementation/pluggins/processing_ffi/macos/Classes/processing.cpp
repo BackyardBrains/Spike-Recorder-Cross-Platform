@@ -1014,6 +1014,11 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
         // platform_log(std::to_string(endIndex).c_str());
         // platform_log("\n");
         
+        // platform_log_processing("\n StartIndex 0\n");
+        // platform_log_processing(std::to_string(startIndex).c_str());
+        // platform_log_processing("\n EndIndex 0\n");
+        // platform_log_processing(std::to_string(endIndex).c_str());
+        // platform_log_processing("=========== \n");
 
 
         backyardbrains::utils::DrawingUtils::prepareSignalForDrawing(

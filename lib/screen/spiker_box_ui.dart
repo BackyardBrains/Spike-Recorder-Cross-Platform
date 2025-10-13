@@ -410,7 +410,6 @@ class _DraggableGraphState extends State<DraggableGraph> {
     final isAudio = Provider.of<DataStatusProvider>(context, listen: false)
         .isMicrophoneData;
 
-
     Color channelColor = isAudio
         ? (idx < colorProvider.audioColors.length
             ? colorProvider.audioColors[idx]
@@ -784,7 +783,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
       //   channelCount = ProcessingUtil.drawingBuffers.length;
       //   initializeGraph();
       // }
-      // print("SHOW WAVEFORM: ${showWaveform.length} --- ${ProcessingUtil.drawingBuffers.length}");
+      // print("SHOW WAVEFORM: ${showWaveform.length} --- ${ProcessingUtil.drawingBuffers[0].length}");
 
       // Ensure waveform visibility list matches the current channel count
       if (showWaveform.length != ProcessingUtil.drawingBuffers.length) {
@@ -852,6 +851,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
           // 410
           // print("$idx OUT SAMPLE COUNT VS CURBUFFER: ${curBuffer.length} - ${outSampleCount}");
           buffer = (curBuffer).sublist(0, outSampleCount);
+          // print("buffer ${buffer.toList().sublist(0, 10)}");
         }
 
         // print("buffer $outSampleCount vs ${buffer.length} $channelCount");
@@ -904,7 +904,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
           height: MediaQuery.of(context).size.height,
         ),
       ));
-
+      
+      // print("CHANNEL COUNT: $channelCount");
       for (idx = 0; idx < channelCount; idx++) {
         addChartControls(charts, idx, channelCount, context);
       }

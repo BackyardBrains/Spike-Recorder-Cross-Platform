@@ -3,7 +3,7 @@ import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ffi';
-import 'dart:ui';
+// import 'dart:ui';
 import 'package:ffi/ffi.dart';
 import 'package:spikerbox_architecture/models/CircularFloatArrayBuffer.dart';
 import 'package:spikerbox_architecture/models/FftDrawBuffer.dart';
@@ -50,14 +50,28 @@ class ProcessingUtilImpl implements ProcessingUtil {
   // var currentDataBuffer;
   @override
   Future<bool> initWithConfig(Int32List config) async {
+    print("initWithConfig: $config");
     final result = pb.processingBindings.init();
     if (result != 0) {
       print('Failed to initialize processing: $result');
       return false;
     }
-    pb.processingBindings.setSampleRate(config[0]);
-    pb.processingBindings.setChannelCount(config[1]);
+    pb.processingBindings.setSampleRate(config[0].toInt());
+    pb.processingBindings.setChannelCount(config[1].toInt());
+    sampleRate = config[0].toInt();
+    _sampleRate = config[0].toInt();
+    channelCount = config[1].toInt();
+    _channelCount = config[1].toInt();
+
+    int drawSurfaceWidth = config[7].toInt();
     
+    ProcessingUtil.drawingBuffers.clear();
+    for (int i = 0; i < channelCount; i++) {
+      ProcessingUtil.drawingBuffers
+          .add(Int16List(drawSurfaceWidth.toInt() * 5));
+      ProcessingUtil.drawingBufferCounts.add(drawSurfaceWidth.toInt() * 5);
+    }
+
     return Future.value(true);
   }
 
@@ -725,8 +739,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
     // final inEventIndicesPtr = calloc<Int32>(0); // No events yet
     // print("drawSurfaceWidth : $drawSurfaceWidth");
     try {
+      
 
-
+      // print("PREPARE FOR SIGNAL DRAWING - Start Channel Count $channelCount");
       int result = pb.processingBindings.prepareForSignalDrawing(
           outSamplesPtr, // Pointer<Pointer<Float>>
           outSampleCountsPtr, // Pointer<Int32>
@@ -740,6 +755,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
           endPositionIdx, // int (toSample)
           drawSurfaceWidth // int
           );
+    
       if (result == 0) {
         // print("startPositionIdx : $startPositionIdx");
         int sampleCount = outSampleCountsPtr.value;
@@ -774,8 +790,6 @@ class ProcessingUtilImpl implements ProcessingUtil {
           }
         }
         // print("RANGE : $startPositionIdx - $endPositionIdx");
-
-
         //provider.inputListener(channelData);
         // Get the number of events
       }
@@ -1240,6 +1254,20 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
   
   @override
   void onCallbackPrepareFftDrawingWeb(int resultFftDraw, int selectedChannelIdx) {
+  }
+  
+  @override
+  void processingNwbFileInjectData(Int16List data, Int32List sampleCounts, int selectedChannel, int channelCount) {
+    Pointer<Int16> inDataPtr = calloc<Int16>(data.length);
+    inDataPtr.asTypedList(data.length).setAll(0, data);
+    
+    Pointer<Int32> sampleCountPtr = calloc<Int32>(channelCount);
+    sampleCountPtr.asTypedList(channelCount).setAll(0, sampleCounts);
+
+    pb.processingBindings.nwbfileInjectDataResult(inDataPtr, sampleCountPtr, selectedChannel, channelCount);
+
+    calloc.free(inDataPtr);
+    calloc.free(sampleCountPtr);    
   }
 
 }

@@ -280,7 +280,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* s
     }
     // file_log_nwbfile("timestamps: %f", timestamps[0]);
     std::cout << "TIMESTAMPS " << timestamps[0] << std::endl;
-    std::cout << "TIMESTAMPS " << timestamps[1] << std::endl;
+    // std::cout << "TIMESTAMPS " << timestamps[1] << std::endl;
 
         // Write data per-channel (original approach)
         int channelIndex = 0;

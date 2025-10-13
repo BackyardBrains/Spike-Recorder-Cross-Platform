@@ -120,4 +120,5 @@ abstract class ProcessingUtil {
 
   Future<bool> initWithConfig(Int32List config);
 
+  void processingNwbFileInjectData(Int16List data, Int32List sampleCounts, int selectedChannel, int channelCount);
 }

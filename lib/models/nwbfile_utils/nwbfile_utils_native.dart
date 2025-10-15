@@ -103,22 +103,28 @@ class NwbFileUtilImpl implements NWBFileUtil {
 
       if (result == 0) {
         // Success - copy data back from native memory
-        int actualDataPoints = outSamplesCountPtr.value;
-        int samplesPerChannel = actualDataPoints ~/ numChannelsToRead;
-        print("📊 Actual data points read: $actualDataPoints");
+        int samplesPerChannel = outSamplesCountPtr.value; // Now represents samples per channel
+        int actualDataPoints = samplesPerChannel * numChannelsToRead;
         print("📊 Samples per channel: $samplesPerChannel");
+        print("📊 Total data points: $actualDataPoints");
         
-        // Copy the data back to the Dart list (interleaved format)
+        // Copy the data back to the Dart list (channel-major format)
         if (actualDataPoints > 0 && actualDataPoints <= outSamples.length) {
-          for (int i = 0; i < actualDataPoints; i++) {
-            outSamples[i] = outSamplesPtr[i];
-          }
-          outSamplesCount[0] = actualDataPoints;
+          // print("outSamplesCount.length: ${outSamplesCount} || actualDataPoints: $actualDataPoints");
+          // int sumPositionIdx = 0;
+          // for (int i = 0; i < outSamplesCount.length; i++) {
+          //   outSamplesCount[i] = actualDataPoints;
+          //   for (int j = 0; j < actualDataPoints; j++) {
+          //     outSamples[sumPositionIdx + j] = outSamplesPtr[j];
+          //   }
+          //   sumPositionIdx += actualDataPoints;
+          // }
+          // print("outSamplesCount.length FIN: ${outSamplesCount}");
           
           // Copy configuration parameters
-          for (int i = 0; i < 5 && i < outConfig.length; i++) {
-            outConfig[i] = outConfigPtr[i];
-          }
+          // for (int i = 0; i < 5 && i < outConfig.length; i++) {
+          //   outConfig[i] = outConfigPtr[i];
+          // }
           
           print("✅ Successfully copied $actualDataPoints data points from seek operation");
           
@@ -130,9 +136,9 @@ class NwbFileUtilImpl implements NWBFileUtil {
           print("   Group Index: ${outConfig[3]}");
           print("   BitVolts (µV): ${outConfig[4]}");
           
-          // Print first few samples for verification (interleaved format)
+          // Print first few samples for verification (channel-major format)
           if (samplesPerChannel > 0) {
-            print("📈 First 5 samples from seek (interleaved format):");
+            print("📈 First 5 samples from seek (channel-major format):");
             int samplesToShow = (samplesPerChannel < 5) ? samplesPerChannel : 5;
             for (int i = 0; i < samplesToShow; i++) {
               String sampleInfo = "Sample ${startTimeStamp + i}: ";
@@ -156,8 +162,23 @@ class NwbFileUtilImpl implements NWBFileUtil {
       }
     } finally {
       print("🔄 Freeing memory...");
-      outSamples.setAll(0, outSamplesPtr.asTypedList(outSamples.length));
-      outSamplesCount.setAll(0, outSamplesCountPtr.asTypedList(outSamplesCount.length));
+      
+      // Copy data from native memory to Dart lists (channel-major format)
+      int samplesPerChannel = outSamplesCountPtr.value;
+      int numChannelsToRead = endChannel - startChannel + 1;
+      int totalDataPoints = samplesPerChannel * numChannelsToRead;
+      
+      // Set samples count for each channel
+      for (int i = 0; i < outSamplesCount.length; i++) {
+        outSamplesCount[i] = samplesPerChannel;
+      }
+      
+      // Copy the channel-major data
+      for (int i = 0; i < totalDataPoints && i < outSamples.length; i++) {
+        outSamples[i] = outSamplesPtr[i];
+      }
+      
+      // Copy configuration parameters
       outConfig.setAll(0, outConfigPtr.asTypedList(10));
 
       calloc.free(outSamplesPtr);

@@ -296,12 +296,10 @@ class _DraggableGraphState extends State<DraggableGraph> {
   }
 
   void initializeGraph() {
-    print("initializeGraph");
     widthChart = MediaQuery.of(context).size.width;
 
     // channelCount = ProcessingUtil.drawingBuffers.length == 0 ? 1 : ProcessingUtil.drawingBuffers.length;
     channelCount = context.read<ConstantProvider>().getChannelCount();
-    print("initializeGraphChannelCount $channelCount");
 
     heightChart = MediaQuery.of(context).size.height /
         (channelCount == 0 ? 1 : channelCount);
@@ -857,13 +855,14 @@ class _DraggableGraphState extends State<DraggableGraph> {
         // print("buffer $outSampleCount vs ${buffer.length} $channelCount");
         if (showWaveform[idx]) {
           widthChart = MediaQuery.of(context).size.width;
-          heightChart = MediaQuery.of(context).size.height;
+          heightChart = MediaQuery.of(context).size.height / channelCount;
 
           charts.add(
             Positioned(
               top: topChartY[idx].toDouble(),
               left: 0,
               child: Container(
+                // color: idx ==0? Colors.red : Colors.blue,
                 width: MediaQuery.of(context).size.width,
                 height: MediaQuery.of(context).size.height,
                 child: WavForm.PolygonWaveform(
@@ -1140,6 +1139,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
   }
 
   void initializeDeviceListener() {
+    isInitializedGraph = false;
     print("Initial Device Listener");
     if (ProcessingUtil.initializeDevice.value == 0 ) {
       initializeGraph();
@@ -1147,6 +1147,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
 
     } else {
       Future.delayed(Duration(seconds: 1), (){
+        print("DECREASE GAINNNNN");
+        print("initializeDeviceListener channelCount: $channelCount");
         initializeGraph();
         initLevelMedian(channelCount, 0);
         for (int i = 0; i < channelCount; i++) {
@@ -1154,6 +1156,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
           decreaseGain(i);
           decreaseGain(i);
         }
+        setState(() {});
       });
     }
   }

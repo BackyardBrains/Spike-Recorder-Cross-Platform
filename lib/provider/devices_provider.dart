@@ -10,6 +10,7 @@ class ConstantProvider extends ChangeNotifier {
   }
 
   int getChannelCount() {
+    print("GET CHANNEL COUNT: $_channelCount");
     return _channelCount;
   }
 
@@ -23,6 +24,7 @@ class ConstantProvider extends ChangeNotifier {
   }
 
   setChannelCount(int channelCount) {
+    print("SET CHANNEL COUNT: $channelCount");
     _channelCount = channelCount;
     notifyListeners();
   }

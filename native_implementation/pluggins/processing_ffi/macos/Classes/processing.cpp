@@ -1609,3 +1609,24 @@ PROCESSING_API int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw
         return -3;
     }
 }
+
+
+
+PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* samplesCountRaw, int channelCount) {
+    if (!initialized || !circularBuffer) {
+        return -1;
+    }
+
+    short** inSamples = new short*[channelCount];
+    for (int i = 0; i < channelCount; i++) {
+        inSamples[i] = new short[samplesCountRaw[i]];
+        std::copy(inSamplesRaw + i * samplesCountRaw[i], inSamplesRaw + (i + 1) * samplesCountRaw[i], inSamples[i]);
+    }
+
+    try {
+        circularBuffer->addData(inSamples, samplesCountRaw);
+        return 0;
+    } catch (...) {
+        return -3;
+    }
+}

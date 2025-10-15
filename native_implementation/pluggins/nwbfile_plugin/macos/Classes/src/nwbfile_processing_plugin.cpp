@@ -1489,11 +1489,11 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int*
             std::vector<int16_t> tempData(samplesToRead * numChannelsToRead);
             dataset.read(tempData.data(), H5::PredType::NATIVE_INT16, memSpace, dataspace);
             
-            // Convert from channel-major to interleaved format
+            // Keep data in channel-major format
             // tempData is [sample0_ch0, sample0_ch1, ..., sample1_ch0, sample1_ch1, ...]
-            // We want [ch0_sample0, ch1_sample0, ..., ch0_sample1, ch1_sample1, ...]
-            for (int sample = 0; sample < samplesToRead; sample++) {
-                for (int ch = 0; ch < numChannelsToRead; ch++) {
+            // We want [ch0_sample0, ch0_sample1, ..., ch1_sample0, ch1_sample1, ...]
+            for (int ch = 0; ch < numChannelsToRead; ch++) {
+                for (int sample = 0; sample < samplesToRead; sample++) {
                     int sourceIdx = sample * numChannelsToRead + ch;
                     int destIdx = ch * samplesToRead + sample;
                     multiChannelData[destIdx] = tempData[sourceIdx];
@@ -1505,14 +1505,14 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int*
         std::cout << "   Time range: samples " << startTimeStamp << " to " << (endTimeStamp - 1) << std::endl;
         std::cout << "   Total data points: " << (samplesToRead * numChannelsToRead) << std::endl;
         
-        // Copy data to output buffer (interleaved format)
-        *outSamplesCount = samplesToRead * numChannelsToRead;
+        // Copy data to output buffer (channel-major format)
+        *outSamplesCount = samplesToRead;
         for (int i = 0; i < samplesToRead * numChannelsToRead; ++i) {
             outSamples[i] = multiChannelData[i];
         }
         
-        // Print first and last few samples for verification (multi-channel format)
-        std::cout << "🔍 First 5 samples from seek operation (interleaved format):" << std::endl;
+        // Print first and last few samples for verification (channel-major format)
+        std::cout << "🔍 First 5 samples from seek operation (channel-major format):" << std::endl;
         int samplesToShow = (samplesToRead < 5) ? samplesToRead : 5;
         for (int i = 0; i < samplesToShow; ++i) {
             std::cout << "  Sample " << (startTimeStamp + i) << ": ";
@@ -1525,7 +1525,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int*
         }
         
         if (samplesToRead > 5) {
-            std::cout << "🔍 Last 5 samples from seek operation (interleaved format):" << std::endl;
+            std::cout << "🔍 Last 5 samples from seek operation (channel-major format):" << std::endl;
             int startIdx = samplesToRead - 5;
             if (startIdx < 0) startIdx = 0;
             for (int i = startIdx; i < samplesToRead; ++i) {

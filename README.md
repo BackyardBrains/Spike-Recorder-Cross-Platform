@@ -48,3 +48,6 @@ GraphTemplate.isLoadingFile = 2; // standby mode to draw the current state, scru
 
 Find out why it is crashing
 InjectDataResult from loadedFile
+
+
+loadedArrSamples is the sliced part of the result

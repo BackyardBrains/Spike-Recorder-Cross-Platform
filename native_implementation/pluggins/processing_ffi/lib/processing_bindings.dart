@@ -70,6 +70,18 @@ typedef ProcessingProcessSampleStream = int Function(
     int length,
     int deviceType);
 
+
+typedef ProcessingProcessSerialDataResultNative = Int32 Function(
+    Pointer<Int16> inData, 
+    Pointer<Int32> inDataCounts,
+    Int32 channelCount,
+    );
+typedef ProcessingProcessSerialDataResult = int Function(
+    Pointer<Int16> inData, 
+    Pointer<Int32> inDataCounts,
+    int channelCount,
+    );
+
 typedef ProcessingFilterDataNative = Int32 Function(
     Pointer<Double> data, Int32 length);
 typedef ProcessingFilterData = int Function(Pointer<Double> data, int length);
@@ -270,6 +282,7 @@ class ProcessingBindings {
   late final ProcessingProcessMicrophoneStream processMicrophoneStream;
   // late final ProcessingProcessThresholdStream processThresholdStream;
   late final ProcessingProcessSampleStream processSampleStream;
+  late final ProcessingProcessSerialDataResult processSerialDataResult;
   late final ProcessingFilterData filterData;
   late final ProcessingRms rms;
   late final ProcessingMap map;
@@ -338,7 +351,8 @@ class ProcessingBindings {
 
     processMicrophoneStream = _lib!.lookupFunction<ProcessingProcessMicrophoneStreamNative,ProcessingProcessMicrophoneStream>('processing_process_microphone_stream');
     // processThresholdStream = _lib!.lookupFunction<ProcessingProcessThresholdStreamNative,ProcessingProcessThresholdStream>('processing_process_threshold_stream');
-    processSampleStream = _lib!.lookupFunction<ProcessingProcessSampleStreamNative,ProcessingProcessSampleStream>('processing_process_sample_stream');
+    processSampleStream = _lib!.lookupFunction<ProcessingProcessSampleStreamNative, ProcessingProcessSampleStream>('processing_process_sample_stream');
+    processSerialDataResult = _lib!.lookupFunction<ProcessingProcessSerialDataResultNative, ProcessingProcessSerialDataResult>('processing_serial_data_result');
 
     // filterData = _lib!.lookupFunction<ProcessingFilterDataNative, ProcessingFilterData>('processing_filter_data');
 

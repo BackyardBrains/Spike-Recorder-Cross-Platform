@@ -188,6 +188,12 @@ PROCESSING_API int32_t processing_prepare_fft_for_drawing(float* out_vertices, i
                                          int32_t* out_index_count, int32_t* out_color_count,
                                          float** fft_data, int32_t window_count,
                                          int32_t window_size, int32_t target_window_count, float width, float height);
+
+// NWB file data injection
+PROCESSING_API int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw, int* samplesCountRaw, int selectedChannel, int channelCount);
+
+// Serial data processing result
+PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* samplesCountRaw, int channelCount);
                                      
 #ifdef __cplusplus
 }

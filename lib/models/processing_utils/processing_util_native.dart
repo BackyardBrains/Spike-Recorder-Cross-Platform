@@ -1269,7 +1269,19 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
     calloc.free(inDataPtr);
     calloc.free(sampleCountPtr);    
   }
+  
+  @override
+  void processingSerialDataResult(Int16List data, Int32List sampleCounts, int channelCount) {
+    Pointer<Int16> inDataPtr = calloc<Int16>(data.length);
+    inDataPtr.asTypedList(data.length).setAll(0, data);
+    Pointer<Int32> sampleCountsPtr = calloc<Int32>(sampleCounts.length);
+    sampleCountsPtr.asTypedList(sampleCounts.length).setAll(0, sampleCounts);
 
+    pb.processingBindings.processSerialDataResult(inDataPtr, sampleCountsPtr, channelCount);
+    
+    calloc.free(inDataPtr);
+    calloc.free(sampleCountsPtr);
+  }
 }
 
 // This function runs in the processing isolate

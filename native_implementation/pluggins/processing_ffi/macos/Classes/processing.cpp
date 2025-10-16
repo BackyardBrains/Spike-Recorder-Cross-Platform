@@ -1622,7 +1622,8 @@ PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* s
         inSamples[i] = new short[samplesCountRaw[i]];
         std::copy(inSamplesRaw + i * samplesCountRaw[i], inSamplesRaw + (i + 1) * samplesCountRaw[i], inSamples[i]);
     }
-
+    // platform_log_processing("Channel 1 Length - %d | Channel 2 Length %d\n", samplesCountRaw[0], samplesCountRaw[1]);
+    // platform_log_processing("Channel 1 Value - %d | Channel 2 Value %d\n", inSamples[0][0], inSamples[1][0]);
     try {
         circularBuffer->addData(inSamples, samplesCountRaw);
         return 0;

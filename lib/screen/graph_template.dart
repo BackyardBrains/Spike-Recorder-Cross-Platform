@@ -258,6 +258,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       int combinedIdx = 0;
       int totalChannelCount = loadedConfig[1];
       loadedArrSamples.clear();
+      print("LOADED ARR SAMPLES INTERUPTED");
       loadedArrChannelCount = (Int32List(widget.channelCount));
       for (int i = 0; i < widget.channelCount; i++) {
         // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
@@ -1303,7 +1304,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                         // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
                         // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), (loadedMaxSamples).floor(), 0, 1);
                         print("======SEEK 1 ");
-                        await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSampleIdx).floor(), (loadedMaxSamples).floor(), 0, 0);
+                        await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSampleIdx).floor(), (loadedMaxSamples).floor(), 0, widget.channelCount - 1);
                         // loadedArrSamples = Int16List(arrSampleCount[0].floor());
                         // loadedArrSamples.setAll(0, arrSamples.sublist(0, arrSampleCount[0].floor()));
                         // loadedArrChannelCount.setAll(0, arrSampleCount);
@@ -1349,12 +1350,12 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                               }
 
                               // MULTI CHANNEL FIXES.
-                              List<Uint8List> sublistArray = [];
+                              List<Int16List> sublistArray = [];
                               for (int i = 0; i < widget.channelCount; i++) {
                                 if (isAudioListen) {
-                                  sublistArray.add(loadedArrSamples[i].sublist(timerPlaybackLoadedStartIndex, timerPlaybackLoadedEndIndex).buffer.asUint8List());
+                                  sublistArray.add(loadedArrSamples[i].sublist(timerPlaybackLoadedStartIndex, timerPlaybackLoadedEndIndex));
                                 } else {
-                                  sublistArray.add(loadedArrSamples[i].sublist(0, timerPlaybackLoadedEndIndex).buffer.asUint8List());
+                                  sublistArray.add(loadedArrSamples[i].sublist(timerPlaybackLoadedStartIndex, timerPlaybackLoadedEndIndex));
                                 }
                                 // soloud!.addAudioDataStream(loadedFileStream!, sublistArray);
                               }
@@ -1388,21 +1389,27 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                                 return;
                               }
 
-                              GraphTemplate.isLoadingFile = 3;
                               // print("IS AUDIO LISTEN: $isAudioListen");
                               if (isAudioListen) {
-                                processingUtil.processMicrophoneData(sublistArray[0]);
+                                GraphTemplate.isLoadingFile = 3;
+                                processingUtil.processMicrophoneData(sublistArray[0].buffer.asUint8List());
                                 microphoneUtil.micStream.value = Uint8List(0);
                               } else {
+                                GraphTemplate.isLoadingFile = 4;
                                 int channelIdx = 0;
                                 Int32List samplesCount = Int32List(sublistArray.length);
+
                                 Int16List flattenedList = Int16List.fromList(sublistArray.expand((list) {
                                   samplesCount[channelIdx] = sublistArray[channelIdx].length;
                                   // print("SAMPLES COUNT: ${samplesCount[channelIdx]}");
                                   channelIdx++;
-                                  return list.buffer.asInt16List();
+                                  return list;
                                 }).toList());
-
+                                // print("\\r\\n");
+                                // print("Sublist ||| Array 0,0 : ${sublistArray[0][0]} | Array 0,0 : ${sublistArray[0][1]} | Sublist Array 1,0 : ${sublistArray[1][0]} | Sublist Array 1,1 : ${sublistArray[1][1]}");
+                                // print("Sublist LENGTH ||| Array 0,0 : ${sublistArray[0].length} | Sublist Array 1,0 : ${sublistArray[1].length}");
+                                // print("Sublist Array: ${sublistArray}");
+                                // print("Loaded Arr Samples: ${loadedArrSamples[1].sublist(0, 10)}");
                                 // print("FLATTENED LIST: ${flattenedList.length} || $samplesCount");
 
                                 // processingUtil.processingNwbFileInjectData(flattenedList, samplesCount, deviceType, drawSurfaceWidth, provider);
@@ -2603,6 +2610,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       combinedIdx += initialSampleCount.floor();
     }    
     // print("loadedArrSamples1: ${loadedArrSamples[1]}");
+    // print("OPENING FILE loadedArrSamples: ${loadedArrSamples[1].sublist(0, 10)}");
     loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
     processingUtil.initWithConfig(loadedConfig);
 

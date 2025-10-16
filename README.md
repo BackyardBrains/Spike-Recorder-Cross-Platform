@@ -51,3 +51,11 @@ InjectDataResult from loadedFile
 
 
 loadedArrSamples is the sliced part of the result
+
+
+Sublist
+flutter: Sublist ||| Array 0, 0 : 227 | Sublist Array 1, 0 : 0
+flutter: Sample Count  0 : 166 | Channel Count 1 : 166 || Data Length : 166
+flutter: Channel Value 0 : -5149 | Channel Value 1 : -5149
+Channel 1 Length - 166 | Channel 2 Length 166
+Channel 1 Value - -5149 | Channel 2 Value 0

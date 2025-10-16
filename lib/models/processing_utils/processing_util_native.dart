@@ -1277,6 +1277,10 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
     Pointer<Int32> sampleCountsPtr = calloc<Int32>(sampleCounts.length);
     sampleCountsPtr.asTypedList(sampleCounts.length).setAll(0, sampleCounts);
 
+    // print("Sample Count  0 : ${sampleCounts[0]} | Channel Count 1 : ${sampleCounts[1]} || Data Length : ${data.length}");
+    // print("Channel Value 0 : ${data[0]} | Channel Value 1 : ${data[sampleCounts[1]]}");
+    // print("DATA : $data");
+
     pb.processingBindings.processSerialDataResult(inDataPtr, sampleCountsPtr, channelCount);
     
     calloc.free(inDataPtr);

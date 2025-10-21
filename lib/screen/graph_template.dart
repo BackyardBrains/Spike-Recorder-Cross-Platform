@@ -1368,14 +1368,14 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                                 startSeekSampleIdx = startSeekSample.floor();
                                 endSeekSampleIdx = endSeekSample.floor();
 
-                                print("ARR SAMPLES ZERO");
+                                print("ARR SAMPLES ZERO STOPPING");
+                                Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
                                 Int32List arrSampleCount = Int32List(widget.channelCount);
                                 Int16List arrSamples = Int16List( (endSeekSampleIdx - startSeekSampleIdx) * widget.channelCount );
                                 await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSampleLocal).floor(), endSeekSampleLocal.floor(), 0, widget.channelCount - 1);
                                 GraphTemplate.isLoadingFile = 2;
                                 GraphTemplate.isPlayerPaused = true;
 
-                                Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(true);
 
                                 timerPlaybackLoadedStartIndex = 0;
                                 timerPlaybackLoadedEndIndex = 0;
@@ -1456,10 +1456,15 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                           tempLoadedArrSamples.setAll(0, arrSamplesInitial.sublist(0, arrSampleCountInitial[0].floor()));
                           print("----> START SEEK SAMPLE INITIAL : $startInitialIndex |=| ${(startSeekSample % maxScreenSamples.floor()).floor()} | ${arrSampleCountInitial[0].floor()} |  ${tempLoadedArrSamples.length} |||| ${tempLoadedArrSamples.buffer.asUint8List().length}");
                           // GraphTemplate.isLoadingFile = 3;
-
-                          processingUtil.processMicrophoneData(tempLoadedArrSamples.buffer.asUint8List());
-                          // microphoneUtil.micStream.value = tempLoadedArrSamples.buffer.asUint8List();
-                          microphoneUtil.micStream.value = Uint8List(0);
+                          
+                          bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+                          if (isAudioListen) {
+                            processingUtil.processMicrophoneData(tempLoadedArrSamples.buffer.asUint8List());
+                            // microphoneUtil.micStream.value = tempLoadedArrSamples.buffer.asUint8List();
+                            microphoneUtil.micStream.value = Uint8List(0);
+                          } else {
+                            // processingUtil.processingSerialDataResult(tempLoadedArrSamples.buffer.asUint8List(), Int32List(1), widget.channelCount);
+                          }
                         } else {
                           GraphTemplate.isLoadingFile = 4;
                           // microphoneUtil.micStream.value = Uint8List(0);
@@ -3007,6 +3012,10 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
       bottom: 140,
       child: GestureDetector(
         onTapDown: (onTapDownDetails) {
+          if (!GraphTemplate.isPlayerPaused) {
+            return;
+          }
+
           horizontalDragX = onTapDownDetails.localPosition.dx - 50;
           if (horizontalDragX < 0) {
             horizontalDragX = 0;
@@ -3029,6 +3038,10 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
           });
         },
         onHorizontalDragUpdate: (dragUpdateHorizontalDetails) {
+          if (!GraphTemplate.isPlayerPaused) {
+            return;
+          }
+
           // print("onHorizontalDragUpdate");
           horizontalDragX =
               dragUpdateHorizontalDetails.globalPosition.dx - 50;

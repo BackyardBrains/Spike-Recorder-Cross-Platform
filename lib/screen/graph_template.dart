@@ -2533,7 +2533,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     Int16List arrSamples = Int16List(1);
     // await GraphTemplate.nwbFileUtil?.readElectricalSeries(arrSampleCount, arrChannelCount, 0, 1);
     // DEMO
-                        print("======SEEK OPEN FILE");
+    print("======SEEK OPEN FILE");
     await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, 1, 0, 0);
     widget.channelCount = arrConfig[1];
     arrSampleCount = Int32List(widget.channelCount);
@@ -2621,7 +2621,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
     GraphTemplate.isPlayerPaused = true;
     microphoneUtil.micStream.value = Uint8List(0);
-    print("setGraphResumePlay PLAYBACK INIT");
+    print("setGraphResumePlay PLAYBACK INIT : $combinedIdx | $totalChannelCount");
     Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
     GraphTemplate.isLoadingFile = 1;
     

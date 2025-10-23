@@ -71,6 +71,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
           .add(Int16List(drawSurfaceWidth.toInt() * 5));
       ProcessingUtil.drawingBufferCounts.add(drawSurfaceWidth.toInt() * 5);
     }
+    print("FINISH initWithConfig: $config");
 
     return Future.value(true);
   }

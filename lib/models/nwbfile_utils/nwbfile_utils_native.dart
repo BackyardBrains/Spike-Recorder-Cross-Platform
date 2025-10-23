@@ -7,9 +7,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
 
 class NwbFileUtilImpl implements NWBFileUtil {
+  String recordedTime = "";
   @override
   Future<bool> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer) async {
-    final path = (await getApplicationDocumentsDirectory()).path;
+    // final path = "${(await getApplicationDocumentsDirectory()).path}/${DateTime.now().millisecondsSinceEpoch}";
+    // final path = (await getApplicationDocumentsDirectory()).path + "/example_recording2.nwb";
+    recordedTime = DateTime.now().millisecondsSinceEpoch.toString();
+    final path = "${(await getApplicationDocumentsDirectory()).path}/example_recording_android_serial3$recordedTime.nwb";
     print("NWB file path: $path");
     Pointer<Char> charPointer = path.toString().toNativeUtf8().cast<Char>();
     Pointer<Char> deviceInfoPointer = deviceInfo.toNativeUtf8().cast<Char>();
@@ -82,11 +86,18 @@ class NwbFileUtilImpl implements NWBFileUtil {
   }
 
   @override
-  Future<bool> seekElectricalSeries(Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {
+  Future<bool> seekElectricalSeries(Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) async {
     Pointer<Int16> outSamplesPtr = calloc<Int16>(outSamples.length);
     Pointer<Int32> outSamplesCountPtr = calloc<Int32>(outSamplesCount.length);
     Pointer<Int32> outConfigPtr = calloc<Int32>(10); // Allocate for 5 config parameters
+
     try {
+      final path = "${(await getApplicationDocumentsDirectory()).path}/example_recording_android_serial3$recordedTime.nwb";
+      // final path = "${(await getApplicationDocumentsDirectory()).path}/example_recording.nwb";
+      // final path = "${(await getApplicationDocumentsDirectory()).path}/ZERIAL2_example_recording_multiple_channels.nwb";
+      print("NWB SEEK file path: $path");
+      Pointer<Char> charPointer = path.toString().toNativeUtf8().cast<Char>();
+
       int numChannelsToRead = endChannel - startChannel + 1;
       print("🎯 Seeking electrical series data (Multi-Channel)...");
       print("   Time range: $startTimeStamp to $endTimeStamp");
@@ -94,7 +105,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
       print("   Expected samples per channel: ${endTimeStamp - startTimeStamp}");
       print("   Expected total data points: ${(endTimeStamp - startTimeStamp) * numChannelsToRead}");
       
-      int result = nwb.nwbfile_seek_electrical_series(outSamplesPtr, outSamplesCountPtr, outConfigPtr, startTimeStamp, endTimeStamp, startChannel, endChannel);
+      int result = nwb.nwbfile_seek_electrical_series(charPointer, outSamplesPtr, outSamplesCountPtr, outConfigPtr, startTimeStamp, endTimeStamp, startChannel, endChannel);
       print("📊 Seek result: $result == $startChannel, $endChannel");
 
       if (endChannel == 1) {

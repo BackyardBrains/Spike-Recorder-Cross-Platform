@@ -17,7 +17,7 @@ int nwbfile_add_electrical_series(Pointer<Int16> inSamples, Pointer<Int32> numSa
 int nwbfile_read_electrical_series(Pointer<Int16> outSamples, Pointer<Int32> outSampleCounts, int selectedChannel, int channelCount) => _bindings.nwbfile_read_electrical_series(outSamples, outSampleCounts,selectedChannel, channelCount);
 
 /// Seek and read a specific time range from electrical series data (multi-channel support)
-int nwbfile_seek_electrical_series(Pointer<Int16> outSamples, Pointer<Int32> outSampleCounts, Pointer<Int32> outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) => _bindings.nwbfile_seek_electrical_series(outSamples, outSampleCounts, outConfig, startTimeStamp, endTimeStamp, startChannel, endChannel);
+int nwbfile_seek_electrical_series(Pointer<Char> path, Pointer<Int16> outSamples, Pointer<Int32> outSampleCounts, Pointer<Int32> outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) => _bindings.nwbfile_seek_electrical_series(path, outSamples, outSampleCounts, outConfig, startTimeStamp, endTimeStamp, startChannel, endChannel);
 
 /// NWB file data functions for iOS
 int getNwbFileSize() => _bindings.get_nwb_file_size();

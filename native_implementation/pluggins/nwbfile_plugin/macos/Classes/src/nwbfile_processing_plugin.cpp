@@ -242,11 +242,38 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* s
         return -1;
     }
     
-    short** arrSamples = new short*[channelCount];
+    // Validate sample counts to prevent buffer overruns
+    for (int i = 0; i < channelCount; i++) {
+        if (samplesCount[i] <= 0) {
+            std::cerr << "Invalid sample count for channel " << i << ": " << samplesCount[i] << std::endl;
+            return -1;
+        }
+    }
+    
+    short** arrSamples = nullptr;
     try {
+        // Allocate memory for channel pointers
+        arrSamples = new short*[channelCount];
+        
+        // Initialize all pointers to nullptr for safe cleanup
         for (int i = 0; i < channelCount; i++) {
-            arrSamples[i] = new short[samplesCount[i]];
-            std::copy(inSamples + i * samplesCount[i], inSamples + (i + 1) * samplesCount[i], arrSamples[i]);
+            arrSamples[i] = nullptr;
+        }
+        
+        // Allocate memory for each channel
+        for (int i = 0; i < channelCount; i++) {
+            try {
+                arrSamples[i] = new short[samplesCount[i]];
+                std::copy(inSamples + i * samplesCount[i], inSamples + (i + 1) * samplesCount[i], arrSamples[i]);
+            } catch (const std::bad_alloc& e) {
+                std::cerr << "Memory allocation failed for channel " << i << ": " << e.what() << std::endl;
+                // Clean up already allocated memory
+                for (int j = 0; j < i; j++) {
+                    delete[] arrSamples[j];
+                }
+                delete[] arrSamples;
+                return -1;
+            }
         }
 
     // auto elecTableStatus = nwbfile->createElectrodesTable(recordingArrays);
@@ -1107,7 +1134,7 @@ FFI_PLUGIN_EXPORT int32_t debug_nwb_file_structure(const char* filePath) {
     }
 }
 
-FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int* outSamplesCount, int* outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {
+FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short* outSamples, int* outSamplesCount, int* outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {
     std::cout << "🎯 AQNWB nwbfile_seek_electrical_series (Multi-Channel)" << std::endl;
     std::cout << "   Seeking from sample " << startTimeStamp << " to " << endTimeStamp << std::endl;
     std::cout << "   Channels: " << startChannel << " to " << endChannel << " (inclusive)" << std::endl;
@@ -1129,6 +1156,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(short* outSamples, int*
     std::cout << "   Number of channels to read: " << numChannelsToRead << std::endl;
     
     outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
+    // outputPath = std::string(path);
     std::string filePath = outputPath;
     
     // Open AQNWB file

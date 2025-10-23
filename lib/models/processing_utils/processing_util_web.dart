@@ -729,6 +729,22 @@ class ProcessingUtilImpl implements ProcessingUtil {
         indexCount: indicesCount, 
         scaleX: 1, scaleY: 1);
   }
+  
+  @override
+  Future<bool> initWithConfig(Int32List config) {
+    // TODO: implement initWithConfig
+    throw UnimplementedError();
+  }
+  
+  @override
+  void processingNwbFileInjectData(Int16List data, Int32List sampleCounts, int selectedChannel, int channelCount) {
+    // TODO: implement processingNwbFileInjectData
+  }
+  
+  @override
+  void processingSerialDataResult(Int16List data, Int32List sampleCounts, int channelCount) {
+    // TODO: implement processingSerialDataResult
+  }
 }
 
 // Factory function to create an instance

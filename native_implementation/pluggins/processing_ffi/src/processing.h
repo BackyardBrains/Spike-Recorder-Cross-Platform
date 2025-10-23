@@ -1,9 +1,13 @@
 #ifndef PROCESSING_H
 #define PROCESSING_H
 
-// Use FFI export macro for cross-platform compatibility
+// Add this export macro definition at the top of the file
 #ifdef _WIN32
-    #define PROCESSING_API __declspec(dllexport)
+    #ifdef BUILDING_DLL
+        #define PROCESSING_API __declspec(dllexport)
+    #else
+        #define PROCESSING_API __declspec(dllimport)
+    #endif
 #else
     #define PROCESSING_API
 #endif
@@ -42,7 +46,6 @@ extern "C" {
 #define PROCESSING_MAX_FILTER_CUTOFF 5000.0f
 #define PROCESSING_DEFAULT_AVERAGED_SAMPLE_COUNT 10
 #define PROCESSING_MAX_FFT_WINDOWS 100  // Maximum number of FFT windows to process
-#define PROCESSING_MAX_FFT_WINDOWS_COUNT 100  // Maximum number of FFT windows to process
 
 // Basic initialization and configuration
 PROCESSING_API int32_t processing_init();

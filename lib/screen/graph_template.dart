@@ -35,7 +35,7 @@ import 'graph_page_widget/sound_wave_view.dart';
 import 'package:spikerbox_architecture/models/microphone_stream/microphone_stream_check.dart';
 
 import 'package:another_xlider/another_xlider.dart';
-
+import 'package:file_picker/file_picker.dart';
 
 class GraphTemplate extends StatefulWidget {
   static int isLoadingFile = 0;
@@ -252,7 +252,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       // print("START SEEK SAMPLE IDX: $startSeekSampleIdx $endSeekSampleIdx");
 
 
-      await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, widget.channelCount - 1);
+      await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, widget.channelCount - 1);
       print("Percentage: $percentage @@@ Config: $loadedConfig ||| scrubNotifier: ${timeScrub} ${(arrSamplesLength * percentage).floor()}, ${(arrSamplesLength - startSeekSample).floor()}");
       
       int combinedIdx = 0;
@@ -1224,9 +1224,12 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                           ),
                           if (isRecording != 1) ... {
                             SpikerBoxButton(onTapButton: () async {
-                              
-                              startOpeningFile();
-
+                              FilePickerResult? result = await FilePicker.platform.pickFiles();
+                              if (result != null) {
+                                startOpeningFile(result.files.single.path!);
+                              } else {
+                                // User canceled the picker
+                              }
                             }, iconData: Icons.menu)
                           },
                         ],
@@ -1304,7 +1307,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                         // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
                         // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), (loadedMaxSamples).floor(), 0, 1);
                         print("======SEEK 1 ");
-                        await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSampleIdx).floor(), (loadedMaxSamples).floor(), 0, widget.channelCount - 1);
+                        await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSampleIdx).floor(), (loadedMaxSamples).floor(), 0, widget.channelCount - 1);
                         // loadedArrSamples = Int16List(arrSampleCount[0].floor());
                         // loadedArrSamples.setAll(0, arrSamples.sublist(0, arrSampleCount[0].floor()));
                         // loadedArrChannelCount.setAll(0, arrSampleCount);
@@ -1372,7 +1375,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                                 Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
                                 Int32List arrSampleCount = Int32List(widget.channelCount);
                                 Int16List arrSamples = Int16List( (endSeekSampleIdx - startSeekSampleIdx) * widget.channelCount );
-                                await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSampleLocal).floor(), endSeekSampleLocal.floor(), 0, widget.channelCount - 1);
+                                await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSampleLocal).floor(), endSeekSampleLocal.floor(), 0, widget.channelCount - 1);
                                 GraphTemplate.isLoadingFile = 2;
                                 GraphTemplate.isPlayerPaused = true;
 
@@ -1450,7 +1453,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                           // int endInitialIndex = 240000;
                           Int32List arrSampleCountInitial = Int32List(widget.channelCount);
                           Int16List arrSamplesInitial = Int16List(endInitialIndex * widget.channelCount);
-                          await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, 0);
+                          await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, 0);
 
                           Int16List tempLoadedArrSamples = Int16List(arrSampleCountInitial[0].floor());
                           tempLoadedArrSamples.setAll(0, arrSamplesInitial.sublist(0, arrSampleCountInitial[0].floor()));
@@ -2116,6 +2119,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   
   Timer? periodicTimerSerial;
   
+  String currentLoadedFilePath = "";
+  
 
   void micListener(){
     // print("miCLISTENER DATA");
@@ -2525,7 +2530,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     });
   }
   
-  void startOpeningFile() async {
+  void startOpeningFile(String filePath) async {
+    currentLoadedFilePath = filePath;
     print("INIT NWB FILE");
     isOpeningFile = true;
     Int32List arrConfig = Int32List(10);
@@ -2534,7 +2540,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     // await GraphTemplate.nwbFileUtil?.readElectricalSeries(arrSampleCount, arrChannelCount, 0, 1);
     // DEMO
     print("======SEEK OPEN FILE");
-    await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, 1, 0, 0);
+    await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, arrConfig, 0, 1, 0, 0);
     widget.channelCount = arrConfig[1];
     arrSampleCount = Int32List(widget.channelCount);
     loadedMaxSamples = arrConfig[5];
@@ -2595,7 +2601,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     await Future.delayed(Duration(milliseconds: 100));
 
     print("FINISH WAITINGGGGGG END SEEK SAMPLE IDX: $endSeekSampleIdx $loadedMaxSamples");
-    await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, widget.channelCount - 1);
+    await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, widget.channelCount - 1);
     // print("Start Seek Sample: $startSeekSample --- End Seek Sample: $endSeekSample ||| arrSampleCount : ${arrSampleCount} ____ CHANNEL COUNT: ${widget.channelCount}");
     
     loadedConfig[7] = MediaQuery.of(context).size.width.toInt();

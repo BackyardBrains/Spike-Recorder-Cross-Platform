@@ -135,7 +135,8 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
         // 1) Create the I/O object
         // /Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents
         // /Users/macbook/Library/Containers/com.example.nwbapplication/Data/Downloads/
-        outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
+        outputPath = path;
+        // outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
         // std::shared_ptr<AQNWB::IO::BaseIO> io = AQNWB::createIO("HDF5", outputPath);
         io = AQNWB::createIO("HDF5", outputPath);
         auto openStatus = io->open(AQNWB::IO::FileMode::Overwrite);
@@ -399,7 +400,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* s
 FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples, int* outSamplesCount, int selectedChannel, int channelCount) {
     std::cout << "AQNWB nwbfile_read_electrical_series" << std::endl;
     
-    outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
+    // outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
     // 1. Open the NWB file for reading
     // std::shared_ptr<BaseIO> io = AQNWB::createIO("HDF5", filePath);
     // auto openStatus = io->open(FileMode::ReadOnly);
@@ -1155,8 +1156,8 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
     int numChannelsToRead = endChannel - startChannel + 1;
     std::cout << "   Number of channels to read: " << numChannelsToRead << std::endl;
     
-    outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
-    // outputPath = std::string(path);
+    // outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
+    outputPath = std::string(path);
     std::string filePath = outputPath;
     
     // Open AQNWB file

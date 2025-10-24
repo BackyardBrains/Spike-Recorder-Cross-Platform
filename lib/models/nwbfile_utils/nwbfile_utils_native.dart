@@ -86,13 +86,15 @@ class NwbFileUtilImpl implements NWBFileUtil {
   }
 
   @override
-  Future<bool> seekElectricalSeries(Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) async {
+  Future<bool> seekElectricalSeries(String filePath, Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) async {
     Pointer<Int16> outSamplesPtr = calloc<Int16>(outSamples.length);
     Pointer<Int32> outSamplesCountPtr = calloc<Int32>(outSamplesCount.length);
     Pointer<Int32> outConfigPtr = calloc<Int32>(10); // Allocate for 5 config parameters
 
     try {
-      final path = "${(await getApplicationDocumentsDirectory()).path}/example_recording_android_serial3$recordedTime.nwb";
+      print("FILE PATH: $filePath");
+      final path = filePath;
+      // final path = "${(await getApplicationDocumentsDirectory()).path}/example_recording_android_serial3$recordedTime.nwb";
       // final path = "${(await getApplicationDocumentsDirectory()).path}/example_recording.nwb";
       // final path = "${(await getApplicationDocumentsDirectory()).path}/ZERIAL2_example_recording_multiple_channels.nwb";
       print("NWB SEEK file path: $path");

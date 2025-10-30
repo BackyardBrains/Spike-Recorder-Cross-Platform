@@ -44,10 +44,10 @@ class SetUpFunctionality {
 
 
   Future<Config> getAllDeviceList() async {
-    print("getAllDeviceList000");
-    print(defaultDeviceConfig);
+    // print("getAllDeviceList000");
+    // print(defaultDeviceConfig);
     if (defaultDeviceConfig != null) {
-      print("defaultDeviceConfig");
+      // print("defaultDeviceConfig");
       DefaultConfig data = await SetUpFunctionality().jsonLoad();
       defaultDeviceConfig = data;
       return defaultDeviceConfig!.config!;

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:another_xlider/another_xlider.dart';
@@ -396,6 +397,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
 
   void addChartControls(
       List<Widget> charts, int idx, int channelCount, BuildContext context) {
+    // print("addChartControls : $idx, $channelCount --- ${DateTime.now().microsecondsSinceEpoch}");
     double leftDroplet = 5;
     final colorProvider = Provider.of<ChannelColorProvider>(context, listen: false);
 
@@ -567,8 +569,14 @@ class _DraggableGraphState extends State<DraggableGraph> {
                   markerOutOfRange = 0;
                   // old calculation
                   // thresholdValue[c] = tempThresholdValue;
-                  thresholdValue[c] = ((signalMultiplierChannel[c] * tempMedianDistance).floor()).abs();
-                  print("tempThresholdValue: ${thresholdValue[c]} - $signalMultiplierChannel[c] $tempMedianDistance");
+                  double scaleRatio = 1;
+                  if (Platform.isAndroid) {
+                    // print("MediaQuery.of(context).devicePixelRatio : ${MediaQuery.of(context).devicePixelRatio} || ${MediaQuery.of(context).size.aspectRatio}");
+                    scaleRatio = MediaQuery.of(context).devicePixelRatio;
+                  }
+
+                  thresholdValue[c] = ((signalMultiplierChannel[c] * tempMedianDistance * scaleRatio).floor()).abs();
+                  print("tempThresholdValue: ${thresholdValue[c]} - $signalMultiplierChannel[c] $tempMedianDistance --- scaleRatio : $scaleRatio");
 
                   // List<int> thresholdParam = context.read<ThresholdStatusProvider>().selectedThresholdParam;
                   // thresholdParam[c] 
@@ -604,6 +612,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
 
         ),
       );
+      // print("thresholdMarkerTop : $thresholdMarkerTop");
       if (markerOutOfRange == 0) {
         charts.add(Positioned(
             top: thresholdMarkerTop[selectedThresholdIdx] + thresholdIconTopDifference,
@@ -698,7 +707,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
   double signalMultiplier = 525 / 75;
   List<double> signalMultiplierChannel = [0,0,0,0,0,0];
   
-  List<double> thresholdMarkerTop = [
+  static List<double> thresholdMarkerTop = [
     -10000,
     -10000,
     -10000,
@@ -904,7 +913,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
         ),
       ));
       
-      // print("CHANNEL COUNT: $channelCount");
+      // print("CHANNEL COUNT: $channelCount ${DateTime.now().microsecondsSinceEpoch}");
       for (idx = 0; idx < channelCount; idx++) {
         addChartControls(charts, idx, channelCount, context);
       }

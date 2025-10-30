@@ -11,7 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_soloud/flutter_soloud.dart' as SoLoud;
-
+import 'package:panara_dialogs/panara_dialogs.dart';
 import 'package:mic_stream/mic_stream.dart';
 // import 'package:flutter_libserialport/flutter_libserialport.dart';
 import 'package:native_add/model/model.dart';
@@ -224,50 +224,77 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
 
     scrubNotifier.addListener(() async {
+      // print("scrubNotifier");
+      timerPlaybackLoadedStartIndex = 0;
+      timerPlaybackLoadedEndIndex = 0;
+
       List<int> timeScrub = scrubNotifier.value;
+      double percentage = timeScrub[0] / timeScrub[1];
+
       // nwbfile_seek_electrical_series(outSamples, outSampleCounts, outConfig, startTimeStamp, endTimeStamp, selectedChannel, channelCount)
       Int16List arrSamples = Int16List(1);
-      loadedMaxSamples = loadedConfig[5];
+      loadedMaxSamples = loadedConfig[5].toDouble();
       int sampleRateConfig = loadedConfig[0].round();
+      double maxScreenSamples = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRateConfig;
+      double arrSamplesLength = maxScreenSamples;
+      double startSeekSample = 0;
+      
+      double currentSamples = percentage * loadedMaxSamples;
+      if (currentSamples < maxScreenSamples) {
+        startSeekSample = 0;
+        arrSamplesLength = currentSamples;
+      } else 
+      if (currentSamples >= maxScreenSamples) {
+        startSeekSample = currentSamples - maxScreenSamples;
+        arrSamplesLength = maxScreenSamples;
+      }
 
-      double arrSamplesLength = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRateConfig;
       // double arrSamplesLength = maxSamples.toDouble();
       arrSamples = Int16List(arrSamplesLength.floor() * widget.channelCount);
       Int32List arrSampleCount = Int32List(widget.channelCount);
 
-      double percentage = timeScrub[0] / timeScrub[1];
       // double percentage = 0.1;
       // double startSeekSample = (arrSamplesLength * percentage);
-      double startSeekSample = loadedMaxSamples * percentage;
+      // double startSeekSample = loadedMaxSamples * percentage;
       // double endSeekSample = arrSamplesLength; // (arrSamplesLength - startSeekSample).floor()
-      double endSeekSample = min(startSeekSample + arrSamplesLength, loadedMaxSamples.toDouble()); // (arrSamplesLength - startSeekSample).floor()
+      // double endSeekSample = min(startSeekSample + arrSamplesLength, loadedMaxSamples.toDouble()); // (arrSamplesLength - startSeekSample).floor()
+      double endSeekSample = currentSamples; 
+      startPlaybackSeekSampleIdx = currentSamples;
       
       // print("START SEEK SAMPLE: $startSeekSample | END SEEK SAMPLE: $endSeekSample | arrSamplesLength: $arrSamplesLength | loadedMaxSamples: $loadedMaxSamples");
       if (startSeekSample + arrSamplesLength > loadedMaxSamples) {
         return;
       } else {
       }
-      startSeekSampleIdx = startSeekSample.floor();
-      endSeekSampleIdx = endSeekSample.floor();
-      // print("START SEEK SAMPLE IDX: $startSeekSampleIdx $endSeekSampleIdx");
+      startSeekSampleIdx = startSeekSample;
+      endSeekSampleIdx = endSeekSample;
+      print("START SEEK SAMPLE IDX: $startSeekSample $endSeekSampleIdx");
 
-
-      await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, widget.channelCount - 1);
+      if (endSeekSample == startSeekSample && endSeekSample == 0) {
+        endSeekSample = 1;  
+      }
+      bool? seekFlag = await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, widget.channelCount - 1);
       print("Percentage: $percentage @@@ Config: $loadedConfig ||| scrubNotifier: ${timeScrub} ${(arrSamplesLength * percentage).floor()}, ${(arrSamplesLength - startSeekSample).floor()}");
-      
+      // if (seekFlag != null && !seekFlag) {
+      //   print("SEEK FAILED");
+      //   return;
+      // }
+
       int combinedIdx = 0;
       int totalChannelCount = loadedConfig[1];
       loadedArrSamples.clear();
-      print("LOADED ARR SAMPLES INTERUPTED");
       loadedArrChannelCount = (Int32List(widget.channelCount));
       for (int i = 0; i < widget.channelCount; i++) {
         // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
         double initialSampleCount = arrSampleCount[i].toDouble();
-        loadedArrSamples.add(Int16List(initialSampleCount.floor()));
-        loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
-        // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
-        loadedArrChannelCount[i] = initialSampleCount.floor();
-        combinedIdx += initialSampleCount.floor();
+        if (arrSamples.length >= combinedIdx + initialSampleCount) {
+          // print("LOADED ARR SAMPLES INTERUPTED: $initialSampleCount + $combinedIdx ?? ${arrSamples.length}");
+          loadedArrSamples.add(Int16List(initialSampleCount.floor()));
+          loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
+          // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
+          loadedArrChannelCount[i] = initialSampleCount.floor();
+          combinedIdx += initialSampleCount.floor();
+        }
       }
       loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
       processingUtil.initWithConfig(loadedConfig);
@@ -304,6 +331,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     // Initialize stream and set provider
     _graphStream = _graphStreamController.stream.asBroadcastStream();
     provider.setStreamOfData(_graphStream);
+
+    streamScrubBuilder = streamScrubBuilderController.stream.asBroadcastStream();
 
     SchedulerBinding.instance.addPostFrameCallback((timeStamp) async {
       setSampleRate();
@@ -729,759 +758,714 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
     return Scaffold(
       backgroundColor: SoftwareColors.kBackGroundColor,
-      body: _AdaptiveArea(
-          notifier: scrubNotifier,
-          child1: const _GraphArea(),
-          child3: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Row(children: [
-                SpikerBoxButton(
-                    onTapButton: () {
-                      context.read<SoftwareConfigProvider>().settingStatus(false);
-                    },
-                    iconData: Icons.settings),
-                // const SizedBox(
-                //   width: 10,
-                // ),
-                // Text(
-                //   "Config",
-                //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                // )
-              ]),
-              Expanded(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: 500,
-                  ),
-                  child: Column(
-                    children: [
-                      CustomSliderBarButton(
-                        processingUtil: processingUtil,
-                        isMicrophoneEnable: (bool isMicrophoneEnable) {
-                          context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
-                        },
-                        onHighPassFilterSetup: (FilterSetup filterSetup) {
-                          // Keep this for backward compatibility if needed
-                        },
-                        onLowPassFilterSetup: (FilterSetup filterSetup) {
-                          // Keep this for backward compatibility if needed
-                        },
-                        onSampleChange: (bool isSampleDataOn) {
-                          context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
-                        },
-                        startValue: startValue,
-                        endValue: endValue,
-                        sliderValue: _sliderValue,
-                      ),
-                      const SizedBox(
-                        height: 10,
-                      ),
-                      NotchPassFilterWidget(sampleRateParam:_sampleRate.toDouble(), onTapNotchFrequency: (notchFilterSettings) async {
-                        notchFilterSettings.filterConfiguration.sampleRate = _sampleRate;
-                        print("the notch filter setting is ${notchFilterSettings.toJson()}");
-                        if (notchFilterSettings.isFilterOn) {
-                          if (notchFilterSettings.filterConfiguration.cutOffFrequency == 50) {
-                            int temp = await processingUtil.setNotchFilter(50);
-                            print("processingUtil.setNotchFilter(50) $temp");
-                          } else 
-                          if (notchFilterSettings.filterConfiguration.cutOffFrequency == 60) {
-                            processingUtil.setNotchFilter(60);
-                            print("processingUtil.setNotchFilter(60)");
-                          } else {
-                            processingUtil.setNotchFilter(-1);
-                          }
-                        }
-
-                        context.read<DataStatusProvider>().setNotchPassFilterSetting(notchFilterSettings);
-                        // localPlugin.initNotchPassFilters(notchFilterSettings);
-                      }),
-                      const SizedBox(
-                        height: 10,
-                      ),
-                      Expanded(
-                        child: SettingPage(
-                          settingPage: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                flex: 1,
-                                child: SingleChildScrollView(
-                                  child: Column(
-                                    children: [
-                                      FilterProcessWidget(isMicrophoneEnable: (bool isMicrophoneEnable) {
-                                        // _toEnableMicrophone =
-                                        //     isMicrophoneEnable;
-
-                                        context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
-                                      }, onHighPassFilterSetup: (FilterSetup filterSetup) {
-                                        localPlugin.initHighPassFilters(filterSetup);
-                                      }, onLowPassFilterSetup: (FilterSetup filterSetup) {
-                                        localPlugin.initLowPassFilters(filterSetup);
-                                      }, onSampleChange: (bool isSampleDataOn) {
-                                        context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
-                                        // _toGenerateDummyData =
-                                        //     isSampleDataOn;
-                                      }),
-                                      _channelColorSettings(),
-                                      _channelFilterSettings(),
-                                      // DropdownButtonFormField<int>(
-                                      //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                      //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                                      //   items: _dataBit
-                                      //       .map(
-                                      //         (e) => DropdownMenuItem(
-                                      //           value: e,
-                                      //           child: Text(
-                                      //             e.toString(),
-                                      //           ),
-                                      //         ),
-                                      //       )
-                                      //       .toList(),
-                                      //   onChanged: (int? bitDataSelect) {
-                                      //     context.read<ConstantProvider>().setBitData(bitDataSelect!);
-                                      //   },
-                                      //   value: context.read<ConstantProvider>().getBitData(),
-                                      // ),
-                                      // DropdownButtonFormField(
-                                      //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                      //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                                      //   items: _baudRate
-                                      //       .map(
-                                      //         (e) => DropdownMenuItem(
-                                      //           value: e,
-                                      //           child: Text(
-                                      //             e.toString(),
-                                      //           ),
-                                      //         ),
-                                      //       )
-                                      //       .toList(),
-                                      //   onChanged: (baudRateSelect) {
-                                      //     context.read<ConstantProvider>().setBaudRate(baudRateSelect!);
-                                      //   },
-                                      //   value: context.read<ConstantProvider>().getBaudRate(),
-                                      // ),
-                                      // DropdownButtonFormField(
-                                      //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                      //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                                      //   items: _channelCount
-                                      //       .map(
-                                      //         (e) => DropdownMenuItem(
-                                      //           value: e,
-                                      //           child: Text(
-                                      //             e.toString(),
-                                      //           ),
-                                      //         ),
-                                      //       )
-                                      //       .toList(),
-                                      //   onChanged: (int? channelCountSelect) {
-                                      //     context.read<ConstantProvider>().setChannelCount(channelCountSelect!);
-                                      //   },
-                                      //   value: context.read<ConstantProvider>().getChannelCount(),
-                                      // ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 1,
-                                child: Consumer<PortScanProvider>(builder: (context, portList, snapshot) {
-                                  return _PortsArea(
-                                    deviceName: _deviceName,
-                                    availablePorts: portList.availablePorts,
-                                    onReceive: (String add) async {
-                                      // int baudRate = context
-                                      //     .read<ConstantProvider>()
-                                      //     .getBaudRate();
-
-                                      // await _serialUtil.openPortToListen(
-                                      //     add, baudRate);
-
-                                      // // ignore: use_build_context_synchronously
-                                      // context
-                                      //     .read<DataStatusProvider>()
-                                      //     .setMicrophoneDataStatus(false);
-
-                                      // // if (!mounted) return;
-                                      // // bool dummyDataStatus = context
-                                      // //     .read<DataStatusProvider>()
-                                      // //     .isSampleDataOn;
-                                      // // bool isAudioListen = context
-                                      // //     .read<DataStatusProvider>()
-                                      // //     .isMicrophoneData;
-                                      // // try {
-                                      // //   _serialUtil.dataStream?.listen((event) {
-                                      // //     if (!dummyDataStatus &&
-                                      // //         !isAudioListen) {
-                                      // //       _preEscapeSequenceBuffer
-                                      // //           .addBytes(event);
-                                      // //       if (isDeviceConnect) {
-                                      // //         _serialUtil.writeToPort(
-                                      // //             bytesMessage: UsbCommand
-                                      // //                 .hwTypeInquiry
-                                      // //                 .cmdAsBytes(),
-                                      // //             address: add);
-
-                                      // //         isDeviceConnect = false;
-                                      // //       }
-                                      // //       if (_isDataIdentified) {
-                                      // //         // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
-                                      // //         // stopwatch.reset();
-                                      // //       } else {
-                                      // //         Uint8List? firstFrameData =
-                                      // //             _frameDetect.addData(event);
-
-                                      // //         if (firstFrameData != null) {
-                                      // //           _preEscapeSequenceBuffer
-                                      // //               .addBytes(firstFrameData);
-                                      // //           _isDataIdentified = true;
-                                      // //         }
-                                      // //       }
-                                      // //     }
-                                      // //   });
-                                      // //   portName = add;
-                                      // // } catch (e) {
-                                      // //   print(
-                                      // //       "the error is $e from serial port");
-                                      // // }
-                                    },
-                                    onWrite: (String add) async {
-                                      MessageValueSet? selectedCommand = await showCommandPopUp(add);
-                                      if (selectedCommand != null) {
-                                        _serialUtil.writeToPort(bytesMessage: selectedCommand.cmdAsBytes(), address: add);
-                                      }
-                                    },
-                                  );
-                                }),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          child2: Positioned(
-            left: 0,
-            top: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-              width: MediaQuery.of(context).size.width,
-              height: MediaQuery.of(context).size.height,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: StreamBuilder<int>(
+        stream: streamScrubBuilder,
+        builder: (context, snapshot) {
+          return _AdaptiveArea(
+              notifier: scrubNotifier,
+              child1: const _GraphArea(),
+              child3: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(children: [
+                    SpikerBoxButton(
+                        onTapButton: () {
+                          context.read<SoftwareConfigProvider>().settingStatus(false);
+                        },
+                        iconData: Icons.settings),
+                    // const SizedBox(
+                    //   width: 10,
+                    // ),
+                    // Text(
+                    //   "Config",
+                    //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                    // )
+                  ]),
+                  Expanded(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: 500,
+                      ),
+                      child: Column(
+                        children: [
+                          CustomSliderBarButton(
+                            processingUtil: processingUtil,
+                            isMicrophoneEnable: (bool isMicrophoneEnable) {
+                              context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
+                            },
+                            onHighPassFilterSetup: (FilterSetup filterSetup) {
+                              // Keep this for backward compatibility if needed
+                            },
+                            onLowPassFilterSetup: (FilterSetup filterSetup) {
+                              // Keep this for backward compatibility if needed
+                            },
+                            onSampleChange: (bool isSampleDataOn) {
+                              context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
+                            },
+                            startValue: startValue,
+                            endValue: endValue,
+                            sliderValue: _sliderValue,
+                          ),
+                          const SizedBox(
+                            height: 10,
+                          ),
+                          NotchPassFilterWidget(sampleRateParam:_sampleRate.toDouble(), onTapNotchFrequency: (notchFilterSettings) async {
+                            notchFilterSettings.filterConfiguration.sampleRate = _sampleRate;
+                            print("the notch filter setting is ${notchFilterSettings.toJson()}");
+                            if (notchFilterSettings.isFilterOn) {
+                              if (notchFilterSettings.filterConfiguration.cutOffFrequency == 50) {
+                                int temp = await processingUtil.setNotchFilter(50);
+                                print("processingUtil.setNotchFilter(50) $temp");
+                              } else 
+                              if (notchFilterSettings.filterConfiguration.cutOffFrequency == 60) {
+                                processingUtil.setNotchFilter(60);
+                                print("processingUtil.setNotchFilter(60)");
+                              } else {
+                                processingUtil.setNotchFilter(-1);
+                              }
+                            }
+          
+                            context.read<DataStatusProvider>().setNotchPassFilterSetting(notchFilterSettings);
+                            // localPlugin.initNotchPassFilters(notchFilterSettings);
+                          }),
+                          const SizedBox(
+                            height: 10,
+                          ),
+                          Expanded(
+                            child: SettingPage(
+                              settingPage: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Expanded(
+                                    flex: 1,
+                                    child: SingleChildScrollView(
+                                      child: Column(
+                                        children: [
+                                          FilterProcessWidget(isMicrophoneEnable: (bool isMicrophoneEnable) {
+                                            // _toEnableMicrophone =
+                                            //     isMicrophoneEnable;
+          
+                                            context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
+                                          }, onHighPassFilterSetup: (FilterSetup filterSetup) {
+                                            localPlugin.initHighPassFilters(filterSetup);
+                                          }, onLowPassFilterSetup: (FilterSetup filterSetup) {
+                                            localPlugin.initLowPassFilters(filterSetup);
+                                          }, onSampleChange: (bool isSampleDataOn) {
+                                            context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
+                                            // _toGenerateDummyData =
+                                            //     isSampleDataOn;
+                                          }),
+                                          _channelColorSettings(),
+                                          _channelFilterSettings(),
+                                          // DropdownButtonFormField<int>(
+                                          //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                          //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                                          //   items: _dataBit
+                                          //       .map(
+                                          //         (e) => DropdownMenuItem(
+                                          //           value: e,
+                                          //           child: Text(
+                                          //             e.toString(),
+                                          //           ),
+                                          //         ),
+                                          //       )
+                                          //       .toList(),
+                                          //   onChanged: (int? bitDataSelect) {
+                                          //     context.read<ConstantProvider>().setBitData(bitDataSelect!);
+                                          //   },
+                                          //   value: context.read<ConstantProvider>().getBitData(),
+                                          // ),
+                                          // DropdownButtonFormField(
+                                          //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                          //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                                          //   items: _baudRate
+                                          //       .map(
+                                          //         (e) => DropdownMenuItem(
+                                          //           value: e,
+                                          //           child: Text(
+                                          //             e.toString(),
+                                          //           ),
+                                          //         ),
+                                          //       )
+                                          //       .toList(),
+                                          //   onChanged: (baudRateSelect) {
+                                          //     context.read<ConstantProvider>().setBaudRate(baudRateSelect!);
+                                          //   },
+                                          //   value: context.read<ConstantProvider>().getBaudRate(),
+                                          // ),
+                                          // DropdownButtonFormField(
+                                          //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                          //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                                          //   items: _channelCount
+                                          //       .map(
+                                          //         (e) => DropdownMenuItem(
+                                          //           value: e,
+                                          //           child: Text(
+                                          //             e.toString(),
+                                          //           ),
+                                          //         ),
+                                          //       )
+                                          //       .toList(),
+                                          //   onChanged: (int? channelCountSelect) {
+                                          //     context.read<ConstantProvider>().setChannelCount(channelCountSelect!);
+                                          //   },
+                                          //   value: context.read<ConstantProvider>().getChannelCount(),
+                                          // ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 1,
+                                    child: Consumer<PortScanProvider>(builder: (context, portList, snapshot) {
+                                      return _PortsArea(
+                                        deviceName: _deviceName,
+                                        availablePorts: portList.availablePorts,
+                                        onReceive: (String add) async {
+                                          // int baudRate = context
+                                          //     .read<ConstantProvider>()
+                                          //     .getBaudRate();
+          
+                                          // await _serialUtil.openPortToListen(
+                                          //     add, baudRate);
+          
+                                          // // ignore: use_build_context_synchronously
+                                          // context
+                                          //     .read<DataStatusProvider>()
+                                          //     .setMicrophoneDataStatus(false);
+          
+                                          // // if (!mounted) return;
+                                          // // bool dummyDataStatus = context
+                                          // //     .read<DataStatusProvider>()
+                                          // //     .isSampleDataOn;
+                                          // // bool isAudioListen = context
+                                          // //     .read<DataStatusProvider>()
+                                          // //     .isMicrophoneData;
+                                          // // try {
+                                          // //   _serialUtil.dataStream?.listen((event) {
+                                          // //     if (!dummyDataStatus &&
+                                          // //         !isAudioListen) {
+                                          // //       _preEscapeSequenceBuffer
+                                          // //           .addBytes(event);
+                                          // //       if (isDeviceConnect) {
+                                          // //         _serialUtil.writeToPort(
+                                          // //             bytesMessage: UsbCommand
+                                          // //                 .hwTypeInquiry
+                                          // //                 .cmdAsBytes(),
+                                          // //             address: add);
+          
+                                          // //         isDeviceConnect = false;
+                                          // //       }
+                                          // //       if (_isDataIdentified) {
+                                          // //         // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
+                                          // //         // stopwatch.reset();
+                                          // //       } else {
+                                          // //         Uint8List? firstFrameData =
+                                          // //             _frameDetect.addData(event);
+          
+                                          // //         if (firstFrameData != null) {
+                                          // //           _preEscapeSequenceBuffer
+                                          // //               .addBytes(firstFrameData);
+                                          // //           _isDataIdentified = true;
+                                          // //         }
+                                          // //       }
+                                          // //     }
+                                          // //   });
+                                          // //   portName = add;
+                                          // // } catch (e) {
+                                          // //   print(
+                                          // //       "the error is $e from serial port");
+                                          // // }
+                                        },
+                                        onWrite: (String add) async {
+                                          MessageValueSet? selectedCommand = await showCommandPopUp(add);
+                                          if (selectedCommand != null) {
+                                            _serialUtil.writeToPort(bytesMessage: selectedCommand.cmdAsBytes(), address: add);
+                                          }
+                                        },
+                                      );
+                                    }),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              child4: Platform.isAndroid && isThresholdingButton ? Positioned(
+                left: 10,
+                top: 80,
+                child: Row(
+                  children: generateThresholdSlider(false),
+                ),
+              ): SizedBox(),
+              child2: Positioned(
+                left: 0,
+                top: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.height,
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          SpikerBoxButton(
-                              onTapButton: () async {
-                                context.read<SoftwareConfigProvider>().settingStatus(true);
-                              },
-                              iconData: Icons.settings),
-                          const SizedBox(
-                            width: 10,
-                          ),
-                          // SpikerBoxButton(
-                          //     onTapButton: () async {}, iconData: Icons.graphic_eq),
-                          // const SizedBox(
-                          //   width: 10,
-                          // ),
-                          SpikerBoxButton(
-                            onTapButton: () {
-                              isThresholdingButton = !isThresholdingButton;
-                              if (isThresholdingButton) {
-                                processingUtil.initThreshold(deviceChannelCount, _sampleRate, MediaQuery.of(context).size.width);
-                                print("initThreshold : ${_sampleRate}, $deviceChannelCount ===");
-                                processingUtil.setAveragedSampleCount(1);
-                                processingUtil.setThreshold(525);
-                                processingUtil.setIsThresholding(true);
-                              } else {
-                                processingUtil.setIsThresholding(false);
-                              }
-              
-                              context.read<ThresholdStatusProvider>().setThresholdStatus(isThresholdingButton);
-                              context.read<ThresholdStatusProvider>().setThresholdChannel(0);
-              
-                              setState((){});
-                            },
-                            iconColor: isThresholdingButton? Colors.yellow : Colors.black,
-                            iconData: Icons.graphic_eq_outlined,
-                          ),
-                          const SizedBox(
-                            width: 20,
-                          ),
-                          if (isThresholdingButton) ... {
-              
-                            Center(
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton2(
-                                  customButton: generateSpikerBoxDecorate(
-                                    eventThresholdTriggeredType == "Signal" ? Icon(Icons.stacked_line_chart_outlined) : Center(child: Text(eventThresholdTriggeredType.substring(0,2),))
-                                  ),
-                                  items: listMenuLabels.map( (item) => DropdownMenuItem<String>(
-                                      value:item,
-                                      child: Text(item),
-                                    )).toList(),
-                                  onChanged: (value) {
-                                    print("TRIGGER TYPE : $value");
-                                    eventThresholdTriggeredType = value!;
-                                    int triggerType = listMenuOptions.indexOf(eventThresholdTriggeredType);
-                                    processingUtil.setThresholdTriggerType(triggerType);
-                                    context.read<ThresholdStatusProvider>().selectedThresholdTriggerType = listMenuOptions.indexOf(eventThresholdTriggeredType);
-                                    setState(() {
-                                      
-                                    });
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              SpikerBoxButton(
+                                  onTapButton: () async {
+                                    context.read<SoftwareConfigProvider>().settingStatus(true);
                                   },
-                                  dropdownStyleData: DropdownStyleData(
-                                    width: 140,
-                                    padding: const EdgeInsets.symmetric(vertical: 6),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(4),
-                                      color: Colors.grey.shade100,
-                                    ),
-                                    offset: const Offset(0, 0),
-                                  ),
-                                ),
-                              ),          
-              
-                              // child: SpikerBoxButton(
-                              //   onTapButton: (){
-                              //     isChoosingThresholdType = true;
-                              //   }, iconData: Icons.stacked_line_chart_rounded),
-                            ),
-                            SizedBox(
-                              width: 20,
-                            ),
-                            Container(
-                              margin: EdgeInsets.fromLTRB(0, 10, 0, 0),
-                              width:200,
-                              height:30,
-                              child: FlutterSlider(
-                                onDragging: (handlerIndex, lowerValue, upperValue) {
-                                  print("handlerIndex:  $handlerIndex $lowerValue - $upperValue");
-                                  if (handlerIndex == 1) {
-                                    thresholdSliderValue = lowerValue.floor();
-                                    processingUtil.setAveragedSampleCount(lowerValue.floor());
-                                    setState(() {
+                                  iconData: Icons.settings),
+                              const SizedBox(
+                                width: 10,
+                              ),
+                              // SpikerBoxButton(
+                              //     onTapButton: () async {}, iconData: Icons.graphic_eq),
+                              // const SizedBox(
+                              //   width: 10,
+                              // ),
+                              SpikerBoxButton(
+                                onTapButton: () {
+                                  isThresholdingButton = !isThresholdingButton;
+                                  if (isThresholdingButton) {
+                                    processingUtil.initThreshold(deviceChannelCount, _sampleRate, MediaQuery.of(context).size.width);
+                                    print("initThreshold : ${_sampleRate}, $deviceChannelCount ===");
+                                    processingUtil.setAveragedSampleCount(1);
+                                    processingUtil.setThreshold(525);
+                                    processingUtil.setIsThresholding(true);
+                                  } else {
+                                    processingUtil.setIsThresholding(false);
+                                  }
+                  
+                                  context.read<ThresholdStatusProvider>().setThresholdStatus(isThresholdingButton);
+                                  context.read<ThresholdStatusProvider>().setThresholdChannel(0);
+                  
+                                  setState((){});
+                                },
+                                iconColor: isThresholdingButton? Colors.yellow : Colors.black,
+                                iconData: Icons.graphic_eq_outlined,
+                              ),
+                              const SizedBox(
+                                width: 20,
+                              ),
+                              if (isThresholdingButton) ... {
+                  
+                                ...generateThresholdSlider(true),
+                                
+                                
+                                // Container(
+                                //   width:50,
+                                //   height:30,
+                                //   child: TextField(
+                                //     controller: thresholdValueController,
+                                //   )
+                                // )
+                              },
+                              
+                              // if (!isThresholdingButton) ... {
+                              //   SpikerBoxButton(
+                              //     onTapButton: () {
+                              //       isFftButton = !isFftButton;
+                              //       if (isFftButton) {
+                              //         context.read<FftStatusProvider>().setFftVisibility(true);
+                              //       } else {
+                              //         context.read<FftStatusProvider>().setFftVisibility(false);
+                              //       }
+                  
+                              //       setState((){});
+                              //     },
+                              //     iconColor: isFftButton? Colors.yellow : Colors.black,
+                              //     iconData: Icons.abc,
+                              //   ),
+                              // },
+                              const SizedBox(
+                                width: 10,
+                              ),
+                              StreamBuilder<List<ComDataWithBoard>>(
+                                  stream: connectDeviceList(),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.hasData) {
+                                      listOfBoard = snapshot.data!;
+                                      return SizedBox(
+                                        height: 50,
+                                        child: ListView.builder(
+                                            padding: EdgeInsets.zero,
+                                            scrollDirection: Axis.horizontal,
+                                            shrinkWrap: true,
+                                            itemCount: listOfBoard?.length,
+                                            itemBuilder: (context, index) {
+                                              return GestureDetector(
+                                                onTap: () {
+                                                  print("DISCONNECT USB2");
+                                                  // Future.delayed(Duration(milliseconds: 1500), () {
+                                                  //   _serialUtil.closePort();
+                                                  //   final provider = Provider.of<GraphDataProvider>(context, listen: false);
+                                                  //   listenToMicrophone(1, provider);
+                                                  // });
+                  
+                                                },
+                                                child: SpikerBoxButton(onTapButton: () {
+                                                  print("DISCONNECT USB");
+                                                  _serialUtil.closePort();
+                                                  listenToMicrophone(1, null);
+                                                  Future.delayed(Duration(milliseconds: 1500), () {
+                                                    // final provider = Provider.of<GraphDataProvider>(context, listen: false);
+                                                  });
+                  
+                                                }, iconData: Icons.usb),
+                                              );
+                                            }),
+                                      );
+                                    } else {
+                                      return Container();
+                                    }
+                                  })
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              SpikerBoxButton(
+                                onTapButton: () {
+                                  print("STATUS RECORDING: $isRecording");
+                                  if (isRecording == 0) {
+                                    print("!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
+                                    
+                                    bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+                                    if (isAudioListen) {
+                                      GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems");
+                                    } else {
+                                      GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems");
+                                    }
+                                    Future.delayed(Duration(milliseconds: 1000), () {
+                                      isRecording = 1;
                                     });
+                                    // isRecording = 1;
+                                  } else {
+                                    if (isRecording == 1) {
+                                      isRecording = 2;
+                                    } else {
+                                      isRecording = 0;
+                                    }
                                   }
                                 },
-                                onDragCompleted: (handlerIndex, lowerValue, upperValue) {
-                                },
-                                tooltip: FlutterSliderTooltip(
-                                  disabled: true,
-                                ),
-                                min: 1,
-                                max: 50,
-                                handler: FlutterSliderHandler(
-                                  child: Material(
-                                    type: MaterialType.canvas,
-                                    color: Colors.grey.shade500,
-                                    elevation: 3,
-                                    child: Container(
-                                        padding: EdgeInsets.all(5),
-                                        // child: Icon(Icons.adjust, size: 25,)
-                                      ),
-                                  ),                                                          
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(0),
-                                    color: Colors.grey,
-                                    border: Border.all(width: 3, color: Colors.white),
-                                  )
-                                ),
-                                trackBar: FlutterSliderTrackBar(
-                                  inactiveTrackBarHeight: 70,
-                                  activeTrackBarHeight: 70,
-                                  inactiveTrackBar: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(0),
-                                    color: Colors.grey,
-                                    border: Border.all(width: 3, color: Colors.black45),
-                                  ),
-                                  activeTrackBar: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(0),
-                                    color: Colors.grey.withOpacity(0.5)
-                                  ),
-                                ), values: [thresholdSliderValue.floorToDouble()],
-                              )
-                            ),
-                            Container(
-                              margin: EdgeInsets.only(top: 15, left:10),
-                              height: 30,
-                              child: Text(thresholdSliderValue.toString(), style:TextStyle(color: Colors.white)),
-                            ),
-                            
-                            
-                            // Container(
-                            //   width:50,
-                            //   height:30,
-                            //   child: TextField(
-                            //     controller: thresholdValueController,
-                            //   )
-                            // )
-                          },
-                          
-                          if (!isThresholdingButton) ... {
-                            SpikerBoxButton(
-                              onTapButton: () {
-                                isFftButton = !isFftButton;
-                                if (isFftButton) {
-                                  context.read<FftStatusProvider>().setFftVisibility(true);
-                                } else {
-                                  context.read<FftStatusProvider>().setFftVisibility(false);
-                                }
-              
-                                setState((){});
+                                iconData: Icons.fiber_manual_record,
+                                iconColor: Colors.red,
+                              ),
+                              const SizedBox(
+                                width: 10,
+                              ),
+                              if (isRecording != 1) ... {
+                                SpikerBoxButton(onTapButton: () async {
+                                  FilePickerResult? result = await FilePicker.platform.pickFiles();
+                                  if (result != null) {
+                                    startOpeningFile(result.files.single.path!);
+                                  } else {
+                                    // User canceled the picker
+                                  }
+                                }, iconData: Icons.menu)
                               },
-                              iconColor: isFftButton? Colors.yellow : Colors.black,
-                              iconData: Icons.abc,
-                            ),
-                          },
-                          const SizedBox(
-                            width: 10,
-                          ),
-                          StreamBuilder<List<ComDataWithBoard>>(
-                              stream: connectDeviceList(),
-                              builder: (context, snapshot) {
-                                if (snapshot.hasData) {
-                                  listOfBoard = snapshot.data!;
-                                  return SizedBox(
-                                    height: 50,
-                                    child: ListView.builder(
-                                        padding: EdgeInsets.zero,
-                                        scrollDirection: Axis.horizontal,
-                                        shrinkWrap: true,
-                                        itemCount: listOfBoard?.length,
-                                        itemBuilder: (context, index) {
-                                          return GestureDetector(
-                                            onTap: () {
-                                              print("DISCONNECT USB2");
-                                              // Future.delayed(Duration(milliseconds: 1500), () {
-                                              //   _serialUtil.closePort();
-                                              //   final provider = Provider.of<GraphDataProvider>(context, listen: false);
-                                              //   listenToMicrophone(1, provider);
-                                              // });
-              
-                                            },
-                                            child: SpikerBoxButton(onTapButton: () {
-                                              print("DISCONNECT USB");
-                                              _serialUtil.closePort();
-                                              listenToMicrophone(1, null);
-                                              Future.delayed(Duration(milliseconds: 1500), () {
-                                                // final provider = Provider.of<GraphDataProvider>(context, listen: false);
-                                              });
-              
-                                            }, iconData: Icons.usb),
-                                          );
-                                        }),
-                                  );
-                                } else {
-                                  return Container();
-                                }
-                              })
+                            ],
+                          )
                         ],
                       ),
-                      Row(
-                        children: [
-                          SpikerBoxButton(
-                            onTapButton: () {
-                              print("STATUS RECORDING: $isRecording");
-                              if (isRecording == 0) {
-                                print("!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
-                                
-                                bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
-                                if (isAudioListen) {
-                                  GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems");
-                                } else {
-                                  GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems");
-                                }
-                                Future.delayed(Duration(milliseconds: 1000), () {
-                                  isRecording = 1;
-                                });
-                                // isRecording = 1;
-                                
-                              } else {
-                                if (isRecording == 1) {
-                                  isRecording = 2;
-                                } else {
-                                  isRecording = 0;
-                                }
-                              }
-                            },
-                            iconData: Icons.fiber_manual_record,
-                            iconColor: Colors.red,
-                          ),
-                          const SizedBox(
-                            width: 10,
-                          ),
-                          if (isRecording != 1) ... {
-                            SpikerBoxButton(onTapButton: () async {
-                              FilePickerResult? result = await FilePicker.platform.pickFiles();
-                              if (result != null) {
-                                startOpeningFile(result.files.single.path!);
-                              } else {
-                                // User canceled the picker
-                              }
-                            }, iconData: Icons.menu)
-                          },
-                        ],
-                      )
-                    ],
-                  ),
-                  BottomButtons(
-                    pauseButton: (bool isPlay) async {
-                      print("setGraphResumePlay PLAYBACK PAUSE BUTTON");
-                      Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(isPlay);
-                      _toPauseGraph = isPlay;
-                      GraphTemplate.isPlayerPaused = !isPlay;
-
-
-                      if (soloud == null) {
-                        soloud = SoLoud.SoLoud.instance;
-                        await soloud!.init(
-                          sampleRate: _sampleRate,
-                          channels: SoLoud.Channels.mono,
-                        );
-                      }
-                      bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
-                      print("IS PLAY $isPlay");
-                      if (!isPlay) {
-                        print("STOP SOUND");
-                        for (int i = 0; i < widget.channelCount; i++) {
-                          soloud?.setDataIsEnded(loadedFileStreams[i]!);
-                          soloud?.stop(loadedSoundHandles[i]!);
-                        }
-                        timerPlaybackLoadedFile?.cancel();
-                        GraphTemplate.isLoadingFile = 2;
-                      } else {
-                        
-                        loadedFileStreams.clear();
-                        print("ADDED FILE STREAMS : $_sampleRate");
-                        for (int i = 0; i < widget.channelCount; i++) {
-                          loadedFileStreams.add(soloud!.setBufferStream(
-                            // maxBufferSizeBytes: 1024 * 1024 * 2,
-                            bufferingType: SoLoud.BufferingType.released,
-                            sampleRate: _sampleRate,
-                            channels: SoLoud.Channels.mono,
-                            format: SoLoud.BufferType.s16le,
-                            onBuffering: (isBuffering, handle, time) async {
-                              if (context.mounted) {
-
-                              }
-                            },                          
-                          ));
-                        }
-                        
-                        
-                        // insert old samples, if samplesLength == 0 return null,
-                        double startSeekSample = startSeekSampleIdx.toDouble();
-                        double maxScreenSamples = ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate; 
-                        double endSeekSample = 0; // (arrSamplesLength - startSeekSample).floor()
-                        print("TIME 0 $startSeekSample | $maxScreenSamples | $loadedMaxSamples | $endSeekSample");
-                        // scenario 1: 3 seconds recorded audio : start 0 => END 210000
-                        // scenario 2: 700000 samples recorded audio : start 200000 => END 680000  
-                        if (loadedMaxSamples < maxScreenSamples) {
-                          endSeekSample = loadedMaxSamples.toDouble();
-                        } else {
-                          if (startSeekSampleIdx + maxScreenSamples > loadedMaxSamples) {
-                            endSeekSample = loadedMaxSamples.toDouble();
-                          } else {
-                            endSeekSample = loadedMaxSamples.toDouble();
+                      BottomButtons(
+                        pauseButton: (bool isPlay) async {
+                          print("setGraphResumePlay PLAYBACK PAUSE BUTTON");
+                          Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(isPlay);
+                          _toPauseGraph = isPlay;
+                          GraphTemplate.isPlayerPaused = !isPlay;
+          
+          
+                          if (soloud == null) {
+                            soloud = SoLoud.SoLoud.instance;
+                            await soloud!.init(
+                              sampleRate: _sampleRate,
+                              channels: SoLoud.Channels.mono,
+                            );
+                            
                           }
-                        }
-                        startSeekSampleIdx = startSeekSample.floor();
-                        // endSeekSampleIdx = endSeekSample.floor();
-                        endSeekSampleIdx = (loadedMaxSamples - startSeekSample).floor();
-
-                        Int32List arrSampleCount = Int32List(widget.channelCount);
-                        // Int16List arrSamples = Int16List(loadedMaxSamples - startSeekSampleIdx);
-                        Int16List arrSamples = Int16List(loadedMaxSamples * widget.channelCount);
-                        // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
-                        // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), (loadedMaxSamples).floor(), 0, 1);
-                        print("======SEEK 1 ");
-                        await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSampleIdx).floor(), (loadedMaxSamples).floor(), 0, widget.channelCount - 1);
-                        // loadedArrSamples = Int16List(arrSampleCount[0].floor());
-                        // loadedArrSamples.setAll(0, arrSamples.sublist(0, arrSampleCount[0].floor()));
-                        // loadedArrChannelCount.setAll(0, arrSampleCount);
-                        // soloud!.addAudioDataStream(loadedFileStream!, loadedArrSamples.buffer.asUint8List());
-                          // loadedArrChannelCount[i].fillRange(0, totalChannelCount, initialSampleCount.floor());
-                        int combinedIdx = 0;
-                        int totalChannelCount = loadedConfig[1];
-                        loadedArrSamples.clear();
-                        loadedArrChannelCount = (Int32List(widget.channelCount));
-                        for (int i = 0; i < widget.channelCount; i++) {
-                          // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
-                          double initialSampleCount = arrSampleCount[i].toDouble();
-                          loadedArrSamples.add(Int16List(initialSampleCount.floor()));
-                          loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
-                          // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
-                          loadedArrChannelCount[i] = initialSampleCount.floor();
-                          combinedIdx += initialSampleCount.floor();
-                          soloud!.addAudioDataStream(loadedFileStreams[i]!, loadedArrSamples[i].buffer.asUint8List());
-                        }
-
-                        print("ADDED DATA STREAM");
-
-                        timerPlaybackLoadedFile?.cancel();
-                        timerPlaybackLoadedStartIndex = 0;
-                        timerPlaybackLoadedEndIndex = 0;
-                        int rawSampleDivider = 128;
-                        double playbackFactor = _sampleRate / 1000 ;
-                        // 1000 *  1000 /48000
-                        int initialStartSeekSampleIdx = startSeekSampleIdx;
-                        int loadedMaxSamplesPlayback = loadedMaxSamples - startSeekSampleIdx;
-                        Future.delayed(Duration(milliseconds: 100), () {
-                          int prevTime = DateTime.now().millisecondsSinceEpoch;
-                          // timerPlaybackLoadedFile = Timer.periodic(Duration(microseconds: (1000000 / (_sampleRate / rawSampleDivider)).floor()), (timer) async {
-                          timerPlaybackLoadedFile = Timer.periodic(Duration(milliseconds: (50).floor()), (timer) async {
-                            GraphTemplate.isLoadingFile = 4;
-                            int timeDiff = DateTime.now().millisecondsSinceEpoch - prevTime;
-                            int sampleDivider = (timeDiff * playbackFactor).floor();
-                            prevTime = DateTime.now().millisecondsSinceEpoch;
-                            try {
-                              timerPlaybackLoadedEndIndex = timerPlaybackLoadedStartIndex + sampleDivider;
-                              if (timerPlaybackLoadedEndIndex > loadedMaxSamplesPlayback) {
-                                timerPlaybackLoadedEndIndex = loadedMaxSamplesPlayback - 1;
+                          bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+                          print("IS PLAY $isPlay");
+                          if (!isPlay) {
+                            // print("STOP SOUND | ${widget.channelCount} | ::: ${soloud?.getStreamTimeConsumed(loadedFileStreams[0]!)}");
+                            timerPlaybackLoadedFile?.cancel();
+                            
+          
+                            if (soloud != null) {
+                              // double maxSamplesTime = loadedMaxSamples / _sampleRate * 1000;
+                              double sampleConsumed = (soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!.inMilliseconds / 2 * _sampleRate / 1000;
+                              startPlaybackSeekSampleIdx += timerPlaybackLoadedStartIndex;
+                              startSeekSampleIdx = startPlaybackSeekSampleIdx;
+                              // startPlaybackSeekSampleIdx -= sampleDivider;
+                              print("STOP SOUND | ${widget.channelCount} | ${(soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!.inMilliseconds} | ::: $sampleConsumed ::: $timerPlaybackLoadedStartIndex");
+                            }
+                            for (int i = 0; i < widget.channelCount; i++) {
+                              soloud?.setDataIsEnded(loadedFileStreams[i]!);
+                              soloud?.stop(loadedSoundHandles[i]!);
+                            }
+                            GraphTemplate.isLoadingFile = 2;
+                            // startPlaybackSeekSampleIdx += timerPlaybackLoadedStartIndex;
+                            // endSeekSampleIdx += timerPlaybackLoadedEndIndex;
+                            // timerPlaybackLoadedStartIndex = 0;
+                            // timerPlaybackLoadedEndIndex = 0;
+                            setState((){});
+          
+                          } else {
+                            loadedFileStreams.clear();
+                            // List<int> timeScrub = scrubNotifier.value;
+                            // double percentage = 0;
+                            // if (timeScrub.isNotEmpty) {
+                            //   percentage = timeScrub[0] / timeScrub[1];
+                            // }
+                            
+                            // startPlaybackSeekSampleIdx = percentage * loadedMaxSamples;
+          
+                            // print("ADDED FILE STREAMS : $_sampleRate || $startPlaybackSeekSampleIdx ||| $percentage || SCRUB: ${scrubNotifier.value}");
+                            for (int i = 0; i < widget.channelCount; i++) {
+                              loadedFileStreams.add(soloud!.setBufferStream(
+                                // maxBufferSizeBytes: 1024 * 1024 * 2,
+                                bufferingType: SoLoud.BufferingType.released,
+                                sampleRate: _sampleRate,
+                                channels: SoLoud.Channels.mono,
+                                format: SoLoud.BufferType.s16le,
+                                onBuffering: (isBuffering, handle, time) async {
+                                  if (context.mounted) {
+          
+                                  }
+                                },                          
+                              ));
+                            }
+                            
+                            
+                            // insert old samples, if samplesLength == 0 return null,
+                            double startSeekSample = startPlaybackSeekSampleIdx.toDouble();
+                            double maxScreenSamples = ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate; 
+                            double endSeekSample = 0; // (arrSamplesLength - startSeekSample).floor()
+                            print("TIME 0 $startSeekSample | $maxScreenSamples | $loadedMaxSamples | $endSeekSample");
+                            // scenario 1: 3 seconds recorded audio : start 0 => END 210000
+                            // scenario 2: 700000 samples recorded audio : start 200000 => END 680000  
+                            if (loadedMaxSamples < maxScreenSamples) {
+                              endSeekSample = loadedMaxSamples.toDouble();
+                            } else {
+                              if (startPlaybackSeekSampleIdx + maxScreenSamples > loadedMaxSamples) {
+                                endSeekSample = loadedMaxSamples.toDouble();
+                              } else {
+                                endSeekSample = loadedMaxSamples.toDouble();
                               }
-
-                              // MULTI CHANNEL FIXES.
-                              List<Int16List> sublistArray = [];
-                              for (int i = 0; i < widget.channelCount; i++) {
-                                if (isAudioListen) {
-                                  sublistArray.add(loadedArrSamples[i].sublist(timerPlaybackLoadedStartIndex, timerPlaybackLoadedEndIndex));
+                            }
+                            // startPlaybackSeekSampleIdx = startSeekSample;
+                            // endSeekSampleIdx = endSeekSample.floor();
+                            endSeekSampleIdx = (loadedMaxSamples - startSeekSample);
+          
+                            Int32List arrSampleCount = Int32List(widget.channelCount);
+                            // Int16List arrSamples = Int16List(loadedMaxSamples - startPlaybackSeekSampleIdx);
+                            Int16List arrSamples = Int16List(loadedMaxSamples.toInt() * widget.channelCount);
+                            // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, 1);
+                            // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), (loadedMaxSamples).floor(), 0, 1);
+                            print("======SEEK 1 ");
+                            await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startPlaybackSeekSampleIdx).floor(), (loadedMaxSamples).floor(), 0, widget.channelCount - 1);
+                            int combinedIdx = 0;
+                            int totalChannelCount = loadedConfig[1];
+                            loadedArrSamples.clear();
+                            loadedArrChannelCount = (Int32List(widget.channelCount));
+                            for (int i = 0; i < widget.channelCount; i++) {
+                              // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
+                              double initialSampleCount = arrSampleCount[i].toDouble();
+                              loadedArrSamples.add(Int16List(initialSampleCount.floor()));
+                              loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
+                              // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
+                              loadedArrChannelCount[i] = initialSampleCount.floor();
+                              combinedIdx += initialSampleCount.floor();
+                              soloud!.addAudioDataStream(loadedFileStreams[i]!, loadedArrSamples[i].buffer.asUint8List());
+                            }
+          
+                            print("ADDED DATA STREAM Channel Count: ${widget.channelCount}");
+          
+                            timerPlaybackLoadedFile?.cancel();
+                            timerPlaybackLoadedStartIndex = 0;
+                            timerPlaybackLoadedEndIndex = 0;
+                            int rawSampleDivider = 128;
+                            double playbackFactor = _sampleRate / 1000 ;
+                            // 1000 *  1000 /48000
+                            // double initialstartPlaybackSeekSampleIdx = startPlaybackSeekSampleIdx;
+                            // double loadedMaxSamplesPlayback = loadedMaxSamples - startPlaybackSeekSampleIdx;
+                            Future.delayed(Duration(milliseconds: 100), () {
+                              int prevTime = DateTime.now().millisecondsSinceEpoch;                          
+                              // timerPlaybackLoadedFile = Timer.periodic(Duration(microseconds: (1000000 / (_sampleRate / rawSampleDivider)).floor()), (timer) async {
+                              timerPlaybackLoadedFile = Timer.periodic(Duration(milliseconds: (50).floor()), (timer) async {
+                                if (GraphTemplate.isPlayerPaused) {
+                                  // print("STOPPP timerPlaybackLoadedFile: ${GraphTemplate.isPlayerPaused}");
+                                  return;
                                 } else {
-                                  sublistArray.add(loadedArrSamples[i].sublist(timerPlaybackLoadedStartIndex, timerPlaybackLoadedEndIndex));
+          
+                                  // print("timerPlaybackLoadedFile | prevTime: $prevTime | startIdx: $startPlaybackSeekSampleIdx | playbackIdx : $timerPlaybackLoadedStartIndex");
                                 }
-                                // soloud!.addAudioDataStream(loadedFileStream!, sublistArray);
+                                GraphTemplate.isLoadingFile = 4;
+                                int timeDiff = DateTime.now().millisecondsSinceEpoch - prevTime;
+                                sampleDivider = (timeDiff * playbackFactor);
+                                prevTime = DateTime.now().millisecondsSinceEpoch;
+          
+                                // sampleDivider = ((soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!.inMilliseconds / 2).floor();
+                                try {
+                                  timerPlaybackLoadedEndIndex = timerPlaybackLoadedStartIndex + sampleDivider;
+                                  if (startPlaybackSeekSampleIdx + timerPlaybackLoadedEndIndex > loadedMaxSamples) {
+                                    // timerPlaybackLoadedEndIndex = loadedMaxSamples - 1;
+                                    timerPlaybackLoadedEndIndex = loadedArrSamples[0].length - 1;
+                                  }
+          
+                                  // MULTI CHANNEL FIXES.
+                                  List<Int16List> sublistArray = [];
+                                  for (int i = 0; i < widget.channelCount; i++) {
+                                    if (isAudioListen) {
+                                      // print("loadedArrSamples[i]: ${loadedArrSamples[i].length} -- ${timerPlaybackLoadedStartIndex.floor()} :: ${timerPlaybackLoadedEndIndex.floor()}");
+                                      sublistArray.add(loadedArrSamples[i].sublist(timerPlaybackLoadedStartIndex.floor(), timerPlaybackLoadedEndIndex.floor()));
+                                    } else {
+                                      sublistArray.add(loadedArrSamples[i].sublist(timerPlaybackLoadedStartIndex.floor(), timerPlaybackLoadedEndIndex.floor()));
+                                    }
+                                    // soloud!.addAudioDataStream(loadedFileStream!, sublistArray);
+                                  }
+                                  timerPlaybackLoadedStartIndex = (timerPlaybackLoadedStartIndex + sampleDivider);
+                                  // print("startPlaybackSeekSampleIdx + timerPlaybackLoadedStartIndex = ${startPlaybackSeekSampleIdx} + ${timerPlaybackLoadedStartIndex} = ${startPlaybackSeekSampleIdx + timerPlaybackLoadedStartIndex} === ${loadedMaxSamples}");
+                                  if (startPlaybackSeekSampleIdx + timerPlaybackLoadedStartIndex > loadedMaxSamples) {
+                                    timerPlaybackLoadedStartIndex = loadedMaxSamples - 1;
+          
+                                    double startSeekSampleLocal = endSeekSampleIdx.toDouble();
+                                    double endSeekSampleLocal = (loadedMaxSamples).toDouble(); // (arrSamplesLength - startSeekSample).floor()
+                                    startPlaybackSeekSampleIdx = startSeekSample;
+                                    endSeekSampleIdx = endSeekSample;
+          
+                                    print("ARR SAMPLES ZERO STOPPING");
+                                    Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
+                                    Int32List arrSampleCount = Int32List(widget.channelCount);
+                                    Int16List arrSamples = Int16List( (endSeekSampleIdx.floor() - startPlaybackSeekSampleIdx.floor()) * widget.channelCount );
+                                    if (startSeekSampleLocal != endSeekSampleLocal) {
+                                      await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSampleLocal).floor(), endSeekSampleLocal.floor(), 0, widget.channelCount - 1);
+                                    }
+                                    GraphTemplate.isLoadingFile = 2;
+                                    GraphTemplate.isPlayerPaused = true;
+          
+          
+                                    timerPlaybackLoadedStartIndex = 0;
+                                    timerPlaybackLoadedEndIndex = 0;
+                                    startPlaybackSeekSampleIdx = 0;
+                                    endSeekSampleIdx = 0;
+                                    
+          
+                                    double playbackPercentage = (startPlaybackSeekSampleIdx + timerPlaybackLoadedStartIndex) / (loadedMaxSamples);
+                                    AdaptiveAreaState.horizontalDragX = playbackPercentage * AdaptiveAreaState.horizontalDragXFix;
+                                    print("AdaptiveAreaState.horizontalDragX :  ${AdaptiveAreaState.horizontalDragX}");
+          
+                                    timerPlaybackLoadedFile?.cancel();
+                                    setState(() {
+                                    });
+                                    return;
+                                  }
+          
+                                  // print("IS AUDIO LISTEN: $isAudioListen");
+                                  if (isAudioListen) {
+                                    GraphTemplate.isLoadingFile = 3;
+                                    processingUtil.processMicrophoneData(sublistArray[0].buffer.asUint8List());
+                                    microphoneUtil.micStream.value = Uint8List(0);
+                                  } else {
+                                    GraphTemplate.isLoadingFile = 4;
+                                    int channelIdx = 0;
+                                    Int32List samplesCount = Int32List(sublistArray.length);
+          
+                                    Int16List flattenedList = Int16List.fromList(sublistArray.expand((list) {
+                                      samplesCount[channelIdx] = sublistArray[channelIdx].length;
+                                      // print("SAMPLES COUNT: ${samplesCount[channelIdx]}");
+                                      channelIdx++;
+                                      return list;
+                                    }).toList());
+                                    // print("\\r\\n");
+                                    // print("Sublist ||| Array 0,0 : ${sublistArray[0][0]} | Array 0,0 : ${sublistArray[0][1]} | Sublist Array 1,0 : ${sublistArray[1][0]} | Sublist Array 1,1 : ${sublistArray[1][1]}");
+                                    // print("Sublist LENGTH ||| Array 0,0 : ${sublistArray[0].length} | Sublist Array 1,0 : ${sublistArray[1].length}");
+                                    // print("Sublist Array: ${sublistArray}");
+                                    // print("Loaded Arr Samples: ${loadedArrSamples[1].sublist(0, 10)}");
+                                    // print("FLATTENED LIST: ${flattenedList.length} || $samplesCount");
+          
+                                    // processingUtil.processingNwbFileInjectData(flattenedList, samplesCount, deviceType, drawSurfaceWidth, provider);
+                                    // processingUtil.processingNwbFileInjectData(flattenedList, samplesCount, 0, widget.channelCount);
+                                    processingUtil.processingSerialDataResult(flattenedList, samplesCount, widget.channelCount);
+                                  }
+          
+                                  double playbackPercentage = (startPlaybackSeekSampleIdx + timerPlaybackLoadedStartIndex) / (loadedMaxSamples);
+                                  AdaptiveAreaState.horizontalDragX = playbackPercentage * AdaptiveAreaState.horizontalDragXFix;
+                                  
+                                  // print("PLAYBACK PERCENTAGE: $playbackPercentage : $timerPlaybackLoadedStartIndex ++ $startPlaybackSeekSampleIdx ==? $loadedMaxSamples || MAX SAMPLE: ${AdaptiveAreaState.maxTime}");
+                                  // print("PLAYBACK PERCENTAGE: $playbackPercentage : ${AdaptiveAreaState.horizontalDragX}");
+          
+                                  setState(() {});
+                                }catch(err) {     
+                                  // timerPlaybackLoadedFile?.cancel();                                 
+                                  print("ERR: $err ||| $timerPlaybackLoadedEndIndex | $timerPlaybackLoadedStartIndex ");
+                                }                            
+          
+                              });
+                              
+                              loadedSoundHandles.clear();
+                              for (int i = 0; i < widget.channelCount; i++) {
+                                soloud!.play(loadedFileStreams[i]!).then((soundHandle) {
+                                  loadedSoundHandles.add(soundHandle);
+                                  // loadedSoundHandles[i] = soundHandle;
+                                });
                               }
-                              timerPlaybackLoadedStartIndex = (timerPlaybackLoadedStartIndex + sampleDivider);
-                              if (timerPlaybackLoadedStartIndex > loadedMaxSamplesPlayback) {
-                                timerPlaybackLoadedStartIndex = loadedMaxSamplesPlayback - 1;
-
-                                double startSeekSampleLocal = endSeekSampleIdx.toDouble();
-                                double endSeekSampleLocal = (loadedMaxSamples).toDouble(); // (arrSamplesLength - startSeekSample).floor()
-                                startSeekSampleIdx = startSeekSample.floor();
-                                endSeekSampleIdx = endSeekSample.floor();
-
-                                print("ARR SAMPLES ZERO STOPPING");
-                                Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
-                                Int32List arrSampleCount = Int32List(widget.channelCount);
-                                Int16List arrSamples = Int16List( (endSeekSampleIdx - startSeekSampleIdx) * widget.channelCount );
-                                await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSampleLocal).floor(), endSeekSampleLocal.floor(), 0, widget.channelCount - 1);
-                                GraphTemplate.isLoadingFile = 2;
-                                GraphTemplate.isPlayerPaused = true;
-
-
-                                timerPlaybackLoadedStartIndex = 0;
-                                timerPlaybackLoadedEndIndex = 0;
-                                startSeekSampleIdx = startSeekSample.floor();
-                                endSeekSampleIdx = endSeekSample.floor();
-                                
-
-                                double playbackPercentage = (timerPlaybackLoadedStartIndex) / (loadedMaxSamplesPlayback);
-                                AdaptiveAreaState.horizontalDragX = playbackPercentage * AdaptiveAreaState.horizontalDragXFix;                                
-                                timerPlaybackLoadedFile?.cancel();
-                                return;
-                              }
-
-                              // print("IS AUDIO LISTEN: $isAudioListen");
+                            });
+                            
+                            print("ADDED DATA STREAM2");
+          
+          
+                            GraphTemplate.isLoadingFile = 3;
+                            loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
+                            await processingUtil.initWithConfig(loadedConfig);
+                            print("START SEEK SAMPLE INITIAL 0000 $startPlaybackSeekSampleIdx ${arrSampleCount[0].floor()} == $loadedMaxSamples");
+                            if (startPlaybackSeekSampleIdx > 0 && arrSampleCount[0].floor() > 0) {
+                              int startInitialIndex = (startPlaybackSeekSampleIdx ~/ maxScreenSamples.floor()) * maxScreenSamples.floor();
+                              int endInitialIndex = (startSeekSample % maxScreenSamples.floor()).floor();
+                              // int endInitialIndex = 240000;
+                              Int32List arrSampleCountInitial = Int32List(widget.channelCount);
+                              Int16List arrSamplesInitial = Int16List(endInitialIndex * widget.channelCount);
+                              await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, 0);
+          
+                              Int16List tempLoadedArrSamples = Int16List(arrSampleCountInitial[0].floor());
+                              tempLoadedArrSamples.setAll(0, arrSamplesInitial.sublist(0, arrSampleCountInitial[0].floor()));
+                              print("----> START SEEK SAMPLE INITIAL : $startInitialIndex |=| ${(startSeekSample % maxScreenSamples.floor()).floor()} | ${arrSampleCountInitial[0].floor()} |  ${tempLoadedArrSamples.length} |||| ${tempLoadedArrSamples.buffer.asUint8List().length}");
+                              // GraphTemplate.isLoadingFile = 3;
+                              
+                              bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
                               if (isAudioListen) {
-                                GraphTemplate.isLoadingFile = 3;
-                                processingUtil.processMicrophoneData(sublistArray[0].buffer.asUint8List());
+                                processingUtil.processMicrophoneData(tempLoadedArrSamples.buffer.asUint8List());
+                                // microphoneUtil.micStream.value = tempLoadedArrSamples.buffer.asUint8List();
                                 microphoneUtil.micStream.value = Uint8List(0);
                               } else {
-                                GraphTemplate.isLoadingFile = 4;
-                                int channelIdx = 0;
-                                Int32List samplesCount = Int32List(sublistArray.length);
-
-                                Int16List flattenedList = Int16List.fromList(sublistArray.expand((list) {
-                                  samplesCount[channelIdx] = sublistArray[channelIdx].length;
-                                  // print("SAMPLES COUNT: ${samplesCount[channelIdx]}");
-                                  channelIdx++;
-                                  return list;
-                                }).toList());
-                                // print("\\r\\n");
-                                // print("Sublist ||| Array 0,0 : ${sublistArray[0][0]} | Array 0,0 : ${sublistArray[0][1]} | Sublist Array 1,0 : ${sublistArray[1][0]} | Sublist Array 1,1 : ${sublistArray[1][1]}");
-                                // print("Sublist LENGTH ||| Array 0,0 : ${sublistArray[0].length} | Sublist Array 1,0 : ${sublistArray[1].length}");
-                                // print("Sublist Array: ${sublistArray}");
-                                // print("Loaded Arr Samples: ${loadedArrSamples[1].sublist(0, 10)}");
-                                // print("FLATTENED LIST: ${flattenedList.length} || $samplesCount");
-
-                                // processingUtil.processingNwbFileInjectData(flattenedList, samplesCount, deviceType, drawSurfaceWidth, provider);
-                                // processingUtil.processingNwbFileInjectData(flattenedList, samplesCount, 0, widget.channelCount);
-                                processingUtil.processingSerialDataResult(flattenedList, samplesCount, widget.channelCount);
+                                // processingUtil.processingSerialDataResult(tempLoadedArrSamples.buffer.asUint8List(), Int32List(1), widget.channelCount);
                               }
-
-                              double playbackPercentage = (timerPlaybackLoadedStartIndex) / (loadedMaxSamplesPlayback);
-                              // print("PLAYBACK PERCENTAGE: $playbackPercentage : $timerPlaybackLoadedStartIndex || $timerPlaybackLoadedEndIndex || $loadedMaxSamplesPlayback");
-                              AdaptiveAreaState.horizontalDragX = playbackPercentage * AdaptiveAreaState.horizontalDragXFix;
-                              setState(() {});
-                            }catch(err) {     
-                              // timerPlaybackLoadedFile?.cancel();                                 
-                              // print("ERR: $err ||| $timerPlaybackLoadedEndIndex | $timerPlaybackLoadedStartIndex | $loadedMaxSamplesPlayback");
-                            }                            
-
-                          });
-                          
-                          loadedSoundHandles.clear();
-                          for (int i = 0; i < widget.channelCount; i++) {
-                            soloud!.play(loadedFileStreams[i]!).then((soundHandle) {
-                              loadedSoundHandles.add(soundHandle);
-                              // loadedSoundHandles[i] = soundHandle;
-                            });
+                            } else {
+                              GraphTemplate.isLoadingFile = 4;
+                              // microphoneUtil.micStream.value = Uint8List(0);
+                            }
+                            
+          
+                            // soloud!.addAudioDataStream(loadedFileStream!, loadedArrSamples.buffer.asUint8List());
                           }
-                        });
-                        
-                        print("ADDED DATA STREAM2");
-
-
-                        GraphTemplate.isLoadingFile = 3;
-                        loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
-                        await processingUtil.initWithConfig(loadedConfig);
-                        print("START SEEK SAMPLE INITIAL 0000 $startSeekSampleIdx ${arrSampleCount[0].floor()} == $loadedMaxSamples");
-                        if (startSeekSampleIdx > 0 && arrSampleCount[0].floor() > 0) {
-                          int startInitialIndex = (startSeekSampleIdx ~/ maxScreenSamples.floor()) * maxScreenSamples.floor();
-                          int endInitialIndex = (startSeekSample % maxScreenSamples.floor()).floor();
-                          // int endInitialIndex = 240000;
-                          Int32List arrSampleCountInitial = Int32List(widget.channelCount);
-                          Int16List arrSamplesInitial = Int16List(endInitialIndex * widget.channelCount);
-                          await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, 0);
-
-                          Int16List tempLoadedArrSamples = Int16List(arrSampleCountInitial[0].floor());
-                          tempLoadedArrSamples.setAll(0, arrSamplesInitial.sublist(0, arrSampleCountInitial[0].floor()));
-                          print("----> START SEEK SAMPLE INITIAL : $startInitialIndex |=| ${(startSeekSample % maxScreenSamples.floor()).floor()} | ${arrSampleCountInitial[0].floor()} |  ${tempLoadedArrSamples.length} |||| ${tempLoadedArrSamples.buffer.asUint8List().length}");
-                          // GraphTemplate.isLoadingFile = 3;
-                          
-                          bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
-                          if (isAudioListen) {
-                            processingUtil.processMicrophoneData(tempLoadedArrSamples.buffer.asUint8List());
-                            // microphoneUtil.micStream.value = tempLoadedArrSamples.buffer.asUint8List();
-                            microphoneUtil.micStream.value = Uint8List(0);
-                          } else {
-                            // processingUtil.processingSerialDataResult(tempLoadedArrSamples.buffer.asUint8List(), Int32List(1), widget.channelCount);
-                          }
-                        } else {
-                          GraphTemplate.isLoadingFile = 4;
-                          // microphoneUtil.micStream.value = Uint8List(0);
-                        }
-                        
-
-                        // soloud!.addAudioDataStream(loadedFileStream!, loadedArrSamples.buffer.asUint8List());
-                      }
-                    },
+                        },
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          )),
+                ),
+              ));
+        }
+      ),
       floatingActionButton: kIsWeb
           ? FloatingActionButton.extended(
               elevation: 2,
@@ -1508,6 +1492,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                   _isDataIdentified = false;
 
                   serialDataSubscription = _serialUtil.dataStream?.listen((event) async {
+                    if (isOpeningFile) {
+                      return;
+                    }
                     if (!dummyDataStatus && !isAudioListen) {
                       arr = [processingUtil.thresholdingArraylength];
 
@@ -2097,15 +2084,15 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   int isRecording = 0;
   
   Timer? timerPlaybackLoadedFile;
-  int timerPlaybackLoadedStartIndex = 0;
-  int timerPlaybackLoadedEndIndex = 0;
-  int loadedMaxSamples = 0;
+  double timerPlaybackLoadedStartIndex = 0;
+  double timerPlaybackLoadedEndIndex = 0;
+  double loadedMaxSamples = 0;
   Int32List loadedConfig = Int32List(10);
   List<Int16List> loadedArrSamples = [];
   Int32List loadedArrChannelCount = Int32List(1);
 
-  int startSeekSampleIdx = 0;
-  int endSeekSampleIdx = 0;
+  double startSeekSampleIdx = 0;
+  double endSeekSampleIdx = 0;
   
   ValueNotifier<List<int>> scrubNotifier = ValueNotifier([]);
   SoLoud.SoLoud? soloud;
@@ -2120,6 +2107,13 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   Timer? periodicTimerSerial;
   
   String currentLoadedFilePath = "";
+  
+  double sampleDivider = 0;
+  
+  double startPlaybackSeekSampleIdx = 0;
+  
+  final StreamController<int> streamScrubBuilderController = StreamController();  
+  Stream<int>? streamScrubBuilder;
   
 
   void micListener(){
@@ -2534,20 +2528,39 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     currentLoadedFilePath = filePath;
     print("INIT NWB FILE");
     isOpeningFile = true;
+    
     Int32List arrConfig = Int32List(10);
     Int32List arrSampleCount = Int32List(widget.channelCount);
     Int16List arrSamples = Int16List(1);
     // await GraphTemplate.nwbFileUtil?.readElectricalSeries(arrSampleCount, arrChannelCount, 0, 1);
     // DEMO
     print("======SEEK OPEN FILE");
-    await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, arrConfig, 0, 1, 0, 0);
+    bool? isFileOpened = await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, arrConfig, 0, 1, 0, 0);
+    
+    if (isFileOpened != null && !isFileOpened) {
+      PanaraInfoDialog.show(
+        context,
+        textColor: Colors.red,
+        title: "Error",
+        message: "The file content is not supported",
+        buttonText: "Okay",
+        onTapDismiss: () {
+            Navigator.pop(context);
+        },
+        panaraDialogType: PanaraDialogType.error,
+        barrierDismissible: false,
+      );
+      isOpeningFile = false;
+      return;
+    }
+
     widget.channelCount = arrConfig[1];
     arrSampleCount = Int32List(widget.channelCount);
-    loadedMaxSamples = arrConfig[5];
+    loadedMaxSamples = arrConfig[5].toDouble();
     int sampleRateConfig = arrConfig[0];
     
     loadedConfig.setAll(0, arrConfig);
-    loadedMaxSamples = arrConfig[5];
+    loadedMaxSamples = arrConfig[5].toDouble();
     _sampleRate = sampleRateConfig;
     int isSerialDevice = arrConfig[6];
     print("IS SERIAL DEVICE : $isSerialDevice | CHANNEL COUNT: ${widget.channelCount}");
@@ -2576,9 +2589,22 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
     AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
     // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
+    scrubNotifier.value = [ (AdaptiveAreaState.maxTime * 0.3).floor(), AdaptiveAreaState.maxTime.floor()];
+    loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
+    GraphTemplate.isPlayerPaused = true;
+    microphoneUtil.micStream.value = Uint8List(0);
+    Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
+    GraphTemplate.isLoadingFile = 1;
+    streamScrubBuilderController.add(Random().nextInt(100000));
+
+    setState(() {
+      
+    });
+    return;
     
     print("sampleRateConfig: $sampleRateConfig $arrConfig");
     double arrSamplesLength = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRateConfig;
+    // double arrSamplesLength = loadedMaxSamples;
     // double arrSamplesLength = maxSamples.toDouble();
     
     // // Calculate total data points needed for multi-channel reading
@@ -2591,12 +2617,14 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(arrSamples, arrSampleCount, arrConfig, 0, arrSamplesLength.floor(), 0, 1);
     double startSeekSample = 0;
     double endSeekSample = arrSamplesLength; // (arrSamplesLength - startSeekSample).floor()
-    startSeekSampleIdx = startSeekSample.floor();
-    endSeekSampleIdx = endSeekSample.floor();
+    startSeekSampleIdx = startSeekSample;
+    endSeekSampleIdx = endSeekSample;
     if (endSeekSampleIdx > loadedMaxSamples) {
-      endSeekSampleIdx = loadedMaxSamples.floor();
+      endSeekSampleIdx = loadedMaxSamples;
       endSeekSample = loadedMaxSamples.toDouble();
     }
+    // endSeekSampleIdx = loadedMaxSamples;
+    // endSeekSample = loadedMaxSamples.toDouble();
 
     await Future.delayed(Duration(milliseconds: 100));
 
@@ -2780,6 +2808,112 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       serialNativeDataSubscription(Uint8List(0), isAudioListen);
     });    
   }
+  
+  List<Widget> generateThresholdSlider(isHorizontal) {
+    if (isHorizontal && Platform.isAndroid) {
+      return [];
+    }
+    return  [
+      Center(
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton2(
+            customButton: generateSpikerBoxDecorate(
+              eventThresholdTriggeredType == "Signal" ? Icon(Icons.stacked_line_chart_outlined) : Center(child: Text(eventThresholdTriggeredType.substring(0,2),))
+            ),
+            items: listMenuLabels.map( (item) => DropdownMenuItem<String>(
+                value:item,
+                child: Text(item),
+              )).toList(),
+            onChanged: (value) {
+              print("TRIGGER TYPE : $value");
+              eventThresholdTriggeredType = value!;
+              int triggerType = listMenuOptions.indexOf(eventThresholdTriggeredType);
+              processingUtil.setThresholdTriggerType(triggerType);
+              context.read<ThresholdStatusProvider>().selectedThresholdTriggerType = listMenuOptions.indexOf(eventThresholdTriggeredType);
+              setState(() {
+                
+              });
+            },
+            dropdownStyleData: DropdownStyleData(
+              width: 140,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                color: Colors.grey.shade100,
+              ),
+              offset: const Offset(0, 0),
+            ),
+          ),
+        ),          
+
+        // child: SpikerBoxButton(
+        //   onTapButton: (){
+        //     isChoosingThresholdType = true;
+        //   }, iconData: Icons.stacked_line_chart_rounded),
+      ),
+      SizedBox(
+        width: 20,
+      ),      
+      Container(
+        margin: EdgeInsets.fromLTRB(0, 10, 0, 0),
+        width: 200,
+        height:30,
+        child: FlutterSlider(
+          onDragging: (handlerIndex, lowerValue, upperValue) {
+            print("handlerIndex:  $handlerIndex $lowerValue - $upperValue");
+            if (handlerIndex == 1) {
+              thresholdSliderValue = lowerValue.floor();
+              processingUtil.setAveragedSampleCount(lowerValue.floor());
+              setState(() {
+              });
+            }
+          },
+          onDragCompleted: (handlerIndex, lowerValue, upperValue) {
+          },
+          tooltip: FlutterSliderTooltip(
+            disabled: true,
+          ),
+          min: 1,
+          max: 50,
+          handler: FlutterSliderHandler(
+            child: Material(
+              type: MaterialType.canvas,
+              color: Colors.grey.shade500,
+              elevation: 3,
+              child: Container(
+                  padding: EdgeInsets.all(5),
+                  // child: Icon(Icons.adjust, size: 25,)
+                ),
+            ),                                                          
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(0),
+              color: Colors.grey,
+              border: Border.all(width: 3, color: Colors.white),
+            )
+          ),
+          trackBar: FlutterSliderTrackBar(
+            inactiveTrackBarHeight: 70,
+            activeTrackBarHeight: 70,
+            inactiveTrackBar: BoxDecoration(
+              borderRadius: BorderRadius.circular(0),
+              color: Colors.grey,
+              border: Border.all(width: 3, color: Colors.black45),
+            ),
+            activeTrackBar: BoxDecoration(
+              borderRadius: BorderRadius.circular(0),
+              color: Colors.grey.withOpacity(0.5)
+            ),
+          ), values: [thresholdSliderValue.floorToDouble()],
+        )
+      ),
+      Container(
+        margin: EdgeInsets.only(top: 15, left:10),
+        height: 30,
+        child: Text(thresholdSliderValue.toString(), style:TextStyle(color: Colors.white)),
+      ),    
+    ];
+  }
+  
 }
 
 class NotchPassFilterWidget extends StatefulWidget {
@@ -2933,11 +3067,12 @@ class SetFrequencyWidget extends StatelessWidget {
 }
 
 class _AdaptiveArea extends StatefulWidget {
-  const _AdaptiveArea({required this.child1, required this.child3, required this.child2, required this.notifier});
+  const _AdaptiveArea({required this.child1, required this.child3, required this.child2, required this.child4, required this.notifier});
 
   final Widget child1;
   final Widget child2;
   final Widget child3;
+  final Widget child4;
   final ValueNotifier<List<int>> notifier;
 
   @override
@@ -2964,12 +3099,15 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
           children: [
             widget.child1,
             widget.child2,
+            widget.child4,
             // Padding(
             //   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
             //   child: widget.child2,
             // ),
-            if (GraphTemplate.isPlayerPaused)... {
+            if (GraphTemplate.isLoadingFile > 0)... {
               getTimeScrubWidget(),
+            },
+            // if (!GraphTemplate.isPlayerPaused)... { 
               if (GraphTemplate.isLoadingFile >= 1) ...{
                 // strMinTime = "00:00 000";
                 Positioned(
@@ -2987,9 +3125,9 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
                           textAlign: TextAlign.right,
                           style: TextStyle(color: Colors.white))),
                 )
-              }
+              },
 
-            },
+            // },
             softwareSetting.isSettingEnable
                 ? Container(
                     // color: Colors.black54.withOpacity(0.9),
@@ -3126,6 +3264,12 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
     // print(strMinTime);
     return strMinTime;
   }  
+
+  // @override
+  // void didUpdateWidget(covariant _AdaptiveArea oldWidget) {
+  //   super.didUpdateWidget(oldWidget);
+  //   setState(() => {});
+  // }
 }
 
 class _GraphArea extends StatefulWidget {
@@ -3318,3 +3462,6 @@ class _FilterProcessWidgetState extends State<FilterProcessWidget> {
     });
   }
 }
+
+
+// https://dandiarchive.org/dandiset/000955/draft/files?location=sub-BH549&page=1

@@ -162,7 +162,7 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
     return Consumer<GraphDataProvider>(
         builder: (context, graphDataProvider, _) {
       return Align(
-        alignment: const Alignment(0.8, 0.75),
+        alignment: const Alignment(0.8, 0.6),
         child: SizedBox(
           height: 40,
           child: Column(

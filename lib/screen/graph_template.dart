@@ -228,7 +228,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       timerPlaybackLoadedStartIndex = 0;
       timerPlaybackLoadedEndIndex = 0;
 
-      List<int> timeScrub = scrubNotifier.value;
+      List<double> timeScrub = scrubNotifier.value;
       double percentage = timeScrub[0] / timeScrub[1];
 
       // nwbfile_seek_electrical_series(outSamples, outSampleCounts, outConfig, startTimeStamp, endTimeStamp, selectedChannel, channelCount)
@@ -1432,30 +1432,43 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                             if (startPlaybackSeekSampleIdx > 0 && arrSampleCount[0].floor() > 0) {
                               int startInitialIndex = (startPlaybackSeekSampleIdx ~/ maxScreenSamples.floor()) * maxScreenSamples.floor();
                               int endInitialIndex = (startSeekSample % maxScreenSamples.floor()).floor();
-                              // int endInitialIndex = 240000;
                               Int32List arrSampleCountInitial = Int32List(widget.channelCount);
                               Int16List arrSamplesInitial = Int16List(endInitialIndex * widget.channelCount);
-                              await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, 0);
           
-                              Int16List tempLoadedArrSamples = Int16List(arrSampleCountInitial[0].floor());
-                              tempLoadedArrSamples.setAll(0, arrSamplesInitial.sublist(0, arrSampleCountInitial[0].floor()));
-                              print("----> START SEEK SAMPLE INITIAL : $startInitialIndex |=| ${(startSeekSample % maxScreenSamples.floor()).floor()} | ${arrSampleCountInitial[0].floor()} |  ${tempLoadedArrSamples.length} |||| ${tempLoadedArrSamples.buffer.asUint8List().length}");
-                              // GraphTemplate.isLoadingFile = 3;
-                              
                               bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
                               if (isAudioListen) {
+                                await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, 0);
+                                Int16List tempLoadedArrSamples = Int16List(arrSampleCountInitial[0].floor());
+                                tempLoadedArrSamples.setAll(0, arrSamplesInitial.sublist(0, arrSampleCountInitial[0].floor()));
                                 processingUtil.processMicrophoneData(tempLoadedArrSamples.buffer.asUint8List());
-                                // microphoneUtil.micStream.value = tempLoadedArrSamples.buffer.asUint8List();
+                                print("----> START SEEK SAMPLE INITIAL : $startInitialIndex |=| ${(startSeekSample % maxScreenSamples.floor()).floor()} | ${arrSampleCountInitial[0].floor()} |  ${tempLoadedArrSamples.length} |||| ${tempLoadedArrSamples.buffer.asUint8List().length}");
                                 microphoneUtil.micStream.value = Uint8List(0);
                               } else {
-                                // processingUtil.processingSerialDataResult(tempLoadedArrSamples.buffer.asUint8List(), Int32List(1), widget.channelCount);
+                                // FIX TOMORROW
+                                await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, widget.channelCount - 1);
+                                print("FIX TOMORROW: arrSamplesInitial: ${arrSamplesInitial.length} ||| arrSampleCountInitial: ${arrSampleCountInitial} ||| endInitialIndex: ${arrSampleCountInitial[0]}");
+                                List<Int16List> sublistArray = [];
+                                for (int i = 0; i < widget.channelCount; i++) {
+                                  int samplesPerChannelLength = arrSampleCountInitial[i].floor();
+                                  sublistArray.add(arrSamplesInitial.sublist(i * samplesPerChannelLength, (i + 1) * samplesPerChannelLength));
+                                  // soloud!.addAudioDataStream(loadedFileStream!, sublistArray);
+                                }
+
+                                int channelIdx = 0;
+                                Int32List samplesCount = Int32List(sublistArray.length);
+                                Int16List flattenedList = Int16List.fromList(sublistArray.expand((list) {
+                                  samplesCount[channelIdx] = sublistArray[channelIdx].length;
+                                  // print("SAMPLES COUNT: ${samplesCount[channelIdx]}");
+                                  channelIdx++;
+                                  return list;
+                                }).toList());
+
+                                processingUtil.processingSerialDataResult(flattenedList, samplesCount, widget.channelCount);
                               }
                             } else {
                               GraphTemplate.isLoadingFile = 4;
                               // microphoneUtil.micStream.value = Uint8List(0);
                             }
-                            
-          
                             // soloud!.addAudioDataStream(loadedFileStream!, loadedArrSamples.buffer.asUint8List());
                           }
                         },
@@ -2094,7 +2107,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   double startSeekSampleIdx = 0;
   double endSeekSampleIdx = 0;
   
-  ValueNotifier<List<int>> scrubNotifier = ValueNotifier([]);
+  ValueNotifier<List<double>> scrubNotifier = ValueNotifier([]);
   SoLoud.SoLoud? soloud;
   List<SoLoud.AudioSource?> loadedFileStreams = [];
   
@@ -2534,8 +2547,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     Int16List arrSamples = Int16List(1);
     // await GraphTemplate.nwbFileUtil?.readElectricalSeries(arrSampleCount, arrChannelCount, 0, 1);
     // DEMO
-    print("======SEEK OPEN FILE");
+    print("======SEEK OPEN FILE - Initiating");
     bool? isFileOpened = await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, arrConfig, 0, 1, 0, 0);
+    print("======SEEK OPEN FILE - FIN");
     
     if (isFileOpened != null && !isFileOpened) {
       PanaraInfoDialog.show(
@@ -2586,16 +2600,26 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
         periodicTimerSerial?.cancel();
 
     }
+    print("Loaded Max Samples : $loadedMaxSamples -- ${_sampleRate}");
+
+
+    loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
+    await processingUtil.initWithConfig(loadedConfig);    
+    GraphTemplate.isPlayerPaused = true;
+    if (isSerialDevice == 0) {
+      microphoneUtil.micStream.value = Uint8List(0);
+    }
+    Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
+    GraphTemplate.isLoadingFile = 1;
+    // return;
 
     AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
     // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
-    scrubNotifier.value = [ (AdaptiveAreaState.maxTime * 0.3).floor(), AdaptiveAreaState.maxTime.floor()];
-    loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
-    GraphTemplate.isPlayerPaused = true;
-    microphoneUtil.micStream.value = Uint8List(0);
-    Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
-    GraphTemplate.isLoadingFile = 1;
+    double scrubMaxWidth = MediaQuery.of(context).size.width - 100 - 20;
+    AdaptiveAreaState.horizontalDragX = scrubMaxWidth * 0.3;
+    scrubNotifier.value = [ (scrubMaxWidth * 0.3), scrubMaxWidth];
     streamScrubBuilderController.add(Random().nextInt(100000));
+
 
     setState(() {
       
@@ -2692,7 +2716,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       // print("loadedArrSamples: ${loadedArrSamples.sublist(0, 10)}");
       // print("SAMPLES COUNT: $samplesCount");
       // print("WIDGET CHANNEL COUNT: $widget.channelCount");
-      processingUtil.processingNwbFileInjectData(flattenedList, samplesCount, 0, widget.channelCount);
+      // processingUtil.processingNwbFileInjectData(flattenedList, samplesCount, 0, widget.channelCount);
+      processingUtil.processingSerialDataResult(flattenedList, samplesCount, widget.channelCount);
     } else
     if (GraphTemplate.isLoadingFile == 3) {
       // SERIAL FILE CHANGES
@@ -3073,7 +3098,7 @@ class _AdaptiveArea extends StatefulWidget {
   final Widget child2;
   final Widget child3;
   final Widget child4;
-  final ValueNotifier<List<int>> notifier;
+  final ValueNotifier<List<double>> notifier;
 
   @override
   State<_AdaptiveArea> createState() => AdaptiveAreaState();
@@ -3112,13 +3137,13 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
                 // strMinTime = "00:00 000";
                 Positioned(
                   left: 50,
-                  bottom: 110,
+                  bottom: 70,
                   child: Text(strMinTime,
                       textAlign: TextAlign.left, style: TextStyle(color: Colors.white)),
                 ),
                 Positioned(
                   right: 50,
-                  bottom: 110,
+                  bottom: 70,
                   child: Container(
                       width: 150,
                       child: Text(strMaxTime,
@@ -3153,7 +3178,7 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
 
     return Positioned(
       left: 0,
-      bottom: 140,
+      bottom: 100,
       child: GestureDetector(
         onTapDown: (onTapDownDetails) {
           if (!GraphTemplate.isPlayerPaused) {
@@ -3204,7 +3229,7 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
           debouncerScrollTimeline.run(() {
             // reload the loaded samples
             // print("debouncerScrollTimeline: $horizontalDragX");
-            widget.notifier.value = [horizontalDragX.toInt(), horizontalDragXFix.toInt()];
+            widget.notifier.value = [horizontalDragX, horizontalDragXFix];
             // widget.notifier.value = [100, 200];
             // nwbfile_seek_electrical_series(outSamples, outSampleCounts, outConfig, startTimeStamp, endTimeStamp, selectedChannel, channelCount)
             if (kIsWeb) {

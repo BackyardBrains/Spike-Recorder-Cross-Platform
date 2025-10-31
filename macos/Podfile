@@ -38,6 +38,20 @@ post_install do |installer|
     flutter_additional_macos_build_settings(target)
     target.build_configurations.each do |config|
       config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '10.15'
+      # Exclude x86_64 for macOS to avoid missing HDF5 symbols in x86_64 slice
+      # This forces Pods (including native plugins) to build for arm64 only on Apple Silicon
+      config.build_settings['EXCLUDED_ARCHS[sdk=macosx*]'] = 'x86_64'
+    end
+  end
+
+  # Also exclude x86_64 for the Runner project targets
+  installer.aggregate_targets.each do |aggregate_target|
+    aggregate_target.user_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['EXCLUDED_ARCHS[sdk=macosx*]'] = 'x86_64'
+        config.build_settings['ARCHS[sdk=macosx*]'] = 'arm64'
+        config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+      end
     end
   end
 end

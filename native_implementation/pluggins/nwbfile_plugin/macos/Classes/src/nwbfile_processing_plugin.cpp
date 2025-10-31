@@ -235,7 +235,7 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
 int mutliplier = 0;
 int numSamplesCounter = 0;
 FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* samplesCount, int selectedChannel, int channelCount, int isFinishRecording) {
-    std::cout << "AQNWB nwbfile_add_electrical_series" << std::endl;
+    // std::cout << "AQNWB nwbfile_add_electrical_series" << std::endl;
     
     // Validate input parameters
     if (!inSamples || !samplesCount || channelCount <= 0) {
@@ -282,7 +282,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* s
     //     std::cerr << "Failed to create electrodes table" << std::endl;
     //     return 1;
     // }
-    std::cout << "AQNWB createdElectrodesTable" << std::endl;
+    // std::cout << "AQNWB createdElectrodesTable" << std::endl;
 
     
     // 6) Start the recording
@@ -295,7 +295,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* s
     // const AQNWB::Types::SizeType numSamples = 1000; // samples per write
     const AQNWB::Types::SizeType numSamples = samplesCount[0]; // samples per write
 
-    std::cout << "AQNWB NUM SAMPLES " << samplesCount[0] << std::endl;
+    // std::cout << "AQNWB NUM SAMPLES " << samplesCount[0] << std::endl;
     // timestamps at 30 kHz
     std::vector<double> timestamps(numSamples );
     const double samplingRate = static_cast<double>(channels[0].getSamplingRate());
@@ -307,7 +307,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* s
         timestamps[i] = (numSamplesCounter + i) * dt;
     }
     // file_log_nwbfile("timestamps: %f", timestamps[0]);
-    std::cout << "TIMESTAMPS " << timestamps[0] << std::endl;
+    // std::cout << "TIMESTAMPS " << timestamps[0] << std::endl;
     // std::cout << "TIMESTAMPS " << timestamps[1] << std::endl;
 
         // Write data per-channel (original approach)

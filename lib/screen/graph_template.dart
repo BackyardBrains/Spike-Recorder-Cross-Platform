@@ -762,24 +762,20 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
         stream: streamScrubBuilder,
         builder: (context, snapshot) {
           return _AdaptiveArea(
+              recordingNotifier: recordingNotifier,
               notifier: scrubNotifier,
               child1: const _GraphArea(),
               child3: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Row(children: [
+
                     SpikerBoxButton(
                         onTapButton: () {
                           context.read<SoftwareConfigProvider>().settingStatus(false);
                         },
                         iconData: Icons.settings),
-                    // const SizedBox(
-                    //   width: 10,
-                    // ),
-                    // Text(
-                    //   "Config",
-                    //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                    // )
+
                   ]),
                   Expanded(
                     child: ConstrainedBox(
@@ -1021,6 +1017,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisAlignment: MainAxisAlignment.start,
                             children: [
+                              isRecording == 1 ? 
+                              SizedBox() 
+                              : 
                               SpikerBoxButton(
                                   onTapButton: () async {
                                     context.read<SoftwareConfigProvider>().settingStatus(true);
@@ -1034,6 +1033,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                               // const SizedBox(
                               //   width: 10,
                               // ),
+                              isRecording == 1 ? 
+                              SizedBox() 
+                              : 
                               SpikerBoxButton(
                                 onTapButton: () {
                                   isThresholdingButton = !isThresholdingButton;
@@ -1148,6 +1150,11 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                                     }
                                     Future.delayed(Duration(milliseconds: 1000), () {
                                       isRecording = 1;
+                                      recordingStartTime = DateTime.now().millisecondsSinceEpoch;
+
+                                      recordingNotifier.value = [recordingStartTime, recordingStartTime];
+                                      setState((){});
+
                                     });
                                     // isRecording = 1;
                                   } else {
@@ -1156,10 +1163,15 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                                     } else {
                                       isRecording = 0;
                                     }
+                                    print("STOP RECORDING");
+                                    Future.delayed(Duration(milliseconds: 300), () {
+                                      recordingNotifier.value = [0, 0];
+                                    });
+                                    setState((){});
                                   }
                                 },
                                 iconData: Icons.fiber_manual_record,
-                                iconColor: Colors.red,
+                                iconColor: isRecording == 1 ? Colors.red : Colors.black,
                               ),
                               const SizedBox(
                                 width: 10,
@@ -1310,10 +1322,14 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
           
                                   // print("timerPlaybackLoadedFile | prevTime: $prevTime | startIdx: $startPlaybackSeekSampleIdx | playbackIdx : $timerPlaybackLoadedStartIndex");
                                 }
+
+
+
                                 GraphTemplate.isLoadingFile = 4;
                                 int timeDiff = DateTime.now().millisecondsSinceEpoch - prevTime;
                                 sampleDivider = (timeDiff * playbackFactor);
                                 prevTime = DateTime.now().millisecondsSinceEpoch;
+                                
           
                                 // sampleDivider = ((soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!.inMilliseconds / 2).floor();
                                 try {
@@ -2108,6 +2124,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   double endSeekSampleIdx = 0;
   
   ValueNotifier<List<double>> scrubNotifier = ValueNotifier([]);
+  ValueNotifier<List<int>> recordingNotifier = ValueNotifier([0,0]);
+
   SoLoud.SoLoud? soloud;
   List<SoLoud.AudioSource?> loadedFileStreams = [];
   
@@ -2127,6 +2145,10 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   
   final StreamController<int> streamScrubBuilderController = StreamController();  
   Stream<int>? streamScrubBuilder;
+  
+  int recordingStartTime = 0;
+  
+  
   
 
   void micListener(){
@@ -2192,6 +2214,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                 // print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0) 11 -- $isRecording ${samplesCount}");
                 // STEVE
                 GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0);
+                recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
+
                 // GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 0);
               } else 
               if (isRecording == 2) {
@@ -2200,6 +2224,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                 // print("END RECORDING!!! GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1)");
                 // print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 1)");
                 GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1);
+                recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
               }
               bool isAverageSamples = true;
               arr = processingUtil.processThresholdData(tempData, tempData.length, MediaQuery.of(context).size.width.floor(), selectedThresholdChannel, isAverageSamples);
@@ -2224,12 +2249,14 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
               // STEVE
               GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0);
               // GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 0);
+              recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
             } else 
             if (isRecording == 2) {
               isRecording = 0;
               print("ENDING RECORDING GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 1)");
               // STEVE
               GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1);
+              recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
               // GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 1);
             }
 
@@ -2751,6 +2778,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
           // print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, ${widget.channelCount}, 0) 11 -- $isRecording ${samplesCount}");
           // STEVE
           GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, widget.channelCount, 0);
+          recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
           // GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 0);
         } else 
         if (isRecording == 2) {
@@ -2759,6 +2787,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
           // print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 1)");
           GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, widget.channelCount, 1);
           isRecording = 0;
+          recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
         }
 
 
@@ -3092,13 +3121,14 @@ class SetFrequencyWidget extends StatelessWidget {
 }
 
 class _AdaptiveArea extends StatefulWidget {
-  const _AdaptiveArea({required this.child1, required this.child3, required this.child2, required this.child4, required this.notifier});
+  const _AdaptiveArea({required this.child1, required this.child3, required this.child2, required this.child4, required this.notifier, required this.recordingNotifier});
 
   final Widget child1;
   final Widget child2;
   final Widget child3;
   final Widget child4;
   final ValueNotifier<List<double>> notifier;
+  final ValueNotifier<List<int>> recordingNotifier;
 
   @override
   State<_AdaptiveArea> createState() => AdaptiveAreaState();
@@ -3123,6 +3153,34 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
         child: Stack(
           children: [
             widget.child1,
+            Positioned(
+              left:0,
+              top:0,
+              child: ValueListenableBuilder<List<int>>(
+                valueListenable: widget.recordingNotifier, 
+                builder: (context, snapshot, _) {
+                  
+                  if (snapshot.isNotEmpty && snapshot[0] != 0) { // if is recording
+                    // return Container();
+                    Duration difference = DateTime.fromMillisecondsSinceEpoch(snapshot[1]).difference(DateTime.fromMillisecondsSinceEpoch(snapshot[0])); // Duration: 2:30:45.864000
+                    String strTimeDiff = formatDuration(difference);
+              
+              
+                    return Container(
+                      color: Colors.red,
+                      width: MediaQuery.of(context).size.width,
+                      height: 30,
+                      child: Center(
+                        child: Text(strTimeDiff, style: TextStyle(color: Colors.white),),
+                      )
+                    );
+                  } else {
+                    return SizedBox();
+                  }
+                }),
+            ),
+
+
             widget.child2,
             widget.child4,
             // Padding(
@@ -3169,6 +3227,30 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
     });
   }
   
+  String formatDuration(Duration duration) {
+    // Get the absolute duration to handle negative differences (time B before time A)
+    final absDuration = duration.abs();
+    
+    // Calculate hours, minutes, and seconds from the absolute duration
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    
+    // Hours can exceed 2 digits for durations longer than 24 hours
+    String hours = twoDigits(absDuration.inHours);
+    
+    // Minutes and seconds are capped at 59 using remainder(60)
+    String minutes = twoDigits(absDuration.inMinutes.remainder(60));
+    String seconds = twoDigits(absDuration.inSeconds.remainder(60));
+    
+    // Milliseconds are the 'decimals' part
+    // We take the remainder of milliseconds in a second, and pad to 3 digits.
+    String milliseconds = absDuration.inMilliseconds.remainder(1000).toString().padLeft(3, "0");
+    
+    // Add a negative sign if the original duration was negative
+    String negativeSign = duration.isNegative ? '-' : '';
+    
+    return '$negativeSign$hours:$minutes:$seconds $milliseconds';
+  }
+
   getTimeScrubWidget() {
     horizontalDragXFix = MediaQuery.of(context).size.width - 100 - 20;    
     strMinTime =

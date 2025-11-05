@@ -62,7 +62,18 @@ Status HDF5IO::open(FileMode mode)
       accFlags = H5F_ACC_RDWR;
       break;
     case FileMode::ReadOnly:
+      // Try to open with SWMR_READ first (for files created with SWMR support)
+      // If that fails, fall back to plain RDONLY (for files without SWMR)
       accFlags = H5F_ACC_RDONLY | H5F_ACC_SWMR_READ;
+      try {
+        m_file = std::make_unique<H5::H5File>(
+            getFileName(), accFlags, FileCreatPropList::DEFAULT, fapl);
+        m_opened = true;
+        return Status::Success;
+      } catch (const H5::Exception&) {
+        // File doesn't support SWMR, try opening without SWMR_READ
+        accFlags = H5F_ACC_RDONLY;
+      }
       break;
     default:
       throw std::invalid_argument("Invalid file mode");

@@ -705,20 +705,21 @@ class _DraggableGraphState extends State<DraggableGraph> {
   
   // int  signalMultiplier = (150).floor();
   double signalMultiplier = 525 / 75;
-  List<double> signalMultiplierChannel = [0,0,0,0,0,0];
+  List<double> signalMultiplierChannel = List.generate(50, (index) => 0);
   
-  static List<double> thresholdMarkerTop = [
-    -10000,
-    -10000,
-    -10000,
-    -10000,
-    -10000,
-    -10000
-  ];
+  static List<double> thresholdMarkerTop = List.generate(50, (index) => -10000);
+  // static List<double> thresholdMarkerTop = [
+  //   -10000,
+  //   -10000,
+  //   -10000,
+  //   -10000,
+  //   -10000,
+  //   -10000
+  // ];
   List<double> snapshotAveragedSamples = [1];
-  List<double> thresholdPositionY = [0, 0, 0, 0, 0, 0];
-  List<int> thresholdValue = [10, 25, 25, 25, 25, 25];
-  List<double> listMedianDistance = [0, 0, 0, 0, 0, 0];
+  List<double> thresholdPositionY = List.generate(50, (index) => 0);
+  List<int> thresholdValue = List.generate(50, (index) => index == 0 ? 10 : 25);
+  List<double> listMedianDistance = List.generate(50, (index) => 0);
   
   int thresholdType = -1;
   int selectedThresholdIdx = 0;
@@ -728,8 +729,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
   int excessiveBottomGain = 0;
 
 
-  List<double> levelMedian = [-1, -1, -1, -1, -1, -1];
-  List<double> initialLevelMedian = [0, 0, 0, 0, 0, 0];
+  List<double> levelMedian = List.generate(50, (index) => -1);
+  List<double> initialLevelMedian = List.generate(50, (index) => 0);
   
   bool isInitializedGraph = false;
   

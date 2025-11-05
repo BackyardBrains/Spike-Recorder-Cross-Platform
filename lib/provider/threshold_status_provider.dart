@@ -4,7 +4,7 @@ class ThresholdStatusProvider extends ChangeNotifier {
   bool isThresholding = false;
   int selectedThresholdChannel = 0;
   int selectedThresholdTriggerType = -1;
-  List<int> selectedThresholdParam = List<int>.generate(6, (_) => 525);
+  List<int> selectedThresholdParam = List<int>.generate(50, (_) => 525);
   void setThresholdStatus(bool isThresholdingParam) {
     isThresholding = isThresholdingParam;
     notifyListeners();

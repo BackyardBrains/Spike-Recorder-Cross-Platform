@@ -163,6 +163,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       if (isOpeningFile) {
         return;
       }
+      
       // print("SET MICROPHONE DATA STATUS: ${_availablePorts.isEmpty}");
       context.read<DataStatusProvider>().setMicrophoneDataStatus(_availablePorts.isEmpty);
 
@@ -1940,7 +1941,15 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     }, onError: (error) {
       // if (error is SerialPortError) {
         print("SERIAL PORT ERROR -- DISCONNECTED");
-        listenToMicrophone(1, provider);
+        Future.delayed(Duration(milliseconds: 1000), () {
+          try{
+            listenToMicrophone(1, provider);
+            // _serialUtil.closePort();
+          }catch(err){
+            print("error closing port");
+            print(err);
+          }
+        });
         // processingUtil.init();
         // processingUtil.initializeMicrophone(1, _sampleRate, MediaQuery.of(context).size.width);
       // }
@@ -2031,6 +2040,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
   
   void listenToMicrophone(channelCount, provider) {
+    print("listenToMicrophone");
     if (provider == null) {
       provider = Provider.of<GraphDataProvider>(context, listen: false);      
     }
@@ -2039,22 +2049,25 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     _isDataIdentified = false;
     deviceChannelCount = channelCount;
     foundDevices = "";
-    Future.delayed(const Duration(seconds: 2)).then((value) async {
-      // print("_messageIdentifier.messageState");
+
+    try{
+      Provider.of<ConstantProvider>(context, listen: false).setChannelCount(channelCount);
+      Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(microphoneUtil.sampleRate.floor());
+
+      microphoneUtil.micStream.removeListener(micListener);
+      microphoneUtil.micStream = ValueNotifier(Uint8List(0));
+      context.read<DataStatusProvider>().setMicrophoneDataStatus(true);
+      print("LISTEN TO MICROPHONE setMicrophoneDataStatus");
+
+    }catch(err){
+      print("er remove listener");
+      print(err);
+    }
+
+    Future.delayed(const Duration(microseconds: 10)).then((value) async {
+      print("_messageIdentifier.messageState");
       // print(_messageIdentifier.messageState);
       // Initialize both utils
-      try{
-        microphoneUtil.micStream.removeListener(micListener);
-        microphoneUtil.micStream = ValueNotifier(Uint8List(0));
-        context.read<DataStatusProvider>().setMicrophoneDataStatus(true);
-        print("LISTEN TO MICROPHONE setMicrophoneDataStatus");
-        Provider.of<ConstantProvider>(context, listen: false).setChannelCount(channelCount);
-        Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(microphoneUtil.sampleRate.floor());
-
-      }catch(err){
-        print("er remove listener");
-        print(err);
-      }
 
       await Future.wait([
         microphoneUtil.init()

@@ -1206,45 +1206,96 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         metadataFile = std::make_unique<H5::H5File>(filePath, H5F_ACC_RDONLY);
         std::cout << "✅ Opened HDF5 file for metadata extraction" << std::endl;
 
-        
+        // Discover the actual ElectricalSeries name
+        std::string electricalSeriesName = "";
+        try {
+            if (H5Lexists(metadataFile->getId(), "/acquisition", H5P_DEFAULT) > 0) {
+                H5::Group acquisitionGroup = metadataFile->openGroup("/acquisition");
+                hsize_t numObjs = acquisitionGroup.getNumObjs();
+                for (hsize_t i = 0; i < numObjs; i++) {
+                    std::string objName = acquisitionGroup.getObjnameByIdx(i);
+                    H5G_obj_t objType = acquisitionGroup.getObjTypeByIdx(i);
+                    if (objType == H5G_GROUP) {
+                        // Check if it's an ElectricalSeries by looking for 'data' dataset
+                        try {
+                            H5::Group testGroup = acquisitionGroup.openGroup(objName);
+                            if (H5Lexists(testGroup.getId(), "data", H5P_DEFAULT) > 0) {
+                                electricalSeriesName = objName;
+                                break;
+                            }
+                        } catch (...) {
+                            continue;
+                        }
+                    }
+                }
+            }
+        } catch (const H5::Exception& e) {
+            std::cout << "⚠️  Could not discover ElectricalSeries: " << e.getDetailMsg() << std::endl;
+        }
+        if (electricalSeriesName.empty()) {
+            electricalSeriesName = "ElectricalSeries1"; // Fallback
+            std::cout << "⚠️  Could not find ElectricalSeries, using default: " << electricalSeriesName << std::endl;
+        } else {
+            std::cout << "✅ Found ElectricalSeries: " << electricalSeriesName << std::endl;
+        }
 
         try{
-            H5::Group deviceGroup = metadataFile->openGroup("/general/devices/recording_device");
-            std::cout << "✅ Device group opened successfully" << std::endl;
+            std::string devicePath = "/general/devices";
+            if (H5Lexists(metadataFile->getId(), devicePath.c_str(), H5P_DEFAULT) > 0) {
+                H5::Group devicesGroup = metadataFile->openGroup(devicePath);
+                hsize_t numDevices = devicesGroup.getNumObjs();
+                std::string deviceName = "";
+                // Find first device group
+                for (hsize_t i = 0; i < numDevices && deviceName.empty(); i++) {
+                    std::string objName = devicesGroup.getObjnameByIdx(i);
+                    H5G_obj_t objType = devicesGroup.getObjTypeByIdx(i);
+                    if (objType == H5G_GROUP) {
+                        deviceName = objName;
+                    }
+                }
+                if (!deviceName.empty()) {
+                    H5::Group deviceGroup = devicesGroup.openGroup(deviceName);
+                    std::cout << "✅ Device group opened successfully: " << deviceName << std::endl;
             // Read device description
-            std::string deviceDescription = "";
-            try {
-                H5::Attribute descAttr = deviceGroup.openAttribute("description");
-                H5::StrType strType(H5::PredType::C_S1, H5T_VARIABLE);
-                std::string description;
-                descAttr.read(strType, description);
-                deviceDescription = description;
-                std::cout << "📋 Device Description: " << description << std::endl;
-            } catch (const H5::Exception& e) {
-                std::cout << "⚠️  Could not read device description: " << e.getDetailMsg() << std::endl;
-            }
-            
-            // Read device manufacturer
-            try {
-                H5::Attribute manufAttr = deviceGroup.openAttribute("manufacturer");
-                H5::StrType strType(H5::PredType::C_S1, H5T_VARIABLE);
-                std::string manufacturer;
-                manufAttr.read(strType, manufacturer);
-                std::cout << "🏭 Device Manufacturer: " << manufacturer << std::endl;
-            } catch (const H5::Exception& e) {
-                std::cout << "⚠️  Could not read device manufacturer: " << e.getDetailMsg() << std::endl;
-            }
-            
-            // if (description.find("Audio|||") > -1) {
-            int res = deviceDescription.find("Audio|||");
-            if (res != std::string::npos){
-                outConfig[6] = 0;
-                std::cout << "✅ Audio Device Detected " << std::endl;
-            } else{ 
-                outConfig[6] = 1;
-                std::cerr << "✅ Serial Device Detected" << std::endl;
-            }
+                    std::string deviceDescription = "";
+                    try {
+                        H5::Attribute descAttr = deviceGroup.openAttribute("description");
+                        H5::StrType strType(H5::PredType::C_S1, H5T_VARIABLE);
+                        std::string description;
+                        descAttr.read(strType, description);
+                        deviceDescription = description;
+                        std::cout << "📋 Device Description: " << description << std::endl;
+                    } catch (const H5::Exception& e) {
+                        std::cout << "⚠️  Could not read device description: " << e.getDetailMsg() << std::endl;
+                    }
+                    
+                    // Read device manufacturer
+                    try {
+                        H5::Attribute manufAttr = deviceGroup.openAttribute("manufacturer");
+                        H5::StrType strType(H5::PredType::C_S1, H5T_VARIABLE);
+                        std::string manufacturer;
+                        manufAttr.read(strType, manufacturer);
+                        std::cout << "🏭 Device Manufacturer: " << manufacturer << std::endl;
+                    } catch (const H5::Exception& e) {
+                        std::cout << "⚠️  Could not read device manufacturer: " << e.getDetailMsg() << std::endl;
+                    }
+                    
+                    // if (description.find("Audio|||") > -1) {
+                    int res = deviceDescription.find("Audio|||");
+                    if (res != std::string::npos){
+                        outConfig[6] = 0;
+                        std::cout << "✅ Audio Device Detected " << std::endl;
+                    } else{ 
+                        outConfig[6] = 1;
+                        std::cerr << "✅ Serial Device Detected" << std::endl;
+                    }
     
+                } else {
+                    std::cout << "⚠️  No devices found in /general/devices" << std::endl;
+                }
+            } else {
+                std::cout << "⚠️  /general/devices path does not exist" << std::endl;
+            }
         }catch(const H5::Exception& e){
             std::cout << "⚠️  Could not open device group: " << e.getDetailMsg() << std::endl;
         }
@@ -1258,7 +1309,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         // Try to read from ElectricalSeries starting_time attribute (rate)
         try {
             H5::Group acquisitionGroup = metadataFile->openGroup("/acquisition");
-            H5::Group electricalSeriesGroup = acquisitionGroup.openGroup("ElectricalSeries1");
+            H5::Group electricalSeriesGroup = acquisitionGroup.openGroup(electricalSeriesName);
             
             if (electricalSeriesGroup.attrExists("rate")) {
                 H5::Attribute rateAttr = electricalSeriesGroup.openAttribute("rate");
@@ -1276,7 +1327,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         if (!sampleRateFound) {
             try {
                 H5::Group acquisitionGroup = metadataFile->openGroup("/acquisition");
-                H5::Group electricalSeriesGroup = acquisitionGroup.openGroup("ElectricalSeries1");
+                H5::Group electricalSeriesGroup = acquisitionGroup.openGroup(electricalSeriesName);
                 H5::DataSet timestampsDataset = electricalSeriesGroup.openDataSet("timestamps");
                 
                 // Read first few timestamps to calculate rate
@@ -1315,7 +1366,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         // 2. Read conversion factor (bitVolts)
         try {
             H5::Group acquisitionGroup = metadataFile->openGroup("/acquisition");
-            H5::Group electricalSeriesGroup = acquisitionGroup.openGroup("ElectricalSeries1");
+            H5::Group electricalSeriesGroup = acquisitionGroup.openGroup(electricalSeriesName);
             
             if (electricalSeriesGroup.attrExists("conversion")) {
                 H5::Attribute conversionAttr = electricalSeriesGroup.openAttribute("conversion");
@@ -1419,11 +1470,50 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
             return -1;
         }
         
+        // Discover the actual ElectricalSeries name
+        std::string electricalSeriesNameForData = "";
+        try {
+            if (H5Lexists(h5file->getId(), "/acquisition", H5P_DEFAULT) > 0) {
+                H5::Group acquisitionGroup = h5file->openGroup("/acquisition");
+                hsize_t numObjs = acquisitionGroup.getNumObjs();
+                for (hsize_t i = 0; i < numObjs; i++) {
+                    std::string objName = acquisitionGroup.getObjnameByIdx(i);
+                    H5G_obj_t objType = acquisitionGroup.getObjTypeByIdx(i);
+                    if (objType == H5G_GROUP) {
+                        // Check if it's an ElectricalSeries by looking for 'data' dataset
+                        try {
+                            H5::Group testGroup = acquisitionGroup.openGroup(objName);
+                            if (H5Lexists(testGroup.getId(), "data", H5P_DEFAULT) > 0) {
+                                electricalSeriesNameForData = objName;
+                                break;
+                            }
+                        } catch (...) {
+                            continue;
+                        }
+                    }
+                }
+            }
+        } catch (const H5::Exception& e) {
+            std::cerr << "⚠️  Could not discover ElectricalSeries: " << e.getDetailMsg() << std::endl;
+        }
+        
+        if (electricalSeriesNameForData.empty()) {
+            electricalSeriesNameForData = "ElectricalSeries1"; // Fallback
+            std::cout << "⚠️  Using default ElectricalSeries name: " << electricalSeriesNameForData << std::endl;
+        } else {
+            std::cout << "✅ Found ElectricalSeries: " << electricalSeriesNameForData << std::endl;
+        }
+        
         // Open the dataset directly
         H5::DataSet dataset;
+        std::string dataPath = "/acquisition/" + electricalSeriesNameForData + "/data";
         try {
-            dataset = h5file->openDataSet("/acquisition/ElectricalSeries1/data");
-            std::cout << "✅ Opened electrical series dataset" << std::endl;
+            if (H5Lexists(h5file->getId(), dataPath.c_str(), H5P_DEFAULT) <= 0) {
+                std::cerr << "❌ Dataset path does not exist: " << dataPath << std::endl;
+                return -1;
+            }
+            dataset = h5file->openDataSet(dataPath);
+            std::cout << "✅ Opened electrical series dataset: " << dataPath << std::endl;
         } catch (const H5::DataSetIException& e) {
             std::cerr << "❌ Failed to open dataset: " << e.getDetailMsg() << std::endl;
             return -1;

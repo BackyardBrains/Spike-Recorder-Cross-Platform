@@ -324,10 +324,14 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* s
                 std::cout << "WRITE ERROR " << samplesCount[channelIndex] << " CHANNEL: " << channelIndex << std::endl;
                 std::cerr << "Failed to write data for channel " << ch.getName() << writeStatus << std::endl;
                 // Clean up memory before returning
-                for (int i = 0; i < channelCount; i++) {
-                    delete[] arrSamples[i];
-                }
-                delete[] arrSamples;
+                if (arrSamples != nullptr) {
+                    for (int i = 0; i < channelCount; i++) {
+                        if (arrSamples[i] != nullptr) {
+                            delete[] arrSamples[i];
+                        }
+                    }
+                    delete[] arrSamples;
+                }                
                 return 1;
             }
             channelIndex++;        
@@ -338,10 +342,14 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* s
         if (flushStatus != AQNWB::Types::Success) {
             std::cerr << "Flush failed" << std::endl;
             // Clean up memory before returning
-            for (int i = 0; i < channelCount; i++) {
-                delete[] arrSamples[i];
+            if (arrSamples != nullptr) {
+                for (int i = 0; i < channelCount; i++) {
+                    if (arrSamples[i] != nullptr) {
+                        delete[] arrSamples[i];
+                    }
+                }
+                delete[] arrSamples;
             }
-            delete[] arrSamples;
             return 1;
         }
 
@@ -362,10 +370,14 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* s
             std::cout << "Successfully wrote example recording to: " << outputPath << std::endl;
     
             // Clean up memory
-            for (int i = 0; i < channelCount; i++) {
-                delete[] arrSamples[i];
+            if (arrSamples != nullptr) {
+                for (int i = 0; i < channelCount; i++) {
+                    if (arrSamples[i] != nullptr) {
+                        delete[] arrSamples[i];
+                    }
+                }
+                delete[] arrSamples;
             }
-            delete[] arrSamples;
         
             // Close IO after finalization (matching reference order)
             auto closeStatus = io->close();
@@ -377,19 +389,27 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* s
 
         } else {
             // Clean up memory for non-finishing calls
-            for (int i = 0; i < channelCount; i++) {
-                delete[] arrSamples[i];
+            if (arrSamples != nullptr) {
+                for (int i = 0; i < channelCount; i++) {
+                    if (arrSamples[i] != nullptr) {
+                        delete[] arrSamples[i];
+                    }
+                }
+                delete[] arrSamples;
             }
-            delete[] arrSamples;
         }
         
     } catch (const std::exception& e) {
         std::cerr << "Error in nwbfile_add_electrical_series: " << e.what() << std::endl;
         // Clean up memory in case of exception
-        for (int i = 0; i < channelCount; i++) {
-            delete[] arrSamples[i];
+        if (arrSamples != nullptr) {
+            for (int i = 0; i < channelCount; i++) {
+                if (arrSamples[i] != nullptr) {
+                    delete[] arrSamples[i];
+                }
+            }
+            delete[] arrSamples;
         }
-        delete[] arrSamples;
         return 1;
     }
     

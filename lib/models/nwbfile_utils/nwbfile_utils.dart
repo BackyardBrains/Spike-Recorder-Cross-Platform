@@ -11,9 +11,10 @@ export "nwbfile_utils_native.dart"
 
 // The abstract interface all implementations must follow
 abstract class NWBFileUtil {
-  Future<bool> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer);
+  Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer);
   Future<bool> addElectricalSeries(Int16List data, Int32List samplesCount, int selectedChannel,int channelCount, int isFinishRecording);
   Future<bool> readElectricalSeries(Int16List outSamples, Int32List outSamplesCount, int selectedChannel,int channelCount);
   Future<bool> seekElectricalSeries(String filePath, Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel);
+  Future<String> makeFilePublic(String path);
 }
 

@@ -673,7 +673,6 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
           print("LABELS: ${DraggableGraph.eventMarkersPosition} ${DraggableGraph.eventMarkersLabels} ||| ${ProcessingUtil.eventLabels.sublist(0, ProcessingUtil.currentEventMarkers)} - Sublist: ${ProcessingUtil.eventPosition.sublist(0, ProcessingUtil.currentEventMarkers)}");
           bufferPaddingLeft = 0;
         }
-
       });
     });
   
@@ -754,7 +753,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   int deviceType = -1;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext widgetContext) {
 
     return Scaffold(
       backgroundColor: SoftwareColors.kBackGroundColor,
@@ -1137,16 +1136,16 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                           Row(
                             children: [
                               SpikerBoxButton(
-                                onTapButton: () {
+                                onTapButton: () async {
                                   print("STATUS RECORDING: $isRecording");
                                   if (isRecording == 0) {
                                     print("!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
                                     
                                     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
                                     if (isAudioListen) {
-                                      GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems");
+                                      recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems");
                                     } else {
-                                      GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems");
+                                      recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems");
                                     }
                                     Future.delayed(Duration(milliseconds: 1000), () {
                                       isRecording = 1;
@@ -1166,6 +1165,16 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                                     print("STOP RECORDING");
                                     Future.delayed(Duration(milliseconds: 300), () {
                                       recordingNotifier.value = [0, 0];
+                                      if (recordedFilePath != null && recordedFilePath != "false") {
+                                        if (widgetContext.mounted) {
+                                          ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $recordedFilePath"), duration: Duration(seconds: 7),));
+                                          if (recordedFilePath != null) {
+                                            GraphTemplate.nwbFileUtil?.makeFilePublic(recordedFilePath!);
+                                          }
+                                          
+                                        }
+                                      }
+
                                     });
                                     setState((){});
                                   }
@@ -2147,6 +2156,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   Stream<int>? streamScrubBuilder;
   
   int recordingStartTime = 0;
+  
+  String? recordedFilePath = "";
   
   
   

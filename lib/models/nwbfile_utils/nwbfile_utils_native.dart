@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:ffi';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
+import 'package:flutter_file_saver/flutter_file_saver.dart';
 import 'package:nwbfile_plugin/nwbfile_plugin.dart' as nwb;
 import 'package:path_provider/path_provider.dart';
 import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
@@ -9,18 +11,50 @@ import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
 class NwbFileUtilImpl implements NWBFileUtil {
   String recordedTime = "";
   @override
-  Future<bool> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer) async {
+  Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer) async {
     // final path = "${(await getApplicationDocumentsDirectory()).path}/${DateTime.now().millisecondsSinceEpoch}";
     // final path = (await getApplicationDocumentsDirectory()).path + "/example_recording2.nwb";
     recordedTime = DateTime.now().millisecondsSinceEpoch.toString();
-    final path = "${(await getApplicationDocumentsDirectory()).path}/spike_recorder$recordedTime.nwb";
+    String path = "${(await getApplicationDocumentsDirectory()).path}/spike_recorder$recordedTime.nwb";
+    if (Platform.isMacOS || Platform.isAndroid) {
+      path = "${(await getDownloadsDirectory())?.path}/spike_recorder$recordedTime.nwb";
+      // String computerNamePath = (await getApplicationDocumentsDirectory()).path.split("/Library")[0];
+      // path = "${computerNamePath}/spike_recorder$recordedTime.nwb";
+    } 
     print("NWB file path: $path");
     Pointer<Char> charPointer = path.toString().toNativeUtf8().cast<Char>();
     Pointer<Char> deviceInfoPointer = deviceInfo.toNativeUtf8().cast<Char>();
     Pointer<Char> deviceManufacturerPointer = deviceManufacturer.toNativeUtf8().cast<Char>();
 
-    nwb.processingInit(charPointer, sampleRate, channelCount, deviceInfoPointer, deviceManufacturerPointer);
-    return Future.value(true);
+    int initResult = nwb.processingInit(charPointer, sampleRate, channelCount, deviceInfoPointer, deviceManufacturerPointer);
+    if (initResult < 0) {
+      print("❌ Failed to initialize NWB file, error code: $initResult");
+      return Future.value("false");
+    }
+    return Future.value(path);
+  }
+  @override
+  Future<String> makeFilePublic(String path) async {
+    if (Platform.isAndroid) {
+      int lastIdx = path.lastIndexOf("/");
+      String fileName = "";
+      if (lastIdx > -1) {
+        fileName = path.substring(lastIdx + 1);
+      }
+      print("fileName: $fileName");
+      File file = File(path);
+      
+      String resultString = await FlutterFileSaver().writeFileAsBytes(
+          fileName: fileName,
+          bytes: file.readAsBytesSync(),
+      );      
+      print("resultString");
+      print(resultString);
+      return Future.value(path);
+    } else {
+      return Future.value(path);
+    }
+    
   }
 
   @override
@@ -106,7 +140,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
       print("   Channels: $startChannel to $endChannel ($numChannelsToRead channels)");
       print("   Expected samples per channel: ${endTimeStamp - startTimeStamp}");
       print("   Expected total data points: ${(endTimeStamp - startTimeStamp) * numChannelsToRead}");
-      
+
       int result = nwb.nwbfile_seek_electrical_series(charPointer, outSamplesPtr, outSamplesCountPtr, outConfigPtr, startTimeStamp, endTimeStamp, startChannel, endChannel);
       print("📊 Seek result: $result == $startChannel, $endChannel");
 

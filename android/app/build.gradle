@@ -26,9 +26,9 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    namespace 'com.example.spikerbox_architecture'
+    namespace 'com.backyardbrains.spikerecorder'
     compileSdkVersion 34
-    ndkVersion "26.3.11579264"
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility 1.8
@@ -48,7 +48,7 @@ android {
     resolutionStrategy { force 'androidx.core:core-ktx:1.6.0' }
 }
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId "com.example.spikerbox_architecture"
+        applicationId "com.backyardbrains.spikerecorder"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
         minSdkVersion 23
@@ -62,6 +62,7 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig signingConfigs.debug
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

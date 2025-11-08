@@ -49,6 +49,7 @@ class _SpikerBoxUiState extends State<SpikerBoxUi> {
 
   @override
   Widget build(BuildContext context) {
+    listUIElements.clear();
     listUIElements.addAll([
       DraggableSection(),
       TimeCalculateWidget(),

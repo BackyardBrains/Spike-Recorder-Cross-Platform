@@ -6,6 +6,10 @@
 #include "SampleStreamUtils.h"
 #include <iostream>
 #include <fstream>
+#include <cstring>
+// #ifdef __ANDROID__
+#include <android/log.h>
+// #endif
 
 namespace backyardbrains {
 
@@ -69,7 +73,12 @@ namespace backyardbrains {
                         std::copy(eventMessage, eventMessage + eventMessageIndex, copy);
                         copy[eventMessageIndex] = 0;
                         // let's process incoming message
-                        processEscapeSequenceMessage(copy, sampleIndex, hardwareType);
+                        // processEscapeSequenceMessage(copy, sampleIndex, hardwareType, eventMessageIndex);
+                        // #ifdef __ANDROID__
+                        //  __android_log_print(ANDROID_LOG_DEBUG, TAG, "ESCAPE SEQUENCE MESSAGE %d AT %d", length, eventMessageIndex);
+                        // // __android_log_print(ANDROID_LOG_VERBOSE, "ndk", ANDROID_LOG_DEBUG, TAG, "ESCAPE SEQUENCE MESSAGE %s AT %d", "copy",eventMessageIndex);
+                        // #endif
+
 
                         delete[] copy;
                         reset();
@@ -80,13 +89,14 @@ namespace backyardbrains {
                             std::copy(eventMessage, eventMessage + eventMessageIndex, copy);
                             copy[eventMessageIndex] = 0;
                             // let's process incoming message
-                            processEscapeSequenceMessage(copy, sampleIndex, hardwareType);
+                            processEscapeSequenceMessage(copy, sampleIndex, hardwareType, eventMessageIndex);
 
                             delete[] copy;
                             reset();
                         }
                     } else {
                         eventMessage[eventMessageIndex++] = uc;
+                        __android_log_print(ANDROID_LOG_DEBUG, TAG, "EVENT MESSAGE %d", eventMessageIndex);
                     }
                 } else {
                     if (ESCAPE_SEQUENCE_START[tmpIndex] == uc) {
@@ -220,17 +230,26 @@ namespace backyardbrains {
                 std::copy(channels[i], channels[i] + sampleCounters[i], outSamples[i]);
                 outSampleCounts[i] = sampleCounters[i];
             }
-            std::copy(eventIndices, eventIndices + eventCounter, outEventIndices);
+            // DEBUG STEVE
+            // std::copy(eventIndices, eventIndices + eventCounter, outEventIndices);
             std::copy(eventLabels, eventLabels + eventCounter, outEventLabels);
             outEventCount = eventCounter;
+            // outEventIndices[0] = eventMessageIndex;
 
             prevChannelCount = channelCount;
         }
 
         int SampleStreamProcessor::processEscapeSequenceMessage(unsigned char *messageBytes,
-                                                                int sampleIndex, int hardwareType) {
+                                                                int sampleIndex, int hardwareType, int eventMessageLength) {
             // check if it's board type message
-            std::string message = reinterpret_cast<char *>(messageBytes);
+            // Safely construct string from null-terminated buffer
+            if (messageBytes == nullptr) {
+                return hardwareType;
+            }
+            // Use strnlen to safely find length with max bound (prevents reading past buffer)
+            size_t len = strnlen(reinterpret_cast<const char *>(messageBytes), EVENT_MESSAGE_LENGTH);
+            // Construct string with explicit length (safer than relying on null termination)
+            std::string message(reinterpret_cast<const char *>(messageBytes), len);
             //__android_log_print(ANDROID_LOG_DEBUG, TAG, "ESCAPE SEQUENCE MESSAGE %s AT %d",message.c_str(),sampleIndex);
 
             std::string logMessage =
@@ -250,12 +269,21 @@ namespace backyardbrains {
                 listener->onMaxSampleRateAndNumOfChannelsReply(sampleRate, channelCount);
                 setSampleRateAndChannelCount(sampleRate, channelCount);
             } else if (backyardbrains::utils::SampleStreamUtils::isEventMsg(message)) {
+                // Check bounds to prevent array overrun
+                if (eventCounter >= MAX_EVENTS) {
+                    return hardwareType; // Skip if we've reached max events
+                }
                 eventIndices[eventCounter] = sampleIndex;
                 eventLabels[eventCounter] = backyardbrains::utils::SampleStreamUtils::getEventNumber(
                         message);
-                int num = std::stoi(eventLabels[eventCounter]);    
-                listener->onEventFound(sampleIndex, num);
-                eventCounter++;
+                try {
+                    int num = std::stoi(eventLabels[eventCounter]);    
+                    listener->onEventFound(sampleIndex, num);
+                    eventCounter++;
+                } catch (const std::exception&) {
+                    // If stoi fails, skip this event
+                    return hardwareType;
+                }
 
             } else if (backyardbrains::utils::SampleStreamUtils::isExpansionBoardTypeMsg(message)) {
                 const int expansionBoardType = backyardbrains::utils::SampleStreamUtils::getExpansionBoardType(

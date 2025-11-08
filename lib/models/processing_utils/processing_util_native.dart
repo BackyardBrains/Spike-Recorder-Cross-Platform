@@ -611,7 +611,6 @@ class ProcessingUtilImpl implements ProcessingUtil {
     initEventMarkers(_sampleRate);
     ProcessingUtil.eventMarkerNotifier.removeListener(eventMarkerListener);
     ProcessingUtil.eventMarkerNotifier.addListener(eventMarkerListener);
-
   }
 
   @override
@@ -641,8 +640,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
       inDataPtr[i] = samples[i];
       // inDataPtr[i] = initialSamples[i];
     }
+    // print("PROCESS SERIAL DATA ERROR ChannelCount: $channelCount -- Samples: ${samples.length} -- drawSurfaceWidth: $drawSurfaceWidth");
     int res = pb.processingBindings.processSampleStream(outSamplesPtr,
         outSampleCountsPtr, inDataPtr, samples.length, deviceType);
+    // print("PROCESS SERIAL DATA ERROR RES: $res");
+    // return [Int16List(0), Int16List(0)];
     int minCounter = 100000;
     List<Int16List> buffer =[];
     // if (res != 0) {
@@ -741,7 +743,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     // print("drawSurfaceWidth : $drawSurfaceWidth");
     try {
       
-
+      // return Future.value(Uint8List(0));
       // print("PREPARE FOR SIGNAL DRAWING - Start Channel Count $channelCount");
       int result = pb.processingBindings.prepareForSignalDrawing(
           outSamplesPtr, // Pointer<Pointer<Float>>

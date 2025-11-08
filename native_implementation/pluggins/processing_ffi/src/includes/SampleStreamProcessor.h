@@ -67,7 +67,7 @@ namespace backyardbrains {
             typedef unsigned int byte;
 
             // Processes escape sequence message and triggers appropriate listener
-            int processEscapeSequenceMessage(unsigned char *messageBytes, int sampleIndex, int i);
+            int processEscapeSequenceMessage(unsigned char *messageBytes, int sampleIndex, int i, int eventMessageLength);
 
             // Updates channel count and sample rate depending on the specified board type
             void updateProcessingParameters(int expansionBoardType);

@@ -159,7 +159,7 @@ class CircularBuffer {
 
             // Add data to circular buffer
             void addData(int16_t** samples, int32_t* sampleCount) {
-                  if (buffer == nullptr) {
+                  if (buffer == nullptr || sampleCount == nullptr) {
                         return;
                   }
                  
@@ -417,12 +417,19 @@ int32_t processing_init() {
         // Initialize processors
         initialize_processors();
         
+        // Verify critical processors were created
+        if (!sampleStreamProcessor) {
+            log_debug("ERROR: sampleStreamProcessor is null after initialization");
+            return -1;
+        }
+        
         // Initialize the circular buffer
         if (circularBuffer == nullptr) {
             circularBuffer = new CircularBuffer(current_sample_rate, current_channel_count);
             circularBufferThreshold = new CircularBuffer(current_sample_rate, current_channel_count);
         }
         
+        // Only set initialized to true if everything succeeded
         initialized = true;
         return 0;
     } catch (...) {
@@ -547,15 +554,22 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
     }
     // isProcessThresholding = false;
     
+    // Check if sampleStreamProcessor is initialized
+    if (sampleStreamProcessor == nullptr) {
+        return -2; // Return error code indicating processor not initialized
+    }
+    
     try {
         // Process data using SampleStreamProcessor
         int* event_indices = new int[PROCESSING_MAX_EVENTS];
         std::string* event_labels = new std::string[PROCESSING_MAX_EVENTS];
         int event_count = 0;
-        sampleStreamProcessor->process(in_data, length, out_samples, out_sample_counts,
+        
+        sampleStreamProcessor->process((const_cast<uint8_t*>(in_data)), length, out_samples, out_sample_counts,
                                      event_indices, event_labels, event_count,
                                      current_channel_count, hardware_type);
         // Add processed data to circular buffer
+        // return -199;
         if (circularBuffer != nullptr) {
             // if (out_sample_counts[0]>0) {
                 circularBuffer->addData(out_samples, out_sample_counts);
@@ -571,7 +585,9 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
 
         delete[] event_indices;
         delete[] event_labels;
-        return out_sample_counts[0];
+        // DEBUG STEVE
+        return event_indices[0];
+        // return out_sample_counts[0];
     } catch (...) {
         return -3;
     }
@@ -589,6 +605,19 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
         // platform_log_processing("\n");
             return -1;
       }
+      
+      // Check if amModulationProcessor is initialized
+      if (amModulationProcessor == nullptr) {
+          return -2; // Return error code indicating processor not initialized
+      }
+      
+      // Check if all out_samples channel pointers are valid
+      for (int i = 0; i < current_channel_count; i++) {
+          if (out_samples[i] == nullptr) {
+              return -3; // Return error code indicating invalid output buffer
+          }
+      }
+      
     //   isProcessThresholding = false;
       //log_debug("Processing microphone data: length=%d", length);
 
@@ -628,7 +657,9 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
            
             // Copy processed data from channel_samples to out_samples
             for (int i = 0; i < current_channel_count; i++) {
-                  std::copy(channel_samples[i], channel_samples[i] + frame_count, out_samples[i]);
+                  if (out_samples[i] != nullptr && channel_samples[i] != nullptr) {
+                      std::copy(channel_samples[i], channel_samples[i] + frame_count, out_samples[i]);
+                  }
             }
             
             // Clean up channel_samples to avoid memory leaks

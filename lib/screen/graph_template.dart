@@ -118,7 +118,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   int _channelBytes = 0;
   late List<int> sumAsyncResult;
 
-  late final MessageIdentifier _messageIdentifier;
+  late MessageIdentifier _messageIdentifier;
 
   /// For testing keeping track of packets sent to C code
   static int packetId = 0;
@@ -146,6 +146,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
   Future<void> _startPortCheck() async {
     Timer.periodic(const Duration(seconds: 3), (timer) async {
+      if (forceSerialDisconnect) return;
       int baudRate = context.read<ConstantProvider>().getBaudRate();
       _serialUtil.getAvailablePorts(baudRate, listenToMicrophone);
       allDevices.clear();
@@ -176,6 +177,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
         Provider.of<ConstantProvider>(context, listen: false).setBaudRate(baudRate);
         allDevices = context.read<SerialDataProvider>().getAllPortDetail;
         if (isDeviceConnect) {
+          isSerialDeviceFound = true;
           await portListOnConnect();
         }
       }
@@ -222,6 +224,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   @override
   void initState() {
     super.initState();
+
+    deviceListStream = connectDeviceList();
 
 
     scrubNotifier.addListener(() async {
@@ -460,161 +464,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     _channelBytes = widget.channelCount * 2;
 
 
-    _messageIdentifier = MessageIdentifier(onDeviceData: (Uint8List dt) {
-      List<int> devData = dt;
-
-      if (_residualBuffer.isNotEmpty) {
-        devData = [..._residualBuffer, ...devData];
-        _residualBuffer.clear();
-      }
-      List<int> frameCheckedData = [];
-      int i = 0;
-
-      while (i < devData.length) {
-        if (i + _channelBytes >= devData.length) {
-          _residualBuffer.addAll(devData.sublist(i, devData.length));
-          break;
-        }
-        // To check that the data received follows the Custom Protocol
-        bool frameComplete = true;
-
-        if (frameComplete) {
-          checkBytesLoop:
-          for (int j = 1; j < _channelBytes; j++) {
-            if (!(i + j < devData.length)) break checkBytesLoop;
-            if (devData.elementAt(i + j) > 127) {
-              // Remaining bytes in frame are missing
-              // Debugging.printing(
-              //     "Remaining frame bytes missing - ${devData.sublist(i)}");
-              frameComplete = false;
-              break checkBytesLoop;
-            }
-          }
-        }
-        if (frameComplete) {
-          frameCheckedData.addAll(devData.sublist(i, i + _channelBytes));
-          i += _channelBytes;
-        } else {
-          i++;
-        }
-      }
-      _preprocessingBuffer.addBytes(Uint8List.fromList(frameCheckedData));
-    }, onDeviceMessage: (Uint8List msg) async {
-      String rawMessage = String.fromCharCodes(msg);
-      // if (rawMessage.indexOf("EVNT") > -1) {
-      //   String responseMessage = MessageValueSet.fromUint8ListCommand(message: msg).value;
-      //   responseMessage = responseMessage.replaceAll(";", "");
-      //   int eventIndex = 
-      //   return;
-      // }
-      String responseMessage = MessageValueSet.fromUint8ListCommand(message: msg).value;
-      print("responseMessage :  $responseMessage - raw: $rawMessage");
-      String? devices = checkConnectedDevices(responseMessage);
-
-      if (devices == null) {
-        return;
-      }
-      _deviceName.value = devices;
-      print("devices :   $devices");
-      // if (_deviceName.value != null) {
-      //   deviceType = listOfDevices.indexOf(_deviceName.value!);
-      //   print("deviceType");
-      //   print(deviceType);
-      // }
-
-      SetUpFunctionality().setTheDeviceSetting(_deviceName.value).then((value) {
-        print("VALUE : $value");
-        if (value != null) {
-          String tempDevices = value.uniqueName ?? "";
-          if (foundDevices != "") {
-            if (foundDevices != tempDevices){
-              foundDevices = tempDevices;
-            } else {
-              return;
-            }
-          } else {
-            foundDevices = tempDevices;
-          }
-          print("foundDevices");
-          print(foundDevices);
-          // HARDCODE
-          if (foundDevices == "MUSCLESS") {
-            foundDevices = "HEARTSS";
-          }
-          
-
-          Provider.of<ConstantProvider>(context, listen: false).setBaudRate(foundDevices == "HHIBOX" ? 500000 : 222222);
-          Provider.of<ConstantProvider>(context, listen: false).setChannelCount(int.parse(value.maxNumberOfChannels.toString()));
-          widget.channelCount = int.parse(value.maxNumberOfChannels.toString());
-          // print("widget.channelCount: $widget.channelCount");
-          
-          Provider.of<ConstantProvider>(context, listen: false).setBitData(int.parse(value.sampleResolution.toString()));
-          Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(int.parse(value.maxSampleRate.toString()));
-
-          connectedDevices.add(foundDevices);
-          SerialPortDataModel serialData = SerialPortDataModel(portCom: portName, deviceDetect: foundDevices);
-          context.read<SerialDataProvider>().setPortOfDevices(serialData);
-          print("isDeviceConnect: ");
-          print(isDeviceConnect);
-          // if (isDeviceConnect) {
-          bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
-          if (!isAudioListen) {
-
-            SetUpFunctionality().getAllDeviceList().then((value) {
-              print("INIT STATE GET ALL DEVICE LIST");
-              // Extract the list of boards from the result
-              List<Board> allBoards = value.boards ?? [];
-              // Filter the boards based on some condition (e.g., matching unique names)
-              List<Board> connectedBoards = allBoards.where((board) {
-                return connectedDevices.contains(board.uniqueName);
-              }).toList();
-
-              // Add the filtered list to the stream
-              // List<ComDataWithBoard> listOfBoard = createComDataWithBoardList(connectedBoards, allDevices);
-              // print("listOfBoard");
-              // print(allBoards);
-              // print(listOfBoard);
-              // print(connectedBoards);
-              for (Board board in connectedBoards) {
-                if (board.uniqueName == foundDevices) {   
-                  GraphTemplate.selectedBoard = board;
-                  // HARDCODE
-                  deviceType = listOfDevices.indexOf("$foundDevices;") + 1;
-                  print("${GraphTemplate.selectedBoard} ${board.uniqueName} --- $foundDevices ::: ${board.uniqueName == foundDevices} $deviceType" );
-                  // (processingUtil as ProcessingUtilImpl).dispose();
-                  // processingUtil = createProcessingUtil();
-                  _sampleRate = int.parse(board.maxSampleRate!);
-                  double drawSurfaceWidth = MediaQuery.of(context).size.width;
-                  processingUtil.initializeSerial(board, drawSurfaceWidth);
-                  ProcessingUtil.initializeDevice.value = 1;
-                  
-                  deviceChannelCount = int.parse(board.maxNumberOfChannels!);
-                  context.read<ChannelColorProvider>().setSerialChannelCount(
-                      int.parse(board.maxNumberOfChannels!));
-                  context.read<ChannelFilterProvider>().setSerialChannelCount(
-                      int.parse(board.maxNumberOfChannels!));
-                  // createDisplaySerialDataIsolate();
-                  // createProcessSerialDataIsolate();
-                  Future.delayed(Duration(seconds: 2), (){
-                    var info = processingUtil.getInformation();
-                    print("info : $info");
-                    isDeviceSelected = true;
-                  });
-                }
-              }
-
-              // Print the stream (optional)
-            });
-          }
-
-        }
-      });
-      Debugging.printing("Message received from Spikerbox: \n\tbytes : $msg\n\tstring: ${String.fromCharCodes(msg)}");
-  //     Message received from Spikerbox: 
-	// bytes : [72, 87, 84, 58, 72, 85, 77, 65, 78, 83, 66, 59]
-	// string: HWT:HUMANSB;
-    });
-
+    initMessageIdentifier();
     _preEscapeSequenceBuffer = BufferHandler(
       chunkReadSize: 32,
       onDataAvailable: (Uint8List dataFromBuffer) {
@@ -1093,11 +943,57 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                               const SizedBox(
                                 width: 10,
                               ),
+                              // if (!forceSerialDisconnect) ... {
+                              //   SpikerBoxButton(onTapButton: () {
+                              //     forceSerialDisconnect = !forceSerialDisconnect;
+                              //   }, iconData: Icons.usb),
+                              // },
                               StreamBuilder<List<ComDataWithBoard>>(
-                                  stream: connectDeviceList(),
+                                  stream: deviceListStream,
                                   builder: (context, snapshot) {
+                                    // print("snapshot.hasData: ${snapshot.hasData}");
                                     if (snapshot.hasData) {
+                                    print("snapshot.data: ${snapshot.data}");
                                       listOfBoard = snapshot.data!;
+                                      if (listOfBoard?.length == 0) {
+                                        return SpikerBoxButton(onTapButton: () async{
+                                          forceSerialDisconnect = true;
+                                          initMessageIdentifier();                                          
+
+                                          await Future.delayed(Duration(milliseconds: 1000));
+                                          
+                                          int baudRate = context.read<ConstantProvider>().getBaudRate();
+                                          await _serialUtil.getAvailablePorts(baudRate, listenToMicrophone);
+                                          allDevices.clear();
+
+                                          List<String> filteredPorts;
+                                          if (Platform.isMacOS) {
+                                            filteredPorts = _serialUtil.availablePorts.where((port) => port.contains('usbmodem') || port.contains('usbserial')).toList();
+                                          } else {
+                                            filteredPorts = _serialUtil.availablePorts;
+                                          }
+
+                                          bool isComMatch = areListsEqual(_availablePorts, filteredPorts);
+
+                                          _availablePorts = filteredPorts;
+                                          
+                                          context.read<DataStatusProvider>().setMicrophoneDataStatus(_availablePorts.isEmpty);
+                                          print("isDeviceConnect : $isDeviceConnect -- ${_availablePorts.isEmpty} -- ${context.read<DataStatusProvider>().isMicrophoneData} -- forceSerialDisconnect: $forceSerialDisconnect ${listOfBoard?.length} isComMatch: $isComMatch");
+
+                                          // if (!isComMatch) {
+                                            Provider.of<PortScanProvider>(context, listen: false).setPortScanList(_availablePorts);
+                                            Provider.of<ConstantProvider>(context, listen: false).setBaudRate(baudRate);
+                                            allDevices = context.read<SerialDataProvider>().getAllPortDetail;
+                                            if (isDeviceConnect) {
+                                              isSerialDeviceFound = true;
+                                              await portListOnConnect();
+                                            }
+                                          // }
+                                          forceSerialDisconnect = false;
+          
+                                        }, iconData: Icons.usb);
+                                      }
+
                                       return SizedBox(
                                         height: 50,
                                         child: ListView.builder(
@@ -1106,30 +1002,28 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                                             shrinkWrap: true,
                                             itemCount: listOfBoard?.length,
                                             itemBuilder: (context, index) {
-                                              return GestureDetector(
-                                                onTap: () {
-                                                  print("DISCONNECT USB2");
-                                                  // Future.delayed(Duration(milliseconds: 1500), () {
-                                                  //   _serialUtil.closePort();
-                                                  //   final provider = Provider.of<GraphDataProvider>(context, listen: false);
-                                                  //   listenToMicrophone(1, provider);
-                                                  // });
-                  
-                                                },
-                                                child: SpikerBoxButton(onTapButton: () {
-                                                  print("DISCONNECT USB");
-                                                  _serialUtil.closePort();
-                                                  listenToMicrophone(1, null);
-                                                  Future.delayed(Duration(milliseconds: 1500), () {
-                                                    // final provider = Provider.of<GraphDataProvider>(context, listen: false);
-                                                  });
-                  
-                                                }, iconData: Icons.usb),
-                                              );
+                                              return SpikerBoxButton(onTapButton: () {
+                                                print("DISCONNECT USB");
+                                                forceSerialDisconnect = !forceSerialDisconnect;
+                                                _serialUtil.closePort();
+                                                Future.delayed(Duration(milliseconds: 1500), () {
+                                                  if (context.mounted) {
+                                                    _availablePorts.clear();
+                                                    context.read<DataStatusProvider>().setMicrophoneDataStatus(_availablePorts.isEmpty);
+                                                    final provider = Provider.of<GraphDataProvider>(context, listen: false);
+                                                    listenToMicrophone(1, provider);
+                                                  }
+                                                  // final provider = Provider.of<GraphDataProvider>(context, listen: false);
+                                                });
+                                                                
+                                              }, iconData: Icons.usb);
                                             }),
                                       );
                                     } else {
-                                      return Container();
+                                      
+                                      
+                                        return Container();
+                                      
                                     }
                                   })
                             ],
@@ -1702,9 +1596,11 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                     */
                   }, onError: (error) {
                     // if (error is SerialPortError) {
+                      forceSerialDisconnect = true;
                       print("SERIAL PORT ERROR -- DISCONNECTED");
+                      _serialUtil.closePort();
                       Future.delayed(Duration(milliseconds: 2500), () {
-                        _serialUtil.closePort();
+                        forceSerialDisconnect = false;
                         listenToMicrophone(1, provider);
                       });
                     // }
@@ -1791,6 +1687,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     DataStatusProvider dataStatus = context.read<DataStatusProvider>();
     List<String> listOfPort = Provider.of<PortScanProvider>(context, listen: false).availablePorts;
     int baudRate = context.read<ConstantProvider>().getBaudRate();
+    print("portListOnConnect listOfPort: $listOfPort");
     if (listOfPort.isEmpty) {
       return;
     }
@@ -1819,6 +1716,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
     serialDataSubscription?.cancel();
     serialDataSubscription = getData?.listen((event) async {
+      isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
       if (!isAudioListen) {
         final provider = Provider.of<GraphDataProvider>(context, listen: false);
         int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
@@ -1827,6 +1725,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
           isDeviceConnect = false;
         }
         if (_isDataIdentified) {
+          // return;
           // print("GRAPHTEMPLATE IS LOADING FILE ${GraphTemplate.isLoadingFile}");
           serialNativeDataSubscription(event, isAudioListen);
         } else {
@@ -1851,6 +1750,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                 totalSampleCount = 0;
                 DraggableGraph.startPositionIdx = 0;
                 DraggableGraph.endPositionIdx = (displayTimeMs * 0.001 * _sampleRate).floor();
+                // DEBUG STEVE
+                // return;            
 
                 await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, (displayTimeMs * 0.001 * _sampleRate).floor());
                 provider.inputListener(Uint8List(0));
@@ -1865,6 +1766,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
               int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
               DraggableGraph.startPositionIdx = fromSample;
               DraggableGraph.endPositionIdx = toSample;
+              // DEBUG STEVE
+            // return;            
 
               // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
               await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
@@ -1940,16 +1843,14 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       // }
     }, onError: (error) {
       // if (error is SerialPortError) {
+        forceSerialDisconnect = true;
         print("SERIAL PORT ERROR -- DISCONNECTED");
-        Future.delayed(Duration(milliseconds: 1000), () {
-          try{
-            listenToMicrophone(1, provider);
-            // _serialUtil.closePort();
-          }catch(err){
-            print("error closing port");
-            print(err);
-          }
+        _serialUtil.closePort();
+        Future.delayed(Duration(milliseconds: 2500), () {
+          forceSerialDisconnect = false;
+          listenToMicrophone(1, provider);
         });
+
         // processingUtil.init();
         // processingUtil.initializeMicrophone(1, _sampleRate, MediaQuery.of(context).size.width);
       // }
@@ -2051,6 +1952,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     foundDevices = "";
 
     try{
+      widget.channelCount = channelCount;
       Provider.of<ConstantProvider>(context, listen: false).setChannelCount(channelCount);
       Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(microphoneUtil.sampleRate.floor());
 
@@ -2066,7 +1968,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
     Future.delayed(const Duration(microseconds: 10)).then((value) async {
       print("_messageIdentifier.messageState");
-      // print(_messageIdentifier.messageState);
+      print(_messageIdentifier.messageState);
       // Initialize both utils
 
       await Future.wait([
@@ -2171,6 +2073,12 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   int recordingStartTime = 0;
   
   String? recordedFilePath = "";
+  
+  bool forceSerialDisconnect = false;
+  
+  bool isSerialDeviceFound = false;
+  
+  Stream<List<ComDataWithBoard>>? deviceListStream;
   
   
   
@@ -2590,6 +2498,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   
   void startOpeningFile(String filePath) async {
     currentLoadedFilePath = filePath;
+    forceSerialDisconnect = false;
     print("INIT NWB FILE");
     isOpeningFile = true;
     
@@ -2990,6 +2899,166 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
         child: Text(thresholdSliderValue.toString(), style:TextStyle(color: Colors.white)),
       ),    
     ];
+  }
+  
+  void initMessageIdentifier() {
+    _messageIdentifier = MessageIdentifier(onDeviceData: (Uint8List dt) {
+      if (forceSerialDisconnect) return;
+      List<int> devData = dt;
+
+      if (_residualBuffer.isNotEmpty) {
+        devData = [..._residualBuffer, ...devData];
+        _residualBuffer.clear();
+      }
+      List<int> frameCheckedData = [];
+      int i = 0;
+
+      while (i < devData.length) {
+        if (i + _channelBytes >= devData.length) {
+          _residualBuffer.addAll(devData.sublist(i, devData.length));
+          break;
+        }
+        // To check that the data received follows the Custom Protocol
+        bool frameComplete = true;
+
+        if (frameComplete) {
+          checkBytesLoop:
+          for (int j = 1; j < _channelBytes; j++) {
+            if (!(i + j < devData.length)) break checkBytesLoop;
+            if (devData.elementAt(i + j) > 127) {
+              // Remaining bytes in frame are missing
+              // Debugging.printing(
+              //     "Remaining frame bytes missing - ${devData.sublist(i)}");
+              frameComplete = false;
+              break checkBytesLoop;
+            }
+          }
+        }
+        if (frameComplete) {
+          frameCheckedData.addAll(devData.sublist(i, i + _channelBytes));
+          i += _channelBytes;
+        } else {
+          i++;
+        }
+      }
+      _preprocessingBuffer.addBytes(Uint8List.fromList(frameCheckedData));
+    }, onDeviceMessage: (Uint8List msg) async {
+      if (forceSerialDisconnect) return;
+      String rawMessage = String.fromCharCodes(msg);
+      // if (rawMessage.indexOf("EVNT") > -1) {
+      //   String responseMessage = MessageValueSet.fromUint8ListCommand(message: msg).value;
+      //   responseMessage = responseMessage.replaceAll(";", "");
+      //   int eventIndex = 
+      //   return;
+      // }
+      String responseMessage = MessageValueSet.fromUint8ListCommand(message: msg).value;
+      print("responseMessage :  $responseMessage - raw: $rawMessage");
+      String? devices = checkConnectedDevices(responseMessage);
+
+      if (devices == null) {
+        return;
+      }
+      _deviceName.value = devices;
+      print("devices :   $devices");
+      // if (_deviceName.value != null) {
+      //   deviceType = listOfDevices.indexOf(_deviceName.value!);
+      //   print("deviceType");
+      //   print(deviceType);
+      // }
+
+      SetUpFunctionality().setTheDeviceSetting(_deviceName.value).then((value) {
+        print("VALUE : $value");
+        if (value != null) {
+          String tempDevices = value.uniqueName ?? "";
+          if (foundDevices != "") {
+            if (foundDevices != tempDevices){
+              foundDevices = tempDevices;
+            } else {
+              return;
+            }
+          } else {
+            foundDevices = tempDevices;
+          }
+          print("foundDevices");
+          print(foundDevices);
+          // HARDCODE
+          if (foundDevices == "MUSCLESS") {
+            foundDevices = "HEARTSS";
+          }
+          
+
+          Provider.of<ConstantProvider>(context, listen: false).setBaudRate(foundDevices == "HHIBOX" ? 500000 : 222222);
+          Provider.of<ConstantProvider>(context, listen: false).setChannelCount(int.parse(value.maxNumberOfChannels.toString()));
+          widget.channelCount = int.parse(value.maxNumberOfChannels.toString());
+          // print("widget.channelCount: $widget.channelCount");
+          
+          Provider.of<ConstantProvider>(context, listen: false).setBitData(int.parse(value.sampleResolution.toString()));
+          Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(int.parse(value.maxSampleRate.toString()));
+
+          connectedDevices.add(foundDevices);
+          SerialPortDataModel serialData = SerialPortDataModel(portCom: portName, deviceDetect: foundDevices);
+          context.read<SerialDataProvider>().setPortOfDevices(serialData);
+          print("isDeviceConnect: ");
+          print(isDeviceConnect);
+          // if (isDeviceConnect) {
+          bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+          if (!isAudioListen) {
+
+            SetUpFunctionality().getAllDeviceList().then((value) {
+              print("INIT STATE GET ALL DEVICE LIST");
+              // Extract the list of boards from the result
+              List<Board> allBoards = value.boards ?? [];
+              // Filter the boards based on some condition (e.g., matching unique names)
+              List<Board> connectedBoards = allBoards.where((board) {
+                return connectedDevices.contains(board.uniqueName);
+              }).toList();
+
+              // Add the filtered list to the stream
+              // List<ComDataWithBoard> listOfBoard = createComDataWithBoardList(connectedBoards, allDevices);
+              // print("listOfBoard");
+              // print(allBoards);
+              // print(listOfBoard);
+              // print(connectedBoards);
+              for (Board board in connectedBoards) {
+                if (board.uniqueName == foundDevices) {   
+                  GraphTemplate.selectedBoard = board;
+                  // HARDCODE
+                  deviceType = listOfDevices.indexOf("$foundDevices;") + 1;
+                  print("${GraphTemplate.selectedBoard} ${board.uniqueName} --- $foundDevices ::: ${board.uniqueName == foundDevices} $deviceType" );
+                  // (processingUtil as ProcessingUtilImpl).dispose();
+                  // processingUtil = createProcessingUtil();
+                  _sampleRate = int.parse(board.maxSampleRate!);
+                  double drawSurfaceWidth = MediaQuery.of(context).size.width;
+                  processingUtil.initializeSerial(board, drawSurfaceWidth);
+                  ProcessingUtil.initializeDevice.value = 1;
+                  
+                  deviceChannelCount = int.parse(board.maxNumberOfChannels!);
+                  context.read<ChannelColorProvider>().setSerialChannelCount(
+                      int.parse(board.maxNumberOfChannels!));
+                  context.read<ChannelFilterProvider>().setSerialChannelCount(
+                      int.parse(board.maxNumberOfChannels!));
+                  // createDisplaySerialDataIsolate();
+                  // createProcessSerialDataIsolate();
+                  Future.delayed(Duration(seconds: 2), (){
+                    var info = processingUtil.getInformation();
+                    print("info : $info");
+                    isDeviceSelected = true;
+                  });
+                }
+              }
+
+              // Print the stream (optional)
+            });
+          }
+
+        }
+      });
+      Debugging.printing("Message received from Spikerbox: \n\tbytes : $msg\n\tstring: ${String.fromCharCodes(msg)}");
+  //     Message received from Spikerbox: 
+	// bytes : [72, 87, 84, 58, 72, 85, 77, 65, 78, 83, 66, 59]
+	// string: HWT:HUMANSB;
+    });
+
   }
   
 }

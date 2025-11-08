@@ -6,6 +6,7 @@
 #include "SampleStreamUtils.h"
 #include <iostream>
 #include <fstream>
+#include <cstring>
 
 namespace backyardbrains {
 
@@ -230,7 +231,14 @@ namespace backyardbrains {
         int SampleStreamProcessor::processEscapeSequenceMessage(unsigned char *messageBytes,
                                                                 int sampleIndex, int hardwareType) {
             // check if it's board type message
-            std::string message = reinterpret_cast<char *>(messageBytes);
+            // Safely construct string from null-terminated buffer
+            if (messageBytes == nullptr) {
+                return hardwareType;
+            }
+            // Use strnlen to safely find length with max bound (prevents reading past buffer)
+            size_t len = strnlen(reinterpret_cast<const char *>(messageBytes), EVENT_MESSAGE_LENGTH);
+            // Construct string with explicit length (safer than relying on null termination)
+            std::string message(reinterpret_cast<const char *>(messageBytes), len);
             //__android_log_print(ANDROID_LOG_DEBUG, TAG, "ESCAPE SEQUENCE MESSAGE %s AT %d",message.c_str(),sampleIndex);
 
             std::string logMessage =
@@ -250,12 +258,21 @@ namespace backyardbrains {
                 listener->onMaxSampleRateAndNumOfChannelsReply(sampleRate, channelCount);
                 setSampleRateAndChannelCount(sampleRate, channelCount);
             } else if (backyardbrains::utils::SampleStreamUtils::isEventMsg(message)) {
+                // Check bounds to prevent array overrun
+                if (eventCounter >= MAX_EVENTS) {
+                    return hardwareType; // Skip if we've reached max events
+                }
                 eventIndices[eventCounter] = sampleIndex;
                 eventLabels[eventCounter] = backyardbrains::utils::SampleStreamUtils::getEventNumber(
                         message);
-                int num = std::stoi(eventLabels[eventCounter]);    
-                listener->onEventFound(sampleIndex, num);
-                eventCounter++;
+                try {
+                    int num = std::stoi(eventLabels[eventCounter]);    
+                    listener->onEventFound(sampleIndex, num);
+                    eventCounter++;
+                } catch (const std::exception&) {
+                    // If stoi fails, skip this event
+                    return hardwareType;
+                }
 
             } else if (backyardbrains::utils::SampleStreamUtils::isExpansionBoardTypeMsg(message)) {
                 const int expansionBoardType = backyardbrains::utils::SampleStreamUtils::getExpansionBoardType(

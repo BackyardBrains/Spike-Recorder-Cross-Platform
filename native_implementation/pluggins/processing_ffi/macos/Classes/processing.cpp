@@ -547,6 +547,11 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
     }
     // isProcessThresholding = false;
     
+    // Check if sampleStreamProcessor is initialized
+    if (sampleStreamProcessor == nullptr) {
+        return -2; // Return error code indicating processor not initialized
+    }
+    
     try {
         // Process data using SampleStreamProcessor
         int* event_indices = new int[PROCESSING_MAX_EVENTS];
@@ -589,6 +594,19 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
         // platform_log_processing("\n");
             return -1;
       }
+      
+      // Check if amModulationProcessor is initialized
+      if (amModulationProcessor == nullptr) {
+          return -2; // Return error code indicating processor not initialized
+      }
+      
+      // Check if all out_samples channel pointers are valid
+      for (int i = 0; i < current_channel_count; i++) {
+          if (out_samples[i] == nullptr) {
+              return -3; // Return error code indicating invalid output buffer
+          }
+      }
+      
     //   isProcessThresholding = false;
       //log_debug("Processing microphone data: length=%d", length);
 
@@ -628,7 +646,9 @@ int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out
            
             // Copy processed data from channel_samples to out_samples
             for (int i = 0; i < current_channel_count; i++) {
-                  std::copy(channel_samples[i], channel_samples[i] + frame_count, out_samples[i]);
+                  if (out_samples[i] != nullptr && channel_samples[i] != nullptr) {
+                      std::copy(channel_samples[i], channel_samples[i] + frame_count, out_samples[i]);
+                  }
             }
             
             // Clean up channel_samples to avoid memory leaks

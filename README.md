@@ -55,7 +55,32 @@ loadedArrSamples is the sliced part of the result
 
 Sublist
 flutter: Sublist ||| Array 0, 0 : 227 | Sublist Array 1, 0 : 0
+
+processingSerialDataResult
 flutter: Sample Count  0 : 166 | Channel Count 1 : 166 || Data Length : 166
 flutter: Channel Value 0 : -5149 | Channel Value 1 : -5149
+
+C++
 Channel 1 Length - 166 | Channel 2 Length 166
 Channel 1 Value - -5149 | Channel 2 Value 0
+
+
+
+flutter: \r\n
+flutter: Sublist ||| Array 0,0 : 19 | Sublist Array 1,0 : 0
+flutter: Sublist LENGTH ||| Array 0,0 : 168 | Sublist Array 1,0 : 168
+
+flutter: Sample Count  0 : 168 | Channel Count 1 : 168 || Data Length : 168
+flutter: Channel Value 0 : 11539 | Channel Value 1 : 11538
+
+Channel 1 Length - 168 | Channel 2 Length 168
+Channel 1 Value - 11539 | Channel 2 Value -23584
+
+
+flutter: \r\n
+flutter: Sublist ||| Array 0,0 : 0 | Sublist Array 1,0 : 0
+flutter: Sublist LENGTH ||| Array 0,0 : 166 | Sublist Array 1,0 : 166
+flutter: Sample Count  0 : 166 | Channel Count 1 : 166 || Data Length : 166
+flutter: Channel Value 0 : 11520 | Channel Value 1 : 11518
+Channel 1 Length - 166 | Channel 2 Length 166
+Channel 1 Value - 11520 | Channel 2 Value 0

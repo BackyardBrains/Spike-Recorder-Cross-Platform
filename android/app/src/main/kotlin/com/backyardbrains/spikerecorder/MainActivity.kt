@@ -1,4 +1,4 @@
-package com.example.spikerbox_architecture
+package com.backyardbrains.spikerecorder
 
 import io.flutter.embedding.android.FlutterActivity
 

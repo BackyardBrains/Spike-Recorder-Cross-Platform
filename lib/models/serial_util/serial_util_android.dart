@@ -24,7 +24,12 @@ class SerialUtilAndroid implements SerialUtil {
     try {
       await _port!.write(Uint8List.fromList(bytesMessage));
     } catch (err, _) {
-      _port!.close();
+      try {
+        await _port!.close();
+      } catch (_) {
+        // Ignore errors during cleanup
+      }
+      _port = null;
     }
   }
 
@@ -53,6 +58,7 @@ class SerialUtilAndroid implements SerialUtil {
   Future<Stream<Uint8List>?> openPortToListen(
       String? name, int baudRate) async {
     for (var element in devices) {
+      print("element.deviceName: ${element.deviceName}");
       if (element.deviceName == name) {
         await connectToPort();
         break;
@@ -61,6 +67,7 @@ class SerialUtilAndroid implements SerialUtil {
     if (_port == null) {
       return null;
     } else {
+      // Return the input stream - caller is responsible for cancelling the subscription
       return _port!.inputStream;
     }
   }
@@ -71,6 +78,7 @@ class SerialUtilAndroid implements SerialUtil {
 
     availablePorts =
         await startPortCheck(_baudRate); // Adjust baudRate as needed
+    // print("getAvailablePorts availablePorts: $availablePorts");
   }
 
   @override
@@ -85,11 +93,34 @@ class SerialUtilAndroid implements SerialUtil {
 
   @override
   void closePort() {
+    print("closePort!!!");
+    
+    // Cancel other subscriptions first
+    _subscription?.cancel().then((_) {
+      _subscription = null;
+    }).catchError((e) {
+      print("Error cancelling subscription: $e");
+    });
+    
+    // Dispose transaction
+    _transaction?.dispose();
+    _transaction = null;
+    
+    // Close the port - this should close all USB requests including those from inputStream
+    // The caller should cancel their stream subscription before calling closePort()
+    _port?.close().then((_) {
+      _port = null;
+      _device = null;
+    }).catchError((e) {
+      print("Error closing port: $e");
+      _port = null;
+      _device = null;
+    });
   }
 
   Future<bool> _connectTo(device) async {
     if (_subscription != null) {
-      _subscription!.cancel();
+      await _subscription!.cancel();
       _subscription = null;
     }
 
@@ -99,10 +130,14 @@ class SerialUtilAndroid implements SerialUtil {
     }
 
     if (_port != null) {
-      _port!.close();
+      try {
+        await _port!.close();
+      } catch (e) {
+        print("Error closing port in _connectTo: $e");
+      }
       _port = null;
     }
-
+    print("device ConnectTo: $device");
     if (device == null) {
       _device = null;
 
@@ -110,11 +145,11 @@ class SerialUtilAndroid implements SerialUtil {
     }
 
     _port = await device.create();
-
     if (await (_port!.open()) != true) {
       return false;
     }
     _device = device;
+    
 
     await _port!.setDTR(true);
     await _port!.setRTS(true);

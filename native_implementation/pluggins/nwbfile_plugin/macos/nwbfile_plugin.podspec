@@ -31,8 +31,8 @@ A new Flutter FFI plugin project.
   s.swift_version = '5.0'
   
   # BOOST
-  s.source_files = 'Classes/**/*.{h,m,mm,cpp}'
   # s.source_files = 'Classes/**/*.{h,m,mm,cpp}', 'src/**/*.{h,cpp}'
+  s.source_files = 'Classes/**/*.{h,m,mm,cpp}'
   s.public_header_files = 'Classes/**/*.{h,hpp}'
   
   s.pod_target_xcconfig = {

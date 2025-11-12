@@ -54,4 +54,16 @@ post_install do |installer|
       end
     end
   end
+
+  # Fix nwbfile_plugin framework to use @rpath for HDF5 libraries
+  installer.pods_project.targets.each do |target|
+    if target.name == 'nwbfile_plugin'
+      target.build_configurations.each do |config|
+        # Add rpath settings to find libraries in Frameworks directory
+        config.build_settings['LD_RUNPATH_SEARCH_PATHS'] ||= ['$(inherited)']
+        config.build_settings['LD_RUNPATH_SEARCH_PATHS'] << '@executable_path/../Frameworks'
+        config.build_settings['LD_RUNPATH_SEARCH_PATHS'] << '@loader_path/../Frameworks'
+      end
+    end
+  end
 end

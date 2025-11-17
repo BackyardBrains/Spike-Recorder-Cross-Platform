@@ -1,4 +1,4 @@
-package com.backyardbrains.spikerecorder
+package com.backyardbrains
 
 import io.flutter.embedding.android.FlutterActivity
 

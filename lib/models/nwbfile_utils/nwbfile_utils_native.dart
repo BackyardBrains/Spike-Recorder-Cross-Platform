@@ -16,7 +16,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
     // final path = (await getApplicationDocumentsDirectory()).path + "/example_recording2.nwb";
     recordedTime = DateTime.now().millisecondsSinceEpoch.toString();
     String path = "${(await getApplicationDocumentsDirectory()).path}/spike_recorder$recordedTime.nwb";
-    if (Platform.isMacOS || Platform.isAndroid) {
+    if (Platform.isMacOS) {
       path = "${(await getDownloadsDirectory())?.path}/spike_recorder$recordedTime.nwb";
       // String computerNamePath = (await getApplicationDocumentsDirectory()).path.split("/Library")[0];
       // path = "${computerNamePath}/spike_recorder$recordedTime.nwb";

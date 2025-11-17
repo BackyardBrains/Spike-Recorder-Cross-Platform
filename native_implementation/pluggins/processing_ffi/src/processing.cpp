@@ -50,7 +50,7 @@ using namespace backyardbrains::utils;
 // Constants
 static constexpr int32_t PROCESSING_MAX_EVENTS = 100;  // Same as MAX_EVENTS in SampleStreamProcessor
 static constexpr int32_t MAX_NUMBER_OF_SECONDS = 10;  // 10 seconds of buffer
-static constexpr int32_t BUFFER_MULTIPLIER = 1;
+static constexpr int32_t BUFFER_MULTIPLIER = 2;
 
 // Internal state variables
 static bool isProcessThresholding = false;
@@ -216,7 +216,7 @@ class CircularBuffer {
 
             // Add this method to the CircularBuffer class
             void getDataForDrawing(int16_t** outputBuffer, int32_t fromSample, int32_t toSample) {
-                  if (buffer == nullptr) {
+                  if (buffer == nullptr || outputBuffer == nullptr) {
                         return;
                   }
                   
@@ -228,6 +228,9 @@ class CircularBuffer {
                   
                   // Prepare the data (either from the actual position or wrapping around)
                   for (int chan = 0; chan < channelCount; chan++) {
+                        if (outputBuffer[chan] == nullptr) {
+                              continue; // Skip invalid channel buffer
+                        }
                         for (int i = 0; i < sampleCount; i++) {
                               int32_t bufferPos = (headIndex[chan] - (toSample - i) + bufferSize) % bufferSize;
                             //   if (fromSample > 0) {
@@ -1003,13 +1006,16 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
         // Calculate sample count
         // int32_t sample_count = to_sample - from_sample + 1;
         int32_t sample_count = current_sample_rate * MAX_NUMBER_OF_SECONDS;
+        // getDataForDrawing uses inclusive range: sampleCount = toSample - fromSample + 1
+        // So we need to allocate sample_count + 1 elements to avoid buffer overflow
+        int32_t temp_buffer_size = sample_count + 1;
         int32_t sample_out_count= draw_surface_width * 5;//experimentally found
         
         // Create temporary buffers
         auto** temp_samples = new int16_t*[channel_count];
         auto** float_samples = new float*[channel_count];
         for (int i = 0; i < channel_count; i++) {
-            temp_samples[i] = new int16_t[sample_count];
+            temp_samples[i] = new int16_t[temp_buffer_size];
             float_samples[i] = new float[sample_out_count];
         }
 

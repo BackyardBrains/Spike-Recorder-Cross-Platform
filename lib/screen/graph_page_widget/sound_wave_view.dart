@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +12,7 @@ import 'package:spikerbox_architecture/widget/spiker_box_button.dart';
 class SoundWaveView extends StatefulWidget {
   static PointerScrollEvent? dragDetails;
   static int direction = 0;
+  static double previousScale = 1.0;
 
   const SoundWaveView({
     super.key,
@@ -22,27 +25,61 @@ class SoundWaveView extends StatefulWidget {
 class _SoundWaveViewState extends State<SoundWaveView> {
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      onPointerSignal: (PointerSignalEvent event) {
-        if (event is PointerScrollEvent) {
-          SoundWaveView.dragDetails = event;
-
-          Provider.of<GraphDataProvider>(context, listen: false)
-              .notifyZoomEvent(event.scrollDelta.dy);
-        }
-      },
-      child: GestureDetector(
+    if (Platform.isAndroid || Platform.isIOS) { 
+      return GestureDetector(
+        onScaleEnd: (ScaleEndDetails details) {
+        },
         onScaleUpdate: (ScaleUpdateDetails details) {
-          double scale = details.scale;
-          // Use the same zoom event system for scale gestures
-          if (scale != 1) {
+          // print("scale: ${details}");
+          SoundWaveView.dragDetails = PointerScrollEvent(
+            // position: Offset.zero,
+            // scrollDelta: Offset.zero,
+            // scrollDelta: Offset(details.horizontalScale, details.verticalScale),
+            position: details.focalPoint,
+            scrollDelta: details.focalPointDelta,
+            timeStamp: details.sourceTimeStamp ?? Duration.zero,
+            kind: PointerDeviceKind.touch,
+          );
+      
+
+          if ((details.scale > 1.2 || details.scale < 0.8) && (SoundWaveView.previousScale - details.scale).abs() > 0.2) {
+            SoundWaveView.previousScale = details.scale;
             Provider.of<GraphDataProvider>(context, listen: false)
-                .notifyZoomEvent(scale > 1 ? -10 : 10); // Convert scale to scroll-like values
+                .notifyZoomEvent(SoundWaveView.previousScale > 1 ? -4 : 4); // Convert scale to scroll-like values
           }
+
+          // Use the same zoom event system for scale gestures
         },
         child: const SpikerBoxUi(),
-      ),
-    );
+      );
+    } else {
+
+      return Listener(
+        onPointerSignal: (PointerSignalEvent event) {
+          if (event is PointerScrollEvent) {
+            SoundWaveView.dragDetails = event;
+
+            Provider.of<GraphDataProvider>(context, listen: false)
+                .notifyZoomEvent(event.scrollDelta.dy);
+
+            print("scrollDelta: ${event.scrollDelta}");
+          }
+        },
+        child: GestureDetector(
+          onScaleUpdate: (ScaleUpdateDetails details) {
+            print("scale: ${details.scale}");
+
+            double scale = details.scale;
+            // Use the same zoom event system for scale gestures
+            if (scale != 1) {
+              Provider.of<GraphDataProvider>(context, listen: false)
+                  .notifyZoomEvent(scale > 1 ? -10 : 10); // Convert scale to scroll-like values
+            }
+          },
+          child: const SpikerBoxUi(),
+        ),
+      );
+    }
   }
 }
 
@@ -67,6 +104,7 @@ class _BottomButtonsState extends State<BottomButtons> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        isGraphStatus? SizedBox():
         SpikerBoxButton(
           padding: const EdgeInsets.all(5),
           iconSize: 20,
@@ -92,11 +130,14 @@ class _BottomButtonsState extends State<BottomButtons> {
         const SizedBox(
           width: 15,
         ),
+        isGraphStatus? SizedBox():
         SpikerBoxButton(
           padding: const EdgeInsets.all(5),
           iconSize: 20,
           iconData: Icons.keyboard_tab,
-          onTapButton: () {},
+          onTapButton: () {
+            context.read<GraphDataProvider>().forwardGraphBuffer();
+          },
         ),
       ],
     );

@@ -10,6 +10,8 @@ import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
 
 class NwbFileUtilImpl implements NWBFileUtil {
   String recordedTime = "";
+  String recordedNwbFilePath = "";
+
   @override
   Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer) async {
     // final path = "${(await getApplicationDocumentsDirectory()).path}/${DateTime.now().millisecondsSinceEpoch}";
@@ -34,6 +36,11 @@ class NwbFileUtilImpl implements NWBFileUtil {
     return Future.value(path);
   }
   @override
+  Future<String> makeFilePublicBuffer(Uint8List buffer) async {
+    return "-";
+  }
+  
+  @override
   Future<String> makeFilePublic(String path) async {
     if (Platform.isAndroid) {
       int lastIdx = path.lastIndexOf("/");
@@ -47,7 +54,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
       String resultString = await FlutterFileSaver().writeFileAsBytes(
           fileName: fileName,
           bytes: file.readAsBytesSync(),
-      );      
+      );
       print("resultString");
       print(resultString);
       return Future.value(path);
@@ -234,6 +241,18 @@ class NwbFileUtilImpl implements NWBFileUtil {
       print("🔄 Freeing memory... Done");
     }
   }
+  
+  @override
+  Future<String> recordNewFileLocation() {
+    return Future.value("");
+    // throw UnimplementedError();
+  }
+  @override
+  Future<String> startOpeningFileWeb(String filePath) {
+    return Future.value("");
+    
+  }
+
 }
 
 NWBFileUtil createNwbFileUtil() => NwbFileUtilImpl();

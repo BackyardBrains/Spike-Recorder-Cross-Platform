@@ -18,7 +18,7 @@ class NwbfilePluginBindings {
   
   int sum_long_running(int a, int b) => _dylib.lookupFunction<ffi.Int32 Function(ffi.Int32, ffi.Int32), int Function(int, int)>('sum_long_running')(a, b);
 
-  int processing_update(Pointer<Char> path) => _dylib.lookupFunction<ffi.Int32 Function(Pointer<Char>), int Function(Pointer<Char>)>('processing_update')(path);
+  // int processing_update(Pointer<Char> path) => _dylib.lookupFunction<ffi.Int32 Function(Pointer<Char>), int Function(Pointer<Char>)>('processing_update')(path);
 
   // NWB processing functions
   int processing_init(Pointer<Char> path, int sampleRate, int channelCount, Pointer<Char> deviceInfo, Pointer<Char> deviceManufacturer) => _dylib.lookupFunction<ffi.Int32 Function(Pointer<Char>, ffi.Int32, ffi.Int32, Pointer<Char>, Pointer<Char>), int Function(Pointer<Char>, int, int, Pointer<Char>, Pointer<Char>)>('processing_init')(path, sampleRate, channelCount, deviceInfo, deviceManufacturer);

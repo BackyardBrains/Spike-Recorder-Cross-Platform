@@ -15,7 +15,6 @@ import 'package:panara_dialogs/panara_dialogs.dart';
 import 'package:mic_stream/mic_stream.dart';
 // import 'package:flutter_libserialport/flutter_libserialport.dart';
 import 'package:native_add/model/model.dart';
-import 'package:nwbfile_plugin/nwbfile_plugin.dart';
 import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/constant/const_export.dart';
 import 'package:spikerbox_architecture/functionality/debouncer.dart';
@@ -154,11 +153,15 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       allDevices.clear();
 
       List<String> filteredPorts;
+      if (!kIsWeb) {
+        filteredPorts = _serialUtil.availablePorts;
+      } else 
       if (Platform.isMacOS) {
         filteredPorts = _serialUtil.availablePorts.where((port) => port.contains('usbmodem') || port.contains('usbserial')).toList();
       } else {
         filteredPorts = _serialUtil.availablePorts;
       }
+
 
       bool isComMatch = areListsEqual(_availablePorts, filteredPorts);
 
@@ -873,7 +876,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                   ),
                 ],
               ),
-              child4: Platform.isAndroid && isThresholdingButton ? Positioned(
+              child4: !kIsWeb && Platform.isAndroid && isThresholdingButton ? Positioned(
                 left: 10,
                 top: 80,
                 child: Row(
@@ -998,6 +1001,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                                           allDevices.clear();
 
                                           List<String> filteredPorts;
+                                          if (!kIsWeb) {
+                                            filteredPorts = _serialUtil.availablePorts;
+                                          } else
                                           if (Platform.isMacOS) {
                                             filteredPorts = _serialUtil.availablePorts.where((port) => port.contains('usbmodem') || port.contains('usbserial')).toList();
                                           } else {
@@ -1068,23 +1074,50 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                                     print("!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
                                     
                                     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
-                                    if (isAudioListen) {
-                                      recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems");
+                                    if (kIsWeb) {
+                                      await GraphTemplate.nwbFileUtil?.recordNewFileLocation();
+                                      Timer.periodic(Duration(seconds: 1), (timer) async {
+                                        if (GraphTemplate.nwbFileUtil?.recordedNwbFilePath != "") {
+                                          timer.cancel();
+                                          if (isAudioListen) {
+                                            recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems");
+                                          } else {
+                                            recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems");
+                                          }
+                                          Future.delayed(Duration(milliseconds: 1000), () {
+                                            isRecording = 1;
+                                            recordingStartTime = DateTime.now().millisecondsSinceEpoch;
+
+                                            recordingNotifier.value = [recordingStartTime, recordingStartTime];
+                                            setState((){});
+
+                                          });
+
+                                        }
+                                      });
                                     } else {
-                                      recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems");
+
+                                      if (isAudioListen) {
+                                        recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems");
+                                      } else {
+                                        recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems");
+                                      }
+                                      Future.delayed(Duration(milliseconds: 1000), () {
+                                        isRecording = 1;
+                                        recordingStartTime = DateTime.now().millisecondsSinceEpoch;
+
+                                        recordingNotifier.value = [recordingStartTime, recordingStartTime];
+                                        setState((){});
+
+                                      });
                                     }
-                                    Future.delayed(Duration(milliseconds: 1000), () {
-                                      isRecording = 1;
-                                      recordingStartTime = DateTime.now().millisecondsSinceEpoch;
-
-                                      recordingNotifier.value = [recordingStartTime, recordingStartTime];
-                                      setState((){});
-
-                                    });
                                     // isRecording = 1;
                                   } else {
                                     if (isRecording == 1) {
                                       isRecording = 2;
+                                      if (kIsWeb) {
+                                        GraphTemplate.nwbFileUtil?.addElectricalSeries(Int16List(0), Int32List(0), 0, 1, 1);
+                                      }
                                     } else {
                                       isRecording = 0;
                                     }
@@ -1093,16 +1126,20 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                                       recordingNotifier.value = [0, 0];
                                       if (recordedFilePath != null && recordedFilePath != "false") {
                                         if (widgetContext.mounted) {
-                                          if (Platform.isAndroid) {
-                                            String? publicPath = "";
-                                            if (recordedFilePath != null) {
-                                              publicPath = await GraphTemplate.nwbFileUtil?.makeFilePublic(recordedFilePath!);
+                                          if (!kIsWeb) {
+                                            if (Platform.isAndroid) {
+                                              String? publicPath = "";
+                                              if (recordedFilePath != null) {
+                                                publicPath = await GraphTemplate.nwbFileUtil?.makeFilePublic(recordedFilePath!);
+                                              }
+                                              ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $publicPath"), duration: Duration(seconds: 7),));
+                                            } else {
+                                              ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $recordedFilePath"), duration: Duration(seconds: 7),));
                                             }
-                                            ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $publicPath"), duration: Duration(seconds: 7),));
                                           } else {
-                                            ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $recordedFilePath"), duration: Duration(seconds: 7),));
+                                            // Web platform - file download is handled automatically
+                                            // ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $recordedFilePath"), duration: Duration(seconds: 7),));
                                           }
-                                          
                                         }
                                       }
 
@@ -1120,7 +1157,12 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                                 SpikerBoxButton(onTapButton: () async {
                                   FilePickerResult? result = await FilePicker.platform.pickFiles();
                                   if (result != null) {
-                                    startOpeningFile(result.files.single.path!);
+                                    if (kIsWeb) {
+                                      // startOpeningFileWeb(result.files.single.path!);
+                                      startOpeningFile(result.files.single.path!);
+                                    } else {
+                                      startOpeningFile(result.files.single.path!);
+                                    }
                                   } else {
                                     // User canceled the picker
                                   }
@@ -1781,7 +1823,11 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   
   int FFT_30HZ_LENGTH = 32;
   int FFT_WINDOW_TIME_LENGTH = 4;
-  
+  /*
+  0: not recording
+  1: init finish - start recording
+  2: recording finished
+   */
   int isRecording = 0;
   
   Timer? timerPlaybackLoadedFile;
@@ -1893,7 +1939,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
               if (isRecording == 1) {
                 // print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0) 11 -- $isRecording ${samplesCount}");
                 // STEVE
-                GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0);
+                if (!kIsWeb) {
+                  GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0);
+                }
                 recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
 
                 // GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 0);
@@ -1903,7 +1951,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                 // STEVE
                 // print("END RECORDING!!! GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1)");
                 // print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 1)");
-                GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1);
+                if (!kIsWeb) { 
+                  GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1);
+                }
                 recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
               }
               bool isAverageSamples = true;
@@ -1927,15 +1977,19 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
             if (isRecording == 1) {
               // print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 0) 22 -- $isRecording");
               // STEVE
-              GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0);
-              // GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 0);
+              if (!kIsWeb) {
+                GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0);
+              }
               recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
+              // GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 0);
             } else 
             if (isRecording == 2) {
               isRecording = 0;
               print("ENDING RECORDING GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 1)");
               // STEVE
-              GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1);
+              if (!kIsWeb) {
+                GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1);
+              }
               recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
               // GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 1);
             }
@@ -2470,7 +2524,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
         if (isRecording == 1) {
           // print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, ${widget.channelCount}, 0) 11 -- $isRecording ${samplesCount}");
           // STEVE
-          GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, widget.channelCount, 0);
+          if (!kIsWeb) {
+            GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, widget.channelCount, 0);
+          }
           recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
           // GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 0);
         } else 
@@ -2478,9 +2534,11 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
           // STEVE
           // print("END RECORDING!!! GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, ${widget.channelCount}, 1)");
           // print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 1)");
-          GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, widget.channelCount, 1);
-          isRecording = 0;
+          if (!kIsWeb) {
+            GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, widget.channelCount, 1);
+          }
           recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
+          isRecording = 0;
         }
 
 
@@ -2557,7 +2615,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   }
   
   List<Widget> generateThresholdSlider(isHorizontal) {
-    if (isHorizontal && Platform.isAndroid) {
+    if (!kIsWeb && isHorizontal && Platform.isAndroid) {
       return [];
     }
     return  [

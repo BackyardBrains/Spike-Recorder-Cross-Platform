@@ -5,6 +5,7 @@
 
 var mWorker;
 let workerChannel;
+var fileHandle;
 
 function initializeModule() {
   try {
@@ -81,6 +82,35 @@ function initializeModule() {
     if (event.data.message === "PROCESS_PREPARE_FFT_DRAWING_FINISHED") { 
       // console.log("PROCESS_PREPARE_FFT_DRAWING_FINISHED: ", event.data.resultFft, event.data.selectedChannelIdx);
       window.onCallbackPrepareFftDrawing(event.data.resultFft, event.data.selectedChannelIdx);
+    } else
+    if (event.data.message == "NWB_FILE_CREATED") {
+      console.log("NWB_FILE_CREATED PATH: ", event.data.result);
+      window.onNwbFileCreated(event.data.result);
+    } else
+    if (event.data.message === "MAKE_FILE_PUBLIC_CALLBACK") { 
+      let fileName = event.data.fileName;
+      let fileData = event.data.fileData;
+      let status = event.data.status;
+      if (status === "SUCCESS") {
+        // Display the file data
+        // Create a downloadable blob
+        // const blob = new Blob([fileData], { type: 'application/octet-stream' });
+        // const url = URL.createObjectURL(blob);
+        // const a = document.createElement('a');
+        // a.href = url;
+        // a.download = fileName + '.nwb';
+        // // 5. Append the anchor to the document (required for Firefox, but good practice)
+        // document.body.appendChild(a);
+        // // 6. Programmatically click the anchor to start the download
+        // a.click();
+        // // 7. Clean up the temporary URL and anchor element
+        // // The revokeObjectURL is crucial to free up memory!
+        // window.URL.revokeObjectURL(url);
+        // document.body.removeChild(a);      
+      } else {
+        alert("Failed to record file.");
+      }
+                      
     }
 
     
@@ -233,7 +263,6 @@ function processSerialDataWeb(samples, displayTimeMs, deviceType, eventLabels, e
     "drawSurfaceWidth": window.innerWidth,
     "eventLabels": eventLabels,
     "eventPositions": eventPositions,
-
   });
 }
 function displaySerialDataWeb(displayTimeMs, deviceType, deviceWidth, startPositionIdx, endPositionIdx, eventLabels, eventPositions){
@@ -349,5 +378,81 @@ function prepareFftDrawing(drawBuffer, selectedChannelIdx, windowCount, windowSi
     "targetWindowCount": targetWindowCount,
     "width": width,
     "height": height,
+  });
+}
+
+async function recordNewNwbFile() {
+  const newDate = new Date();
+  const newFileName = "spike_recorder"+newDate.getFullYear()+"-"+newDate.getMonth()+"-"+newDate.getDate()+"_"+newDate.getHours()+"."+newDate.getMinutes()+"."+newDate.getSeconds();
+  const options = {
+    excludeAcceptAllOption:true,
+    suggestedName: newFileName,
+    types: [
+      {
+        description: 'Spike-Recorder',
+        accept: {
+          'application/octet-stream': ['.nwb'],
+        },
+      },
+    ],
+  };  
+  try{
+    fileHandle = null;
+    fileHandle = await window.showSaveFilePicker(options);
+    console.log("fileHandle: ", fileHandle);
+    if (fileHandle == null) {
+      return "File not opened";
+    }
+  }catch(e){
+    console.log("error: ", e);
+    if (fileHandle == null) {
+      return "File not opened";
+    }
+  }
+
+  window.onNwbFileCreated(newFileName);
+  
+  return newFileName;
+}
+
+async function createNwbFile(filePath, sampleRate, channelCount, deviceInfoPointer, deviceManufacturerPointer) {
+  // const newDate = new Date();
+
+  // const newFileName = "BYB_Recording_"+newDate.getFullYear()+"-"+newDate.getMonth()+"-"+newDate.getDate()+"_"+newDate.getHours()+"."+newDate.getMinutes()+"."+newDate.getSeconds();
+  //2022-03-18_15.36.04
+  mWorker.postMessage({
+    "message": "CREATE_NWB_FILE",
+    "filePath": filePath,
+    "sampleRate": sampleRate,
+    "channelCount": channelCount,
+    "deviceInfoPointer": deviceInfoPointer,
+    "deviceManufacturerPointer": deviceManufacturerPointer,
+    "fileHandle": fileHandle,
+  });
+  return "Creating File";
+}
+
+
+function addElectricalSeriesWeb(samples, samplesCount, selectedChannel, channelCount, isFinishRecording) {
+  mWorker.postMessage({
+    "message": "ADD_ELECTRICAL_SERIES",
+    "samples": samples,
+    "samplesCount": samplesCount,
+    "selectedChannel": selectedChannel,
+    "channelCount": channelCount,
+    "isFinishRecording": isFinishRecording,
+  });
+}
+
+
+async function makeFilePublicWeb(path) {
+  if (fileHandle == null) {
+    alert("Please create a file first.");
+    return;
+  }
+  mWorker.postMessage({
+    "message": "MAKE_FILE_PUBLIC",
+    "fileHandle": fileHandle,
+    "fileName": path,
   });
 }

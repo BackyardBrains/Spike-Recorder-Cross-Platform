@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -25,7 +26,7 @@ class SoundWaveView extends StatefulWidget {
 class _SoundWaveViewState extends State<SoundWaveView> {
   @override
   Widget build(BuildContext context) {
-    if (Platform.isAndroid || Platform.isIOS) { 
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) { 
       return GestureDetector(
         onScaleEnd: (ScaleEndDetails details) {
         },

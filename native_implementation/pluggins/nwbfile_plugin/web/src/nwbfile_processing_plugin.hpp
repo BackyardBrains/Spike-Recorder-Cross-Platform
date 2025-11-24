@@ -30,10 +30,18 @@ FFI_PLUGIN_EXPORT int sum(int a, int b);
 FFI_PLUGIN_EXPORT int sum_long_running(int a, int b);
 
 // Processing initialization function
-FFI_PLUGIN_EXPORT int32_t processing_init();
+// FFI_PLUGIN_EXPORT int32_t processing_init();
 
-// Function to check for annotation series
-FFI_PLUGIN_EXPORT int32_t check_annotation_series();
+// // Function to check for annotation series
+// FFI_PLUGIN_EXPORT int32_t check_annotation_series();
 
-// Processing update function
-FFI_PLUGIN_EXPORT int32_t processing_update();
+// // Processing update function
+// FFI_PLUGIN_EXPORT int32_t processing_update();
+
+FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int channelCount, const char* deviceInfo, const char* deviceManufacturer);
+FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* samplesCount, int selectedChannel, int channelCount, int isFinishRecording);
+FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples, int* outSamplesCount, int selectedChannel, int channelCount);
+FFI_PLUGIN_EXPORT int get_nwb_file_size();
+FFI_PLUGIN_EXPORT int get_nwb_file_data(uint8_t* buffer, int buffer_size);
+FFI_PLUGIN_EXPORT int32_t debug_nwb_file_structure(const char* filePath);
+FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short* outSamples, int* outSamplesCount, int* outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel);

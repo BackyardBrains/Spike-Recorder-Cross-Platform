@@ -236,7 +236,6 @@ int mutliplier = 0;
 int numSamplesCounter = 0;
 FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* samplesCount, int selectedChannel, int channelCount, int isFinishRecording) {
     // std::cout << "AQNWB nwbfile_add_electrical_series" << std::endl;
-    
     // Validate input parameters
     if (!inSamples || !samplesCount || channelCount <= 0) {
         std::cerr << "Invalid input parameters" << std::endl;

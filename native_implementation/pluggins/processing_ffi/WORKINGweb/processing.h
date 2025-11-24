@@ -96,7 +96,6 @@ PROCESSING_API int32_t processing_get_most_right(int chan, int from_sample, int 
 PROCESSING_API int32_t processing_map(float* out_data, const float* in_data, int32_t length,
                       float in_min, float in_max, float out_min, float out_max);
 
-
 // AM modulation detection
 PROCESSING_API int32_t processing_is_audio_stream_am_modulated();
 
@@ -202,8 +201,9 @@ PROCESSING_API short processing_pass_pointers(short* ptrExpBoardType);
 
 // FFT processing
 // STEVE COMMENTED THIS OUT
-PROCESSING_API int32_t processing_process_fft(float* _out_fft, int32_t* out_window_count,
-    int32_t* out_window_size, int16_t* _in_samples,
+PROCESSING_API int32_t processing_process_fft(float* out_fft, int32_t* out_window_count,
+    int32_t* out_window_size, int32_t* out_frequency_counter, 
+    int16_t* in_samples,
     const int32_t* in_sample_counts);
 PROCESSING_API void processing_reset_fft_normalization();
 
@@ -213,6 +213,11 @@ PROCESSING_API int32_t processing_prepare_fft_for_drawing(float* out_vertices, i
                                          float* _fft_data, int32_t window_count,
                                          int32_t window_size, float width, float height);
                                            
+// NWB file data injection
+PROCESSING_API int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw, int* samplesCountRaw, int selectedChannel, int channelCount);
+
+// Serial data processing result
+PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* samplesCountRaw, int channelCount);
 
 #ifdef __cplusplus
 }

@@ -1,4 +1,11 @@
+let osFilePath = "";
+let isRecording = -1;
+let recordingFileHandle;
+let recordingFileWritable;
 let workerChannelPort;
+
+// NWB Plugin module (modularized)
+let NwbModule;
 
 let dataArrayStartChannelWise = [];
 let ptrDataArrayChannelWise = [];
@@ -486,6 +493,7 @@ self.onmessage = async function (eventFromMain) {
             outSampleCountsPtrStart = outSampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
             outSampleCountsBuffer = Module.HEAP32.subarray(outSampleCountsPtrStart, (outSampleCountsPtrStart + totalChannel));
 
+
             for (let i = 0; i < totalChannel; i++) {
                 outSampleCountsBuffer[i] = data.length / 2;
             }
@@ -507,6 +515,23 @@ self.onmessage = async function (eventFromMain) {
       
             processFftMicrophoneData(channelCount, selectedChannel, windowCountFft, windowSizeFft, [inSamplesBuffer], outSampleCountsBuffer);
 
+            if (isRecording == 0) {
+                let samplesLength = outSampleCountsBuffer[0];
+                let channelsLength = 1;
+
+                let samplesPtr = NwbModule._malloc(samplesLength * Module.HEAP16.BYTES_PER_ELEMENT);
+                let samplesPtrStart = samplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+                let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + samplesLength));
+                samplesBuffer.set(inSamplesBuffer.subarray(0, samplesLength));
+                
+                let samplesCtrPtr = NwbModule._malloc(channelsLength * Module.HEAP32.BYTES_PER_ELEMENT);
+                let samplesCtrPtrStart = samplesCtrPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + channelsLength));
+                samplesCtrBuffer[0] = samplesLength;
+
+                // console.log("samplesLength: ", samplesLength, "channelsLength: ", channelsLength, "samplesCtrBuffer: ", samplesCtrBuffer);
+                NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, 1, isRecording);
+            }
 
             if (isThresholding) {
             
@@ -994,7 +1019,6 @@ self.onmessage = async function (eventFromMain) {
             Module._processing_set_channel_count(thresholdChannelCount);
             console.log("INIT THRESHOLDDDD: ", thresholdChannelCount, thresholdSampleRate);
             Module._processing_set_sample_rate(thresholdSampleRate);
-
         break;
         case "SET_THRESHOLD_AVERAGE_SAMPLE":
             let avgSampleCount = eventFromMain.data.avgSampleCount;
@@ -1012,17 +1036,106 @@ self.onmessage = async function (eventFromMain) {
             let eventThresholdTriggeredType = eventFromMain.data.eventThresholdTriggeredType;
             Module._processing_set_averaging_trigger_type(eventThresholdTriggeredType);
         break;
+        case "CREATE_NWB_FILE":
+            if (!NwbModule) {
+                console.error("NwbModule not initialized yet");
+                return;
+            }
+                        
+            isRecording = 0;
+            let filePath = eventFromMain.data.filePath;
+            osFilePath = filePath;
+
+            let nwbSampleRate = eventFromMain.data.sampleRate;
+            let nwbChannelCount = eventFromMain.data.channelCount;
+            recordingFileHandle = eventFromMain.data.fileHandle;
+            
+            recordingFileWritable = await recordingFileHandle.createWritable();
+            let deviceInfoPointer = eventFromMain.data.deviceInfoPointer;
+            let deviceManufacturerPointer = eventFromMain.data.deviceManufacturerPointer;
+            // NwbModule._processing_init(filePath, nwbSampleRate, nwbChannelCount, deviceInfoPointer, deviceManufacturerPointer);
+            const result = NwbModule.ccall(
+                'processing_init',
+                'number',
+                ['string', 'number', 'number', 'string', 'string'],
+                [filePath, nwbSampleRate, nwbChannelCount, deviceInfoPointer, deviceManufacturerPointer]
+            );            
+            console.log("PROCESSING INIT result: ", result);
+            postMessage({
+                "message": "NWB_FILE_CREATED",
+                "result": filePath,
+            });
+        break;
+        case "ADD_ELECTRICAL_SERIES":
+            if (!NwbModule) {
+                console.error("NwbModule not initialized yet");
+                return;
+            }
+            // addElectricalSeries(Int16List data, Int32List samplesCount, int selectedChannel,int channelCount, int isFinishRecording) {
+            let samples = eventFromMain.data.samples;
+            let samplesCount = eventFromMain.data.samplesCount;
+            let nwbSelectedChannel = eventFromMain.data.selectedChannel;
+            let tempNwbChannelCount = eventFromMain.data.channelCount;
+            let isFinishRecording = eventFromMain.data.isFinishRecording;
+
+            // console.log("samples: ", samples, samplesCount, nwbSelectedChannel, tempNwbChannelCount, isFinishRecording);
+            if (isFinishRecording == 1){ // FINISH RECORDING
+                // NwbModule._nwbfile_add_electrical_series(samples, samplesCount, nwbSelectedChannel, tempNwbChannelCount, isFinishRecording);
+                let samplesPtr = NwbModule._malloc(1 * Module.HEAP16.BYTES_PER_ELEMENT);
+                let samplesCtrPtr = NwbModule._malloc(1 * Module.HEAP32.BYTES_PER_ELEMENT);
+                NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, nwbSelectedChannel, tempNwbChannelCount, isFinishRecording);
+
+                isRecording = -1;
+                makeFilePublicWeb(osFilePath);
+
+            } else {
+                isRecording = isFinishRecording;
+                print("samples: ", samples.length, "samplesCount.length: ", samplesCount.length);
+                let samplesPtr = NwbModule._malloc(samples.length * Module.HEAP16.BYTES_PER_ELEMENT);
+                let samplesPtrStart = samplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+                let samplesBufferRecording = Module.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + samples.length));
+                samplesBufferRecording.set(samples);
+
+                let samplesCtrPtr = NwbModule._malloc(samplesCount.length * Module.HEAP32.BYTES_PER_ELEMENT);
+                let samplesCtrPtrStart = samplesCtrPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                let samplesCtrBuffer = Module.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + samplesCount.length));
+                samplesCtrBuffer.set(samplesCount);
+                
+                NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, nwbSelectedChannel, tempNwbChannelCount, isFinishRecording);
+                // postMessage({
+                //     "message": "ELECTRICAL_SERIES_ADDED",
+                // });    
+            }
+        break;
+        case "MAKE_FILE_PUBLIC":
+            makeFilePublicWeb(eventFromMain.data.filePath);
+        break;
         default:
     }
 }
 
 if ('function' === typeof importScripts) {
-    self.importScripts("cprocessing.js");
+    // Import both scripts
+    self.importScripts("cprocessing.js", "nwbfile_plugin.js");
+    
+    // cprocessing.js (no modularize) - automatically sets up self.Module
     self.Module.onRuntimeInitialized = async _ => {
-        console.log("ccall : ", self.Module.ccall );
-        postMessage({
-            message: 'INITIALIZE_WASM',
-        });
+        console.log("cprocessing Module initialized, ccall: ", self.Module.ccall);
+        
+        // Initialize NWB Plugin (modularize=1) - NWBPlugin is a factory function
+        try {
+            NwbModule = await NWBPlugin();
+            console.log("NwbModule: ", NwbModule);
+            self.NwbModule = NwbModule;
+            console.log("NWB Plugin Module initialized: ", NwbModule);
+            
+            // Both modules are now ready
+            postMessage({
+                message: 'INITIALIZE_WASM',
+            });
+        } catch (error) {
+            console.error("Failed to initialize NWB Plugin:", error);
+        }
     };
 }
 
@@ -1127,4 +1240,84 @@ function processFftMicrophoneData(channelCount, selectedChannel, windowCountFft,
 
     Module._free(inSamplesFftPtr);
     Module._free(inSampleCountsFftPtr);
+}
+
+async function makeFilePublicWeb(filePath) {
+    console.log("makeFilePublicWeb: ", filePath);
+    if (!NwbModule) {
+        console.error("NwbModule not initialized yet");
+        postMessage({
+            message: 'MAKE_FILE_PUBLIC_CALLBACK',
+            fileName: filePath,
+            fileData: [],
+            status: "FAILED",
+        });
+        return;
+    }
+    let fileName = filePath;
+    let FS = null;                
+    // Try different possible locations for FS
+    if (NwbModule.FS) {
+        FS = NwbModule.FS;
+    } else if (typeof FS !== 'undefined') {
+        // FS is global
+    } else if (NwbModule._FS) {
+        FS = NwbModule._FS;
+    }
+
+    const readData = FS.readFile('/' + fileName);
+    if (recordingFileWritable) {
+        await recordingFileWritable.write(readData);
+        await recordingFileWritable.close();
+        console.log("recordingFileWritable closed");
+    }
+
+
+
+    return;
+
+    const fileSize = NwbModule.ccall('get_nwb_file_size', 'number', ['string'], [fileName]);
+    console.log("fileSize: ", fileSize);
+
+    if (fileSize < 0) {
+        postMessage({
+            message: 'MAKE_FILE_PUBLIC_CALLBACK',
+            fileName: fileName,
+            fileData: [],
+            status: "FAILED",
+        });
+        return;
+    }
+    const buffer = NwbModule.ccall('malloc', 'number', ['number'], [fileSize]);
+    const bytesRead = NwbModule.ccall('get_nwb_file_data', 'number', ['string', 'number', 'number', 'number'], [fileName, buffer, 0, fileSize]);
+    console.log("bytesRead: ", bytesRead, fileSize);
+
+    if (bytesRead > 0) {
+
+        if (recordingFileWritable) {
+            await recordingFileWritable.write(buffer);
+            await recordingFileWritable.close();
+            console.log("recordingFileWritable closed");
+        }
+        // recordingFileHandle.write(buffer, fileSize);
+        // Convert the buffer to a JavaScript string
+        // const fileData = NwbModule.UTF8ToString(buffer, bytesRead);
+        // postMessage({
+        //     message: 'MAKE_FILE_PUBLIC_CALLBACK',
+        //     fileName: fileName,
+        //     fileData: fileData,
+        //     status: "SUCCESS",
+        // });
+    } else {
+        // postMessage({
+        //     message: 'MAKE_FILE_PUBLIC_CALLBACK',
+        //     fileName: fileName,
+        //     fileData: [],
+        //     status: "FAILED",
+        // });
+        // return;
+    }
+    
+    // Free the allocated memory
+    NwbModule.ccall('free', null, ['number'], [buffer]);             
 }

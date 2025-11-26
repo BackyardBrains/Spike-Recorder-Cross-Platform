@@ -363,6 +363,7 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     processingUtil = createProcessingUtil();
     GraphTemplate.processingUtil = processingUtil;
     GraphTemplate.nwbFileUtil = createNwbFileUtil();
+    GraphTemplate.nwbFileUtil?.onStartOpeningFileWebCallback = startOpeningFileWebCallback;
 
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
     // Initialize stream and set provider
@@ -1155,16 +1156,14 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                               ),
                               if (isRecording != 1) ... {
                                 SpikerBoxButton(onTapButton: () async {
-                                  FilePickerResult? result = await FilePicker.platform.pickFiles();
-                                  if (result != null) {
-                                    if (kIsWeb) {
-                                      // startOpeningFileWeb(result.files.single.path!);
-                                      startOpeningFile(result.files.single.path!);
-                                    } else {
+                                  if (kIsWeb) {
+                                    startOpeningFileWeb("", 0, 1);
+                                    // startOpeningFile(result.files.single.path!);
+                                  } else {
+                                    FilePickerResult? result = await FilePicker.platform.pickFiles();
+                                    if (result != null) {
                                       startOpeningFile(result.files.single.path!);
                                     }
-                                  } else {
-                                    // User canceled the picker
                                   }
                                 }, iconData: Icons.menu)
                               },
@@ -2297,7 +2296,112 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       }
     });
   }
-  
+  // bool? isFileOpenedWeb = false;
+  Int32List arrConfigWeb = Int32List(10);
+  Int32List arrSampleCountWeb = Int32List(0);
+  Int16List arrSamplesWeb = Int16List(1);
+
+  void startOpeningFileWeb(String filePath, int startIdx, int endIdx) async {
+    currentLoadedFilePath = filePath;
+    forceSerialDisconnect = false;
+    isOpeningFile = true;
+    bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+    if (!isAudioListen) {
+      _serialUtil.closePort();
+    }
+
+    Future.delayed(Duration(milliseconds: 1500), () {
+      if (context.mounted) {
+        _availablePorts.clear();
+      }
+    });
+    arrConfigWeb = Int32List(10);
+    arrSampleCountWeb = Int32List(widget.channelCount);
+    arrSamplesWeb = Int16List(1);
+
+    print("======SEEK OPEN FILE - Initiating");
+    await GraphTemplate.nwbFileUtil?.startOpeningFileWeb(currentLoadedFilePath, 0, 1, 0, 0);
+    // isFileOpenedWeb = await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamplesWeb, arrSampleCountWeb, arrConfigWeb, 0, 1, 0, 0);
+    print("======SEEK OPEN FILE - FIN");
+
+  }
+
+  void callbackStartOpeningFileWeb(isFileOpenedWeb) async {
+    if (isFileOpenedWeb != null && isFileOpenedWeb == false) {
+      PanaraInfoDialog.show(
+        context,
+        textColor: Colors.red,
+        title: "Error",
+        message: "The file content is not supported",
+        buttonText: "Okay",
+        onTapDismiss: () {
+            Navigator.pop(context);
+        },
+        panaraDialogType: PanaraDialogType.error,
+        barrierDismissible: false,
+      );
+      isOpeningFile = false;
+      return;
+    }
+
+    widget.channelCount = arrConfigWeb[1];
+    arrSampleCountWeb = Int32List(widget.channelCount);
+    loadedMaxSamples = arrConfigWeb[5].toDouble();
+    int sampleRateConfig = arrConfigWeb[0];
+    
+    loadedConfig.setAll(0, arrConfigWeb);
+    loadedMaxSamples = arrConfigWeb[5].toDouble();
+    _sampleRate = sampleRateConfig;
+    int isSerialDevice = arrConfigWeb[6];
+    print("IS SERIAL DEVICE : $isSerialDevice | CHANNEL COUNT: ${widget.channelCount}");
+    if (isSerialDevice == 1) {
+      // GraphTemplate.selectedBoard = Board(maxSampleRate: sampleRateConfig.toString(), maxNumberOfChannels: widget.channelCount.toString());
+      // processingUtil.initializeSerial(GraphTemplate.selectedBoard!, MediaQuery.of(context).size.width);
+      // if (context.mounted) {
+        context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
+        Provider.of<ConstantProvider>(context, listen: false).setChannelCount(widget.channelCount);     
+        Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(sampleRateConfig);     
+        ProcessingUtil.initializeDevice.value = 1;
+        context.read<ChannelColorProvider>().setSerialChannelCount(
+            widget.channelCount);
+
+        periodicSerialDataSubscription();
+      // }
+    } else {
+        context.read<DataStatusProvider>().setMicrophoneDataStatus(true);
+        Provider.of<ConstantProvider>(context, listen: false).setChannelCount(widget.channelCount);     
+        Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(sampleRateConfig);     
+        ProcessingUtil.initializeDevice.value = 0;
+        context.read<ChannelColorProvider>().setAudioChannelCount(widget.channelCount);
+        periodicTimerSerial?.cancel();
+
+    }
+    print("Loaded Max Samples : $loadedMaxSamples -- ${_sampleRate}");
+
+
+    loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
+    await processingUtil.initWithConfig(loadedConfig);    
+    GraphTemplate.isPlayerPaused = true;
+    if (isSerialDevice == 0) {
+      microphoneUtil.micStream.value = Uint8List(0);
+    }
+    Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
+    GraphTemplate.isLoadingFile = 1;
+    // return;
+
+    AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
+    // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
+    double scrubMaxWidth = MediaQuery.of(context).size.width - 100 - 20;
+    AdaptiveAreaState.horizontalDragX = scrubMaxWidth * 0.3;
+    scrubNotifier.value = [ (scrubMaxWidth * 0.3), scrubMaxWidth];
+    streamScrubBuilderController.add(Random().nextInt(100000));
+
+
+    setState(() {
+      
+    });    
+  }
+
   void startOpeningFile(String filePath) async {
     currentLoadedFilePath = filePath;
     forceSerialDisconnect = false;
@@ -3177,6 +3281,17 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     }    
   }
   
+  
+
+  startOpeningFileWebCallback(config) {
+    loadedConfig.setAll(0, config);
+    widget.channelCount = config[1];
+    arrSampleCountWeb = Int32List(widget.channelCount);
+    loadedMaxSamples = config[5].toDouble();
+    int sampleRateConfig = config[0];
+    _sampleRate = sampleRateConfig;
+    loadedMaxSamples = config[5].toDouble();
+  }
 }
 
 class NotchPassFilterWidget extends StatefulWidget {

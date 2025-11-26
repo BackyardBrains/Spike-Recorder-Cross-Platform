@@ -13,6 +13,9 @@ export "nwbfile_utils_native.dart"
 abstract class NWBFileUtil {
   String recordedNwbFilePath = "";
   
+  // Callback for file opening completion (used by GraphTemplate)
+  Function(dynamic)? onStartOpeningFileWebCallback;
+  
   Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer);
   Future<bool> addElectricalSeries(Int16List data, Int32List samplesCount, int selectedChannel,int channelCount, int isFinishRecording);
   Future<bool> readElectricalSeries(Int16List outSamples, Int32List outSamplesCount, int selectedChannel,int channelCount);
@@ -21,6 +24,6 @@ abstract class NWBFileUtil {
   Future<String> makeFilePublicBuffer(Uint8List buffer);
   Future<String> recordNewFileLocation();
   
-  Future<String> startOpeningFileWeb(String filePath);
+  Future<String> startOpeningFileWeb(String filePath, int startIdx, int endIdx, int startChannel, int endChannel);
 }
 

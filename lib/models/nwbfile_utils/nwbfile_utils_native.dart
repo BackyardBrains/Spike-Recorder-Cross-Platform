@@ -11,6 +11,9 @@ import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
 class NwbFileUtilImpl implements NWBFileUtil {
   String recordedTime = "";
   String recordedNwbFilePath = "";
+  
+  @override
+  Function(dynamic)? onStartOpeningFileWebCallback;
 
   @override
   Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer) async {
@@ -248,7 +251,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
     // throw UnimplementedError();
   }
   @override
-  Future<String> startOpeningFileWeb(String filePath) {
+  Future<String> startOpeningFileWeb(String filePath, int startIdx, int endIdx, int startChannel, int endChannel) {
     return Future.value("");
     
   }

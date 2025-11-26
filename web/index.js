@@ -87,6 +87,11 @@ function initializeModule() {
       console.log("NWB_FILE_CREATED PATH: ", event.data.result);
       window.onNwbFileCreated(event.data.result);
     } else
+    if (event.data.message == "SEEK_NWB_FILE_BUFFER_WEB_CALLBACK") {
+      console.log("SEEK_NWB_FILE_BUFFER_WEB_CALLBACK RESULT: ", event.data.message);
+      window.onSeekNwbFileBufferWebCallback(event.data.outConfigBuffer);
+      // Note: onSeekNwbFileBufferWebCallback will call onStartOpeningFileWebCallback internally
+    } else
     if (event.data.message === "MAKE_FILE_PUBLIC_CALLBACK") { 
       let fileName = event.data.fileName;
       let fileData = event.data.fileData;
@@ -454,5 +459,44 @@ async function makeFilePublicWeb(path) {
     "message": "MAKE_FILE_PUBLIC",
     "fileHandle": fileHandle,
     "fileName": path,
+  });
+}
+
+async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, endChannel) {
+  const options = {
+    multiple: false,
+    types: [
+      {
+        description: 'Spike-Recorder',
+        accept: {
+          // 'audio/wav': ['.wav'],
+          // 'text/plain': ['.txt'],
+          'application/zip': ['.nwb'],
+        },
+      },
+    ],
+  };
+  try{
+    fileHandle = null;
+    fileHandle = await window.showOpenFilePicker(options);
+    console.log("fileHandle: ", fileHandle);
+    if (fileHandle == null) {
+      return "File not opened";
+    }
+  }catch(e){
+    console.log("error: ", e);
+    if (fileHandle == null) {
+      return "File not opened";
+    }
+  }
+
+  mWorker.postMessage({
+    "message": "START_OPENING_FILE_WEB",
+    "filePath": fileHandle[0].name,
+    "startIdx": startIdx,
+    "endIdx": endIdx,
+    "startChannel": startChannel,
+    "endChannel": endChannel,
+    "fileHandle": fileHandle[0],
   });
 }

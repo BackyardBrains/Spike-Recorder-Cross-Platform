@@ -9,15 +9,36 @@ import 'dart:js' as js;
 
 class NwbFileUtilImpl implements NWBFileUtil {
   String recordedTime = "";
+  
   @override
   String recordedNwbFilePath = "";
+  
+  @override
+  Function(dynamic)? onStartOpeningFileWebCallback;
+  
   void onNwbFileCreatedCallback(String resultString){
     print("onNwbFileCreatedCallback: $resultString");
     recordedNwbFilePath = resultString;
   }
 
+  void onSeekNwbFileBufferWebCallback(config){
+    // Store config for later use
+    if (config != null && config is List) {
+      Int32List configList = Int32List.fromList(config.map((e) => e as int).toList());
+      // Call the GraphTemplate callback with the config and result
+      if (onStartOpeningFileWebCallback != null) {
+        // Pass both the config and success status
+        // The config will be used to populate arrConfigWeb in GraphTemplate
+        onStartOpeningFileWebCallback!(config);
+      }
+    }
+  }
+  
+
   NwbFileUtilImpl(){
     js.context['onNwbFileCreated'] = onNwbFileCreatedCallback;
+    js.context['onSeekNwbFileBufferWebCallback'] = onSeekNwbFileBufferWebCallback;
+    //SEEK_NWB_FILE_BUFFER_WEB_CALLBACK
   }
 
   @override
@@ -207,10 +228,12 @@ class NwbFileUtilImpl implements NWBFileUtil {
   }
   
   @override
-  Future<String> startOpeningFileWeb(String filePath) {
+  Future<String> startOpeningFileWeb(String filePath, int startIdx, int endIdx, int startChannel, int endChannel) async {
+    js.context.callMethod('startOpeningFileWeb', [filePath, startIdx, endIdx, startChannel, endChannel]);
     return Future.value("");
-    
   }
+
+  
 }
 
 NWBFileUtil createNwbFileUtil() => NwbFileUtilImpl();

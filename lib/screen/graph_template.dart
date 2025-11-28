@@ -52,7 +52,7 @@ class GraphTemplate extends StatefulWidget {
   State<GraphTemplate> createState() => _GraphTemplateState();
 }
 
-class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
+class _GraphTemplateState extends State<GraphTemplate> {
   List<double> bufferPos = [0, 0];
 
   var envelopeSizes = [];
@@ -153,10 +153,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       allDevices.clear();
 
       List<String> filteredPorts;
-      if (!kIsWeb) {
+      if (kIsWeb) {
         filteredPorts = _serialUtil.availablePorts;
-      } else 
-      if (Platform.isMacOS) {
+      } else if (Platform.isMacOS) {
         filteredPorts = _serialUtil.availablePorts.where((port) => port.contains('usbmodem') || port.contains('usbserial')).toList();
       } else {
         filteredPorts = _serialUtil.availablePorts;
@@ -317,27 +316,31 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
       //   return;
       // }
 
-      int combinedIdx = 0;
-      int totalChannelCount = loadedConfig[1];
-      loadedArrSamples.clear();
-      loadedArrChannelCount = (Int32List(widget.channelCount));
-      for (int i = 0; i < widget.channelCount; i++) {
-        // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
-        double initialSampleCount = arrSampleCount[i].toDouble();
-        if (arrSamples.length >= combinedIdx + initialSampleCount) {
-          // print("LOADED ARR SAMPLES INTERUPTED: $initialSampleCount + $combinedIdx ?? ${arrSamples.length}");
-          loadedArrSamples.add(Int16List(initialSampleCount.floor()));
-          loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
-          // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
-          loadedArrChannelCount[i] = initialSampleCount.floor();
-          combinedIdx += initialSampleCount.floor();
+      if (!kIsWeb) {
+
+        int combinedIdx = 0;
+        int totalChannelCount = loadedConfig[1];
+        loadedArrSamples.clear();
+        loadedArrChannelCount = (Int32List(widget.channelCount));
+        for (int i = 0; i < widget.channelCount; i++) {
+          // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
+          double initialSampleCount = arrSampleCount[i].toDouble();
+          if (arrSamples.length >= combinedIdx + initialSampleCount) {
+            // print("LOADED ARR SAMPLES INTERUPTED: $initialSampleCount + $combinedIdx ?? ${arrSamples.length}");
+            loadedArrSamples.add(Int16List(initialSampleCount.floor()));
+            loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
+            // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
+            loadedArrChannelCount[i] = initialSampleCount.floor();
+            combinedIdx += initialSampleCount.floor();
+          }
         }
+        loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
+        processingUtil.initWithConfig(loadedConfig);
+        
       }
-      loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
-      processingUtil.initWithConfig(loadedConfig);
-      
       GraphTemplate.isLoadingFile = 1;
       GraphTemplate.isPlayerPaused = true;
+
 
       // Future.delayed(Duration(milliseconds: 100), () async{
       //   context.read<GraphDataProvider>().addListener(() {
@@ -363,7 +366,11 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
     processingUtil = createProcessingUtil();
     GraphTemplate.processingUtil = processingUtil;
     GraphTemplate.nwbFileUtil = createNwbFileUtil();
-    GraphTemplate.nwbFileUtil?.onStartOpeningFileWebCallback = startOpeningFileWebCallback;
+    if (GraphTemplate.nwbFileUtil != null) {
+      GraphTemplate.nwbFileUtil!.onStartOpeningFileWebCallback = startOpeningFileWebCallback;
+    } else {
+      print("ERROR: GraphTemplate.nwbFileUtil is null");
+    }
 
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
     // Initialize stream and set provider
@@ -1002,10 +1009,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
                                           allDevices.clear();
 
                                           List<String> filteredPorts;
-                                          if (!kIsWeb) {
+                                          if (kIsWeb) {
                                             filteredPorts = _serialUtil.availablePorts;
-                                          } else
-                                          if (Platform.isMacOS) {
+                                          } else if (Platform.isMacOS) {
                                             filteredPorts = _serialUtil.availablePorts.where((port) => port.contains('usbmodem') || port.contains('usbserial')).toList();
                                           } else {
                                             filteredPorts = _serialUtil.availablePorts;
@@ -2298,8 +2304,8 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   }
   // bool? isFileOpenedWeb = false;
   Int32List arrConfigWeb = Int32List(10);
-  Int32List arrSampleCountWeb = Int32List(0);
-  Int16List arrSamplesWeb = Int16List(1);
+  // Int32List arrSampleCountWeb = Int32List(0);
+  // Int16List arrSamplesWeb = Int16List(1);
 
   void startOpeningFileWeb(String filePath, int startIdx, int endIdx) async {
     currentLoadedFilePath = filePath;
@@ -2315,79 +2321,77 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
         _availablePorts.clear();
       }
     });
-    arrConfigWeb = Int32List(10);
-    arrSampleCountWeb = Int32List(widget.channelCount);
-    arrSamplesWeb = Int16List(1);
+    Int32List arrConfigWeb = Int32List(10);
+    Int32List arrSampleCount = Int32List(widget.channelCount);
+    Int16List arrSamples = Int16List(1);
 
     print("======SEEK OPEN FILE - Initiating");
     await GraphTemplate.nwbFileUtil?.startOpeningFileWeb(currentLoadedFilePath, 0, 1, 0, 0);
     // isFileOpenedWeb = await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamplesWeb, arrSampleCountWeb, arrConfigWeb, 0, 1, 0, 0);
     print("======SEEK OPEN FILE - FIN");
-
   }
 
-  void callbackStartOpeningFileWeb(isFileOpenedWeb) async {
-    if (isFileOpenedWeb != null && isFileOpenedWeb == false) {
-      PanaraInfoDialog.show(
-        context,
-        textColor: Colors.red,
-        title: "Error",
-        message: "The file content is not supported",
-        buttonText: "Okay",
-        onTapDismiss: () {
-            Navigator.pop(context);
-        },
-        panaraDialogType: PanaraDialogType.error,
-        barrierDismissible: false,
-      );
-      isOpeningFile = false;
-      return;
-    }
-
-    widget.channelCount = arrConfigWeb[1];
-    arrSampleCountWeb = Int32List(widget.channelCount);
-    loadedMaxSamples = arrConfigWeb[5].toDouble();
-    int sampleRateConfig = arrConfigWeb[0];
-    
-    loadedConfig.setAll(0, arrConfigWeb);
-    loadedMaxSamples = arrConfigWeb[5].toDouble();
+  void startOpeningFileWebCallback(config, arrSampleCount, arrSamples) async {
+    print("startOpeningFileWebCallback : $config, $arrSampleCount, $arrSamples");
+    loadedConfig.setAll(0, config);
+    widget.channelCount = config[1];
+    loadedMaxSamples = config[5].toDouble();
+    int sampleRateConfig = config[0];
     _sampleRate = sampleRateConfig;
-    int isSerialDevice = arrConfigWeb[6];
+    loadedMaxSamples = config[5].toDouble();
+    isOpeningFile = true;
+    
+
+    int isSerialDevice = config[6];
     print("IS SERIAL DEVICE : $isSerialDevice | CHANNEL COUNT: ${widget.channelCount}");
     if (isSerialDevice == 1) {
-      // GraphTemplate.selectedBoard = Board(maxSampleRate: sampleRateConfig.toString(), maxNumberOfChannels: widget.channelCount.toString());
-      // processingUtil.initializeSerial(GraphTemplate.selectedBoard!, MediaQuery.of(context).size.width);
-      // if (context.mounted) {
-        context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
-        Provider.of<ConstantProvider>(context, listen: false).setChannelCount(widget.channelCount);     
-        Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(sampleRateConfig);     
-        ProcessingUtil.initializeDevice.value = 1;
-        context.read<ChannelColorProvider>().setSerialChannelCount(
-            widget.channelCount);
-
-        periodicSerialDataSubscription();
+      context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
+      Provider.of<ConstantProvider>(context, listen: false).setChannelCount(widget.channelCount);     
+      Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(sampleRateConfig);     
+      ProcessingUtil.initializeDevice.value = 1;
+      context.read<ChannelColorProvider>().setSerialChannelCount(
+          widget.channelCount);
+      periodicSerialDataSubscription();
       // }
     } else {
-        context.read<DataStatusProvider>().setMicrophoneDataStatus(true);
-        Provider.of<ConstantProvider>(context, listen: false).setChannelCount(widget.channelCount);     
-        Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(sampleRateConfig);     
-        ProcessingUtil.initializeDevice.value = 0;
-        context.read<ChannelColorProvider>().setAudioChannelCount(widget.channelCount);
-        periodicTimerSerial?.cancel();
-
+      context.read<DataStatusProvider>().setMicrophoneDataStatus(true);
+      Provider.of<ConstantProvider>(context, listen: false).setChannelCount(widget.channelCount);     
+      Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(sampleRateConfig);     
+      ProcessingUtil.initializeDevice.value = 0;
+      context.read<ChannelColorProvider>().setAudioChannelCount(widget.channelCount);
+      periodicTimerSerial?.cancel();
     }
     print("Loaded Max Samples : $loadedMaxSamples -- ${_sampleRate}");
 
 
     loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
+    print("INIT WITH CONFIG: $loadedConfig");
     await processingUtil.initWithConfig(loadedConfig);    
+    print("INIT WITH CONFIG FIN: $loadedConfig");
+    int combinedIdx = 0;
+    int totalChannelCount = loadedConfig[1];
+    loadedArrSamples.clear();
+    loadedArrChannelCount = (Int32List(widget.channelCount));
+    for (int i = 0; i < widget.channelCount; i++) {
+      // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
+      double initialSampleCount = arrSampleCount[i].toDouble();
+      loadedArrSamples.add(Int16List(initialSampleCount.floor()));
+      loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
+      // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
+      loadedArrChannelCount[i] = initialSampleCount.floor();
+      combinedIdx += initialSampleCount.floor();
+    }    
+
+
     GraphTemplate.isPlayerPaused = true;
+    print("CALLBACK: ${GraphTemplate.isPlayerPaused}");
     if (isSerialDevice == 0) {
       microphoneUtil.micStream.value = Uint8List(0);
     }
     Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
     GraphTemplate.isLoadingFile = 1;
-    // return;
+
+    print("PROCESSING UTIL: adaptiveAREA SCRUB");
 
     AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
     // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
@@ -2398,8 +2402,9 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
 
 
     setState(() {
-      
-    });    
+    });
+    return;    
+    
   }
 
   void startOpeningFile(String filePath) async {
@@ -3283,15 +3288,6 @@ class _GraphTemplateState extends State<GraphTemplate> with WindowListener {
   
   
 
-  startOpeningFileWebCallback(config) {
-    loadedConfig.setAll(0, config);
-    widget.channelCount = config[1];
-    arrSampleCountWeb = Int32List(widget.channelCount);
-    loadedMaxSamples = config[5].toDouble();
-    int sampleRateConfig = config[0];
-    _sampleRate = sampleRateConfig;
-    loadedMaxSamples = config[5].toDouble();
-  }
 }
 
 class NotchPassFilterWidget extends StatefulWidget {

@@ -1,27 +1,28 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_file_saver/flutter_file_saver.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
 import 'dart:js' as js;
 
 class NwbFileUtilImpl implements NWBFileUtil {
   String recordedTime = "";
-  
+  bool isOpeningFileWeb = false;
+
   @override
   String recordedNwbFilePath = "";
   
   @override
-  Function(dynamic)? onStartOpeningFileWebCallback;
+  Function(dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
   
   void onNwbFileCreatedCallback(String resultString){
     print("onNwbFileCreatedCallback: $resultString");
     recordedNwbFilePath = resultString;
   }
 
-  void onSeekNwbFileBufferWebCallback(config){
+  void onSeekNwbFileBufferWebCallback(config, arrSampleCount, arrSamples){
+    print("configzzzz");
+    print(config);
     // Store config for later use
     if (config != null && config is List) {
       Int32List configList = Int32List.fromList(config.map((e) => e as int).toList());
@@ -29,7 +30,10 @@ class NwbFileUtilImpl implements NWBFileUtil {
       if (onStartOpeningFileWebCallback != null) {
         // Pass both the config and success status
         // The config will be used to populate arrConfigWeb in GraphTemplate
-        onStartOpeningFileWebCallback!(config);
+        onStartOpeningFileWebCallback!(configList, arrSampleCount, arrSamples);
+        if (isOpeningFileWeb) {
+          // js.context.callMethod('fillLoadedSamplesToBuffer', [config]);
+        }
       }
     }
   }
@@ -111,7 +115,12 @@ class NwbFileUtilImpl implements NWBFileUtil {
   }
 
   @override
-  Future<bool> seekElectricalSeries(String filePath, Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) async {
+  Future<bool> seekElectricalSeries(String filePath, Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startIdx, int endIdx, int startChannel, int endChannel) async {
+    print("seekElectricalSeries: $filePath, $startIdx, $endIdx, $startChannel, $endChannel");
+    js.context.callMethod('startOpeningFileWeb', [filePath, startIdx, endIdx, startChannel, endChannel, false]);
+    isOpeningFileWeb = true;
+    return Future.value(true);
+    
     // Pointer<Int16> outSamplesPtr = calloc<Int16>(outSamples.length);
     // Pointer<Int32> outSamplesCountPtr = calloc<Int32>(outSamplesCount.length);
     // Pointer<Int32> outConfigPtr = calloc<Int32>(10); // Allocate for 5 config parameters
@@ -224,12 +233,13 @@ class NwbFileUtilImpl implements NWBFileUtil {
     //   calloc.free(outConfigPtr);
     //   print("🔄 Freeing memory... Done");
     // }
-    return Future.value(true);
+    // return Future.value(true);
   }
   
   @override
   Future<String> startOpeningFileWeb(String filePath, int startIdx, int endIdx, int startChannel, int endChannel) async {
-    js.context.callMethod('startOpeningFileWeb', [filePath, startIdx, endIdx, startChannel, endChannel]);
+    js.context.callMethod('startOpeningFileWeb', [filePath, startIdx, endIdx, startChannel, endChannel, true]);
+    isOpeningFileWeb = true;
     return Future.value("");
   }
 

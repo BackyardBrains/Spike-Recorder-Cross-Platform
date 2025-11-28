@@ -13,7 +13,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
   String recordedNwbFilePath = "";
   
   @override
-  Function(dynamic)? onStartOpeningFileWebCallback;
+  Function(dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
 
   @override
   Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer) async {

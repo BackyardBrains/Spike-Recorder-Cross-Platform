@@ -14,7 +14,7 @@ abstract class NWBFileUtil {
   String recordedNwbFilePath = "";
   
   // Callback for file opening completion (used by GraphTemplate)
-  Function(dynamic)? onStartOpeningFileWebCallback;
+  Function(dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
   
   Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer);
   Future<bool> addElectricalSeries(Int16List data, Int32List samplesCount, int selectedChannel,int channelCount, int isFinishRecording);

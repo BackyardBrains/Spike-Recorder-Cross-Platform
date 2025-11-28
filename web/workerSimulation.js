@@ -323,6 +323,23 @@ self.onmessage = async function (eventFromMain) {
             // processFftMicrophoneData(channelCount, selectedChannel, windowCountFft, windowSizeFft, inSamples, inSampleCounts);
 
         break;
+        case "INIT_WITH_CONFIG":
+            let initConfig = eventFromMain.data.config;
+            console.log("INIT_WITH_CONFIG: ", initConfig);
+            // Module._processing_init();
+            // Module._processing_set_sample_rate(initConfig[0]);
+            // Module._processing_set_channel_count(initConfig[1]);
+        break;
+        // case "FILL_LOADED_SAMPLES_TO_BUFFER":
+        //     let fillLoadedSamplesToBufferConfig = eventFromMain.data.config;
+        //     console.log("FILL_LOADED_SAMPLES_TO_BUFFER: ", fillLoadedSamplesToBufferConfig);
+        //     let isSerialDevice = loadedConfigBuffer[6];
+        //     if (isSerialDevice == 1) {
+                
+        //     } else {
+                
+        //     }
+        // break;
         case "PROCESS_PREPARE_FFT_DRAWING":
             let drawBufferFft = eventFromMain.data.drawBuffer["o"];
             let selectedChannelIdx = eventFromMain.data.selectedChannelIdx;
@@ -1123,39 +1140,43 @@ self.onmessage = async function (eventFromMain) {
             let startChannel = eventFromMain.data.startChannel;
             let endChannel = eventFromMain.data.endChannel;
             let fileHandle = eventFromMain.data.fileHandle;
+            let isStartOpeningFileWeb = eventFromMain.data.isStartOpeningFileWeb;
+            
 
-            let FS = null;                
-            if (NwbModule.FS) {
-                FS = NwbModule.FS;
-            } else if (typeof FS !== 'undefined') {
-                // FS is global
-            } else if (NwbModule._FS) {
-                FS = NwbModule._FS;
-            }
-            try{
-                const wasmfsFile = FS.readFile(fileName);
-                console.log("FILE EXISTS", fileName)
-            }catch(err){
-                console.log("err");
-                console.log(err);
-                const readData = await fileHandle.getFile();
-                if (readData) {
-                    const fileBuffer = await readData.arrayBuffer();
-                    const arrayBuffer = new Uint8Array(fileBuffer);
-                    await FS.writeFile(fileName, arrayBuffer);
-                    console.log("FILE WRITTER", fileName)
+            if (isStartOpeningFileWeb) {
+                let FS = null;                
+                if (NwbModule.FS) {
+                    FS = NwbModule.FS;
+                } else if (typeof FS !== 'undefined') {
+                    // FS is global
+                } else if (NwbModule._FS) {
+                    FS = NwbModule._FS;
                 }
-
+                try{
+                    const wasmfsFile = await FS.readFile(fileName);
+                    console.log("FILE EXISTS", fileName)
+                }catch(err){
+                    console.log("err");
+                    console.log(err);
+                    const readData = await fileHandle.getFile();
+                    if (readData) {
+                        const fileBuffer = await readData.arrayBuffer();
+                        const arrayBuffer = new Uint8Array(fileBuffer);
+                        await FS.writeFile(fileName, arrayBuffer);
+                        console.log("FILE WRITTER", fileName)
+                    }
+    
+                }
             }
 
             // seek buffer       
             let samplesLength = endIdx - startIdx;
             let loadedChannelCount = endChannel - startChannel;
             let loadedOutSamples = NwbModule._malloc(samplesLength * NwbModule.HEAP16.BYTES_PER_ELEMENT);
-            let loadedOutSamplesCount = NwbModule._malloc(1 * NwbModule.HEAP32.BYTES_PER_ELEMENT);
+            let loadedOutSamplesCount = NwbModule._malloc(loadedChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
             let loadedOutConfig = NwbModule._malloc(10 * NwbModule.HEAP32.BYTES_PER_ELEMENT);
 
-            seekNwbFileBufferWeb(fileName, loadedOutSamples, loadedOutSamplesCount, loadedOutConfig, startIdx, endIdx, startChannel, endChannel, samplesLength);
+            seekNwbFileBufferWeb(fileName, loadedOutSamples, loadedOutSamplesCount, loadedOutConfig, startIdx, endIdx, startChannel, endChannel, samplesLength, isStartOpeningFileWeb);
         break;
         default:
     }
@@ -1371,15 +1392,15 @@ async function makeFilePublicWeb(filePath) {
     NwbModule.ccall('free', null, ['number'], [buffer]);             
 }
 
-async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outConfig, startIdx, endIdx, startChannel, endChannel, samplesLength) {
+async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outConfig, startIdx, endIdx, startChannel, endChannel, samplesLength, isStartOpeningFileWeb = false) {
     console.log("seekNwbFileBufferWeb: ", filePath, startIdx, endIdx, samplesLength);
     // FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short* outSamples, int* outSamplesCount, int* outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {
     const result = NwbModule.ccall('nwbfile_seek_electrical_series', 'number', ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number'], [filePath, outSamples, outSamplesCount, outConfig, startIdx, endIdx, startChannel, endChannel]);
     
-    if (result > 0) {
-        console.log("seekNwbFileBufferWeb success");
+    if (result == 0) {
+        console.log("seekNwbFileBufferWeb success " + result);
     } else {
-        console.log("seekNwbFileBufferWeb failed");
+        console.log("seekNwbFileBufferWeb failed " + result);
     }
     
     let outSamplesStart = outSamples / NwbModule.HEAP16.BYTES_PER_ELEMENT;
@@ -1392,17 +1413,19 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
     // loadedSamplesBuffer = (outSamplesBuffer).slice();
     // loadedSamplesCountBuffer = (outSamplesCountBuffer).slice();
     // loadedConfigBuffer = (outConfigBuffer).slice();
-    loadedSamplesBuffer = (outSamplesBuffer);
-    loadedSamplesCountBuffer = (outSamplesCountBuffer);
-    loadedConfigBuffer = (outConfigBuffer).slice();
+    loadedSamplesBuffer = (outSamplesBuffer).slice();
+    loadedSamplesCountBuffer = (outSamplesCountBuffer).slice();
+    if (isStartOpeningFileWeb) {
+        loadedConfigBuffer = (outConfigBuffer).slice();
+    }
 
 
 
     // trigger callback
     postMessage({
         message: 'SEEK_NWB_FILE_BUFFER_WEB_CALLBACK',
-    //     outSamplesBuffer: outSamplesBuffer,
-    //     outSamplesCountBuffer: outSamplesCountBuffer,
+        arrSamples: loadedSamplesBuffer,
+        arrSampleCount: loadedSamplesCountBuffer,
         outConfigBuffer: loadedConfigBuffer,
         startIdx: startIdx,
         endIdx: endIdx,

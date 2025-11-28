@@ -733,7 +733,40 @@ class ProcessingUtilImpl implements ProcessingUtil {
   @override
   Future<bool> initWithConfig(Int32List config) {
     // TODO: implement initWithConfig
-    throw UnimplementedError();
+    // throw UnimplementedError();
+    print("initWithConfig dart: $config ---");
+    js.context.callMethod("initWithConfig", [config]);
+    _sampleRate = config[0].toInt();
+    channelCount = config[1].toInt();
+    // _channelCount = config[1].toInt();
+
+    int drawSurfaceWidth = config[7].toInt();
+    
+    if (ProcessingUtil.drawingBuffers != null) {
+      try{
+
+        ProcessingUtil.drawingBuffers.clear();
+        // if (ProcessingUtil.drawingBufferCounts != null) {
+        //   ProcessingUtil.drawingBufferCounts.clear();
+        // } else {
+        //   ProcessingUtil.drawingBufferCounts = [];
+        // }
+        
+        for (int i = 0; i < channelCount; i++) {
+          ProcessingUtil.drawingBuffers
+              .add(Int16List(drawSurfaceWidth.toInt() * 5));
+          if (ProcessingUtil.drawingBufferCounts.length < i + 1) {
+            ProcessingUtil.drawingBufferCounts[i] = (drawSurfaceWidth.toInt() * 5);
+          } else {
+            ProcessingUtil.drawingBufferCounts.add(drawSurfaceWidth.toInt() * 5);
+          }
+        }
+      }catch(err) {
+        print("ERR processing util : $err");
+      }
+    }
+
+    return Future.value(true);
   }
   
   @override

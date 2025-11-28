@@ -89,7 +89,7 @@ function initializeModule() {
     } else
     if (event.data.message == "SEEK_NWB_FILE_BUFFER_WEB_CALLBACK") {
       console.log("SEEK_NWB_FILE_BUFFER_WEB_CALLBACK RESULT: ", event.data.message);
-      window.onSeekNwbFileBufferWebCallback(event.data.outConfigBuffer);
+      window.onSeekNwbFileBufferWebCallback(event.data.outConfigBuffer, event.data.arrSampleCount, event.data.arrSamples);
       // Note: onSeekNwbFileBufferWebCallback will call onStartOpeningFileWebCallback internally
     } else
     if (event.data.message === "MAKE_FILE_PUBLIC_CALLBACK") { 
@@ -462,34 +462,37 @@ async function makeFilePublicWeb(path) {
   });
 }
 
-async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, endChannel) {
-  const options = {
-    multiple: false,
-    types: [
-      {
-        description: 'Spike-Recorder',
-        accept: {
-          // 'audio/wav': ['.wav'],
-          // 'text/plain': ['.txt'],
-          'application/zip': ['.nwb'],
+async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, endChannel, isStartOpeningFileWeb = false) {
+  console.log("isStartOpeningFileWeb: ", isStartOpeningFileWeb);
+  if (isStartOpeningFileWeb) {
+    const options = {
+      multiple: false,
+      types: [
+        {
+          description: 'Spike-Recorder',
+          accept: {
+            // 'audio/wav': ['.wav'],
+            // 'text/plain': ['.txt'],
+            'application/zip': ['.nwb'],
+          },
         },
-      },
-    ],
-  };
-  try{
-    fileHandle = null;
-    fileHandle = await window.showOpenFilePicker(options);
-    console.log("fileHandle: ", fileHandle);
-    if (fileHandle == null) {
-      return "File not opened";
-    }
-  }catch(e){
-    console.log("error: ", e);
-    if (fileHandle == null) {
-      return "File not opened";
+      ],
+    };
+    try{
+      fileHandle = null;
+      fileHandle = await window.showOpenFilePicker(options);
+      console.log("fileHandle: ", fileHandle);
+      if (fileHandle == null) {
+        return "File not opened";
+      }
+    }catch(e){
+      console.log("error: ", e);
+      if (fileHandle == null) {
+        return "File not opened";
+      }
     }
   }
-
+  
   mWorker.postMessage({
     "message": "START_OPENING_FILE_WEB",
     "filePath": fileHandle[0].name,
@@ -498,5 +501,22 @@ async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, end
     "startChannel": startChannel,
     "endChannel": endChannel,
     "fileHandle": fileHandle[0],
+    "isStartOpeningFileWeb": isStartOpeningFileWeb,
   });
 }
+
+
+async function initWithConfig(config) {
+  console.log("initWithConfig INDEX.js: ", config);
+  mWorker.postMessage({
+    "message": "INIT_WITH_CONFIG",
+    "config": config,
+  });
+}
+
+// async function fillLoadedSamplesToBuffer(config) {
+//   mWorker.postMessage({
+//     "message": "FILL_LOADED_SAMPLES_TO_BUFFER",
+//     "config": config,
+//   });
+// }

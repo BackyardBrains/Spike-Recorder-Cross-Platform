@@ -13,14 +13,14 @@ class NwbFileUtilImpl implements NWBFileUtil {
   String recordedNwbFilePath = "";
   
   @override
-  Function(dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
+  Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
   
   void onNwbFileCreatedCallback(String resultString){
     print("onNwbFileCreatedCallback: $resultString");
     recordedNwbFilePath = resultString;
   }
 
-  void onSeekNwbFileBufferWebCallback(config, arrSampleCount, arrSamples){
+  void onSeekNwbFileBufferWebCallback(config, arrSampleCount, arrSamples, isStartOpeningFileWeb){
     print("configzzzz");
     print(config);
     // Store config for later use
@@ -30,7 +30,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
       if (onStartOpeningFileWebCallback != null) {
         // Pass both the config and success status
         // The config will be used to populate arrConfigWeb in GraphTemplate
-        onStartOpeningFileWebCallback!(configList, arrSampleCount, arrSamples);
+        onStartOpeningFileWebCallback!(configList, arrSampleCount, arrSamples, isStartOpeningFileWeb);
         if (isOpeningFileWeb) {
           // js.context.callMethod('fillLoadedSamplesToBuffer', [config]);
         }
@@ -57,6 +57,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
 
   @override
   Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer) async {
+    print("processingInit: $sampleRate, $channelCount, $deviceInfo, $deviceManufacturer");
     // final path = "${(await getApplicationDocumentsDirectory()).path}/${DateTime.now().millisecondsSinceEpoch}";
     // final path = (await getApplicationDocumentsDirectory()).path + "/example_recording2.nwb";
     recordedTime = DateTime.now().millisecondsSinceEpoch.toString();

@@ -799,7 +799,6 @@ class _DraggableGraphState extends State<DraggableGraph> {
       // Ensure waveform visibility list matches the current channel count
       if (showWaveform.length != ProcessingUtil.drawingBuffers.length) {
         if (showWaveform.length < ProcessingUtil.drawingBuffers.length) {
-
           showWaveform.addAll(List<bool>.filled(
               ProcessingUtil.drawingBuffers.length - showWaveform.length,
               true));

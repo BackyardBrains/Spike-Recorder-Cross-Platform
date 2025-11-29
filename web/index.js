@@ -89,7 +89,7 @@ function initializeModule() {
     } else
     if (event.data.message == "SEEK_NWB_FILE_BUFFER_WEB_CALLBACK") {
       console.log("SEEK_NWB_FILE_BUFFER_WEB_CALLBACK RESULT: ", event.data.message);
-      window.onSeekNwbFileBufferWebCallback(event.data.outConfigBuffer, event.data.arrSampleCount, event.data.arrSamples);
+      window.onSeekNwbFileBufferWebCallback(event.data.outConfigBuffer, event.data.arrSampleCount, event.data.arrSamples, event.data.isStartOpeningFileWeb);
       // Note: onSeekNwbFileBufferWebCallback will call onStartOpeningFileWebCallback internally
     } else
     if (event.data.message === "MAKE_FILE_PUBLIC_CALLBACK") { 

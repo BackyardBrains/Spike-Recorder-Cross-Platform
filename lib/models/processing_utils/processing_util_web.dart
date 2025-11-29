@@ -753,8 +753,13 @@ class ProcessingUtilImpl implements ProcessingUtil {
         // }
         
         for (int i = 0; i < channelCount; i++) {
-          ProcessingUtil.drawingBuffers
-              .add(Int16List(drawSurfaceWidth.toInt() * 5));
+          try{
+            ProcessingUtil.drawingBuffers
+                .add(Int16List(drawSurfaceWidth.toInt() * 5));
+          }catch(err) {
+            print("ERR2 processing util : $err");
+          }
+
           if (ProcessingUtil.drawingBufferCounts.length < i + 1) {
             ProcessingUtil.drawingBufferCounts[i] = (drawSurfaceWidth.toInt() * 5);
           } else {

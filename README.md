@@ -86,3 +86,17 @@ Channel 1 Length - 166 | Channel 2 Length 166
 Channel 1 Value - 11520 | Channel 2 Value 0
 
 1:960665500990:android:f77af23f5db291f8
+
+
+
+
+
+       modified:   lib/main.dart
+        modified:   lib/models/nwbfile_utils/nwbfile_utils.dart
+        modified:   lib/models/nwbfile_utils/nwbfile_utils_native.dart
+        modified:   lib/models/nwbfile_utils/nwbfile_utils_web.dart
+        modified:   lib/models/processing_utils/processing_util_web.dart
+        modified:   lib/screen/graph_template.dart
+        modified:   web/index.html
+        modified:   web/index.js
+        modified:   web/workerSimulation.js

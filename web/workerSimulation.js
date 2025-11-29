@@ -326,9 +326,9 @@ self.onmessage = async function (eventFromMain) {
         case "INIT_WITH_CONFIG":
             let initConfig = eventFromMain.data.config;
             console.log("INIT_WITH_CONFIG: ", initConfig);
-            // Module._processing_init();
-            // Module._processing_set_sample_rate(initConfig[0]);
-            // Module._processing_set_channel_count(initConfig[1]);
+            Module._processing_init();
+            Module._processing_set_sample_rate(initConfig[0]);
+            Module._processing_set_channel_count(initConfig[1]);
         break;
         // case "FILL_LOADED_SAMPLES_TO_BUFFER":
         //     let fillLoadedSamplesToBufferConfig = eventFromMain.data.config;
@@ -446,13 +446,7 @@ self.onmessage = async function (eventFromMain) {
 
                 if (resultDrawing == 0) {
                     if (inTotalEvents > 0) {
-                        // let float64list = convertFloat32ToFloat64(outEventIndicesBuffer, outEventPositionBuffer);
-                        // outEventPositionBuffer.set(float64list);
-
                         outEventPositionBuffer.set(outEventIndicesBuffer.subarray(0, inTotalEvents));
-                        // // outEventPositionBuffer.fill(200.0, 0);
-                        // let len = outEventCountBuffer[0];
-                        // console.log("outEventIndicesBuffer", outEventIndicesBuffer.subarray(0, inTotalEvents), inEventIndicesBuffer.subarray(0, inTotalEvents));
                     }
                     try{
                         // console.log("outSampleCountsDrawingBuffer: " , outSampleCountsDrawingBuffer);
@@ -464,7 +458,7 @@ self.onmessage = async function (eventFromMain) {
                             drawingDataBufferList[i].set(slicedArray, 0);
                             drawingCountBufferList[i] = slicedArray.length;
                         }
-                        // console.log("drawingCountBufferList: ", drawingCountBufferList);
+                        // console.log("drawingDataBufferList: ", drawingDataBufferList[0].subarray(0,10));
                         const data = {
                             "message": "INPUT_MICROPHONE_BUFFER_FINISHED",
                             "channelIdx": 0,
@@ -520,6 +514,7 @@ self.onmessage = async function (eventFromMain) {
                 outSampleCountsBuffer[i] = data.length / 2;
             }
             inDataArr.set(data);
+            console.log("inDataArr: ", inDataArr.subarray(0,10));
 
             const micResult = Module._processing_process_microphone_stream(
                 inSamplesPtr,
@@ -1393,7 +1388,7 @@ async function makeFilePublicWeb(filePath) {
 }
 
 async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outConfig, startIdx, endIdx, startChannel, endChannel, samplesLength, isStartOpeningFileWeb = false) {
-    console.log("seekNwbFileBufferWeb: ", filePath, startIdx, endIdx, samplesLength);
+    console.log("SECTION seekNwbFileBufferWeb: ", filePath, startIdx, endIdx, samplesLength);
     // FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short* outSamples, int* outSamplesCount, int* outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {
     const result = NwbModule.ccall('nwbfile_seek_electrical_series', 'number', ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number'], [filePath, outSamples, outSamplesCount, outConfig, startIdx, endIdx, startChannel, endChannel]);
     
@@ -1421,6 +1416,7 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
 
 
 
+
     // trigger callback
     postMessage({
         message: 'SEEK_NWB_FILE_BUFFER_WEB_CALLBACK',
@@ -1431,6 +1427,7 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
         endIdx: endIdx,
         startChannel: startChannel,
         endChannel: endChannel,
+        isStartOpeningFileWeb: isStartOpeningFileWeb,
     });
 
     Module._free(outSamples);

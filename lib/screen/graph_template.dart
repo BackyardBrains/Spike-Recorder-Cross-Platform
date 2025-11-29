@@ -260,6 +260,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     });
 
     scrubNotifier.addListener(() async {
+      print("SECTION ScrubNotifier:");
       // print("scrubNotifier");
       timerPlaybackLoadedStartIndex = 0;
       timerPlaybackLoadedEndIndex = 0;
@@ -287,6 +288,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       // double arrSamplesLength = maxSamples.toDouble();
       arrSamples = Int16List(arrSamplesLength.floor() * widget.channelCount);
+
       Int32List arrSampleCount = Int32List(widget.channelCount);
 
       // double percentage = 0.1;
@@ -1905,15 +1907,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
         toSample = min(maxSamples, toSample);
         int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
         processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
-
-        
-
         // print("RANGE MASK : ${DraggableGraph.startPositionIdx} -- ${DraggableGraph.endPositionIdx} || ${maxDisplaySamples} || ${maxSamples} ${_sampleRate}");
       } else
       if (GraphTemplate.isLoadingFile == 1) {
         GraphTemplate.isLoadingFile = 2;
-        // print("PROCESS MICROPHONE DATA LOADED 1: ${GraphTemplate.isLoadingFile} ${loadedArrChannelCount[0]} ${loadedArrSamples.length} ");
         // List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples.sublist(0, loadedArrChannelCount[0]).buffer.asUint8List());
+        loadedArrSamples[0].fillRange(0, loadedArrSamples[0].length, 5000);
+        print("PROCESS MICROPHONE DATA LOADED 1 ZZ!!!: ${GraphTemplate.isLoadingFile} ${loadedArrSamples[0].length} SAMPLES: ${loadedArrSamples[0].sublist(0,10)}");
         List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples[0].buffer.asUint8List());
         // List<Int16List> tempData = processingUtil.processMicrophoneData(Uint8List(0));
         microphoneUtil.micStream.value = Uint8List(0);
@@ -2331,8 +2331,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     print("======SEEK OPEN FILE - FIN");
   }
 
-  void startOpeningFileWebCallback(config, arrSampleCount, arrSamples) async {
-    print("startOpeningFileWebCallback : $config, $arrSampleCount, $arrSamples");
+  void startOpeningFileWebCallback(config, arrSampleCount, arrSamples, isStartOpeningFileWeb) async {
+    print("SECTION startOpeningFileWebCallback : $config, $arrSampleCount, $isStartOpeningFileWeb");
     loadedConfig.setAll(0, config);
     widget.channelCount = config[1];
     loadedMaxSamples = config[5].toDouble();
@@ -2341,8 +2341,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     loadedMaxSamples = config[5].toDouble();
     isOpeningFile = true;
     
-
-    int isSerialDevice = config[6];
+    // STEVE: FIX THIS HARDCODED STUFF
+    // int isSerialDevice = config[6];
+    int isSerialDevice = 0;
     print("IS SERIAL DEVICE : $isSerialDevice | CHANNEL COUNT: ${widget.channelCount}");
     if (isSerialDevice == 1) {
       context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
@@ -2382,26 +2383,31 @@ class _GraphTemplateState extends State<GraphTemplate> {
       combinedIdx += initialSampleCount.floor();
     }    
 
+    Future.delayed(Duration(milliseconds: 300), () {
+      GraphTemplate.isPlayerPaused = true;
+      print("CALLBACK: ${GraphTemplate.isPlayerPaused}");
+      if (isSerialDevice == 0) {
+        microphoneUtil.micStream.value = Uint8List(0);
+      }
+      Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
+      GraphTemplate.isLoadingFile = 1;
 
-    GraphTemplate.isPlayerPaused = true;
-    print("CALLBACK: ${GraphTemplate.isPlayerPaused}");
-    if (isSerialDevice == 0) {
-      microphoneUtil.micStream.value = Uint8List(0);
-    }
-    Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
-    GraphTemplate.isLoadingFile = 1;
+      print("PROCESSING UTIL: adaptiveAREA SCRUB");
 
-    print("PROCESSING UTIL: adaptiveAREA SCRUB");
-
-    AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
-    // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
-    double scrubMaxWidth = MediaQuery.of(context).size.width - 100 - 20;
-    AdaptiveAreaState.horizontalDragX = scrubMaxWidth * 0.3;
-    scrubNotifier.value = [ (scrubMaxWidth * 0.3), scrubMaxWidth];
-    streamScrubBuilderController.add(Random().nextInt(100000));
+      if (isStartOpeningFileWeb) {
+        print("SECTION SCRUB NOTIFIER: $isStartOpeningFileWeb");
+        AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
+        // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
+        double scrubMaxWidth = MediaQuery.of(context).size.width - 100 - 20;
+        AdaptiveAreaState.horizontalDragX = scrubMaxWidth * 0.3;
+        scrubNotifier.value = [ (scrubMaxWidth * 0.3), scrubMaxWidth];
+        streamScrubBuilderController.add(Random().nextInt(100000));
+      }
 
 
-    setState(() {
+
+      setState(() {
+      });
     });
     return;    
     

@@ -23,8 +23,8 @@ class NwbFileUtilImpl implements NWBFileUtil {
   void onSeekNwbFileBufferWebCallback(config, arrSampleCount, arrSamples, isStartOpeningFileWeb){
     print("configzzzz");
     print(config);
-    // Store config for later use
-    if (config != null && config is List) {
+    // Store config for later use - validate it has at least 10 elements
+    if (config != null && config is List && config.length >= 10) {
       Int32List configList = Int32List.fromList(config.map((e) => e as int).toList());
       // Call the GraphTemplate callback with the config and result
       if (onStartOpeningFileWebCallback != null) {
@@ -35,6 +35,8 @@ class NwbFileUtilImpl implements NWBFileUtil {
           // js.context.callMethod('fillLoadedSamplesToBuffer', [config]);
         }
       }
+    } else {
+      print("WARNING: onSeekNwbFileBufferWebCallback received invalid config: $config (isList: ${config is List}, length: ${config is List ? config.length : 'N/A'})");
     }
   }
   

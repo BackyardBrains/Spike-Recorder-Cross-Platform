@@ -1912,8 +1912,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (GraphTemplate.isLoadingFile == 1) {
         GraphTemplate.isLoadingFile = 2;
         // List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples.sublist(0, loadedArrChannelCount[0]).buffer.asUint8List());
-        loadedArrSamples[0].fillRange(0, loadedArrSamples[0].length, 5000);
-        print("PROCESS MICROPHONE DATA LOADED 1 ZZ!!!: ${GraphTemplate.isLoadingFile} ${loadedArrSamples[0].length} SAMPLES: ${loadedArrSamples[0].sublist(0,10)}");
+        // loadedArrSamples[0].fillRange(0, loadedArrSamples[0].length, 5000);
         List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples[0].buffer.asUint8List());
         // List<Int16List> tempData = processingUtil.processMicrophoneData(Uint8List(0));
         microphoneUtil.micStream.value = Uint8List(0);
@@ -2333,6 +2332,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void startOpeningFileWebCallback(config, arrSampleCount, arrSamples, isStartOpeningFileWeb) async {
     print("SECTION startOpeningFileWebCallback : $config, $arrSampleCount, $isStartOpeningFileWeb");
+    // Validate config before accessing indices to prevent RangeError
+    if (config == null || config is! Int32List || config.length < 10) {
+      print("ERROR: Invalid config in startOpeningFileWebCallback: $config (type: ${config.runtimeType}, length: ${config is List ? config.length : 'N/A'})");
+      return;
+    }
     loadedConfig.setAll(0, config);
     widget.channelCount = config[1];
     loadedMaxSamples = config[5].toDouble();
@@ -2370,7 +2374,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     await processingUtil.initWithConfig(loadedConfig);    
     print("INIT WITH CONFIG FIN: $loadedConfig");
     int combinedIdx = 0;
-    int totalChannelCount = loadedConfig[1];
+    // int totalChannelCount = loadedConfig[1];
     loadedArrSamples.clear();
     loadedArrChannelCount = (Int32List(widget.channelCount));
     for (int i = 0; i < widget.channelCount; i++) {
@@ -2381,11 +2385,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
       loadedArrChannelCount[i] = initialSampleCount.floor();
       combinedIdx += initialSampleCount.floor();
-    }    
+    }        
+    print("Loaded Arr Samples Status: ${loadedArrSamples.length} || arrSampleCount: ${arrSampleCount}");
+    
 
     Future.delayed(Duration(milliseconds: 300), () {
       GraphTemplate.isPlayerPaused = true;
-      print("CALLBACK: ${GraphTemplate.isPlayerPaused}");
+      print("START OPENING FILE WEB CALLBACK: ${GraphTemplate.isPlayerPaused}");
       if (isSerialDevice == 0) {
         microphoneUtil.micStream.value = Uint8List(0);
       }
@@ -2403,8 +2409,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
         scrubNotifier.value = [ (scrubMaxWidth * 0.3), scrubMaxWidth];
         streamScrubBuilderController.add(Random().nextInt(100000));
       }
-
-
 
       setState(() {
       });
@@ -2710,9 +2714,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           DraggableGraph.endPositionIdx = toSample;
           // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
           await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, fromSample, toSample);
-
         }
-
         // provider.inputListener(Uint8List(0));
       }  
     }
@@ -3461,7 +3463,7 @@ class _AdaptiveArea extends StatefulWidget {
 }
 
 class AdaptiveAreaState extends State<_AdaptiveArea> {
-  Debouncer debouncerScrollTimeline = Debouncer(milliseconds: 3);
+  Debouncer debouncerScrollTimeline = Debouncer(milliseconds: 300);
   
   static double horizontalDragX = 0;
   

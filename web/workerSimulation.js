@@ -329,6 +329,65 @@ self.onmessage = async function (eventFromMain) {
             Module._processing_init();
             Module._processing_set_sample_rate(initConfig[0]);
             Module._processing_set_channel_count(initConfig[1]);
+
+            // DRAWING BUFFER SETUP
+            try{
+                if (drawingDataPtrList !== undefined){
+                    for (let i = 0; i < drawingDataPtrList.length; i++) {
+                        Module._free(drawingDataPtrList[i]);
+                    }
+                }
+            }catch(err) {
+                console.log(err);
+            }
+
+            drawingDataPtrList=[];
+            drawingDataBufferList = [];
+            for (let i = 0; i < channelCount; i++) {
+                drawingDataPtr = Module._malloc(drawSurfaceWidth * 5 * Module.HEAP16.BYTES_PER_ELEMENT);
+                drawingDataPtrStart = drawingDataPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+                drawingDataBuffer = Module.HEAP16.subarray(drawingDataPtrStart, (drawingDataPtrStart + drawSurfaceWidth * 5));
+                drawingDataPtrList.push(drawingDataPtr);
+                drawingDataBufferList.push(drawingDataBuffer);
+            }
+
+            console.log("onDrawingBufferAllocated - javascript", channelCount, drawingDataBufferList, drawSurfaceWidth);
+            // END DRAWING BUFFER SETUP
+            // DRAWING COUNTER SETUP
+            try{
+                if (drawingCountPtrList !== undefined){
+                    for (let i = 0; i < drawingCountPtrList.length; i++) {
+                        Module._free(drawingCountPtrList[i]);
+                    }
+                }
+            }catch(err) {
+                console.log(err);
+            }
+
+            drawingCountPtrList=[];
+            // drawingCountBufferList = [];            
+            let ii = 0;
+            drawingCountPtr = Module._malloc(channelCount * Module.HEAP16.BYTES_PER_ELEMENT);
+            drawingCountPtrStart = drawingCountPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            drawingCountBuffer = Module.HEAP16.subarray(drawingCountPtrStart, (drawingCountPtrStart + channelCount));
+            drawingCountPtrList.push(drawingCountPtr);
+            drawingCountBufferList = (drawingCountBuffer);
+
+
+            outEventPositionPtr = Module._malloc(MAX_EVENT_MARKERS * Module.HEAPF64.BYTES_PER_ELEMENT);
+            outEventPositionPtrStart = outEventPositionPtr / Module.HEAPF64.BYTES_PER_ELEMENT;
+            outEventPositionBuffer = Module.HEAPF64.subarray(outEventPositionPtrStart, (outEventPositionPtrStart + MAX_EVENT_MARKERS));
+            for (ii = 0; ii < channelCount; ii++) {
+                drawingCountBuffer[ii] = drawSurfaceWidth * 5;
+            }            
+
+            postMessage({
+                "message": "ALLOCATE_DRAWING_DATA_BUFFER",
+                "drawingDataBufferList": drawingDataBufferList,
+                "drawingCountBufferList": drawingCountBufferList,
+                "channelCount": channelCount,
+                "eventPositions": outEventPositionBuffer,
+            });
         break;
         // case "FILL_LOADED_SAMPLES_TO_BUFFER":
         //     let fillLoadedSamplesToBufferConfig = eventFromMain.data.config;
@@ -458,7 +517,7 @@ self.onmessage = async function (eventFromMain) {
                             drawingDataBufferList[i].set(slicedArray, 0);
                             drawingCountBufferList[i] = slicedArray.length;
                         }
-                        // console.log("drawingDataBufferList: ", drawingDataBufferList[0].subarray(0,10));
+                        // console.log("drawingDataBufferList: ", drawingDataBufferList[0].subarray(1700,1750));
                         const data = {
                             "message": "INPUT_MICROPHONE_BUFFER_FINISHED",
                             "channelIdx": 0,
@@ -514,7 +573,6 @@ self.onmessage = async function (eventFromMain) {
                 outSampleCountsBuffer[i] = data.length / 2;
             }
             inDataArr.set(data);
-            console.log("inDataArr: ", inDataArr.subarray(0,10));
 
             const micResult = Module._processing_process_microphone_stream(
                 inSamplesPtr,
@@ -536,20 +594,18 @@ self.onmessage = async function (eventFromMain) {
                 let samplesLength = outSampleCountsBuffer[0];
                 let channelsLength = 1;
 
-                let samplesPtr = NwbModule._malloc(samplesLength * Module.HEAP16.BYTES_PER_ELEMENT);
-                let samplesPtrStart = samplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+                let samplesPtr = NwbModule._malloc(samplesLength * NwbModule.HEAP16.BYTES_PER_ELEMENT);
+                let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
                 let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + samplesLength));
                 samplesBuffer.set(inSamplesBuffer.subarray(0, samplesLength));
                 
-                let samplesCtrPtr = NwbModule._malloc(channelsLength * Module.HEAP32.BYTES_PER_ELEMENT);
-                let samplesCtrPtrStart = samplesCtrPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+                let samplesCtrPtr = NwbModule._malloc(channelsLength * NwbModule.HEAP32.BYTES_PER_ELEMENT);
+                let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
                 let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + channelsLength));
                 samplesCtrBuffer[0] = samplesLength;
 
-                // console.log("samplesLength: ", samplesLength, "channelsLength: ", channelsLength, "samplesCtrBuffer: ", samplesCtrBuffer);
                 NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, 1, isRecording);
             }
-
             if (isThresholding) {
             
                 let outThresholdSamplesPtr = Module._malloc( packetLen * Module.HEAP16.BYTES_PER_ELEMENT);
@@ -1127,51 +1183,61 @@ self.onmessage = async function (eventFromMain) {
         case "MAKE_FILE_PUBLIC":
             makeFilePublicWeb(eventFromMain.data.filePath);
         break;
-        
+
+
+        // Entry point for seek and open file web
         case "START_OPENING_FILE_WEB":
-            let fileName = eventFromMain.data.filePath;
-            let startIdx = eventFromMain.data.startIdx;
-            let endIdx = eventFromMain.data.endIdx;
-            let startChannel = eventFromMain.data.startChannel;
-            let endChannel = eventFromMain.data.endChannel;
-            let fileHandle = eventFromMain.data.fileHandle;
-            let isStartOpeningFileWeb = eventFromMain.data.isStartOpeningFileWeb;
-            
-
-            if (isStartOpeningFileWeb) {
-                let FS = null;                
-                if (NwbModule.FS) {
-                    FS = NwbModule.FS;
-                } else if (typeof FS !== 'undefined') {
-                    // FS is global
-                } else if (NwbModule._FS) {
-                    FS = NwbModule._FS;
-                }
-                try{
-                    const wasmfsFile = await FS.readFile(fileName);
-                    console.log("FILE EXISTS", fileName)
-                }catch(err){
-                    console.log("err");
-                    console.log(err);
-                    const readData = await fileHandle.getFile();
-                    if (readData) {
-                        const fileBuffer = await readData.arrayBuffer();
-                        const arrayBuffer = new Uint8Array(fileBuffer);
-                        await FS.writeFile(fileName, arrayBuffer);
-                        console.log("FILE WRITTER", fileName)
-                    }
+            try{
+                console.log("start opening file web");
+                let fileName = eventFromMain.data.filePath;
+                let startIdx = eventFromMain.data.startIdx;
+                let endIdx = eventFromMain.data.endIdx;
+                let startChannel = eventFromMain.data.startChannel;
+                let endChannel = eventFromMain.data.endChannel;
+                let fileHandle = eventFromMain.data.fileHandle;
+                let isStartOpeningFileWeb = eventFromMain.data.isStartOpeningFileWeb;
     
+    
+                if (isStartOpeningFileWeb) {
+                    let FS = null;                
+                    if (NwbModule.FS) {
+                        FS = NwbModule.FS;
+                    } else if (typeof FS !== 'undefined') {
+                        // FS is global
+                    } else if (NwbModule._FS) {
+                        FS = NwbModule._FS;
+                    }
+                    try{
+                        const wasmfsFile = await FS.readFile(fileName);
+                        console.log("FILE EXISTS", fileName)
+                    }catch(err){
+                        console.log("err");
+                        console.log(err);
+                        const readData = await fileHandle.getFile();
+                        if (readData) {
+                            const fileBuffer = await readData.arrayBuffer();
+                            const arrayBuffer = new Uint8Array(fileBuffer);
+                            await FS.writeFile(fileName, arrayBuffer);
+                            console.log("FILE WRITTER", fileName)
+                        }
+        
+                    }
                 }
+    
+                console.log("!!@!!START OPENING FILE WEB 1");
+    
+                // seek buffer       
+                let samplesLength = endIdx - startIdx;
+                let loadedChannelCount = endChannel - startChannel + 1; // +1 because endChannel is inclusive
+                let loadedOutSamples = NwbModule._malloc(loadedChannelCount * samplesLength * NwbModule.HEAP16.BYTES_PER_ELEMENT);
+                let loadedOutSamplesCount = NwbModule._malloc(loadedChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
+                let loadedOutConfig = NwbModule._malloc(10 * NwbModule.HEAP32.BYTES_PER_ELEMENT);
+                console.log("!!@!!seekNwbFileBufferWeb");
+                seekNwbFileBufferWeb(fileName, loadedOutSamples, loadedOutSamplesCount, loadedOutConfig, startIdx, endIdx, startChannel, endChannel, samplesLength, isStartOpeningFileWeb);
+            }catch(err){
+                console.log("err");
+                console.log(err);
             }
-
-            // seek buffer       
-            let samplesLength = endIdx - startIdx;
-            let loadedChannelCount = endChannel - startChannel;
-            let loadedOutSamples = NwbModule._malloc(samplesLength * NwbModule.HEAP16.BYTES_PER_ELEMENT);
-            let loadedOutSamplesCount = NwbModule._malloc(loadedChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
-            let loadedOutConfig = NwbModule._malloc(10 * NwbModule.HEAP32.BYTES_PER_ELEMENT);
-
-            seekNwbFileBufferWeb(fileName, loadedOutSamples, loadedOutSamplesCount, loadedOutConfig, startIdx, endIdx, startChannel, endChannel, samplesLength, isStartOpeningFileWeb);
         break;
         default:
     }
@@ -1328,12 +1394,26 @@ async function makeFilePublicWeb(filePath) {
         FS = NwbModule._FS;
     }
 
-    if (FS.existsSync(fileName)) {
-        const readData = FS.readFile('/' + fileName);
+    try {
+        if (FS.existsSync(fileName)) {
+            const readData = FS.readFile('/' + fileName);
+            if (recordingFileWritable) {
+                await recordingFileWritable.write(readData);
+            }
+        }
+    } catch (err) {
+        console.error("Error writing to file:", err);
+    } finally {
+        // Always close the writable, even if there was an error
         if (recordingFileWritable) {
-            await recordingFileWritable.write(readData);
-            await recordingFileWritable.close();
-            console.log("recordingFileWritable closed");
+            try {
+                await recordingFileWritable.close();
+                console.log("recordingFileWritable closed");
+            } catch (err) {
+                console.error("Error closing writable:", err);
+            } finally {
+                recordingFileWritable = null; // Prevent double-closing
+            }
         }
     }
 
@@ -1391,13 +1471,13 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
     console.log("SECTION seekNwbFileBufferWeb: ", filePath, startIdx, endIdx, samplesLength);
     // FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short* outSamples, int* outSamplesCount, int* outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {
     const result = NwbModule.ccall('nwbfile_seek_electrical_series', 'number', ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number'], [filePath, outSamples, outSamplesCount, outConfig, startIdx, endIdx, startChannel, endChannel]);
-    
+
     if (result == 0) {
         console.log("seekNwbFileBufferWeb success " + result);
     } else {
         console.log("seekNwbFileBufferWeb failed " + result);
     }
-    
+
     let outSamplesStart = outSamples / NwbModule.HEAP16.BYTES_PER_ELEMENT;
     let outSamplesBuffer = NwbModule.HEAP16.subarray(outSamplesStart, (outSamplesStart + samplesLength));
     let outSamplesCountStart = outSamplesCount / NwbModule.HEAP32.BYTES_PER_ELEMENT;
@@ -1430,7 +1510,7 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
         isStartOpeningFileWeb: isStartOpeningFileWeb,
     });
 
-    Module._free(outSamples);
-    Module._free(outSamplesCount);
-    Module._free(outConfig);
+    NwbModule._free(outSamples);
+    NwbModule._free(outSamplesCount);
+    NwbModule._free(outConfig);
 }

@@ -138,103 +138,103 @@ int gettimeofday(struct timeval* tp, struct timezone* tzp) {
 //number of samples for each channel is sample rate * MAX_NUMBER_OF_SECONDS (default is 10 seconds)
 class CircularBuffer {
     public:
-          CircularBuffer(int sampleRate, int channelCount) {
-                this->sampleRate = sampleRate;
-                this->channelCount = channelCount;
-                this->buffer = nullptr; // Initialize to nullptr before setup
-                
-                // Call setup directly in the constructor
-                this->setup(sampleRate, channelCount);
-          }
-          
-          void setup(int sampleRate, int channelCount) {
-                //check if buffer is already initialized, if yes release the memory
-                if (this->buffer != nullptr) {
-                      for (int i = 0; i < this->channelCount; i++) {
-                            delete[] this->buffer[i];
-                      }
-                      delete[] this->buffer;
-                }
-                
-                //check if sample rate is valid
-                
-                this->sampleRate = sampleRate;
-                this->channelCount = channelCount;
-                this->bufferSize = sampleRate * MAX_NUMBER_OF_SECONDS * BUFFER_MULTIPLIER;
-                this->buffer = new int16_t*[channelCount];
-                this->headIndex = new int32_t[channelCount];
-                this->tailIndex = new int32_t[channelCount];
-                
-                for (int i = 0; i < channelCount; i++) {
-                      this->buffer[i] = new int16_t[bufferSize];
-                      
-                      for (int j = 0; j < bufferSize; j++) {
-                            this->buffer[i][j] = 0;
-                      }
-                      headIndex[i] = 0;
-                      tailIndex[i] = 0;
-                }
-          }
+        CircularBuffer(int sampleRate, int channelCount) {
+            this->sampleRate = sampleRate;
+            this->channelCount = channelCount;
+            this->buffer = nullptr; // Initialize to nullptr before setup
+            
+            // Call setup directly in the constructor
+            this->setup(sampleRate, channelCount);
+        }
+        
+        void setup(int sampleRate, int channelCount) {
+            //check if buffer is already initialized, if yes release the memory
+            if (this->buffer != nullptr) {
+                    for (int i = 0; i < this->channelCount; i++) {
+                        delete[] this->buffer[i];
+                    }
+                    delete[] this->buffer;
+            }
+            
+            //check if sample rate is valid
+            
+            this->sampleRate = sampleRate;
+            this->channelCount = channelCount;
+            this->bufferSize = sampleRate * MAX_NUMBER_OF_SECONDS * BUFFER_MULTIPLIER;
+            this->buffer = new int16_t*[channelCount];
+            this->headIndex = new int32_t[channelCount];
+            this->tailIndex = new int32_t[channelCount];
+            
+            for (int i = 0; i < channelCount; i++) {
+                    this->buffer[i] = new int16_t[bufferSize];
+                    
+                    for (int j = 0; j < bufferSize; j++) {
+                        this->buffer[i][j] = 0;
+                    }
+                    headIndex[i] = 0;
+                    tailIndex[i] = 0;
+            }
+        }
 
-          // Add data to circular buffer
-          void addData(int16_t** samples, int32_t* sampleCount) {
-                if (buffer == nullptr) {
-                      return;
-                }
-               
-                // Add samples to buffer for each channel
-                try {
-                      for (int chan = 0; chan < channelCount; chan++) {
-              
-                            
-                            for (int i = 0; i < sampleCount[chan]; i++) {
-                                  try {
-                                      // Store sample at current head position
-                                      int16_t temp_sample = samples[chan][i];
-                                      buffer[chan][headIndex[chan]] = temp_sample;
-                                      
-                                      // Move head forward, wrapping around if needed
-                                      headIndex[chan] = (headIndex[chan] + 1) % bufferSize;
-                                      
-                                      // If head catches up to tail, move tail forward
-                                      if (headIndex[chan] == tailIndex[chan]) {
-                                          
-                                          tailIndex[chan] = (tailIndex[chan] + 1) % bufferSize;
-                                      }
-                                  } catch (const std::exception& e) {
-                                      log_debug("Error processing sample %d in channel %d: %s", i, chan, e.what());
-                                      throw; // Re-throw to be caught by outer catch
-                                  }
-                            }
-                      }
+        // Add data to circular buffer
+        void addData(int16_t** samples, int32_t* sampleCount) {
+            if (buffer == nullptr) {
+                    return;
+            }
+            
+            // Add samples to buffer for each channel
+            try {
+                    for (int chan = 0; chan < channelCount; chan++) {
+            
+                        
+                        for (int i = 0; i < sampleCount[chan]; i++) {
+                                try {
+                                    // Store sample at current head position
+                                    int16_t temp_sample = samples[chan][i];
+                                    buffer[chan][headIndex[chan]] = temp_sample;
+                                    
+                                    // Move head forward, wrapping around if needed
+                                    headIndex[chan] = (headIndex[chan] + 1) % bufferSize;
+                                    
+                                    // If head catches up to tail, move tail forward
+                                    if (headIndex[chan] == tailIndex[chan]) {
+                                        
+                                        tailIndex[chan] = (tailIndex[chan] + 1) % bufferSize;
+                                    }
+                                } catch (const std::exception& e) {
+                                    log_debug("Error processing sample %d in channel %d: %s", i, chan, e.what());
+                                    throw; // Re-throw to be caught by outer catch
+                                }
+                        }
+                    }
 
-                } catch (const std::exception& e) {
-                      log_debug("Critical error in buffer processing: %s", e.what());
-                      log_debug("State: headIndex=%d, tailIndex=%d, bufferSize=%d", headIndex, tailIndex, bufferSize);
-                      throw; // Re-throw if you want the error to propagate up
+            } catch (const std::exception& e) {
+                    log_debug("Critical error in buffer processing: %s", e.what());
+                    log_debug("State: headIndex=%d, tailIndex=%d, bufferSize=%d", headIndex, tailIndex, bufferSize);
+                    throw; // Re-throw if you want the error to propagate up
+            }
+        }
+        
+        // Get the most recent N samples
+        void getRecentSamples(int16_t** outputBuffer, int32_t numSamples) {
+            if (buffer == nullptr || numSamples <= 0) {
+                    return;
+            }
+            
+            // Calculate starting position (going backward from head)
+            
+            // Copy samples to output buffer
+            for (int chan = 0; chan < channelCount; chan++) {
+                int32_t startPos = (headIndex[chan] - numSamples + bufferSize) % bufferSize;
+                for (int i = 0; i < numSamples; i++) {
+                    int32_t bufferPos = (startPos + i) % bufferSize;
+                    outputBuffer[chan][i] = buffer[chan][bufferPos];
                 }
-          }
-          
-          // Get the most recent N samples
-          void getRecentSamples(int16_t** outputBuffer, int32_t numSamples) {
-                if (buffer == nullptr || numSamples <= 0) {
-                      return;
-                }
-                
-                // Calculate starting position (going backward from head)
-                
-                // Copy samples to output buffer
-                for (int chan = 0; chan < channelCount; chan++) {
-                  int32_t startPos = (headIndex[chan] - numSamples + bufferSize) % bufferSize;
-                  for (int i = 0; i < numSamples; i++) {
-                      int32_t bufferPos = (startPos + i) % bufferSize;
-                      outputBuffer[chan][i] = buffer[chan][bufferPos];
-                  }
-                }
-          }
+            }
+        }
 
-          // Add this method to the CircularBuffer class
-          void getDataForDrawing(int16_t** outputBuffer, int32_t fromSample, int32_t toSample) {
+        // Add this method to the CircularBuffer class
+        void getDataForDrawing(int16_t** outputBuffer, int32_t fromSample, int32_t toSample) {
                 if (buffer == nullptr || outputBuffer == nullptr) {
                       return;
                 }
@@ -267,13 +267,15 @@ class CircularBuffer {
                 }
 
           }
+    
+    
+    int32_t* headIndex; // Position to write next sample
     private:
-          int sampleRate;
-          int channelCount;
-          int bufferSize;
-          int16_t** buffer;
-          int32_t* headIndex; // Position to write next sample
-          int32_t* tailIndex; // Oldest valid sample position
+        int sampleRate;
+        int channelCount;
+        int bufferSize;
+        int16_t** buffer;
+        int32_t* tailIndex; // Oldest valid sample position
 };
 
 
@@ -425,6 +427,9 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_init() {
     if (initialized) {
         return 0;
     }
+    EM_ASM({
+        console.log("---- Processing init C++");
+    });
     // log_debug("Processing init");
     try {
         // Initialize default settings
@@ -473,9 +478,9 @@ int32_t processing_get_information(int32_t* _outInfo) {
   EMSCRIPTEN_KEEPALIVE
 #endif
 EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_sample_rate(int32_t sample_rate) {
-            EM_ASM({
-                console.log("---- sample_rate C++: ", $0);
-            }, sample_rate);        
+    EM_ASM({
+        console.log("---- sample_rate C++: ", $0);
+    }, sample_rate);        
     if (!initialized) {
         return -1;
     }
@@ -510,6 +515,10 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_sample_rate(int32_t sample_rat
   EMSCRIPTEN_KEEPALIVE
 #endif
 EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_channel_count(int32_t channel_count) {
+    EM_ASM({
+        console.log("---- Processing set channel count C++:", $0);
+    }, channel_count);
+
     if (!initialized) {
         return -1;
     }
@@ -700,6 +709,9 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_microphone_stream(int16_t*
       if (!initialized || !_out_samples || !out_sample_counts || !in_data || length <= 0) {
             return -1;
       }
+      EM_ASM({
+        console.log("---- Processing process microphone stream C++");
+      });
       //log_debug("Processing microphone data: length=%d", length);
 
       try {
@@ -715,9 +727,9 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_microphone_stream(int16_t*
             // Calculate sample count based on bits per sample
             int32_t sample_count = length * 8 / current_bits_per_sample;
             int32_t frame_count = sample_count / current_channel_count;
-            // EM_ASM({
-            //     console.log("Buffer 0 ptr : ", $0, $1, $2, $3);
-            // }, _out_samples[1], out_samples[0][1], sample_count, frame_count);
+            EM_ASM({
+                console.log("Buffer 0 ptr : ", $0, $1, $2, $3);
+            }, _out_samples[1], out_samples[0][1], sample_count, frame_count);
             // // for (int cu = 0; cu < current_channel_count; cu++) {
             // //     delete[] out_samples[cu];
             // // }
@@ -746,7 +758,7 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_microphone_stream(int16_t*
                 sample_count,
                 frame_count
             );
-           
+
             // Add processed data to circular buffer
             if (circularBuffer != nullptr) {
                 int32_t* frame_counts = new int32_t[1];
@@ -780,6 +792,9 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_microphone_stream(int16_t*
             for (int i = 0; i < current_channel_count; i++) {
                 out_sample_counts[i] = frame_count;
             }
+            EM_ASM({
+                console.log("frame_count : ", $0);
+            }, frame_count);
             // delete[] out_samples;
 
             return 0;
@@ -1112,6 +1127,10 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
         !in_event_indices || draw_surface_width <= 0) {
         return -1;
     }
+    // EM_ASM({
+    //     console.log("---- Processing prepare for signal drawing C++");
+    // });
+
     try {
         // STEVE NEED JS WRAP
         int16_t** out_samples = new int16_t*[current_channel_count];
@@ -1224,6 +1243,11 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
             }
         }
 
+        // EM_ASM({
+        //     console.log("---- Processing prepare for signal drawing C++", $0 , $1);
+        // }, out_sample_counts[0], out_samples[0][1700]);
+    
+
         // if (in_event_count > 0) {
         //     EM_ASM({
         //         // outEventIndices[eventIndex++]:  45760 1.4001774255533572e-41 1655 1285  -  0 50000 XSTEP:  1439
@@ -1244,7 +1268,9 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
         
         // *out_event_count = outEventCount;
         // EM_ASM({
-        //     console.log("Buffer DRAW ptr : ", $0, $1, $2, $3, $4);
+        //     // console.log("Buffer DRAW ptr : ", $0, $1, $2, $3, $4);
+        //     console.log("Buffer DRAW HEAD IDX : ", $0);
+        // }, circularBuffer->headIndex[0]);
         // }, _out_samples[0], out_samples[0][0], sample_count, sample_out_count, out_sample_counts[0]);
         // return -100;
         

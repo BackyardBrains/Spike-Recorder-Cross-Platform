@@ -347,10 +347,26 @@ class ProcessingUtilImpl implements ProcessingUtil {
     return Future.value(Uint8List(0));
   }
 
-  void onEventPositionAllocated(Float64List eventPositionList) {
-    _eventPositionList = eventPositionList;
+  void onEventPositionAllocated(Float64List? eventPositionList) {
+    if (eventPositionList == null) {
+      // If eventPositionList is null, initialize with empty list
+      _eventPositionList = Float64List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
+    } else {
+      _eventPositionList = eventPositionList;
+    }
     // inEventPositionPtr = inEventPositionPointerBuffer;
+    // Initialize inEventIndicesPtr if it's empty or has wrong size
+    if (inEventIndicesPtr.isEmpty || inEventIndicesPtr.length < ProcessingUtil.MAX_EVENT_MARKERS.floor()) {
+      inEventIndicesPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
+    }
     inEventIndicesPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), _sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor());
+
+    // Initialize inEventPositionPtr if it's empty or has wrong size
+    if (inEventPositionPtr.isEmpty || inEventPositionPtr.length < ProcessingUtil.MAX_EVENT_MARKERS.floor()) {
+      inEventPositionPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
+      int maxSamples = _sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor();
+      inEventPositionPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), maxSamples);
+    }
 
     // print("DEFAULT VALUE: $_sampleRate  =====  ${_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor()}");
     isAllocated = true;
@@ -421,6 +437,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
     DraggableGraph.eventMarkersLabels.clear();
     int len = ProcessingUtil.eventLabels.length;
+    if (len > ProcessingUtil.eventPosition.length) {
+      len = ProcessingUtil.eventPosition.length;
+    }
     int startPositionIdx = DraggableGraph.startPositionIdx;
     int endPositionIdx = DraggableGraph.endPositionIdx;
     for (int i = 0; i < len; i++) {
@@ -745,27 +764,28 @@ class ProcessingUtilImpl implements ProcessingUtil {
     if (ProcessingUtil.drawingBuffers != null) {
       try{
 
-        ProcessingUtil.drawingBuffers.clear();
-        // if (ProcessingUtil.drawingBufferCounts != null) {
-        //   ProcessingUtil.drawingBufferCounts.clear();
-        // } else {
-        //   ProcessingUtil.drawingBufferCounts = [];
-        // }
+        // ProcessingUtil.drawingBuffers.clear();
+        // // if (ProcessingUtil.drawingBufferCounts != null) {
+        // //   ProcessingUtil.drawingBufferCounts.clear();
+        // // } else {
+        // //   ProcessingUtil.drawingBufferCounts = [];
+        // // }
         
-        for (int i = 0; i < channelCount; i++) {
-          try{
-            ProcessingUtil.drawingBuffers
-                .add(Int16List(drawSurfaceWidth.toInt() * 5));
-          }catch(err) {
-            print("ERR2 processing util : $err");
-          }
-
-          if (ProcessingUtil.drawingBufferCounts.length < i + 1) {
-            ProcessingUtil.drawingBufferCounts[i] = (drawSurfaceWidth.toInt() * 5);
-          } else {
-            ProcessingUtil.drawingBufferCounts.add(drawSurfaceWidth.toInt() * 5);
-          }
-        }
+        // for (int i = 0; i < channelCount; i++) {
+        //   try{
+        //     ProcessingUtil.drawingBuffers
+        //         .add(Int16List(drawSurfaceWidth.toInt() * 5));
+        //   }catch(err) {
+        //     print("ERR2 processing util : $err");
+        //   }
+          
+        //   ProcessingUtil.drawingBufferCounts[i] = drawSurfaceWidth.toInt() * 5;
+        //   // if (ProcessingUtil.drawingBufferCounts.length < i + 1) {
+        //   //   ProcessingUtil.drawingBufferCounts[i] = (drawSurfaceWidth.toInt() * 5);
+        //   // } else {
+        //   //   ProcessingUtil.drawingBufferCounts.add(drawSurfaceWidth.toInt() * 5);
+        //   // }
+        // }
       }catch(err) {
         print("ERR processing util : $err");
       }

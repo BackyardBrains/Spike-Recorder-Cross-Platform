@@ -492,7 +492,7 @@ async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, end
       }
     }
   }
-  
+  console.log("MWORKER TRY TO POST MESSAGE: ");
   mWorker.postMessage({
     "message": "START_OPENING_FILE_WEB",
     "filePath": fileHandle[0].name,

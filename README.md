@@ -100,3 +100,7 @@ Channel 1 Value - 11520 | Channel 2 Value 0
         modified:   web/index.html
         modified:   web/index.js
         modified:   web/workerSimulation.js
+
+
+The logic behind seeking file using NWB:
+

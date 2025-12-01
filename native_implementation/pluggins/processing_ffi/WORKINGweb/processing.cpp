@@ -178,37 +178,50 @@ class CircularBuffer {
 
         // Add data to circular buffer
         void addData(int16_t** samples, int32_t* sampleCount) {
+            EM_ASM({
+                console.log("START");
+            }, channelCount);
             if (buffer == nullptr) {
                     return;
             }
+            EM_ASM({
+                console.log("channelCount: ", $0);
+            }, channelCount);
             
             // Add samples to buffer for each channel
             try {
-                    for (int chan = 0; chan < channelCount; chan++) {
-            
-                        
-                        for (int i = 0; i < sampleCount[chan]; i++) {
-                                try {
-                                    // Store sample at current head position
-                                    int16_t temp_sample = samples[chan][i];
-                                    buffer[chan][headIndex[chan]] = temp_sample;
-                                    
-                                    // Move head forward, wrapping around if needed
-                                    headIndex[chan] = (headIndex[chan] + 1) % bufferSize;
-                                    
-                                    // If head catches up to tail, move tail forward
-                                    if (headIndex[chan] == tailIndex[chan]) {
-                                        
-                                        tailIndex[chan] = (tailIndex[chan] + 1) % bufferSize;
-                                    }
-                                } catch (const std::exception& e) {
-                                    log_debug("Error processing sample %d in channel %d: %s", i, chan, e.what());
-                                    throw; // Re-throw to be caught by outer catch
-                                }
+
+                EM_ASM({
+                    console.log("sampleCount: ", $0, $1);
+                }, sampleCount[0], sampleCount[1]);
+    
+                for (int chan = 0; chan < channelCount; chan++) {
+                    for (int i = 0; i < sampleCount[chan]; i++) {
+                        try {
+                            // Store sample at current head position
+                            int16_t temp_sample = samples[chan][i];
+                            buffer[chan][headIndex[chan]] = temp_sample;
+                            
+                            // Move head forward, wrapping around if needed
+                            headIndex[chan] = (headIndex[chan] + 1) % bufferSize;
+                            
+                            // If head catches up to tail, move tail forward
+                            if (headIndex[chan] == tailIndex[chan]) {
+                                
+                                tailIndex[chan] = (tailIndex[chan] + 1) % bufferSize;
+                            }
+                        } catch (const std::exception& e) {
+                            log_debug("Error processing sample %d in channel %d: %s", i, chan, e.what());
+                            throw; // Re-throw to be caught by outer catch
                         }
                     }
+                }
 
             } catch (const std::exception& e) {
+                EM_ASM({
+                    console.log("ERRRORRR: ", $0);
+                }, channelCount);
+    
                     log_debug("Critical error in buffer processing: %s", e.what());
                     log_debug("State: headIndex=%d, tailIndex=%d, bufferSize=%d", headIndex, tailIndex, bufferSize);
                     throw; // Re-throw if you want the error to propagate up
@@ -270,12 +283,12 @@ class CircularBuffer {
     
     
     int32_t* headIndex; // Position to write next sample
+    int32_t* tailIndex; // Oldest valid sample position
     private:
         int sampleRate;
         int channelCount;
         int bufferSize;
         int16_t** buffer;
-        int32_t* tailIndex; // Oldest valid sample position
 };
 
 
@@ -611,6 +624,7 @@ int32_t processing_process_sample_stream(int16_t* _out_samples, int32_t* out_sam
         int* event_indices = new int[PROCESSING_MAX_EVENTS];
         std::string* event_labels = new std::string[PROCESSING_MAX_EVENTS];
         int event_count = 0;
+
         // STEVE NEED TO FIX THIS
         // create new outsamples variable, copy it to the real out_samples, with out_sample_counts
         // int16_t** tempSamples = new int16_t*[channelCount];
@@ -646,7 +660,6 @@ int32_t processing_process_sample_stream(int16_t* _out_samples, int32_t* out_sam
             return -100;
         }
         
-
 
 
         delete[] event_indices;
@@ -709,9 +722,9 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_microphone_stream(int16_t*
       if (!initialized || !_out_samples || !out_sample_counts || !in_data || length <= 0) {
             return -1;
       }
-      EM_ASM({
-        console.log("---- Processing process microphone stream C++");
-      });
+    //   EM_ASM({
+    //     console.log("---- Processing process microphone stream C++");
+    //   });
       //log_debug("Processing microphone data: length=%d", length);
 
       try {
@@ -727,9 +740,9 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_microphone_stream(int16_t*
             // Calculate sample count based on bits per sample
             int32_t sample_count = length * 8 / current_bits_per_sample;
             int32_t frame_count = sample_count / current_channel_count;
-            EM_ASM({
-                console.log("Buffer 0 ptr : ", $0, $1, $2, $3);
-            }, _out_samples[1], out_samples[0][1], sample_count, frame_count);
+            // EM_ASM({
+            //     console.log("Buffer 0 ptr : ", $0, $1, $2, $3);
+            // }, _out_samples[1], out_samples[0][1], sample_count, frame_count);
             // // for (int cu = 0; cu < current_channel_count; cu++) {
             // //     delete[] out_samples[cu];
             // // }
@@ -792,9 +805,6 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_microphone_stream(int16_t*
             for (int i = 0; i < current_channel_count; i++) {
                 out_sample_counts[i] = frame_count;
             }
-            EM_ASM({
-                console.log("frame_count : ", $0);
-            }, frame_count);
             // delete[] out_samples;
 
             return 0;
@@ -1800,7 +1810,7 @@ EXTERNC FUNCTION_ATTRIBUTE short processing_pass_pointers(short* ptrExpBoardType
     return 1;
 }
 
-PROCESSING_API int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw, int* samplesCountRaw, int selectedChannel, int channelCount) {
+EXTERNC FUNCTION_ATTRIBUTE int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw, int* samplesCountRaw, int selectedChannel, int channelCount) {
     if (!initialized || !circularBuffer) {
         return -1;
     }
@@ -1823,11 +1833,11 @@ PROCESSING_API int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw
 
 
 
-PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* samplesCountRaw, int channelCount) {
+EXTERNC FUNCTION_ATTRIBUTE int32_t processing_serial_data_result(short* inSamplesRaw, int* samplesCountRaw, int channelCount) {
     if (!initialized || !circularBuffer) {
         return -1;
     }
-
+    
     short** inSamples = new short*[channelCount];
     for (int i = 0; i < channelCount; i++) {
         inSamples[i] = new short[samplesCountRaw[i]];
@@ -1837,6 +1847,13 @@ PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* s
     // platform_log_processing("Channel 1 Value - %d | Channel 2 Value %d\n", inSamples[0][0], inSamples[1][0]);
     try {
         circularBuffer->addData(inSamples, samplesCountRaw);
+        EM_ASM({
+            console.log("HEAD INDEX-0: ", $0, "TAIL INDEX : ", $1);
+        }, circularBuffer->headIndex[0], circularBuffer->tailIndex[0]);
+        EM_ASM({
+            console.log("HEAD INDEX-1: ", $0, "TAIL INDEX : ", $1);
+        }, circularBuffer->headIndex[1], circularBuffer->tailIndex[1]);
+
         return 0;
     } catch (...) {
         return -3;

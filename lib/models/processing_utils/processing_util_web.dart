@@ -347,26 +347,10 @@ class ProcessingUtilImpl implements ProcessingUtil {
     return Future.value(Uint8List(0));
   }
 
-  void onEventPositionAllocated(Float64List? eventPositionList) {
-    if (eventPositionList == null) {
-      // If eventPositionList is null, initialize with empty list
-      _eventPositionList = Float64List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
-    } else {
-      _eventPositionList = eventPositionList;
-    }
+  void onEventPositionAllocated(Float64List eventPositionList) {
+    _eventPositionList = eventPositionList;
     // inEventPositionPtr = inEventPositionPointerBuffer;
-    // Initialize inEventIndicesPtr if it's empty or has wrong size
-    if (inEventIndicesPtr.isEmpty || inEventIndicesPtr.length < ProcessingUtil.MAX_EVENT_MARKERS.floor()) {
-      inEventIndicesPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
-    }
     inEventIndicesPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), _sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor());
-
-    // Initialize inEventPositionPtr if it's empty or has wrong size
-    if (inEventPositionPtr.isEmpty || inEventPositionPtr.length < ProcessingUtil.MAX_EVENT_MARKERS.floor()) {
-      inEventPositionPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
-      int maxSamples = _sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor();
-      inEventPositionPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), maxSamples);
-    }
 
     // print("DEFAULT VALUE: $_sampleRate  =====  ${_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor()}");
     isAllocated = true;
@@ -800,8 +784,13 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
   
   @override
-  void processingSerialDataResult(Int16List data, Int32List sampleCounts, int channelCount) {
-    // TODO: implement processingSerialDataResult
+  void processingSerialDataResult(Int16List convertedData, Int32List sampleCounts, int channelCount) {
+
+    js.context.callMethod("processSerialDataWebResult", [
+      convertedData, sampleCounts, channelCount,
+      json.encode(ProcessingUtil.eventLabels),
+      json.encode(ProcessingUtil.eventPosition)
+    ]);
   }
 }
 

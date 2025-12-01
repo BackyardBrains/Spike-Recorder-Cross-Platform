@@ -312,7 +312,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         endSeekSample = 1;  
       }
       bool? seekFlag = await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, widget.channelCount - 1);
-      print("Percentage: $percentage @@@ Config: $loadedConfig ||| scrubNotifier: ${timeScrub} ${(arrSamplesLength * percentage).floor()}, ${(arrSamplesLength - startSeekSample).floor()}");
+      print("SCRUB NOTIFIER: WIDGET CHANNEL COUNT: $widget.channelCount | Percentage: $percentage @@@ Config: $loadedConfig ||| scrubNotifier: ${timeScrub} ${(arrSamplesLength * percentage).floor()}, ${(arrSamplesLength - startSeekSample).floor()}");
       // if (seekFlag != null && !seekFlag) {
       //   print("SEEK FAILED");
       //   return;
@@ -2346,8 +2346,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     isOpeningFile = true;
     
     // STEVE: FIX THIS HARDCODED STUFF
-    // int isSerialDevice = config[6];
-    int isSerialDevice = 0;
+    // config[6] might not be set if device detection fails, default to 0 (audio)
+    int isSerialDevice = (config.length > 6) ? config[6] : 0;
+    // int isSerialDevice = 0;
     print("IS SERIAL DEVICE : $isSerialDevice | CHANNEL COUNT: ${widget.channelCount}");
     if (isSerialDevice == 1) {
       context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
@@ -2370,18 +2371,58 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
 
     loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
-    print("INIT WITH CONFIG: $loadedConfig");
-    await processingUtil.initWithConfig(loadedConfig);    
-    print("INIT WITH CONFIG FIN: $loadedConfig");
+    // print("INIT WITH CONFIG: $loadedConfig");
+    // await processingUtil.initWithConfig(loadedConfig);    
+    // print("INIT WITH CONFIG FIN: $loadedConfig");
+    
+    // Validate arrSampleCount and arrSamples before processing
+    if (arrSampleCount == null || arrSamples == null) {
+      print("ERROR: arrSampleCount or arrSamples is null. arrSampleCount: $arrSampleCount, arrSamples: $arrSamples");
+      return;
+    }
+    
+    // Convert JavaScript arrays to Dart typed lists if needed
+    Int32List? arrSampleCountList;
+    Int16List? arrSamplesList;
+    
+    if (arrSampleCount is List) {
+      arrSampleCountList = Int32List.fromList(arrSampleCount.map((e) => e as int).toList());
+    } else if (arrSampleCount is Int32List) {
+      arrSampleCountList = arrSampleCount;
+    } else {
+      print("ERROR: arrSampleCount is not a valid type: ${arrSampleCount.runtimeType}");
+      return;
+    }
+    
+    if (arrSamples is List) {
+      arrSamplesList = Int16List.fromList(arrSamples.map((e) => e as int).toList());
+    } else if (arrSamples is Int16List) {
+      arrSamplesList = arrSamples;
+    } else {
+      print("ERROR: arrSamples is not a valid type: ${arrSamples.runtimeType}");
+      return;
+    }
+    
+    // Validate array sizes
+    // if (arrSampleCountList.length < widget.channelCount) {
+    //   print("ERROR: arrSampleCount length (${arrSampleCountList.length}) is less than channelCount (${widget.channelCount})");
+    //   return;
+    // }
+    print("Validate Array Sizes 2");    
     int combinedIdx = 0;
     // int totalChannelCount = loadedConfig[1];
     loadedArrSamples.clear();
     loadedArrChannelCount = (Int32List(widget.channelCount));
+    print("ZZZ|| arrSampleCount: ${arrSampleCount}");
+
     for (int i = 0; i < widget.channelCount; i++) {
       // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
-      double initialSampleCount = arrSampleCount[i].toDouble();
+      double initialSampleCount = arrSampleCount[0].toDouble();
       loadedArrSamples.add(Int16List(initialSampleCount.floor()));
-      loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
+      if (isStartOpeningFileWeb) {
+      } else {
+          loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
+      }
       // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
       loadedArrChannelCount[i] = initialSampleCount.floor();
       combinedIdx += initialSampleCount.floor();
@@ -2595,7 +2636,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       });
     } else
     if (GraphTemplate.isLoadingFile == 1) {
-      print("Graph Template: ${GraphTemplate.isLoadingFile}");
+      print("Graph Template isLoadingFile: ${GraphTemplate.isLoadingFile}");
       GraphTemplate.isLoadingFile = 2;
       // SERIAL FILE CHANGES
       // List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples[0].buffer.asUint8List());
@@ -2606,7 +2647,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
         channelIdx++;
         return list;
       }).toList());
-      // print("loadedArrSamples: ${loadedArrSamples.sublist(0, 10)}");
       // print("SAMPLES COUNT: $samplesCount");
       // print("WIDGET CHANNEL COUNT: $widget.channelCount");
       // processingUtil.processingNwbFileInjectData(flattenedList, samplesCount, 0, widget.channelCount);

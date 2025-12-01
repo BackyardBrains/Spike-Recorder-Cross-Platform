@@ -287,6 +287,7 @@ self.onmessage = async function (eventFromMain) {
             drawingCountBuffer = Module.HEAP16.subarray(drawingCountPtrStart, (drawingCountPtrStart + channelCount));
             drawingCountPtrList.push(drawingCountPtr);
             drawingCountBufferList = (drawingCountBuffer);
+            console.log("Drawing Count Buffer List: INIT MICROPHONE ", channelCount,drawingCountBufferList);
 
 
             outEventPositionPtr = Module._malloc(MAX_EVENT_MARKERS * Module.HEAPF64.BYTES_PER_ELEMENT);
@@ -295,7 +296,7 @@ self.onmessage = async function (eventFromMain) {
             for (i = 0; i < channelCount; i++) {
                 drawingCountBuffer[i] = drawSurfaceWidth * 5;
             }
-            console.log("onDrawingBufferAllocated - javascript", channelCount, drawingCountBufferList, drawSurfaceWidth);
+            console.log("onDrawingBufferAllocated MIC - javascript", channelCount, drawingCountBufferList, drawSurfaceWidth);
             postMessage({
                 "message": "ALLOCATE_DRAWING_DATA_BUFFER",
                 "drawingDataBufferList": drawingDataBufferList,
@@ -324,70 +325,7 @@ self.onmessage = async function (eventFromMain) {
 
         break;
         case "INIT_WITH_CONFIG":
-            let initConfig = eventFromMain.data.config;
-            console.log("INIT_WITH_CONFIG: ", initConfig);
-            Module._processing_init();
-            Module._processing_set_sample_rate(initConfig[0]);
-            Module._processing_set_channel_count(initConfig[1]);
-
-            // DRAWING BUFFER SETUP
-            try{
-                if (drawingDataPtrList !== undefined){
-                    for (let i = 0; i < drawingDataPtrList.length; i++) {
-                        Module._free(drawingDataPtrList[i]);
-                    }
-                }
-            }catch(err) {
-                console.log(err);
-            }
-
-            drawingDataPtrList=[];
-            drawingDataBufferList = [];
-            for (let i = 0; i < channelCount; i++) {
-                drawingDataPtr = Module._malloc(drawSurfaceWidth * 5 * Module.HEAP16.BYTES_PER_ELEMENT);
-                drawingDataPtrStart = drawingDataPtr / Module.HEAP16.BYTES_PER_ELEMENT;
-                drawingDataBuffer = Module.HEAP16.subarray(drawingDataPtrStart, (drawingDataPtrStart + drawSurfaceWidth * 5));
-                drawingDataPtrList.push(drawingDataPtr);
-                drawingDataBufferList.push(drawingDataBuffer);
-            }
-
-            console.log("onDrawingBufferAllocated - javascript", channelCount, drawingDataBufferList, drawSurfaceWidth);
-            // END DRAWING BUFFER SETUP
-            // DRAWING COUNTER SETUP
-            try{
-                if (drawingCountPtrList !== undefined){
-                    for (let i = 0; i < drawingCountPtrList.length; i++) {
-                        Module._free(drawingCountPtrList[i]);
-                    }
-                }
-            }catch(err) {
-                console.log(err);
-            }
-
-            drawingCountPtrList=[];
-            // drawingCountBufferList = [];            
-            let ii = 0;
-            drawingCountPtr = Module._malloc(channelCount * Module.HEAP16.BYTES_PER_ELEMENT);
-            drawingCountPtrStart = drawingCountPtr / Module.HEAP16.BYTES_PER_ELEMENT;
-            drawingCountBuffer = Module.HEAP16.subarray(drawingCountPtrStart, (drawingCountPtrStart + channelCount));
-            drawingCountPtrList.push(drawingCountPtr);
-            drawingCountBufferList = (drawingCountBuffer);
-
-
-            outEventPositionPtr = Module._malloc(MAX_EVENT_MARKERS * Module.HEAPF64.BYTES_PER_ELEMENT);
-            outEventPositionPtrStart = outEventPositionPtr / Module.HEAPF64.BYTES_PER_ELEMENT;
-            outEventPositionBuffer = Module.HEAPF64.subarray(outEventPositionPtrStart, (outEventPositionPtrStart + MAX_EVENT_MARKERS));
-            for (ii = 0; ii < channelCount; ii++) {
-                drawingCountBuffer[ii] = drawSurfaceWidth * 5;
-            }            
-
-            postMessage({
-                "message": "ALLOCATE_DRAWING_DATA_BUFFER",
-                "drawingDataBufferList": drawingDataBufferList,
-                "drawingCountBufferList": drawingCountBufferList,
-                "channelCount": channelCount,
-                "eventPositions": outEventPositionBuffer,
-            });
+            initWithConfig(eventFromMain.data.config);
         break;
         // case "FILL_LOADED_SAMPLES_TO_BUFFER":
         //     let fillLoadedSamplesToBufferConfig = eventFromMain.data.config;
@@ -588,7 +526,12 @@ self.onmessage = async function (eventFromMain) {
             let windowCountFft = Math.floor( (10.0 * 128) / Math.floor(512 * 0.01) );
             let windowSizeFft = (FFT_30HZ_LENGTH * FFT_WINDOW_TIME_LENGTH);
       
-            processFftMicrophoneData(channelCount, selectedChannel, windowCountFft, windowSizeFft, [inSamplesBuffer], outSampleCountsBuffer);
+            try {
+                processFftMicrophoneData(channelCount, selectedChannel, windowCountFft, windowSizeFft, [inSamplesBuffer], outSampleCountsBuffer);
+            }catch(err) {
+                console.log("err: ", err);
+                return
+            }
 
             if (isRecording == 0) {
                 let samplesLength = outSampleCountsBuffer[0];
@@ -1183,7 +1126,33 @@ self.onmessage = async function (eventFromMain) {
         case "MAKE_FILE_PUBLIC":
             makeFilePublicWeb(eventFromMain.data.filePath);
         break;
+        case "PROCESS_SERIAL_DATA_WEB_RESULT":
+            let sampleData = eventFromMain.data.data;
+            let sampleCounts = eventFromMain.data.sampleCounts;
+            let serialChannelCount = eventFromMain.data.channelCount;
+            let serialEventLabels = JSON.parse(eventFromMain.data.eventLabels);
+            let serialEventPositions = JSON.parse(eventFromMain.data.eventPositions);
+            
 
+            let sampleDataPtr = Module._malloc(sampleData.length * Module.HEAP16.BYTES_PER_ELEMENT);
+            let sampleDataPtrStart = sampleDataPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            let sampleDataBuffer = Module.HEAP16.subarray(sampleDataPtrStart, (sampleDataPtrStart + sampleData.length));
+            sampleDataBuffer.set(sampleData);
+
+            let sampleCountsPtr = Module._malloc(sampleCounts.length * Module.HEAP32.BYTES_PER_ELEMENT);
+            let sampleCountsPtrStart = sampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            let sampleCountsBuffer = Module.HEAP32.subarray(sampleCountsPtrStart, (sampleCountsPtrStart + sampleCounts.length));
+            sampleCountsBuffer.set(sampleCounts);
+
+            const resultSerialInject = Module.ccall(
+                'processing_serial_data_result',
+                'number',
+                ['number', 'number', 'number'],
+                [sampleDataPtr, sampleCountsPtr, serialChannelCount]
+            );            
+            console.log("PROCESSING SERIAL DATA RESULT: ", resultSerialInject, sampleData, sampleCounts, serialChannelCount);
+
+        break;
 
         // Entry point for seek and open file web
         case "START_OPENING_FILE_WEB":
@@ -1227,12 +1196,13 @@ self.onmessage = async function (eventFromMain) {
                 console.log("!!@!!START OPENING FILE WEB 1");
     
                 // seek buffer       
+                let tempLoadedChannelCount = 10;
                 let samplesLength = endIdx - startIdx;
                 let loadedChannelCount = endChannel - startChannel + 1; // +1 because endChannel is inclusive
                 let loadedOutSamples = NwbModule._malloc(loadedChannelCount * samplesLength * NwbModule.HEAP16.BYTES_PER_ELEMENT);
-                let loadedOutSamplesCount = NwbModule._malloc(loadedChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
+                let loadedOutSamplesCount = NwbModule._malloc(tempLoadedChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
                 let loadedOutConfig = NwbModule._malloc(10 * NwbModule.HEAP32.BYTES_PER_ELEMENT);
-                console.log("!!@!!seekNwbFileBufferWeb");
+                console.log("!!@!!seekNwbFileBufferWeb == loadedChannelCount", loadedChannelCount);
                 seekNwbFileBufferWeb(fileName, loadedOutSamples, loadedOutSamplesCount, loadedOutConfig, startIdx, endIdx, startChannel, endChannel, samplesLength, isStartOpeningFileWeb);
             }catch(err){
                 console.log("err");
@@ -1477,13 +1447,17 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
     } else {
         console.log("seekNwbFileBufferWeb failed " + result);
     }
-
-    let outSamplesStart = outSamples / NwbModule.HEAP16.BYTES_PER_ELEMENT;
-    let outSamplesBuffer = NwbModule.HEAP16.subarray(outSamplesStart, (outSamplesStart + samplesLength));
-    let outSamplesCountStart = outSamplesCount / NwbModule.HEAP32.BYTES_PER_ELEMENT;
-    let outSamplesCountBuffer = NwbModule.HEAP32.subarray(outSamplesCountStart, (outSamplesCountStart + 1));
     let outConfigStart = outConfig / NwbModule.HEAP32.BYTES_PER_ELEMENT;
     let outConfigBuffer = NwbModule.HEAP32.subarray(outConfigStart, (outConfigStart + 10));
+
+    const tempLoadedChannelCount = outConfigBuffer[1];
+    let loadedChannelCount = endChannel - startChannel + 1; // +1 because endChannel is inclusive
+    let outSamplesStart = outSamples / NwbModule.HEAP16.BYTES_PER_ELEMENT;
+    let outSamplesBuffer = NwbModule.HEAP16.subarray(outSamplesStart, (outSamplesStart + samplesLength * loadedChannelCount));
+
+    let outSamplesCountStart = outSamplesCount / NwbModule.HEAP32.BYTES_PER_ELEMENT;
+    let outSamplesCountBuffer = NwbModule.HEAP32.subarray(outSamplesCountStart, (outSamplesCountStart + tempLoadedChannelCount));
+    // console.log("outSamplesCountBuffer", outSamplesCountBuffer);
 
     // loadedSamplesBuffer = (outSamplesBuffer).slice();
     // loadedSamplesCountBuffer = (outSamplesCountBuffer).slice();
@@ -1493,6 +1467,7 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
     if (isStartOpeningFileWeb) {
         loadedConfigBuffer = (outConfigBuffer).slice();
     }
+    initWithConfig(loadedConfigBuffer);
 
 
 
@@ -1513,4 +1488,74 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
     NwbModule._free(outSamples);
     NwbModule._free(outSamplesCount);
     NwbModule._free(outConfig);
+}
+
+
+function initWithConfig(config) {
+    let initConfig = config;
+    console.log("INIT_WITH_CONFIG: ", initConfig);
+    sampleRate = initConfig[0];
+    channelCount = initConfig[1];
+    Module._processing_init();
+    Module._processing_set_sample_rate(initConfig[0]);
+    Module._processing_set_channel_count(initConfig[1]);
+
+    // DRAWING BUFFER SETUP
+    try{
+        if (drawingDataPtrList !== undefined){
+            for (let i = 0; i < drawingDataPtrList.length; i++) {
+                Module._free(drawingDataPtrList[i]);
+            }
+        }
+    }catch(err) {
+        console.log(err);
+    }
+
+    drawingDataPtrList=[];
+    drawingDataBufferList = [];
+    for (let i = 0; i < channelCount; i++) {
+        drawingDataPtr = Module._malloc(drawSurfaceWidth * 5 * Module.HEAP16.BYTES_PER_ELEMENT);
+        drawingDataPtrStart = drawingDataPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+        drawingDataBuffer = Module.HEAP16.subarray(drawingDataPtrStart, (drawingDataPtrStart + drawSurfaceWidth * 5));
+        drawingDataPtrList.push(drawingDataPtr);
+        drawingDataBufferList.push(drawingDataBuffer);
+    }
+
+    console.log("onDrawingBufferAllocated - javascript", channelCount, drawingDataBufferList, drawSurfaceWidth);
+    // END DRAWING BUFFER SETUP
+    // DRAWING COUNTER SETUP
+    try{
+        if (drawingCountPtrList !== undefined){
+            for (let i = 0; i < drawingCountPtrList.length; i++) {
+                Module._free(drawingCountPtrList[i]);
+            }
+        }
+    }catch(err) {
+        console.log(err);
+    }
+
+    drawingCountPtrList=[];
+    // drawingCountBufferList = [];            
+    let ii = 0;
+    drawingCountPtr = Module._malloc(channelCount * Module.HEAP16.BYTES_PER_ELEMENT);
+    drawingCountPtrStart = drawingCountPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+    drawingCountBuffer = Module.HEAP16.subarray(drawingCountPtrStart, (drawingCountPtrStart + channelCount));
+    drawingCountPtrList.push(drawingCountPtr);
+    drawingCountBufferList = (drawingCountBuffer);
+
+    console.log("Drawing Count Buffer List: INIT WiTH CONFIG ", channelCount, drawingCountBufferList);
+    outEventPositionPtr = Module._malloc(MAX_EVENT_MARKERS * Module.HEAPF64.BYTES_PER_ELEMENT);
+    outEventPositionPtrStart = outEventPositionPtr / Module.HEAPF64.BYTES_PER_ELEMENT;
+    outEventPositionBuffer = Module.HEAPF64.subarray(outEventPositionPtrStart, (outEventPositionPtrStart + MAX_EVENT_MARKERS));
+    for (ii = 0; ii < channelCount; ii++) {
+        drawingCountBuffer[ii] = drawSurfaceWidth * 5;
+    }            
+
+    postMessage({
+        "message": "ALLOCATE_DRAWING_DATA_BUFFER",
+        "drawingDataBufferList": drawingDataBufferList,
+        "drawingCountBufferList": drawingCountBufferList,
+        "channelCount": channelCount,
+        "eventPositions": outEventPositionBuffer,
+    });
 }

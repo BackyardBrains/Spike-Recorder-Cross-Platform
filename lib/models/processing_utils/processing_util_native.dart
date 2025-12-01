@@ -498,7 +498,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
             startPositionIdx, // int (fromSample)
             endPositionIdx, // int (toSample)
             drawSurfaceWidth // int
-            );
+        );
 
         if (result == 0) {
           // Copy the results back to Dart

@@ -520,3 +520,14 @@ async function initWithConfig(config) {
 //     "config": config,
 //   });
 // }
+
+async function processSerialDataWebResult(data, sampleCounts, channelCount, eventLabels, eventPositions) { 
+  mWorker.postMessage({
+    "message": "PROCESS_SERIAL_DATA_WEB_RESULT",
+    "data": data,
+    "sampleCounts": sampleCounts,
+    "channelCount": channelCount,
+    "eventLabels": eventLabels,
+    "eventPositions": eventPositions,
+  });
+}

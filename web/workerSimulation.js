@@ -1075,7 +1075,7 @@ self.onmessage = async function (eventFromMain) {
                 'number',
                 ['string', 'number', 'number', 'string', 'string'],
                 [filePath, nwbSampleRate, nwbChannelCount, deviceInfoPointer, deviceManufacturerPointer]
-            );            
+            );
             console.log("PROCESSING INIT result: ", result);
             postMessage({
                 "message": "NWB_FILE_CREATED",

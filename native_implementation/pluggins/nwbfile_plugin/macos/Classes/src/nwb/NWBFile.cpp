@@ -175,7 +175,9 @@ Status NWBFile::createFileStructure(const std::string& identifierText,
 }
 
 Status NWBFile::createElectrodesTable(
-    std::vector<Types::ChannelVector> recordingArrays)
+    std::vector<Types::ChannelVector> recordingArrays,
+    const std::string& deviceDescription,
+    const std::string& deviceManufacturer)
 {
   std::unique_ptr<NWB::ElectrodesTable> electrodeTable =
       std::make_unique<NWB::ElectrodesTable>(m_io);
@@ -197,10 +199,14 @@ Status NWBFile::createElectrodesTable(
     // if it does not
     if (!m_io->objectExists(devicePath)) {
       NWB::Device device = NWB::Device(devicePath, m_io);
-      device.initialize("description", "unknown");
+      // Use provided device description and manufacturer, or defaults if empty
+      std::string desc = deviceDescription.empty() ? "description" : deviceDescription;
+      std::string manuf = deviceManufacturer.empty() ? "unknown" : deviceManufacturer;
+      device.initialize(desc, manuf);
 
       NWB::ElectrodeGroup elecGroup = NWB::ElectrodeGroup(electrodePath, m_io);
-      elecGroup.initialize("description", "unknown", device);
+      // Use device description for electrode group description, "unknown" for location
+      elecGroup.initialize(desc, manuf, device);
     }
   }
 

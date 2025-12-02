@@ -520,6 +520,8 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
         device->initialize(deviceInfo, deviceManufacturer);
         
         std::cout << "Device information added successfully" << std::endl;
+        std::cout << "Device Description: " << deviceInfo << std::endl;
+        std::cout << "Device Manufacturer: " << deviceManufacturer << std::endl;
         std::cout << "Init Status: " << initStatus << "  " << channelCount << std::endl;
 
         // 4) Create recording metadata (ElectrodesTable)
@@ -1192,10 +1194,10 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
                     int res = deviceDescription.find("Audio|||");
                     if (res != std::string::npos){
                         outConfig[6] = 0;
-                        std::cout << "✅ Audio Device Detected " << std::endl;
+                        std::cout << "✅ Audio Device Detected " << deviceDescription << std::endl;
                     } else{ 
                         outConfig[6] = 1;
-                        std::cerr << "✅ Serial Device Detected" << std::endl;
+                        std::cerr << "✅ Serial Device Detected" << deviceDescription << std::endl;
                     }
     
                 } else {

@@ -178,23 +178,16 @@ class CircularBuffer {
 
         // Add data to circular buffer
         void addData(int16_t** samples, int32_t* sampleCount) {
-            EM_ASM({
-                console.log("START");
-            }, channelCount);
+            // EM_ASM({
+            //     console.log("START");
+            // }, channelCount);
             if (buffer == nullptr) {
                     return;
             }
-            EM_ASM({
-                console.log("channelCount: ", $0);
-            }, channelCount);
             
             // Add samples to buffer for each channel
             try {
-
-                EM_ASM({
-                    console.log("sampleCount: ", $0, $1);
-                }, sampleCount[0], sampleCount[1]);
-    
+   
                 for (int chan = 0; chan < channelCount; chan++) {
                     for (int i = 0; i < sampleCount[chan]; i++) {
                         try {
@@ -218,13 +211,9 @@ class CircularBuffer {
                 }
 
             } catch (const std::exception& e) {
-                EM_ASM({
-                    console.log("ERRRORRR: ", $0);
-                }, channelCount);
-    
-                    log_debug("Critical error in buffer processing: %s", e.what());
-                    log_debug("State: headIndex=%d, tailIndex=%d, bufferSize=%d", headIndex, tailIndex, bufferSize);
-                    throw; // Re-throw if you want the error to propagate up
+                log_debug("Critical error in buffer processing: %s", e.what());
+                log_debug("State: headIndex=%d, tailIndex=%d, bufferSize=%d", headIndex, tailIndex, bufferSize);
+                throw; // Re-throw if you want the error to propagate up
             }
         }
         
@@ -1847,12 +1836,6 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_serial_data_result(short* inSample
     // platform_log_processing("Channel 1 Value - %d | Channel 2 Value %d\n", inSamples[0][0], inSamples[1][0]);
     try {
         circularBuffer->addData(inSamples, samplesCountRaw);
-        EM_ASM({
-            console.log("HEAD INDEX-0: ", $0, "TAIL INDEX : ", $1);
-        }, circularBuffer->headIndex[0], circularBuffer->tailIndex[0]);
-        EM_ASM({
-            console.log("HEAD INDEX-1: ", $0, "TAIL INDEX : ", $1);
-        }, circularBuffer->headIndex[1], circularBuffer->tailIndex[1]);
 
         return 0;
     } catch (...) {

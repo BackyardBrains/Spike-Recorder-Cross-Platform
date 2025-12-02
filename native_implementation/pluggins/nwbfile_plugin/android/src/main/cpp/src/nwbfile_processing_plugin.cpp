@@ -204,7 +204,10 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
             tempRecordingArrays.emplace_back(std::move(array1));
         }
         recordingArrays = tempRecordingArrays;
-        auto elecTableStatus = nwbfile->createElectrodesTable(recordingArrays);
+        // Convert deviceInfo and deviceManufacturer to std::string for createElectrodesTable
+        std::string deviceInfoStr = (deviceInfo != nullptr) ? std::string(deviceInfo) : "";
+        std::string deviceManufacturerStr = (deviceManufacturer != nullptr) ? std::string(deviceManufacturer) : "";
+        auto elecTableStatus = nwbfile->createElectrodesTable(recordingArrays, deviceInfoStr, deviceManufacturerStr);
         if (elecTableStatus != AQNWB::Types::Success) {
             std::cerr << "Failed to create electrodes table" << std::endl;
             return 1;

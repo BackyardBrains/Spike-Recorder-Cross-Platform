@@ -3039,8 +3039,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void callbackPlayButton(bool isPlay) async {
     print("setGraphResumePlay PLAYBACK PAUSE BUTTON");
     Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(isPlay);
+    print("setGraphResumePlay PLAYBACK PAUSE BUTTON 22");
     _toPauseGraph = isPlay;
+    print("setGraphResumePlay PLAYBACK PAUSE BUTTON 44");
     GraphTemplate.isPlayerPaused = !isPlay;
+    print("setGraphResumePlay GraphTemplate.isPlayerPaused");
 
 
     if (soloud == null) {
@@ -3051,6 +3054,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       );
       
     }
+    print("setGraphResumePlay GraphTemplate.isPlayerPaused 2");    
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     print("IS PLAY $isPlay");
     if (!isPlay) {

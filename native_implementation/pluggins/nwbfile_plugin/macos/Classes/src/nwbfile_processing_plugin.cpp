@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <cstdarg>
+#include <cstdlib>
 #include <algorithm>
 
 #include "Utils.hpp"
@@ -168,6 +169,8 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
         device->initialize(deviceInfo, deviceManufacturer);
         
         std::cout << "Device information added successfully" << std::endl;
+        std::cout << "Device Description: " << deviceInfo << std::endl;
+        std::cout << "Device Manufacturer: " << deviceManufacturer << std::endl;
         std::cout << "Init Status: " << initStatus << "  " << channelCount << std::endl;
 
         // 4) Create recording metadata (ElectrodesTable)
@@ -194,7 +197,10 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
             tempRecordingArrays.emplace_back(std::move(array1));
         }
         recordingArrays = tempRecordingArrays;
-        auto elecTableStatus = nwbfile->createElectrodesTable(recordingArrays);
+        // Convert deviceInfo and deviceManufacturer to std::string for createElectrodesTable
+        std::string deviceInfoStr = (deviceInfo != nullptr) ? std::string(deviceInfo) : "";
+        std::string deviceManufacturerStr = (deviceManufacturer != nullptr) ? std::string(deviceManufacturer) : "";
+        auto elecTableStatus = nwbfile->createElectrodesTable(recordingArrays, deviceInfoStr, deviceManufacturerStr);
         if (elecTableStatus != AQNWB::Types::Success) {
             std::cerr << "Failed to create electrodes table" << std::endl;
             return 1;
@@ -1259,11 +1265,17 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
                     std::string deviceDescription = "";
                     try {
                         H5::Attribute descAttr = deviceGroup.openAttribute("description");
-                        H5::StrType strType(H5::PredType::C_S1, H5T_VARIABLE);
-                        std::string description;
-                        descAttr.read(strType, description);
-                        deviceDescription = description;
-                        std::cout << "📋 Device Description: " << description << std::endl;
+                        // Get the actual datatype from the attribute
+                        H5::StrType strType = descAttr.getStrType();
+                        // For variable-length strings, HDF5 allocates memory and returns a char*
+                        // We need to read into a char* pointer, not directly into std::string
+                        char* cstr = nullptr;
+                        descAttr.read(strType, &cstr);
+                        if (cstr != nullptr) {
+                            deviceDescription = std::string(cstr);
+                            free(cstr);  // HDF5 allocates the memory, we need to free it
+                        }
+                        std::cout << "📋 Device Description: " << deviceDescription << std::endl;
                     } catch (const H5::Exception& e) {
                         std::cout << "⚠️  Could not read device description: " << e.getDetailMsg() << std::endl;
                     }
@@ -1271,9 +1283,17 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
                     // Read device manufacturer
                     try {
                         H5::Attribute manufAttr = deviceGroup.openAttribute("manufacturer");
-                        H5::StrType strType(H5::PredType::C_S1, H5T_VARIABLE);
+                        // Get the actual datatype from the attribute
+                        H5::StrType strType = manufAttr.getStrType();
+                        // For variable-length strings, HDF5 allocates memory and returns a char*
+                        // We need to read into a char* pointer, not directly into std::string
+                        char* cstr = nullptr;
+                        manufAttr.read(strType, &cstr);
                         std::string manufacturer;
-                        manufAttr.read(strType, manufacturer);
+                        if (cstr != nullptr) {
+                            manufacturer = std::string(cstr);
+                            free(cstr);  // HDF5 allocates the memory, we need to free it
+                        }
                         std::cout << "🏭 Device Manufacturer: " << manufacturer << std::endl;
                     } catch (const H5::Exception& e) {
                         std::cout << "⚠️  Could not read device manufacturer: " << e.getDetailMsg() << std::endl;
@@ -1283,10 +1303,10 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
                     int res = deviceDescription.find("Audio|||");
                     if (res != std::string::npos){
                         outConfig[6] = 0;
-                        std::cout << "✅ Audio Device Detected " << std::endl;
+                        std::cout << "✅ Audio Device Detected " << deviceDescription << std::endl;
                     } else{ 
                         outConfig[6] = 1;
-                        std::cerr << "✅ Serial Device Detected" << std::endl;
+                        std::cerr << "✅ Serial Device Detected " << deviceDescription << std::endl;
                     }
     
                 } else {

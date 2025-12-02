@@ -10,6 +10,7 @@
 #include "Channel.hpp"
 #include "nwb/NWBFile.hpp"
 #include "nwb/RecordingContainers.hpp"
+#include "nwb/device/Device.hpp"
 #include "../include/H5Cpp.h"
 
 // Global buffer to store NWB file data
@@ -73,6 +74,16 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
           printf("Failed to initialize NWB file\n");
           return 1;
       }
+
+      // 3.5) Add device information (AFTER NWBFile initialization)
+      printf("Adding device information...\n");
+      std::unique_ptr<AQNWB::NWB::Device> device = 
+          std::make_unique<AQNWB::NWB::Device>("/general/devices/recording_device", io);
+      
+      // Initialize the device with description and manufacturer
+      device->initialize(deviceInfo, deviceManufacturer);
+      
+      printf("Device information added successfully\n");
   
       // 4) Create recording metadata (ElectrodesTable)
       // Build a mock recording array: one array with 4 channels
@@ -97,7 +108,10 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
           recordingArrays.emplace_back(std::move(array1));
       }
   
-      auto elecTableStatus = nwbfile->createElectrodesTable(recordingArrays);
+      // Convert deviceInfo and deviceManufacturer to std::string for createElectrodesTable
+      std::string deviceInfoStr = (deviceInfo != nullptr) ? std::string(deviceInfo) : "";
+      std::string deviceManufacturerStr = (deviceManufacturer != nullptr) ? std::string(deviceManufacturer) : "";
+      auto elecTableStatus = nwbfile->createElectrodesTable(recordingArrays, deviceInfoStr, deviceManufacturerStr);
       if (elecTableStatus != AQNWB::Types::Success) {
           printf("Failed to create electrodes table\n");
           return 1;

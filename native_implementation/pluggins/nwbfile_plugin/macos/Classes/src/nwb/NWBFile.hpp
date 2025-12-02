@@ -102,10 +102,14 @@ public:
    *                        add to the table. This vector should contain all the
    *                        electrodes that are detected by the acquisition
    * system, not only those being actively recorded from.
+   * @param deviceDescription Optional device description (defaults to "description" if empty)
+   * @param deviceManufacturer Optional device manufacturer (defaults to "unknown" if empty)
    * @return Status The status of the object creation operation.
    */
   Status createElectrodesTable(
-      std::vector<Types::ChannelVector> recordingArrays);
+      std::vector<Types::ChannelVector> recordingArrays,
+      const std::string& deviceDescription = "description",
+      const std::string& deviceManufacturer = "unknown");
 
   /**
    * @brief Create ElectricalSeries objects to record data into.

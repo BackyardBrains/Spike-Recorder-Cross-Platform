@@ -1106,7 +1106,7 @@ self.onmessage = async function (eventFromMain) {
 
             } else {
                 isRecording = isFinishRecording;
-                print("samples: ", samples.length, "samplesCount.length: ", samplesCount.length);
+                print("samples ISRECORDING: ", samples.length, "samplesCount.length: ", samplesCount.length);
                 let samplesPtr = NwbModule._malloc(samples.length * Module.HEAP16.BYTES_PER_ELEMENT);
                 let samplesPtrStart = samplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
                 let samplesBufferRecording = Module.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + samples.length));
@@ -1150,7 +1150,7 @@ self.onmessage = async function (eventFromMain) {
                 ['number', 'number', 'number'],
                 [sampleDataPtr, sampleCountsPtr, serialChannelCount]
             );            
-            console.log("PROCESSING SERIAL DATA RESULT: ", resultSerialInject, sampleData, sampleCounts, serialChannelCount);
+            // console.log("PROCESSING SERIAL DATA RESULT: ", resultSerialInject, sampleData, sampleCounts, serialChannelCount);
 
         break;
 
@@ -1365,12 +1365,12 @@ async function makeFilePublicWeb(filePath) {
     }
 
     try {
-        if (FS.existsSync(fileName)) {
+        // if (FS.existsSync(fileName)) {
             const readData = FS.readFile('/' + fileName);
             if (recordingFileWritable) {
                 await recordingFileWritable.write(readData);
             }
-        }
+        // }
     } catch (err) {
         console.error("Error writing to file:", err);
     } finally {

@@ -1481,17 +1481,26 @@ class _GraphTemplateState extends State<GraphTemplate> {
   List<int> serialBuffer = [];
   
   Future<void> portListOnConnect() async {
-    DataStatusProvider dataStatus = context.read<DataStatusProvider>();
-    List<String> listOfPort = Provider.of<PortScanProvider>(context, listen: false).availablePorts;
-    int baudRate = context.read<ConstantProvider>().getBaudRate();
-    print("portListOnConnect listOfPort: $listOfPort");
-    if (listOfPort.isEmpty) {
-      return;
-    }
-    getData = await _serialUtil.openPortToListen(listOfPort.last, baudRate);
-    bool dummyDataStatus = dataStatus.isSampleDataOn;
-    bool isAudioListen = dataStatus.isMicrophoneData;
-    dataStatus.setDeviceDataStatus(true);
+    try {
+      DataStatusProvider dataStatus = context.read<DataStatusProvider>();
+      List<String> listOfPort = Provider.of<PortScanProvider>(context, listen: false).availablePorts;
+      int baudRate = context.read<ConstantProvider>().getBaudRate();
+      print("portListOnConnect listOfPort: $listOfPort");
+      if (listOfPort.isEmpty) {
+        return;
+      }
+      getData = await _serialUtil.openPortToListen(listOfPort.last, baudRate);
+      
+      // Only proceed if connection was successful
+      if (getData == null) {
+        print("Failed to connect to port: ${listOfPort.last}");
+        dataStatus.setDeviceDataStatus(false);
+        return;
+      }
+      
+      bool dummyDataStatus = dataStatus.isSampleDataOn;
+      bool isAudioListen = dataStatus.isMicrophoneData;
+      dataStatus.setDeviceDataStatus(true);
     // var rng = Random();
     // List<int> initialSamples = [];
     // int headIdx = 0;
@@ -1653,6 +1662,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // }
     });
     portName = listOfPort.last;
+    } catch (e) {
+      print("Error in portListOnConnect: $e");
+      DataStatusProvider dataStatus = context.read<DataStatusProvider>();
+      dataStatus.setDeviceDataStatus(false);
+      // Clean up on error
+      _serialUtil.closePort();
+    }
   }
 
   Future<MessageValueSet?> showCommandPopUp(String add) async {
@@ -1964,9 +1980,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
               arr = processingUtil.processThresholdData(tempData, tempData.length, MediaQuery.of(context).size.width.floor(), selectedThresholdChannel, isAverageSamples);
             }
           } else {
-            // print("PROCESS MICROPHONE DATA LOADED 4 : ${GraphTemplate.isLoadingFile}");            
             List<Int16List> tempData = processingUtil.processMicrophoneData(microphoneUtil.micStream.value); 
             tempData.add(Int16List.fromList(tempData[0]));
+            // print("PROCESS MICROPHONE DATA LOADED 4 : ${GraphTemplate.isLoadingFile} || TEMPDATA - $tempData");            
             Int32List samplesCount = Int32List(tempData.length * widget.channelCount);
             
             int counterLen = 0;
@@ -2440,7 +2456,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
       GraphTemplate.isLoadingFile = 1;
 
       print("PROCESSING UTIL: adaptiveAREA SCRUB");
-
       if (isStartOpeningFileWeb) {
         print("SECTION SCRUB NOTIFIER: $isStartOpeningFileWeb");
         AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
@@ -2957,9 +2972,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
           print("foundDevices");
           print(foundDevices);
           // HARDCODE
-          if (foundDevices == "MUSCLESS") {
-            foundDevices = "HEARTSS";
-          }
+          // if (foundDevices == "MUSCLESS") {
+          //   foundDevices = "HEARTSS";
+          // }
           
 
           Provider.of<ConstantProvider>(context, listen: false).setBaudRate(foundDevices == "HHIBOX" ? 500000 : 222222);
@@ -3103,7 +3118,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             if (context.mounted) {
 
             }
-          },                          
+          },
         ));
       }
       

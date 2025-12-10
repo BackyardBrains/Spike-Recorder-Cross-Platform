@@ -154,7 +154,7 @@ class SerialUtilAndroid implements SerialUtil {
       }
       _port = null;
     }
-    print("device ConnectTo: $device");
+    // print("device ConnectTo: $device");
     if (device == null) {
       _device = null;
 

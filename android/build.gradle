@@ -30,6 +30,26 @@ subprojects {
     project.evaluationDependsOn(':app')
 }
 
+// Fix for old plugins missing namespace (required by AGP 8+)
+// Also set Java 17 compatibility for all plugins
+subprojects {
+    pluginManager.withPlugin('com.android.library') {
+        if (android.namespace == null) {
+            def manifest = file("${projectDir}/src/main/AndroidManifest.xml")
+            if (manifest.exists()) {
+                def packageName = new XmlParser().parse(manifest).@package
+                if (packageName) {
+                    android.namespace = packageName
+                }
+            }
+        }
+        android.compileOptions {
+            sourceCompatibility JavaVersion.VERSION_17
+            targetCompatibility JavaVersion.VERSION_17
+        }
+    }
+}
+
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }

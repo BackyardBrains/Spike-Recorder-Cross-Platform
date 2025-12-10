@@ -574,7 +574,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     return processedData;
   }
 
-  int MAX_DISPLAY_SECONDS = 10000;
+  int MAX_DISPLAY_SECONDS = 10;
 
   int channelCount = 1;
   int sampleRate = 10000;

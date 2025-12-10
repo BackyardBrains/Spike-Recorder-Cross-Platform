@@ -35,6 +35,7 @@ import 'package:spikerbox_architecture/models/microphone_stream/microphone_strea
 
 import 'package:another_xlider/another_xlider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:spikerbox_architecture/main.dart';
 
 class GraphTemplate extends StatefulWidget {
   static int isLoadingFile = 0;
@@ -1527,19 +1528,51 @@ class _GraphTemplateState extends State<GraphTemplate> {
         final provider = Provider.of<GraphDataProvider>(context, listen: false);
         int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
         if (isDeviceConnect) {
-          _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: listOfPort.last);
-          isDeviceConnect = false;
+          MyApp.analytics.logEvent(
+            name: 'serial_device_connected',
+            parameters: <String, String>{
+              'device_connected': 'true',
+            },
+          );
+          try {
+            _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: listOfPort.last);
+            isDeviceConnect = false;
+          } catch(err) {
+            print("Error in writeToPort: $err");
+            isDeviceConnect = true;
+          }
         }
         if (_isDataIdentified) {
+          MyApp.analytics.logEvent(
+            name: 'serial_data_identified',
+            parameters: <String, String>{
+              'data_identified': 'true',
+            },
+          );
+
           // return;
           // print("GRAPHTEMPLATE IS LOADING FILE ${GraphTemplate.isLoadingFile}");
           serialNativeDataSubscription(event, isAudioListen);
         } else {
           if (!isDeviceConnect && !isDeviceSelected) {
+            // MyApp.analytics.logEvent(
+            //   name: 'serial_escape_sequence_buffer',
+            //   parameters: <String, String>{
+            //     'escape_sequence_buffer': 'true',
+            //   },
+            // );            
+
             _preEscapeSequenceBuffer.addBytes(event);
           }
-          if (isDeviceSelected) { // !isDeviceConnect &&
+          if (isDeviceSelected) { // !isDeviceConnect &&          
             _isDataIdentified = true;
+            MyApp.analytics.logEvent(
+              name: 'serial_data_initial_identified',
+              parameters: <String, String>{
+                'initial_data_identified': 'true',
+              },
+            );
+            
             // STEVE
             if (!GraphTemplate.isPlayerPaused) {
               List<Int16List> samples = await processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
@@ -1562,6 +1595,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider, 0, (displayTimeMs * 0.001 * _sampleRate).floor());
                 provider.inputListener(Uint8List(0));
               }
+              MyApp.analytics.logEvent(
+                name: 'serial_display_data',
+                parameters: <String, String>{
+                  'display_data': 'true',
+                },
+              );            
+
             } else {
               // await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
               // int fromSample = (-bufferPaddingLeft).toInt();
@@ -2779,7 +2819,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   
   void periodicSerialDataSubscription() {
     periodicTimerSerial?.cancel();
-    periodicTimerSerial =Timer.periodic(Duration(milliseconds: 20), (timer){
+    periodicTimerSerial = Timer.periodic(Duration(milliseconds: 20), (timer){
       bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
       // List<String> listOfPort = Provider.of<PortScanProvider>(context, listen: false).availablePorts;
       serialNativeDataSubscription(Uint8List(0), isAudioListen);

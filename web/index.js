@@ -87,6 +87,11 @@ function initializeModule() {
       console.log("NWB_FILE_CREATED PATH: ", event.data.result);
       window.onNwbFileCreated(event.data.result);
     } else
+    if (event.data.message == "SEEK_NWB_FILE_BUFFER_WEB_CALLBACK_PLAYBACK") {
+      console.log("SEEK_NWB_FILE_BUFFER_WEB_CALLBACK RESULT: ", event.data.message);
+      window.onSeekNwbFileBufferWebCallbackPlayback(event.data.outConfigBuffer, event.data.arrSampleCount, event.data.arrSamples, event.data.isStartOpeningFileWeb);
+      // Note: onSeekNwbFileBufferWebCallback will call onStartOpeningFileWebCallback internally
+    } else
     if (event.data.message == "SEEK_NWB_FILE_BUFFER_WEB_CALLBACK") {
       console.log("SEEK_NWB_FILE_BUFFER_WEB_CALLBACK RESULT: ", event.data.message);
       window.onSeekNwbFileBufferWebCallback(event.data.outConfigBuffer, event.data.arrSampleCount, event.data.arrSamples, event.data.isStartOpeningFileWeb);
@@ -505,6 +510,48 @@ async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, end
   });
 }
 
+async function seekOpeningFileWeb(filePath, startIdx, endIdx, startChannel, endChannel, isStartOpeningFileWeb = false) {
+  console.log("isSeekOpeningFileWeb: ", isStartOpeningFileWeb);
+  if (isStartOpeningFileWeb) {
+    const options = {
+      multiple: false,
+      types: [
+        {
+          description: 'Spike-Recorder',
+          accept: {
+            // 'audio/wav': ['.wav'],
+            // 'text/plain': ['.txt'],
+            'application/zip': ['.nwb'],
+          },
+        },
+      ],
+    };
+    try{
+      fileHandle = null;
+      fileHandle = await window.showOpenFilePicker(options);
+      console.log("fileHandle: ", fileHandle);
+      if (fileHandle == null) {
+        return "File not opened";
+      }
+    }catch(e){
+      console.log("error: ", e);
+      if (fileHandle == null) {
+        return "File not opened";
+      }
+    }
+  }
+  console.log("MWORKER TRY TO POST MESSAGE: ");
+  mWorker.postMessage({
+    "message": "SEEK_OPENING_FILE_WEB",
+    "filePath": fileHandle[0].name,
+    "startIdx": startIdx,
+    "endIdx": endIdx,
+    "startChannel": startChannel,
+    "endChannel": endChannel,
+    "fileHandle": fileHandle[0],
+    "isStartOpeningFileWeb": isStartOpeningFileWeb,
+  });
+}
 
 async function initWithConfig(config) {
   console.log("initWithConfig INDEX.js: ", config);

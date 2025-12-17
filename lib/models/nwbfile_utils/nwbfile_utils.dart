@@ -15,6 +15,7 @@ abstract class NWBFileUtil {
   
   // Callback for file opening completion (used by GraphTemplate)
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
+  Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallbackPlayback;
   
   Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer);
   Future<bool> addElectricalSeries(Int16List data, Int32List samplesCount, int selectedChannel,int channelCount, int isFinishRecording);
@@ -25,5 +26,6 @@ abstract class NWBFileUtil {
   Future<String> recordNewFileLocation();
   
   Future<String> startOpeningFileWeb(String filePath, int startIdx, int endIdx, int startChannel, int endChannel);
+  Future<bool> seekElectricalSeriesWeb(String filePath, Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel);
 }
 

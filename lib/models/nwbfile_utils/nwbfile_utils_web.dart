@@ -14,6 +14,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
   
   @override
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
+  Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallbackPlayback;
   
   void onNwbFileCreatedCallback(String resultString){
     print("onNwbFileCreatedCallback: $resultString");
@@ -40,10 +41,28 @@ class NwbFileUtilImpl implements NWBFileUtil {
     }
   }
   
+  void onSeekNwbFileBufferWebCallbackPlayback(config, arrSampleCount, arrSamples, isStartOpeningFileWeb){
+    // Store config for later use - validate it has at least 10 elements
+    if (config != null && config is List && config.length >= 10) {
+      Int32List configList = Int32List.fromList(config.map((e) => e as int).toList());
+      // Call the GraphTemplate callback with the config and result
+      if (onStartOpeningFileWebCallbackPlayback != null) {
+        // Pass both the config and success status
+        // The config will be used to populate arrConfigWeb in GraphTemplate
+        onStartOpeningFileWebCallbackPlayback!(configList, arrSampleCount, arrSamples, isStartOpeningFileWeb);
+        if (isOpeningFileWeb) {
+          // js.context.callMethod('fillLoadedSamplesToBuffer', [config]);
+        }
+      }
+    } else {
+      // print("WARNING: onSeekNwbFileBufferWebCallback received invalid config: $config (isList: ${config is List}, length: ${config is List ? config.length : 'N/A'})");
+    }
+  }
 
   NwbFileUtilImpl(){
     js.context['onNwbFileCreated'] = onNwbFileCreatedCallback;
     js.context['onSeekNwbFileBufferWebCallback'] = onSeekNwbFileBufferWebCallback;
+    js.context['onSeekNwbFileBufferWebCallbackPlayback'] = onSeekNwbFileBufferWebCallbackPlayback;
     //SEEK_NWB_FILE_BUFFER_WEB_CALLBACK
   }
 
@@ -114,6 +133,13 @@ class NwbFileUtilImpl implements NWBFileUtil {
   
   @override
   Future<bool> readElectricalSeries(Int16List outSamples, Int32List outSamplesCount, int selectedChannel, int channelCount) {
+    return Future.value(true);
+  }
+
+  @override
+  Future<bool> seekElectricalSeriesWeb(String filePath, Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startIdx, int endIdx, int startChannel, int endChannel) async {
+    js.context.callMethod('seekOpeningFileWeb', [filePath, startIdx, endIdx, startChannel, endChannel, false]);
+    isOpeningFileWeb = true;
     return Future.value(true);
   }
 
@@ -245,6 +271,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
     isOpeningFileWeb = true;
     return Future.value("");
   }
+  
 
   
 }

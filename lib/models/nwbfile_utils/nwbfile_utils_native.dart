@@ -255,6 +255,12 @@ class NwbFileUtilImpl implements NWBFileUtil {
     return Future.value("");
     
   }
+  
+  @override
+  Future<bool> seekElectricalSeriesWeb(String filePath, Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {
+    // TODO: implement seekElectricalSeriesWeb
+    return Future.value(true);
+  }
 
 }
 

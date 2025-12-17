@@ -2359,6 +2359,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
 
     if (_pendingPlayback) {
+      bool isAudioListenPlayback = context.read<DataStatusProvider>().isMicrophoneData;
+      if (isAudioListenPlayback) {
+        print("loadedArrSamples[0].length");
+        print(loadedArrSamples[0].length);
+        // List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples[0].buffer.asUint8List());
+      }
       int combinedIdx = 0;
       int totalChannelCount = loadedConfig[1];
       loadedArrSamples.clear();
@@ -2395,6 +2401,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       GraphTemplate.isLoadingFile = 3;
       loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
       await processingUtil.initWithConfig(loadedConfig);
+
       double maxScreenSamples = ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate; 
       double startSeekSample = startPlaybackSeekSampleIdx.toDouble();
       print("START SEEK SAMPLE INITIAL 0000 $startPlaybackSeekSampleIdx ${arrSampleCount[0].floor()} == $loadedMaxSamples");
@@ -2458,7 +2465,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       Provider.of<ConstantProvider>(context, listen: false).setChannelCount(widget.channelCount);     
       Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(sampleRateConfig);     
       ProcessingUtil.initializeDevice.value = 1;
-      context.read<ChannelColorProvider>().setSerialChannelCount(widget.channelCount);
+      context.read<ChannelColorProvider>().setSerialChannelCount(
+          widget.channelCount);
       periodicSerialDataSubscription();
       // }
     } else {
@@ -3589,6 +3597,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       } else {
         await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startPlaybackSeekSampleIdx).floor(), (loadedMaxSamples).floor(), 0, widget.channelCount - 1);
       }
+      
       int combinedIdx = 0;
       int totalChannelCount = loadedConfig[1];
       loadedArrSamples.clear();

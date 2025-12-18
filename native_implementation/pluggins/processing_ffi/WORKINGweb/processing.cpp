@@ -71,7 +71,7 @@ short* _ptrExpBoardType;
 static constexpr int32_t PROCESSING_MAX_EVENTS = 100;  // Same as MAX_EVENTS in SampleStreamProcessor
 static constexpr int32_t MAX_NUMBER_OF_SECONDS = 10;  // 10 seconds of buffer
 static constexpr int32_t BUFFER_MULTIPLIER = 1;
-
+static constexpr int32_t MAX_DRAW_SURFACE_WIDTH = 4096; 
 // Internal state variables
 static bool isProcessThresholding = false;
 static bool initialized = false;
@@ -1167,17 +1167,42 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
 
         // Get the channel count from our global state
         int32_t channel_count = current_channel_count;
-        
+        // Cap draw_surface_width to prevent OOM on high-DPI devices (e.g., Pixel Tablet)
+        if (draw_surface_width > MAX_DRAW_SURFACE_WIDTH) {
+            draw_surface_width = MAX_DRAW_SURFACE_WIDTH;
+        }
         // Calculate sample count
         int32_t sample_count = current_sample_rate * MAX_NUMBER_OF_SECONDS;
         int32_t sample_out_count= draw_surface_width * 5;//experimentally found
         
         // Create temporary buffers
-        auto** temp_samples = new int16_t*[channel_count];
-        auto** float_samples = new float*[channel_count];
+        auto** temp_samples = new (std::nothrow) int16_t*[channel_count];
+        auto** float_samples = new (std::nothrow) float*[channel_count];
+        if (!temp_samples || !float_samples) {
+            delete[] temp_samples;
+            delete[] float_samples;
+            return -4; // Memory allocation failed
+        }
+        
+        // Initialize pointers to nullptr for safe cleanup on allocation failure
         for (int i = 0; i < channel_count; i++) {
-            temp_samples[i] = new int16_t[sample_count];
-            float_samples[i] = new float[sample_out_count];
+            temp_samples[i] = nullptr;
+            float_samples[i] = nullptr;
+        }
+        
+        for (int i = 0; i < channel_count; i++) {
+            temp_samples[i] = new (std::nothrow) int16_t[temp_buffer_size];
+            float_samples[i] = new (std::nothrow) float[sample_out_count];
+            if (!temp_samples[i] || !float_samples[i]) {
+                // Allocation failed - clean up and return error
+                for (int j = 0; j <= i; j++) {
+                    delete[] temp_samples[j];
+                    delete[] float_samples[j];
+                }
+                delete[] temp_samples;
+                delete[] float_samples;
+                return -4; // Memory allocation failed
+            }
         }
         
   
@@ -1272,6 +1297,7 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
         // }, circularBuffer->headIndex[0]);
         // }, _out_samples[0], out_samples[0][0], sample_count, sample_out_count, out_sample_counts[0]);
         // return -100;
+        out_event_count[0] = outEventCount;
         
         return 0;
     } catch (...) {

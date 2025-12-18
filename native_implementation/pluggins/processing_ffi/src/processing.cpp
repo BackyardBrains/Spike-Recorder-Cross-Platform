@@ -587,11 +587,8 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
 
 
 
-        delete[] event_indices;
-        delete[] event_labels;
-        // DEBUG STEVE
-        return event_indices[0];
-        // return out_sample_counts[0];
+        
+        return 0; // Success
     } catch (...) {
         return -3;
     }
@@ -1665,14 +1662,21 @@ PROCESSING_API int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw
         std::copy(inSamplesRaw + i * samplesCountRaw[i], inSamplesRaw + (i + 1) * samplesCountRaw[i], inSamples[i]);
     }
 
-
+    int32_t result = 0;
     try {
         circularBuffer->setup(current_sample_rate, current_channel_count);
         circularBuffer->addData(inSamples, samplesCountRaw);
-        return 0;
     } catch (...) {
-        return -3;
+        result = -3;
     }
+
+    // Clean up allocated memory
+    for (int i = 0; i < channelCount; i++) {
+        delete[] inSamples[i];
+    }
+    delete[] inSamples;
+    
+    return result;
 }
 
 
@@ -1689,10 +1693,19 @@ PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* s
     }
     // platform_log_processing("Channel 1 Length - %d | Channel 2 Length %d\n", samplesCountRaw[0], samplesCountRaw[1]);
     // platform_log_processing("Channel 1 Value - %d | Channel 2 Value %d\n", inSamples[0][0], inSamples[1][0]);
+    
+    int32_t result = 0;
     try {
         circularBuffer->addData(inSamples, samplesCountRaw);
-        return 0;
     } catch (...) {
-        return -3;
+        result = -3;
     }
+
+    // Clean up allocated memory
+    for (int i = 0; i < channelCount; i++) {
+        delete[] inSamples[i];
+    }
+    delete[] inSamples;
+
+    return result;
 }

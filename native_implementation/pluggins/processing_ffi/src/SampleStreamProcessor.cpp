@@ -226,7 +226,8 @@ namespace backyardbrains {
                     applyFilters(i, channels[i], sampleCounters[i]);
                 // }
 
-                outSamples[i] = new short[sampleCounters[i]];
+                // STEVANUS FIX
+                // outSamples[i] = new short[sampleCounters[i]];
                 std::copy(channels[i], channels[i] + sampleCounters[i], outSamples[i]);
                 outSampleCounts[i] = sampleCounters[i];
             }

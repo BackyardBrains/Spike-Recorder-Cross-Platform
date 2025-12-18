@@ -54,6 +54,7 @@ class GraphTemplate extends StatefulWidget {
 
 class _GraphTemplateState extends State<GraphTemplate> {
   List<double> bufferPos = [0, 0];
+  var seekElectricalSeriesWebCompleter = Completer<Map<String, dynamic>>(); 
 
   var envelopeSizes = [];
   List<int> skipCounts = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512];
@@ -311,35 +312,44 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (endSeekSample == startSeekSample && endSeekSample == 0) {
         endSeekSample = 1;  
       }
-      bool? seekFlag = await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, widget.channelCount - 1);
-      print("SCRUB NOTIFIER: WIDGET CHANNEL COUNT: $widget.channelCount | Percentage: $percentage @@@ Config: $loadedConfig ||| scrubNotifier: ${timeScrub} ${(arrSamplesLength * percentage).floor()}, ${(arrSamplesLength - startSeekSample).floor()}");
       // if (seekFlag != null && !seekFlag) {
       //   print("SEEK FAILED");
       //   return;
       // }
 
       if (!kIsWeb) {
-
-        int combinedIdx = 0;
-        int totalChannelCount = loadedConfig[1];
-        loadedArrSamples.clear();
-        loadedArrChannelCount = (Int32List(widget.channelCount));
-        for (int i = 0; i < widget.channelCount; i++) {
-          // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
-          double initialSampleCount = arrSampleCount[i].toDouble();
-          if (arrSamples.length >= combinedIdx + initialSampleCount) {
-            // print("LOADED ARR SAMPLES INTERUPTED: $initialSampleCount + $combinedIdx ?? ${arrSamples.length}");
-            loadedArrSamples.add(Int16List(initialSampleCount.floor()));
-            loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
-            // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
-            loadedArrChannelCount[i] = initialSampleCount.floor();
-            combinedIdx += initialSampleCount.floor();
-          }
-        }
-        loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
-        processingUtil.initWithConfig(loadedConfig);
-        
+        bool? seekFlag = await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, widget.channelCount - 1);
+        print("SCRUB NOTIFIER: WIDGET CHANNEL COUNT: $widget.channelCount | Percentage: $percentage @@@ Config: $loadedConfig ||| scrubNotifier: ${timeScrub} ${(arrSamplesLength * percentage).floor()}, ${(arrSamplesLength - startSeekSample).floor()}");
+      } else {
+        seekElectricalSeriesWebCompleter = Completer<Map<String, dynamic>>(); 
+        await GraphTemplate.nwbFileUtil?.seekElectricalSeriesWeb(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startSeekSample).floor(), endSeekSample.floor(), 0, widget.channelCount - 1);
+        Map<String, dynamic> map = await seekElectricalSeriesWebCompleter.future;
+        arrSamples = map['arrSamples'];
+        arrSampleCount = map['arrSampleCount'];
+        loadedConfig = map['loadedConfig'];
       }
+
+      int combinedIdx = 0;
+      int totalChannelCount = loadedConfig[1];
+      loadedArrSamples.clear();
+      loadedArrChannelCount = (Int32List(widget.channelCount));
+      print("Scrub : ${widget.channelCount} | arrSamples: ${arrSamples.length} | arrSampleCount: ${arrSampleCount} | combinedIdx: $combinedIdx");
+      for (int i = 0; i < widget.channelCount; i++) {
+        // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
+        double initialSampleCount = arrSampleCount[0].toDouble();
+        if (arrSamples.length >= combinedIdx + initialSampleCount) {
+          // print("LOADED ARR SAMPLES INTERUPTED: $initialSampleCount + $combinedIdx ?? ${arrSamples.length}");
+          loadedArrSamples.add(Int16List(initialSampleCount.floor()));
+          loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
+          // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
+          loadedArrChannelCount[i] = initialSampleCount.floor();
+          combinedIdx += initialSampleCount.floor();
+        }
+      }
+      loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
+      processingUtil.initWithConfig(loadedConfig);
+      
+
       GraphTemplate.isLoadingFile = 1;
       GraphTemplate.isPlayerPaused = true;
 
@@ -2357,228 +2367,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
       print("ERROR: Invalid config in startOpeningFileWebCallback: $config (type: ${config.runtimeType}, length: ${config is List ? config.length : 'N/A'})");
       return;
     }
-
-    if (_pendingPlayback) {
-      bool isAudioListenPlayback = context.read<DataStatusProvider>().isMicrophoneData;
-      if (isAudioListenPlayback) {
-        print("loadedArrSamples[0].length");
-        print(loadedArrSamples[0].length);
-        // List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples[0].buffer.asUint8List());
-      }
-      int combinedIdx = 0;
-      int totalChannelCount = loadedConfig[1];
-      loadedArrSamples.clear();
-      loadedArrChannelCount = (Int32List(widget.channelCount));
-      for (int i = 0; i < widget.channelCount; i++) {
-        // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
-        double initialSampleCount = arrSampleCount[i].toDouble();
-        loadedArrSamples.add(Int16List(initialSampleCount.floor()));
-        loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
-        // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
-        loadedArrChannelCount[i] = initialSampleCount.floor();
-        combinedIdx += initialSampleCount.floor();
-        soloud!.addAudioDataStream(loadedFileStreams[i]!, loadedArrSamples[i].buffer.asUint8List());
-      }
-
-      print("ADDED DATA STREAM Channel Count: ${widget.channelCount}");
-
-      // Start playback timer (non-web path)
-      _startPlaybackTimer();
-      
-      Future.delayed(Duration(milliseconds: 100), () {
-        loadedSoundHandles.clear();
-        for (int i = 0; i < widget.channelCount; i++) {
-          soloud!.play(loadedFileStreams[i]!).then((soundHandle) {
-            loadedSoundHandles.add(soundHandle);
-            // loadedSoundHandles[i] = soundHandle;
-          });
-        }
-      });
-      
-      print("ADDED DATA STREAM2");
-
-
-      GraphTemplate.isLoadingFile = 3;
-      loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
-      await processingUtil.initWithConfig(loadedConfig);
-
-      double maxScreenSamples = ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate; 
-      double startSeekSample = startPlaybackSeekSampleIdx.toDouble();
-      print("START SEEK SAMPLE INITIAL 0000 $startPlaybackSeekSampleIdx ${arrSampleCount[0].floor()} == $loadedMaxSamples");
-      if (startPlaybackSeekSampleIdx > 0 && arrSampleCount[0].floor() > 0) {
-        int startInitialIndex = (startPlaybackSeekSampleIdx ~/ maxScreenSamples.floor()) * maxScreenSamples.floor();
-        int endInitialIndex = (startSeekSample % maxScreenSamples.floor()).floor();
-        Int32List arrSampleCountInitial = Int32List(widget.channelCount);
-        Int16List arrSamplesInitial = Int16List(endInitialIndex * widget.channelCount);
-
-        bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
-        if (isAudioListen) {
-          // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, 0);
-          Int16List tempLoadedArrSamples = Int16List(arrSampleCountInitial[0].floor());
-          tempLoadedArrSamples.setAll(0, arrSamplesInitial.sublist(0, arrSampleCountInitial[0].floor()));
-          processingUtil.processMicrophoneData(tempLoadedArrSamples.buffer.asUint8List());
-          print("----> START SEEK SAMPLE INITIAL : $startInitialIndex |=| ${(startSeekSample % maxScreenSamples.floor()).floor()} | ${arrSampleCountInitial[0].floor()} |  ${tempLoadedArrSamples.length} |||| ${tempLoadedArrSamples.buffer.asUint8List().length}");
-          microphoneUtil.micStream.value = Uint8List(0);
-        } else {
-          // FIX TOMORROW
-          // await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, widget.channelCount - 1);
-          print("FIX TOMORROW: arrSamplesInitial: ${arrSamplesInitial.length} ||| arrSampleCountInitial: ${arrSampleCountInitial} ||| endInitialIndex: ${arrSampleCountInitial[0]}");
-          List<Int16List> sublistArray = [];
-          for (int i = 0; i < widget.channelCount; i++) {
-            int samplesPerChannelLength = arrSampleCountInitial[i].floor();
-            sublistArray.add(arrSamplesInitial.sublist(i * samplesPerChannelLength, (i + 1) * samplesPerChannelLength));
-            // soloud!.addAudioDataStream(loadedFileStream!, sublistArray);
-          }
-
-          int channelIdx = 0;
-          Int32List samplesCount = Int32List(sublistArray.length);
-          Int16List flattenedList = Int16List.fromList(sublistArray.expand((list) {
-            samplesCount[channelIdx] = sublistArray[channelIdx].length;
-            // print("SAMPLES COUNT: ${samplesCount[channelIdx]}");
-            channelIdx++;
-            return list;
-          }).toList());
-
-          processingUtil.processingSerialDataResult(flattenedList, samplesCount, widget.channelCount);
-        }
-      } else {
-        GraphTemplate.isLoadingFile = 4;
-        // microphoneUtil.micStream.value = Uint8List(0);
-      }
-      return;      
-    }
-    loadedConfig.setAll(0, config);
-    widget.channelCount = config[1];
-    loadedMaxSamples = config[5].toDouble();
-    int sampleRateConfig = config[0];
-    _sampleRate = sampleRateConfig;
-    loadedMaxSamples = config[5].toDouble();
-    isOpeningFile = true;
-    
-    // STEVE: FIX THIS HARDCODED STUFF
-    // config[6] might not be set if device detection fails, default to 0 (audio)
-    int isSerialDevice = (config.length > 6) ? config[6] : 0;
-    // int isSerialDevice = 0;
-    print("IS SERIAL DEVICE : $isSerialDevice | CHANNEL COUNT: ${widget.channelCount}");
-    if (isSerialDevice == 1) {
-      context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
-      Provider.of<ConstantProvider>(context, listen: false).setChannelCount(widget.channelCount);     
-      Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(sampleRateConfig);     
-      ProcessingUtil.initializeDevice.value = 1;
-      context.read<ChannelColorProvider>().setSerialChannelCount(
-          widget.channelCount);
-      periodicSerialDataSubscription();
-      // }
-    } else {
-      context.read<DataStatusProvider>().setMicrophoneDataStatus(true);
-      Provider.of<ConstantProvider>(context, listen: false).setChannelCount(widget.channelCount);     
-      Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(sampleRateConfig);     
-      ProcessingUtil.initializeDevice.value = 0;
-      context.read<ChannelColorProvider>().setAudioChannelCount(widget.channelCount);
-      periodicTimerSerial?.cancel();
-    }
-    print("Loaded Max Samples : $loadedMaxSamples -- ${_sampleRate}");
-
-
-    loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
-    // print("INIT WITH CONFIG: $loadedConfig");
-    // await processingUtil.initWithConfig(loadedConfig);    
-    // print("INIT WITH CONFIG FIN: $loadedConfig");
-    
-    // Validate arrSampleCount and arrSamples before processing
-    if (arrSampleCount == null || arrSamples == null) {
-      print("ERROR: arrSampleCount or arrSamples is null. arrSampleCount: $arrSampleCount, arrSamples: $arrSamples");
-      return;
-    }
-    
-    // Convert JavaScript arrays to Dart typed lists if needed
-    Int32List? arrSampleCountList;
-    Int16List? arrSamplesList;
-    
-    if (arrSampleCount is List) {
-      arrSampleCountList = Int32List.fromList(arrSampleCount.map((e) => e as int).toList());
-    } else if (arrSampleCount is Int32List) {
-      arrSampleCountList = arrSampleCount;
-    } else {
-      print("ERROR: arrSampleCount is not a valid type: ${arrSampleCount.runtimeType}");
-      return;
-    }
-    
-    if (arrSamples is List) {
-      arrSamplesList = Int16List.fromList(arrSamples.map((e) => e as int).toList());
-    } else if (arrSamples is Int16List) {
-      arrSamplesList = arrSamples;
-    } else {
-      print("ERROR: arrSamples is not a valid type: ${arrSamples.runtimeType}");
-      return;
-    }
-    
-    // Validate array sizes
-    // if (arrSampleCountList.length < widget.channelCount) {
-    //   print("ERROR: arrSampleCount length (${arrSampleCountList.length}) is less than channelCount (${widget.channelCount})");
-    //   return;
-    // }
-    print("Validate Array Sizes 2");    
-    int combinedIdx = 0;
-    // int totalChannelCount = loadedConfig[1];
-    loadedArrSamples.clear();
-    loadedArrChannelCount = (Int32List(widget.channelCount));
-    print("ZZZ|| arrSampleCount: ${arrSampleCount}");
-
-    for (int i = 0; i < widget.channelCount; i++) {
-      // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
-      double initialSampleCount = arrSampleCountList != null ? arrSampleCountList[0].toDouble() : arrSampleCount[0].toDouble();
-      loadedArrSamples.add(Int16List(initialSampleCount.floor()));
-      if (isStartOpeningFileWeb) {
-      } else {
-        if (arrSamplesList != null && arrSamplesList.length >= combinedIdx + initialSampleCount.floor()) {
-          loadedArrSamples[i].setAll(0, arrSamplesList.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
-        } else if (arrSamples is List && (arrSamples as List).length >= combinedIdx + initialSampleCount.floor()) {
-          Int16List tempList = Int16List.fromList((arrSamples as List).sublist(combinedIdx, combinedIdx + initialSampleCount.floor()).map((e) => e as int).toList());
-          loadedArrSamples[i].setAll(0, tempList);
-        }
-      }
-      // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
-      loadedArrChannelCount[i] = initialSampleCount.floor();
-      combinedIdx += initialSampleCount.floor();
-    }        
-    print("Loaded Arr Samples Status: ${loadedArrSamples.length} || arrSampleCount: ${arrSampleCount}");
-    
-    // Reset processing buffer when scrubbing (not initial file opening)
-    if (!isStartOpeningFileWeb && kIsWeb) {
-      loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
-      await processingUtil.initWithConfig(loadedConfig);
-    }
-
-    // Handle pending playback setup when data is ready (web only)
-
-    Future.delayed(Duration(milliseconds: 300), () {
-      GraphTemplate.isPlayerPaused = true;
-      print("START OPENING FILE WEB CALLBACK: ${GraphTemplate.isPlayerPaused}");
-      if (isSerialDevice == 0) {
-        microphoneUtil.micStream.value = Uint8List(0);
-      }
-      if (!_pendingPlayback) {
-        Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
-        GraphTemplate.isLoadingFile = 1;
-      }
-
-      print("PROCESSING UTIL: adaptiveAREA SCRUB");
-      if (isStartOpeningFileWeb) {
-        print("SECTION SCRUB NOTIFIER: $isStartOpeningFileWeb");
-        AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
-        // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
-        double scrubMaxWidth = MediaQuery.of(context).size.width - 100 - 20;
-        AdaptiveAreaState.horizontalDragX = scrubMaxWidth * 0.3;
-        scrubNotifier.value = [ (scrubMaxWidth * 0.3), scrubMaxWidth];
-        streamScrubBuilderController.add(Random().nextInt(100000));
-      }
-
-      setState(() {
-      });
-    });
-    return;    
-    
+    Map<String, dynamic> map = {};
+    map["arrSamples"] = arrSamples;
+    map["arrSampleCount"] = arrSampleCount;
+    map["loadedConfig"] = config;
+    seekElectricalSeriesWebCompleter.complete(map);
   }
 
   void startOpeningFileWebCallback(config, arrSampleCount, arrSamples, isStartOpeningFileWeb) async {
@@ -2590,6 +2383,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
     loadedConfig.setAll(0, config);
     widget.channelCount = config[1];
+    print("CONFIG WEB CALLBACK: $config");
     loadedMaxSamples = config[5].toDouble();
     int sampleRateConfig = config[0];
     _sampleRate = sampleRateConfig;
@@ -2635,6 +2429,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // Convert JavaScript arrays to Dart typed lists if needed
     Int32List? arrSampleCountList;
     Int16List? arrSamplesList;
+
+    // seekElectricalSeriesWebCompleter = Completer<Map<String, dynamic>>(); 
+    // await GraphTemplate.nwbFileUtil?.seekElectricalSeriesWeb(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, 0, 1, 0, 0);
+    // Map<String, dynamic> map = await seekElectricalSeriesWebCompleter.future;
+    // arrSamplesList = map['arrSamples'];
+    // arrSampleCountList = map['arrSampleCount'];
+    // print("RELOAD with correct paramter: ${map['loadedConfig']}");
+    // loadedConfig = map['loadedConfig'];
     
     if (arrSampleCount is List) {
       arrSampleCountList = Int32List.fromList(arrSampleCount.map((e) => e as int).toList());
@@ -3496,7 +3298,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _toPauseGraph = isPlay;
     print("setGraphResumePlay PLAYBACK PAUSE BUTTON 44");
     GraphTemplate.isPlayerPaused = !isPlay;
-    print("setGraphResumePlay GraphTemplate.isPlayerPaused");
+    print("setGraphResumePlay GraphTemplate.isPlayerPaused | SAMPLE RATEZ: $_sampleRate");
 
 
     if (soloud == null) {
@@ -3505,7 +3307,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
         sampleRate: _sampleRate,
         channels: SoLoud.Channels.mono,
       );
-      
     }
     print("setGraphResumePlay GraphTemplate.isPlayerPaused 2");    
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
@@ -3513,7 +3314,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
     if (!isPlay) {
       // print("STOP SOUND | ${widget.channelCount} | ::: ${soloud?.getStreamTimeConsumed(loadedFileStreams[0]!)}");
       timerPlaybackLoadedFile?.cancel();
-      
 
       if (soloud != null) {
         // double maxSamplesTime = loadedMaxSamples / _sampleRate * 1000;
@@ -3592,7 +3392,120 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (kIsWeb) {
         _pendingPlayback = true;
         _pendingPlaybackStartIdx = startPlaybackSeekSampleIdx;
+        seekElectricalSeriesWebCompleter = Completer<Map<String, dynamic>>(); 
+        
+        // Filling SoLoud buffer with samples
         await GraphTemplate.nwbFileUtil?.seekElectricalSeriesWeb(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startPlaybackSeekSampleIdx).floor(), (loadedMaxSamples).floor(), 0, widget.channelCount - 1);
+        await seekElectricalSeriesWebCompleter.future.then((map) async {
+          arrSamples = map['arrSamples'];
+          arrSampleCount = map['arrSampleCount'];
+          loadedConfig = map['loadedConfig'];
+          print("SEEK ELECTRICAL SERIES WEB COMPLETED: $loadedConfig");
+
+          int combinedIdx = 0;
+          int totalChannelCount = loadedConfig[1];
+          loadedArrSamples.clear();
+          loadedArrChannelCount = (Int32List(widget.channelCount));
+          try {
+            for (int i = 0; i < widget.channelCount; i++) {
+              // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
+              // HARDCODE!
+              double initialSampleCount = arrSampleCount[0].toDouble();
+              loadedArrSamples.add(Int16List(initialSampleCount.floor()));
+              loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
+              // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
+              loadedArrChannelCount[i] = initialSampleCount.floor();
+              combinedIdx += initialSampleCount.floor();
+              soloud!.addAudioDataStream(loadedFileStreams[i]!, loadedArrSamples[i].buffer.asUint8List());
+            }
+          }catch(err) {
+            print("ERR: $err | arrSampleCount: $arrSampleCount -- channelCount: ${widget.channelCount}");
+          }
+
+          print("ADDED DATA STREAM Channel Count: ${widget.channelCount}");
+
+          // Start playback timer (non-web path)
+          
+          Future.delayed(Duration(milliseconds: 100), () {
+            loadedSoundHandles.clear();
+            for (int i = 0; i < widget.channelCount; i++) {
+              soloud!.play(loadedFileStreams[i]!).then((soundHandle) {
+                loadedSoundHandles.add(soundHandle);
+                // loadedSoundHandles[i] = soundHandle;
+              });
+            }
+          });
+          
+          print("ADDED DATA STREAM2");
+
+
+          GraphTemplate.isLoadingFile = 3;
+          loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
+          await processingUtil.initWithConfig(loadedConfig);
+          print("START SEEK SAMPLE INITIAL 0000 $startPlaybackSeekSampleIdx ${arrSampleCount[0].floor()} == $loadedMaxSamples");
+          if (startPlaybackSeekSampleIdx > 0 && arrSampleCount[0].floor() > 0) {
+            int startInitialIndex = (startPlaybackSeekSampleIdx ~/ maxScreenSamples.floor()) * maxScreenSamples.floor();
+            int endInitialIndex = (startSeekSample % maxScreenSamples.floor()).floor();
+            Int32List arrSampleCountInitial = Int32List(widget.channelCount);
+            Int16List arrSamplesInitial = Int16List(endInitialIndex * widget.channelCount);
+
+            // hardcode
+
+            bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+            if (isAudioListen) {
+              seekElectricalSeriesWebCompleter = Completer<Map<String, dynamic>>(); 
+              await GraphTemplate.nwbFileUtil?.seekElectricalSeriesWeb(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, 0);
+              Map<String, dynamic> map = await seekElectricalSeriesWebCompleter.future;
+              print("SEEK ELECTRICAL SERIES WEB COMPLETED2: $map | $startInitialIndex | $endInitialIndex");
+              arrSamplesInitial = map['arrSamples'];
+              arrSampleCountInitial = map['arrSampleCount'];
+              var loadedConfigLocal = map['loadedConfig'];
+
+              Int16List tempLoadedArrSamples = Int16List(arrSampleCountInitial[0].floor());
+              tempLoadedArrSamples.setAll(0, arrSamplesInitial.sublist(0, arrSampleCountInitial[0].floor()));
+              processingUtil.processMicrophoneData(tempLoadedArrSamples.buffer.asUint8List());
+              print("----> START SEEK SAMPLE INITIAL : $startInitialIndex |=| ${(startSeekSample % maxScreenSamples.floor()).floor()} | ${arrSampleCountInitial[0].floor()} |  ${tempLoadedArrSamples.length} |||| ${tempLoadedArrSamples.buffer.asUint8List().length}");
+              microphoneUtil.micStream.value = Uint8List(0);
+
+            } else {
+              // FIX TOMORROW
+              seekElectricalSeriesWebCompleter = Completer<Map<String, dynamic>>(); 
+              await GraphTemplate.nwbFileUtil?.seekElectricalSeriesWeb(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, widget.channelCount - 1);
+              Map<String, dynamic> map = await seekElectricalSeriesWebCompleter.future;
+              arrSamplesInitial = map['arrSamples'];
+              arrSampleCountInitial = map['arrSampleCount'];
+              var loadedConfigLocal = map['loadedConfig'];
+
+              print("FIX TOMORROW: arrSamplesInitial: Widget Channel Length: ${widget.channelCount} ||| arrSamplesInitial: ${arrSamplesInitial.length} ||| arrSampleCountInitial: ${arrSampleCountInitial} ||| endInitialIndex: ${arrSampleCountInitial[0]}");
+              List<Int16List> sublistArray = [];
+              for (int i = 0; i < widget.channelCount; i++) {
+                // HARDCODE!
+                int samplesPerChannelLength = arrSampleCountInitial[0].floor();
+                sublistArray.add(arrSamplesInitial.sublist(i * samplesPerChannelLength, (i + 1) * samplesPerChannelLength));
+                // soloud!.addAudioDataStream(loadedFileStream!, sublistArray);
+              }
+
+              int channelIdx = 0;
+              Int32List samplesCount = Int32List(sublistArray.length);
+              Int16List flattenedList = Int16List.fromList(sublistArray.expand((list) {
+                samplesCount[channelIdx] = sublistArray[channelIdx].length;
+                // print("SAMPLES COUNT: ${samplesCount[channelIdx]}");
+                channelIdx++;
+                return list;
+              }).toList());
+
+              processingUtil.processingSerialDataResult(flattenedList, samplesCount, widget.channelCount);
+            }
+          } else {
+            GraphTemplate.isLoadingFile = 4;
+            // microphoneUtil.micStream.value = Uint8List(0);
+          }
+          _startPlaybackTimer();
+
+          // soloud!.addAudioDataStream(loadedFileStream!, loadedArrSamples.buffer.asUint8List());
+                 
+
+        });
         return;
       } else {
         await GraphTemplate.nwbFileUtil?.seekElectricalSeries(currentLoadedFilePath, arrSamples, arrSampleCount, loadedConfig, (startPlaybackSeekSampleIdx).floor(), (loadedMaxSamples).floor(), 0, widget.channelCount - 1);

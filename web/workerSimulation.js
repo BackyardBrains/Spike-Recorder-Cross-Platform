@@ -527,7 +527,7 @@ self.onmessage = async function (eventFromMain) {
             let windowSizeFft = (FFT_30HZ_LENGTH * FFT_WINDOW_TIME_LENGTH);
       
             try {
-                processFftMicrophoneData(channelCount, selectedChannel, windowCountFft, windowSizeFft, [inSamplesBuffer], outSampleCountsBuffer);
+                // processFftMicrophoneData(channelCount, selectedChannel, windowCountFft, windowSizeFft, [inSamplesBuffer], outSampleCountsBuffer);
             }catch(err) {
                 console.log("err: ", err);
                 return
@@ -548,6 +548,8 @@ self.onmessage = async function (eventFromMain) {
                 samplesCtrBuffer[0] = samplesLength;
 
                 NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, 1, isRecording);
+                NwbModule._free(samplesPtr);
+                NwbModule._free(samplesCtrPtr);
             }
             if (isThresholding) {
             

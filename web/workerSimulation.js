@@ -1230,7 +1230,7 @@ self.onmessage = async function (eventFromMain) {
                 let samplesLength = endIdx - startIdx;
                 let loadedChannelCount = endChannel - startChannel + 1; // +1 because endChannel is inclusive
                 let loadedOutSamples = NwbModule._malloc(loadedChannelCount * samplesLength * NwbModule.HEAP16.BYTES_PER_ELEMENT);
-                let loadedOutSamplesCount = NwbModule._malloc(tempLoadedChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
+                let loadedOutSamplesCount = NwbModule._malloc(loadedChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
                 let loadedOutConfig = NwbModule._malloc(10 * NwbModule.HEAP32.BYTES_PER_ELEMENT);
                 console.log("!!@!!seekNwbFileBufferWeb == loadedChannelCount", loadedChannelCount);
                 seekNwbFileBufferWeb(fileName, loadedOutSamples, loadedOutSamplesCount, loadedOutConfig, startIdx, endIdx, startChannel, endChannel, samplesLength, isStartOpeningFileWeb, true);
@@ -1542,7 +1542,7 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
 
     let outSamplesCountStart = outSamplesCount / NwbModule.HEAP32.BYTES_PER_ELEMENT;
     let outSamplesCountBuffer = NwbModule.HEAP32.subarray(outSamplesCountStart, (outSamplesCountStart + tempLoadedChannelCount));
-    // console.log("outSamplesCountBuffer", outSamplesCountBuffer);
+    console.log("outSamplesCountBuffer", outSamplesCountBuffer);
 
     // loadedSamplesBuffer = (outSamplesBuffer).slice();
     // loadedSamplesCountBuffer = (outSamplesCountBuffer).slice();

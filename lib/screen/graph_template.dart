@@ -336,7 +336,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       print("Scrub : ${widget.channelCount} | arrSamples: ${arrSamples.length} | arrSampleCount: ${arrSampleCount} | combinedIdx: $combinedIdx");
       for (int i = 0; i < widget.channelCount; i++) {
         // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
-        double initialSampleCount = arrSampleCount[0].toDouble();
+        // double initialSampleCount = arrSampleCount[0].toDouble();
+        double initialSampleCount = arrSampleCount[i].toDouble();
         if (arrSamples.length >= combinedIdx + initialSampleCount) {
           // print("LOADED ARR SAMPLES INTERUPTED: $initialSampleCount + $combinedIdx ?? ${arrSamples.length}");
           loadedArrSamples.add(Int16List(initialSampleCount.floor()));
@@ -3410,7 +3411,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             for (int i = 0; i < widget.channelCount; i++) {
               // double initialSampleCount = arrSampleCount[i].floor() / totalChannelCount;
               // HARDCODE!
-              double initialSampleCount = arrSampleCount[0].toDouble();
+              double initialSampleCount = arrSampleCount[i].toDouble();
               loadedArrSamples.add(Int16List(initialSampleCount.floor()));
               loadedArrSamples[i].setAll(0, arrSamples.sublist(combinedIdx, combinedIdx + initialSampleCount.floor()));
               // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
@@ -3426,15 +3427,28 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
           // Start playback timer (non-web path)
           
-          Future.delayed(Duration(milliseconds: 100), () {
-            loadedSoundHandles.clear();
+          loadedSoundHandles.clear();
+          if (isAudioListen) {
             for (int i = 0; i < widget.channelCount; i++) {
               soloud!.play(loadedFileStreams[i]!).then((soundHandle) {
                 loadedSoundHandles.add(soundHandle);
                 // loadedSoundHandles[i] = soundHandle;
               });
             }
-          });
+            // Future.delayed(Duration(milliseconds: 100), () {
+              _startPlaybackTimer();
+            // });
+          } else {
+            for (int i = 0; i < widget.channelCount; i++) {
+              soloud!.play(loadedFileStreams[i]!).then((soundHandle) {
+                loadedSoundHandles.add(soundHandle);
+                // loadedSoundHandles[i] = soundHandle;
+              });
+            }
+            Future.delayed(Duration(milliseconds: 100), () {
+              _startPlaybackTimer();
+            });
+          }
           
           print("ADDED DATA STREAM2");
 
@@ -3500,7 +3514,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
             GraphTemplate.isLoadingFile = 4;
             // microphoneUtil.micStream.value = Uint8List(0);
           }
-          _startPlaybackTimer();
 
           // soloud!.addAudioDataStream(loadedFileStream!, loadedArrSamples.buffer.asUint8List());
                  

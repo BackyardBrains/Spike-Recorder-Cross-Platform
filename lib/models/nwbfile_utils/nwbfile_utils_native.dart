@@ -261,6 +261,9 @@ class NwbFileUtilImpl implements NWBFileUtil {
     // TODO: implement seekElectricalSeriesWeb
     return Future.value(true);
   }
+  
+  @override
+  Function(dynamic p1, dynamic p2, dynamic p3, dynamic p4)? onStartOpeningFileWebCallbackPlayback;
 
 }
 

@@ -1379,6 +1379,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                               }
                             }
                           });
+                          if (isRecording == 1) {
+                            recordingNotifier.value = [recordingStartTime, DateTime.now().millisecondsSinceEpoch];
+                          }
                         } else {
                           if (SoundWaveView.dragDetails != null) {
                             // int fromSample = (-bufferPaddingLeft).toInt();
@@ -1446,71 +1449,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         }
                       }
                     }                    
-                    /*
-                    if (!dummyDataStatus && !isAudioListen) {
-                      if (isDeviceConnect) {
-                        _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: _availablePorts.last);
-                        isDeviceConnect = false;
-                        _preEscapeSequenceBuffer.addBytes(event);
-                      } else {
-                        int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
 
-                        if (_isDataIdentified) {
-                          // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
-                          // stopwatch.reset();
-                          // print("_ISDATA IDENTIFIED");
-                          if (!isDeviceSelected) {
-                            _preEscapeSequenceBuffer.addBytes(event);
-                          } else {
-                            // print("process SERIAL data");
-                            processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
-                          }
-                        } else {
-                          Uint8List? firstFrameData = _frameDetect.addData(event);
-
-                          if (firstFrameData != null) {
-                            _preEscapeSequenceBuffer.addBytes(firstFrameData);
-                            processingUtil.processSerialData(firstFrameData, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
-                            _isDataIdentified = true;
-                          } else {
-                            _preEscapeSequenceBuffer.addBytes(event);
-                          }
-                        }
-                      }                      
-
-
-
-                      // int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
-                      // if (_isDataIdentified) {
-                      //   // _preEscapeSequenceBuffer.addBytes(Uint8List(0));
-                      //   // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
-                      //   // stopwatch.reset();
-                      //   // localPlugin.filterArrayElements(array: array, arrayLength: arrayLength, channelIdx: channelIdx);
-                      //   // print("ISDAATA WEB");
-                        
-                      //   processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
-                      // } else {
-                      //   print("isDeviceConnect Web : $isDeviceConnect === $_isDataIdentified");
-                      //   if (isDeviceConnect) {
-                      //     _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: _availablePorts.last);
-                      //     isDeviceConnect = false;
-                      //   }else {
-                      //     Uint8List? firstFrameData = _frameDetect.addData(event);
-
-                      //     if (firstFrameData != null) {
-                      //       // print("IS DEVICE ALREADY CONNECT AND firstFrameData");
-                      //       _preEscapeSequenceBuffer.addBytes(firstFrameData);
-                      //       processingUtil.processSerialData(firstFrameData, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
-                      //       _isDataIdentified = true;
-                      //     }else {
-                      //       _preEscapeSequenceBuffer.addBytes(event);
-                      //       // print("IS DEVICE ALREADY CONNECT but not firstFrameData");
-                      //       // localPlugin.sendSerialData(event);
-                      //     }
-                      //   }
-                      // }
-                    }
-                    */
                   }, onError: (error) {
                     // if (error is SerialPortError) {
                       forceSerialDisconnect = true;

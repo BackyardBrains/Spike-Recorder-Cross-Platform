@@ -809,6 +809,25 @@ self.onmessage = async function (eventFromMain) {
                 deviceType
             );
             // console.log("isThresholding: ", isThresholding);
+            // RECORD SERIAL
+            if (isRecording == 1) {
+                let samplesLength = outSampleCountsBuffer[0];
+                let channelsLength = 1;
+
+                let samplesPtr = NwbModule._malloc(samplesLength * NwbModule.HEAP16.BYTES_PER_ELEMENT);
+                let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
+                let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + samplesLength));
+                samplesBuffer.set(inSamplesBuffer.subarray(0, samplesLength));
+                
+                let samplesCtrPtr = NwbModule._malloc(channelsLength * NwbModule.HEAP32.BYTES_PER_ELEMENT);
+                let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
+                let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + channelsLength));
+                samplesCtrBuffer[0] = samplesLength;
+
+                NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, 1, isRecording);
+                NwbModule._free(samplesPtr);
+                NwbModule._free(samplesCtrPtr);
+            }
 
             if (serialResult > 0) {
                 // console.log("SERIAL RESULT: ", serialResult, inSamplesBuffer, outSampleCountsBuffer);
@@ -1061,6 +1080,7 @@ self.onmessage = async function (eventFromMain) {
                 console.error("NwbModule not initialized yet");
                 return;
             }
+            console.log("CREATE_NWB_FILE: ", eventFromMain.data);
                         
             isRecording = 0;
             let filePath = eventFromMain.data.filePath;
@@ -1105,6 +1125,7 @@ self.onmessage = async function (eventFromMain) {
                 // Native code requires samplesCount[i] > 0, so we allocate minimum valid data
                 // and zero-fill it to avoid writing gibberish
                 const minSamplesPerChannel = 1; // Minimum required by native validation
+                console.log("FINISH RECORDING: ", tempNwbChannelCount, "minSamplesPerChannel: ", minSamplesPerChannel);
                 
                 // Allocate memory for sample counts
                 let samplesCtrPtr = NwbModule._malloc(tempNwbChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);

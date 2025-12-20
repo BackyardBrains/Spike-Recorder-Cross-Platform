@@ -145,7 +145,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   // bool isAudioListen = false;
 
   Future<void> _startPortCheck() async {
-    Timer.periodic(const Duration(seconds: 3), (timer) async {
+    _portCheckTimer?.cancel();
+    _portCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
       if (forceSerialDisconnect) return;
       if (isOpeningFile) return;
 
@@ -235,16 +236,24 @@ class _GraphTemplateState extends State<GraphTemplate> {
     Future.delayed(Duration(milliseconds: 1000), () async {
 
       GraphDataProvider graphDataProvider = Provider.of<GraphDataProvider>(context, listen: false);
-      graphDataProvider.addListener(() {
+      // Remove old listener if it exists
+      if (_graphDataProviderListener != null) {
+        graphDataProvider.removeListener(_graphDataProviderListener!);
+      }
+      _graphDataProviderListener = () {
         print("GraphDataProvider LISTENER : rewind ${graphDataProvider.isRewind} | forward ${graphDataProvider.isForward}");
         if (graphDataProvider.isRewind) {
+          if (!isOpeningFile) return;
+
           graphDataProvider.isRewind = false;
           AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
           double scrubMaxWidth = MediaQuery.of(context).size.width - 100 - 20;
           AdaptiveAreaState.horizontalDragX = scrubMaxWidth * 0;
           scrubNotifier.value = [ 0, scrubMaxWidth];
           streamScrubBuilderController.add(Random().nextInt(100000));
-          callbackPlayButton(true);
+          Future.delayed(Duration(milliseconds: 100), () async {
+            callbackPlayButton(true);
+          });
           setState(() {});
         } else 
         if (graphDataProvider.isForward) {
@@ -253,14 +262,63 @@ class _GraphTemplateState extends State<GraphTemplate> {
           Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(true);
           GraphTemplate.isPlayerPaused = false;
           GraphTemplate.isLoadingFile = 0;
-          listenToMicrophone(1, graphDataProvider);
+          try{
+            periodicTimerSerial?.cancel();
+          }catch(err) {
+            print("ERR: $err");
+          }
+          
+          // Reset processing position indices to prevent showing more than 10 seconds
+          ProcessingUtil.positionIndex = 0;
+          ProcessingUtil.fromSample = 0;
+          ProcessingUtil.toSample = 0;
+          
+          // Reset DraggableGraph position indices
+          int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+          int maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
+          DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
+          DraggableGraph.endPositionIdx = maxSamples;
+          
+          // Clear event markers
+          ProcessingUtil.eventLabels.clear();
+          ProcessingUtil.eventPosition.clear();
+          ProcessingUtil.currentEventMarkers = 0;
+          
+          // Reset total sample count
+          totalSampleCount = 0;
+          
+          if (!kIsWeb) {
+            listenToMicrophone(1, graphDataProvider);
+          } else {
+            forceSerialDisconnect = false;
+            isOpeningFile = false;
+            GraphTemplate.isLoadingFile = 0;
+            try{
+              _serialUtil.closePort();
+              Future.delayed(Duration(milliseconds: 1500), () {
+                if (context.mounted) {
+                  _availablePorts.clear();
+                }
+              });            
+
+            }catch(err) {
+              print("ERR: $err");
+            }
+            listenToMicrophone(1, graphDataProvider);
+
+          }
           setState(() {});
         }
-      });
+      };
+      graphDataProvider.addListener(_graphDataProviderListener!);
 
     });
 
-    scrubNotifier.addListener(() async {
+    // Remove old listener if it exists
+    if (_scrubNotifierListener != null) {
+      scrubNotifier.removeListener(_scrubNotifierListener!);
+    }
+    _scrubNotifierListener = () async {
       print("SECTION ScrubNotifier:");
       // print("scrubNotifier");
       timerPlaybackLoadedStartIndex = 0;
@@ -365,7 +423,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       //   });
       // });
 
-    });
+    };
+    scrubNotifier.addListener(_scrubNotifierListener!);
     context.read<ThresholdStatusProvider>().addListener(() {
       bool isThresholding = context.read<ThresholdStatusProvider>().isThresholding;
       if (isThresholding) {
@@ -405,7 +464,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     filterBaseSettingsModel = FilterSetup(filterConfiguration: FilterConfiguration(cutOffFrequency: 1000, sampleRate: 10000), filterType: FilterType.highPassFilter, channelCount: channelCountBuffer, isFilterOn: false);
     _sampleData = GenerateSampleData.sineWaveUint14(samplingRate: dummySamplingRate, frequencies: [50, 1000], samplesGenerated: _sampleGeneratedCount).buffer.asUint8List();
 
-    Timer.periodic(const Duration(milliseconds: timeMs), (timer) {
+    _dummyDataTimer?.cancel();
+    _dummyDataTimer = Timer.periodic(const Duration(milliseconds: timeMs), (timer) {
       bool dummyDataStatus = context.read<DataStatusProvider>().isSampleDataOn;
       if (dummyDataStatus) {
         _preprocessingBuffer.addBytes(_sampleData);
@@ -591,8 +651,56 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   @override
   void dispose() {
-    (processingUtil as ProcessingUtilImpl).dispose();
+    print("GraphTemplate dispose: cleaning up resources...");
+    
+    // Cancel all timers
+    _portCheckTimer?.cancel();
+    _dummyDataTimer?.cancel();
+    periodicTimerSerial?.cancel();
+    timerPlaybackLoadedFile?.cancel();
+    
+    // Remove listeners
+    if (_graphDataProviderListener != null) {
+      try {
+        final graphDataProvider = Provider.of<GraphDataProvider>(context, listen: false);
+        graphDataProvider.removeListener(_graphDataProviderListener!);
+      } catch (e) {
+        print("Error removing graphDataProvider listener: $e");
+      }
+      _graphDataProviderListener = null;
+    }
+    
+    if (_scrubNotifierListener != null) {
+      try {
+        scrubNotifier.removeListener(_scrubNotifierListener!);
+      } catch (e) {
+        print("Error removing scrubNotifier listener: $e");
+      }
+      _scrubNotifierListener = null;
+    }
+    
+    // Remove mic listener
+    try {
+      microphoneUtil.micStream.removeListener(micListener);
+    } catch (e) {
+      print("Error removing micListener: $e");
+    }
+    
+    // Cancel subscriptions
+    serialDataSubscription?.cancel();
+    microphoneSubscription?.cancel();
+    
+    // Dispose processing util
+    try {
+      (processingUtil as ProcessingUtilImpl).dispose();
+    } catch (e) {
+      print("Error disposing processingUtil: $e");
+    }
     GraphTemplate.processingUtil = null;
+    
+    // Close stream controllers
+    streamScrubBuilderController.close();
+    
     super.dispose();
   }
 
@@ -1160,6 +1268,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                           }
                                         }
                                       }
+                                      setState((){});
 
                                     });
                                     setState((){});
@@ -1188,13 +1297,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           )
                         ],
                       ),
-                      BottomButtons(
+                      isRecording != 0 ? SizedBox() : BottomButtons(
                         pauseButton: (bool isPlay) async {
                           if (!isOpeningFile) {
                             Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(isPlay);
                             _toPauseGraph = isPlay;
                             GraphTemplate.isPlayerPaused = !isPlay;
                             _pendingPlayback = false;
+                             setState(() {});
                           } else {
                             callbackPlayButton(isPlay);
                           }
@@ -1207,7 +1317,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         }
       ),
       floatingActionButton: kIsWeb
-          ? FloatingActionButton.extended(
+          ? isRecording != 0 ? SizedBox() : FloatingActionButton.extended(
               elevation: 2,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: const BorderSide(width: 2, color: Colors.grey)),
               backgroundColor: SoftwareColors.kButtonBackGroundColor,
@@ -1762,34 +1872,134 @@ class _GraphTemplateState extends State<GraphTemplate> {
   
   String eventThresholdTriggeredType = "Signal";
 
+  void resetToMicrophone(channelCount, provider) async {
+    
+    _isListeningToMicrophone = true;
+    _listenToMicrophoneCompleter = Completer<void>();
+    
+    try {
+      if (provider == null) {
+        provider = Provider.of<GraphDataProvider>(context, listen: false);      
+      }
+      isDeviceConnect = true;
+      isDeviceSelected = false;
+      _isDataIdentified = false;
+      deviceChannelCount = channelCount;
+      GraphTemplate.isLoadingFile = 0;
+      foundDevices = "";
+
+      try{
+        widget.channelCount = channelCount;
+        Provider.of<ConstantProvider>(context, listen: false).setChannelCount(channelCount);
+        Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(microphoneUtil.sampleRate.floor());
+        microphoneUtil.micStream.removeListener(micListener);
+        microphoneUtil.micStream = ValueNotifier(Uint8List(0));
+        context.read<DataStatusProvider>().setMicrophoneDataStatus(true);
+        print("LISTEN TO MICROPHONE setMicrophoneDataStatus");
+
+      }catch(err){
+        print("er remove listener");
+        print(err);
+      }
+
+      await Future.delayed(const Duration(microseconds: 10));
+      
+      await processingUtil.init();
+      //init microphone stream  
+      if (kIsWeb) {
+        print("WEB SAMPLE RATE : ${microphoneUtil.sampleRate}");
+        _sampleRate = microphoneUtil.sampleRate.toInt();
+      } else {
+        print("NATIVE SAMPLE RATE : ${microphoneUtil.sampleRate}");
+        double? tempSampleRate = await MicStream.sampleRate;
+        if (tempSampleRate != null) {
+          _sampleRate = tempSampleRate.toInt();
+        }
+      }
+
+      int NUMBER_OF_SEGMENTS = 10;
+      int SEGMENT_SIZE = _sampleRate;
+      double SIZE = (NUMBER_OF_SEGMENTS * SEGMENT_SIZE).toDouble();
+      final SIZE_LOGS2 = 10;
+
+      // Clear envelopeSizes to prevent accumulation
+      envelopeSizes.clear();
+      double size = SIZE;
+      int i = 0;
+      for (; i < SIZE_LOGS2; i++) {
+        envelopeSizes.add(size.toInt());
+        size /= 2;
+      }
+      print("listenToMicrophone2");
+
+      double drawSurfaceWidth = MediaQuery.of(context).size.width;
+      context.read<ChannelColorProvider>().setAudioChannelCount(channelCount);
+
+      // Set band filter
+      await processingUtil.setBandFilter(-1, -1);
+
+      print("listenToMicrophone5");
+      microphoneUtil.micStream.addListener(micListener);    
+      isDeviceConnect = true;
+      isDeviceSelected = false;
+      ProcessingUtil.initializeDevice.value = 0;
+      
+      _listenToMicrophoneCompleter!.complete();
+    } catch (error) {
+      print("Error in listenToMicrophone: $error");
+      if (_listenToMicrophoneCompleter != null && !_listenToMicrophoneCompleter!.isCompleted) {
+        _listenToMicrophoneCompleter!.completeError(error);
+      }
+    } finally {
+      _isListeningToMicrophone = false;
+      _listenToMicrophoneCompleter = null;
+    }
+    
+  }
   
-  void listenToMicrophone(channelCount, provider) {
+  void listenToMicrophone(channelCount, provider) async {
     print("listenToMicrophone");
-    if (provider == null) {
-      provider = Provider.of<GraphDataProvider>(context, listen: false);      
+    
+    // Prevent multiple simultaneous calls
+    if (_isListeningToMicrophone) {
+      print("listenToMicrophone already in progress, waiting for completion...");
+      if (_listenToMicrophoneCompleter != null) {
+        await _listenToMicrophoneCompleter!.future;
+      }
+      return;
     }
-    isDeviceConnect = true;
-    isDeviceSelected = false;
-    _isDataIdentified = false;
-    deviceChannelCount = channelCount;
-    foundDevices = "";
+    
+    _isListeningToMicrophone = true;
+    _listenToMicrophoneCompleter = Completer<void>();
+    
+    try {
+      if (provider == null) {
+        provider = Provider.of<GraphDataProvider>(context, listen: false);      
+      }
+      isDeviceConnect = true;
+      isDeviceSelected = false;
+      _isDataIdentified = false;
+      deviceChannelCount = channelCount;
+      GraphTemplate.isLoadingFile = 0;
+      foundDevices = "";
 
-    try{
-      widget.channelCount = channelCount;
-      Provider.of<ConstantProvider>(context, listen: false).setChannelCount(channelCount);
-      Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(microphoneUtil.sampleRate.floor());
+      try{
+        widget.channelCount = channelCount;
+        Provider.of<ConstantProvider>(context, listen: false).setChannelCount(channelCount);
+        Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(microphoneUtil.sampleRate.floor());
 
-      microphoneUtil.micStream.removeListener(micListener);
-      microphoneUtil.micStream = ValueNotifier(Uint8List(0));
-      context.read<DataStatusProvider>().setMicrophoneDataStatus(true);
-      print("LISTEN TO MICROPHONE setMicrophoneDataStatus");
+        microphoneUtil.micStream.removeListener(micListener);
+        microphoneUtil.micStream = ValueNotifier(Uint8List(0));
+        context.read<DataStatusProvider>().setMicrophoneDataStatus(true);
+        print("LISTEN TO MICROPHONE setMicrophoneDataStatus");
 
-    }catch(err){
-      print("er remove listener");
-      print(err);
-    }
+      }catch(err){
+        print("er remove listener");
+        print(err);
+      }
 
-    Future.delayed(const Duration(microseconds: 10)).then((value) async {
+      await Future.delayed(const Duration(microseconds: 10));
+      
       print("_messageIdentifier.messageState");
       print(_messageIdentifier.messageState);
       // Initialize both utils
@@ -1816,6 +2026,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       double SIZE = (NUMBER_OF_SEGMENTS * SEGMENT_SIZE).toDouble();
       final SIZE_LOGS2 = 10;
 
+      // Clear envelopeSizes to prevent accumulation
+      envelopeSizes.clear();
       double size = SIZE;
       int i = 0;
       for (; i < SIZE_LOGS2; i++) {
@@ -1832,20 +2044,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // Set band filter
       await processingUtil.setBandFilter(-1, -1);
 
-      // // // Set notch filter
-      // await processingUtil.setNotchFilter(50);
-      // print("isAudioListen");
-      // print(microphoneUtil.micStream);
-      // microphoneSubscription?.cancel();
-      // int drawIdx = 0;
-      // microphoneSubscription = 
       print("listenToMicrophone5");
       microphoneUtil.micStream.addListener(micListener);    
       isDeviceConnect = true;
       isDeviceSelected = false;
       ProcessingUtil.initializeDevice.value = 0;
-
-    });
+      
+      _listenToMicrophoneCompleter!.complete();
+    } catch (error) {
+      print("Error in listenToMicrophone: $error");
+      if (_listenToMicrophoneCompleter != null && !_listenToMicrophoneCompleter!.isCompleted) {
+        _listenToMicrophoneCompleter!.completeError(error);
+      }
+    } finally {
+      _isListeningToMicrophone = false;
+      _listenToMicrophoneCompleter = null;
+    }
   }
 
   List<int> arr = [];
@@ -1887,6 +2101,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
   Stream<Uint8List>? getData;
   
   Timer? periodicTimerSerial;
+  Timer? _portCheckTimer;
+  Timer? _dummyDataTimer;
+  
+  // Listener references for cleanup
+  VoidCallback? _graphDataProviderListener;
+  VoidCallback? _scrubNotifierListener;
+  
+  // Guard to prevent multiple simultaneous listenToMicrophone calls
+  bool _isListeningToMicrophone = false;
+  Completer<void>? _listenToMicrophoneCompleter;
   
   String currentLoadedFilePath = "";
   
@@ -1915,7 +2139,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   
 
   void micListener(){
-    // print("miCLISTENER DATA");
+    // print("miCLISTENER DATA | TIME: ${DateTime.now().millisecondsSinceEpoch} |||| ${microphoneUtil.micStream.value.sublist(0,10)}");
     int channelCount = 1;
     int selectedThresholdChannel = 0;
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
@@ -2404,6 +2628,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       context.read<ChannelColorProvider>().setSerialChannelCount(
           widget.channelCount);
       periodicSerialDataSubscription();
+      microphoneUtil.micStream.removeListener(micListener);
+      microphoneUtil.micStream = ValueNotifier(Uint8List(0));
       // }
     } else {
       context.read<DataStatusProvider>().setMicrophoneDataStatus(true);
@@ -2494,100 +2720,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
       await processingUtil.initWithConfig(loadedConfig);
     }
 
-    // Handle pending playback setup when data is ready (web only)
-    // if (_pendingPlayback && kIsWeb && !isStartOpeningFileWeb && soloud != null) {
-    //   print("WEB: Setting up playback with loaded data...");
-      
-    //   // Inject previous waveform samples into C++ buffer before starting playback
-    //   double maxScreenSamples = ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate;
-    //   if (_pendingPlaybackStartIdx > 0) {
-    //     int startInitialIndex = (_pendingPlaybackStartIdx ~/ maxScreenSamples.floor()) * maxScreenSamples.floor();
-    //     int endInitialIndex = (_pendingPlaybackStartIdx % maxScreenSamples.floor()).floor();
-        
-    //     if (endInitialIndex > 0) {
-    //       print("WEB: Injecting previous samples into C++ buffer: startInitialIndex=$startInitialIndex, endInitialIndex=$endInitialIndex");
-    //       Int32List arrSampleCountInitial = Int32List(widget.channelCount);
-    //       Int16List arrSamplesInitial = Int16List(endInitialIndex * widget.channelCount);
-          
-    //       bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
-    //       if (isAudioListen) {
-    //         await GraphTemplate.nwbFileUtil?.seekElectricalSeriesWeb(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, 0);
-    //         // Int16List tempLoadedArrSamples = Int16List(arrSampleCountInitial[0].floor());
-    //         // tempLoadedArrSamples.setAll(0, arrSamplesInitial.sublist(0, arrSampleCountInitial[0].floor()));
-    //         // processingUtil.processMicrophoneData(tempLoadedArrSamples.buffer.asUint8List());
-    //         // print("WEB: Injected ${tempLoadedArrSamples.length} microphone samples into C++ buffer");
-    //         // microphoneUtil.micStream.value = Uint8List(0);
-    //       } else {
-    //         await GraphTemplate.nwbFileUtil?.seekElectricalSeriesWeb(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, widget.channelCount - 1);
-    //         // print("WEB: Seeking previous samples: arrSamplesInitial.length=${arrSamplesInitial.length}, arrSampleCountInitial=$arrSampleCountInitial");
-            
-    //         // List<Int16List> sublistArray = [];
-    //         // for (int i = 0; i < widget.channelCount; i++) {
-    //         //   int samplesPerChannelLength = arrSampleCountInitial[i].floor();
-    //         //   if (samplesPerChannelLength > 0 && (i + 1) * samplesPerChannelLength <= arrSamplesInitial.length) {
-    //         //     sublistArray.add(arrSamplesInitial.sublist(i * samplesPerChannelLength, (i + 1) * samplesPerChannelLength));
-    //         //   }
-    //         // }
-            
-    //         // if (sublistArray.isNotEmpty) {
-    //         //   int channelIdx = 0;
-    //         //   Int32List samplesCount = Int32List(sublistArray.length);
-    //         //   Int16List flattenedList = Int16List.fromList(sublistArray.expand((list) {
-    //         //     samplesCount[channelIdx] = sublistArray[channelIdx].length;
-    //         //     channelIdx++;
-    //         //     return list;
-    //         //   }).toList());
-              
-    //         //   processingUtil.processingSerialDataResult(flattenedList, samplesCount, widget.channelCount);
-    //         //   print("WEB: Injected ${flattenedList.length} serial samples into C++ buffer (${sublistArray.length} channels)");
-    //         // }
-    //       }
-    //     }
-    //   }
-      
-    //   // Ensure streams are created
-    //   if (loadedFileStreams.isEmpty) {
-    //     for (int i = 0; i < widget.channelCount; i++) {
-    //       loadedFileStreams.add(soloud!.setBufferStream(
-    //         bufferingType: SoLoud.BufferingType.released,
-    //         sampleRate: _sampleRate,
-    //         channels: SoLoud.Channels.mono,
-    //         format: SoLoud.BufferType.s16le,
-    //         onBuffering: (isBuffering, handle, time) async {
-    //           if (context.mounted) {
-    //           }
-    //         },
-    //       ));
-    //     }
-    //   }
-      
-    //   // Add loaded data to streams
-    //   for (int i = 0; i < widget.channelCount && i < loadedArrSamples.length; i++) {
-    //     if (loadedArrSamples[i].isNotEmpty) {
-    //       soloud!.addAudioDataStream(loadedFileStreams[i]!, loadedArrSamples[i].buffer.asUint8List());
-    //       print("WEB: Added ${loadedArrSamples[i].length} samples to stream $i");
-    //     }
-    //   }
-      
-    //   // Start playback
-    //   Future.delayed(Duration(milliseconds: 100), () {
-    //     loadedSoundHandles.clear();
-    //     for (int i = 0; i < widget.channelCount && i < loadedFileStreams.length; i++) {
-    //       soloud!.play(loadedFileStreams[i]!).then((soundHandle) {
-    //         loadedSoundHandles.add(soundHandle);
-    //         print("WEB: Started playback for stream $i with handle $soundHandle");
-    //       });
-    //     }
-        
-    //     // Start the playback timer
-    //     _startPlaybackTimer();
-    //   });
-      
-    //   _pendingPlayback = false;
-    //   GraphTemplate.isLoadingFile = 3;
-    //   GraphTemplate.isPlayerPaused = false;
-    //   Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(true);
-    // }
 
     Future.delayed(Duration(milliseconds: 300), () {
       GraphTemplate.isPlayerPaused = true;
@@ -2928,7 +3060,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
       // List<String> listOfPort = Provider.of<PortScanProvider>(context, listen: false).availablePorts;
       serialNativeDataSubscription(Uint8List(0), isAudioListen);
-    });    
+    });
   }
   
   List<Widget> generateThresholdSlider(isHorizontal) {

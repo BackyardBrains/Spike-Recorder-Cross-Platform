@@ -21,20 +21,26 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
 
   @override
   double sampleRate = 44100;
+  
+  var mediaStream;
 
   @override
   Future<void> init() async {
     try {
-      final mediaStream = await html.window.navigator.mediaDevices?.getUserMedia({
-        'audio': true,
-      });
+      if (mediaStream == null) {
+        mediaStream = await html.window.navigator.mediaDevices?.getUserMedia({
+          'audio': true,
+        });
+        if (mediaStream != null) {
+          html.MediaStreamTrack audioTrack = mediaStream.getAudioTracks()[0];
+          Map<dynamic, dynamic> trackSettings = audioTrack.getSettings();
+          sampleRate = trackSettings["sampleRate"];
+        }
+      } else {
 
-      if (mediaStream != null) {
-        html.MediaStreamTrack audioTrack = mediaStream.getAudioTracks()[0];
-        Map<dynamic, dynamic> trackSettings = audioTrack.getSettings();
-        sampleRate = trackSettings["sampleRate"];
       }
-      print("sampleRate: $sampleRate");
+
+      // print("sampleRate: $sampleRate");
       // micStream = ValueNotifier(Uint8List(0));
     } catch(err) {
       print("err mic");
@@ -45,8 +51,8 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
     js.context['onDataBufferAllocated'] = onDataBufferAllocated;
     js.context['onDataReceived'] = onDataReceived;
     await Future.delayed(const Duration(seconds: 1));
-    print("startListeningToMicrophone");    
-    js.context.callMethod('startListeningToMicrophone', []);
+    print("startListeningToMicrophone | sampleRate: $sampleRate");    
+    js.context.callMethod('startListeningToMicrophone', [sampleRate]);
   }
 
   /// Called only once in the beginning to send address of buffer to dart

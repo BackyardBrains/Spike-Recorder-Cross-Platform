@@ -228,14 +228,15 @@ self.onmessage = async function (eventFromMain) {
                     
         break;
         case "INITIALIZE_MICROPHONE":
-            console.log("Module" , Module, Module._processing_process_threshold);
+            // console.log("Module" , Module, Module._processing_process_threshold);
             sampleRate = eventFromMain.data.sampleRate;
             channelCount = eventFromMain.data.channelCount;
             drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
-            console.log("INITIALIZE_MICROPHONE : ", sampleRate, channelCount);
+
+            console.log("INITIALIZE_MICROPHONE : ", sampleRate, channelCount, drawSurfaceWidth);
             // sampleRate = eventFromMain.data.sampleRate;
             Module._processing_init();
-            // Module._processing_set_channel_count(channelCount);
+            Module._processing_set_channel_count(channelCount);
             let r = Module._processing_set_sample_rate(sampleRate);
             console.log("SAMPLER RATE RES: ", r);
             packetLen = MAX_DISPLAY_SECONDS * sampleRate;
@@ -265,7 +266,7 @@ self.onmessage = async function (eventFromMain) {
                 drawingDataBufferList.push(drawingDataBuffer);
             }
 
-            console.log("onDrawingBufferAllocated - javascript", channelCount, drawingDataBufferList, drawSurfaceWidth);
+            console.log("onDrawingBufferAllocated - javascript", channelCount, drawingDataBufferList[0].length, drawSurfaceWidth);
             // END DRAWING BUFFER SETUP
 
             // DRAWING COUNTER SETUP
@@ -307,7 +308,7 @@ self.onmessage = async function (eventFromMain) {
             // END DRAWING COUNTER SETUP            
 
             // currentDataBuffersPtr = curBufferPtr;
-            console.log("Module: ", Module);
+            // console.log("Module: ", Module);
         break;
         case "INITIALIZE_WORKER":
             workerChannelPort = eventFromMain.data.simulationWorkerChannelPort;
@@ -426,6 +427,7 @@ self.onmessage = async function (eventFromMain) {
                     // console.log("CHECK THRESHOLDING::: ", startPositionIdx, "===", endPositionIdx, thresholdArrayLength);
                 }
               
+                // console.log("AUDIO DRAWING: ", startPositionIdx, endPositionIdx, drawSurfaceWidth, totalChannel, " ---- ", outSampleCountsDrawingBuffer);
                 let resultDrawing = Module._processing_prepare_for_signal_drawing(
                     outSamplesPtr,           // Pointer<Pointer<Float>>
                     // currentDataBuffersPtr,           // Pointer<Pointer<Float>>
@@ -446,12 +448,12 @@ self.onmessage = async function (eventFromMain) {
                         outEventPositionBuffer.set(outEventIndicesBuffer.subarray(0, inTotalEvents));
                     }
                     try{
-                        // console.log("outSampleCountsDrawingBuffer: " , outSampleCountsDrawingBuffer);
+                        // console.log("outSampleCountsDrawingBuffer: " , channelCount, outSampleCountsDrawingBuffer.length, outSampleCountsDrawingBuffer);
                         for (let i = 0; i < channelCount; i++) {
                             const outSampleCount = outSampleCountsDrawingBuffer[i];
                             const slicedArray = outSamplesBuffer.subarray( i * outSampleCount, (i + 1) * outSampleCount).slice();
-                            const slicedCountArray = outSampleCountsBuffer.subarray(i, i + 1).slice();
-                            // console.log("drawingCountBufferList: ", slicedCountArray[0], slicedArray.length);
+                            // const slicedCountArray = outSampleCountsBuffer.subarray(i, i + 1).slice();
+                            // console.log("drawingCountBufferList: ",  slicedArray.length);
                             drawingDataBufferList[i].set(slicedArray, 0);
                             drawingCountBufferList[i] = slicedArray.length;
                         }
@@ -970,7 +972,7 @@ self.onmessage = async function (eventFromMain) {
                     outSampleCountsDrawingBuffer[i] = startPosMultiplier;
                 }
                   
-                // console.log("SERIAL DRAWING: ", (displayTimeMs * 0.001 * sampleRate));
+                // console.log("SERIAL DRAWING: ", startPositionIdx, endPositionIdx, drawSurfaceWidth, totalChannel);
                 let resultDrawing = Module._processing_prepare_for_signal_drawing(
                     outSamplesPtr,           // Pointer<Pointer<Float>>
                     // currentDataBuffersPtr,           // Pointer<Pointer<Float>>
@@ -1592,7 +1594,7 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
 
 function initWithConfig(config) {
     let initConfig = config;
-    console.log("INIT_WITH_CONFIG: ", initConfig);
+    console.log("INIT_WITH_CONFIGZzz: ", initConfig);
     sampleRate = initConfig[0];
     channelCount = initConfig[1];
     Module._processing_init();

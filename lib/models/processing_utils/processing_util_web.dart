@@ -36,7 +36,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     js.context['onDrawingBufferAllocated'] = onDrawingBufferAllocated;
     js.context['onThresholdProcessCallback'] = onThresholdProcessCallback;
     js.context['onSendingFftBuffer'] = onSendingFftBuffer;
-    initFft();
+    // initFft();
     _isInitialized = true;
     return true;
   }
@@ -67,6 +67,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   @override
   Future<bool> initializeMicrophone(
       int channelCount, int sampleRate, double drawSurfaceWidth) async {
+    print("initializeMicrophoneWeb: $channelCount, $sampleRate, $drawSurfaceWidth");
     _sampleRate = sampleRate;
     if (!_isInitialized) {
       await init();

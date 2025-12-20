@@ -27,6 +27,7 @@ class LocalPluginWeb implements LocalPlugin {
   /// Sets up buffer also
   @override
   Future<void> spawnHelperIsolate() async {
+    print("SPAWN HELPER ISOLATE WEB");
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
     postDisplayStream = postDisplayStreamController.stream.asBroadcastStream();
     for (int i = 0; i < channelCountBuffer; i++) {

@@ -191,12 +191,12 @@ function sendToWorkerApplyFilter(
 
 
 function initializeMicrophoneWeb(channelCount, sampleRate, drawSurfaceWidth) {
-  // console.log("SAMPLE RATE", sampleRate);
+  console.log("INITIALIZE SAMPLE RATE", sampleRate);
   mWorker.postMessage({
     "message": "INITIALIZE_MICROPHONE",
     "channelCount": channelCount,
     "sampleRate": sampleRate,
-    "drawSurfaceWidth": drawSurfaceWidth,
+    "drawSurfaceWidth": window.innerWidth,
   });
 }
 
@@ -205,7 +205,7 @@ function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, display
     "message": "DISPLAY_MICROPHONE_DATA",
     "channelCount": channelCount,
     "displayTimeMs": displayTimeMs,
-    "drawSurfaceWidth": drawSurfaceWidth,
+    "drawSurfaceWidth": window.innerWidth,
     "startPositionIdx": startPositionIdx,
     "endPositionIdx": endPositionIdx,
     "eventLabels": eventLabels,
@@ -216,8 +216,6 @@ function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, display
 }
 
 function processMicrophoneDataWeb(microphoneDataBuffers, channelIdx, samplesLength, eventLabels, eventPositions) {
-  // console.log("processMicrophoneDataWeb", microphoneDataBuffers);
-  // console.log(window.innerWidth);
   mWorker.postMessage({
     "message": "INPUT_MICROPHONE_BUFFER",
     "microphoneDataBuffers": microphoneDataBuffers,
@@ -349,6 +347,7 @@ function setThresholdTriggerType(eventThresholdTriggeredType) {
 }
 
 function initFft(windowCount, windowSize, channelCount,selectedChannel) {
+  return;
   console.log("initFft: ", windowCount, windowSize);
   mWorker.postMessage({
     "message": "INIT_FFT",

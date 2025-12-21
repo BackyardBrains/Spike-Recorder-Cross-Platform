@@ -809,28 +809,50 @@ self.onmessage = async function (eventFromMain) {
                 deviceType
             );
             // console.log("isThresholding: ", isThresholding);
-            // RECORD SERIAL
-            if (isRecording == 1) {
-                let samplesLength = outSampleCountsBuffer[0];
-                let channelsLength = 1;
-
-                let samplesPtr = NwbModule._malloc(samplesLength * NwbModule.HEAP16.BYTES_PER_ELEMENT);
-                let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
-                let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + samplesLength));
-                samplesBuffer.set(inSamplesBuffer.subarray(0, samplesLength));
-                
-                let samplesCtrPtr = NwbModule._malloc(channelsLength * NwbModule.HEAP32.BYTES_PER_ELEMENT);
-                let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
-                let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + channelsLength));
-                samplesCtrBuffer[0] = samplesLength;
-
-                NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, 1, isRecording);
-                NwbModule._free(samplesPtr);
-                NwbModule._free(samplesCtrPtr);
-            }
-
+            
             if (serialResult > 0) {
-                // console.log("SERIAL RESULT: ", serialResult, inSamplesBuffer, outSampleCountsBuffer);
+                // RECORD SERIAL
+                if (isRecording == 0) {
+                    let combinedIdx = 0;
+                    let samplesCtrPtr = NwbModule._malloc(totalChannel * NwbModule.HEAP32.BYTES_PER_ELEMENT);
+                    let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
+                    let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + totalChannel));
+                    for (let i = 0; i < totalChannel; i++) {
+                        let samplesLength = outSampleCountsBuffer[i];    
+                        if (samplesLength == 0) {
+                            samplesLength = 1;
+                        }
+                        samplesCtrBuffer[i] = samplesLength;
+                        combinedIdx += samplesLength;
+                    }
+                    let samplesPtr = NwbModule._malloc(combinedIdx * NwbModule.HEAP16.BYTES_PER_ELEMENT);
+                    let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
+                    let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + combinedIdx));
+
+                    // Copy data sequentially: [ch0_samples, ch1_samples, ch2_samples, ...]
+                    combinedIdx = 0;
+                    for (let i = 0; i < totalChannel; i++) {
+                        let samplesLength = outSampleCountsBuffer[i];    
+                        if (samplesLength == 0) {
+                            samplesLength = 1;
+                            const tempArray = new Int16Array(1);
+                            samplesBuffer.set(tempArray, combinedIdx);
+                        } else {
+                            const tempArray = inSamplesBuffer.subarray(combinedIdx, combinedIdx + samplesLength);
+                            samplesBuffer.set(tempArray, combinedIdx);
+                        }
+                        combinedIdx += samplesLength;
+                    }
+
+                    // NwbModule._nwbfile_add_electrical_series(inSamplesPtr, outSampleCountsPtr, 0, 1, isRecording);
+                    // console.log("INSAMPLES BUFFER: ", inSamplesBuffer);
+                    // console.log("SAMPLES CTR BUFFER: ", samplesCtrBuffer);
+                    // console.log("SAMPLES BUFFER: ", samplesBuffer);
+    
+                    NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, totalChannel, isRecording);
+                    NwbModule._free(samplesPtr);
+                    NwbModule._free(samplesCtrPtr);
+                }
                 if (isThresholding) {
                     let eventLabels = JSON.parse(eventFromMain.data.eventLabels);
                     let eventPositions = JSON.parse(eventFromMain.data.eventPositions);
@@ -1088,6 +1110,7 @@ self.onmessage = async function (eventFromMain) {
 
             let nwbSampleRate = eventFromMain.data.sampleRate;
             let nwbChannelCount = eventFromMain.data.channelCount;
+            console.log("CREATE nwbChannelCount: ", nwbChannelCount);
             recordingFileHandle = eventFromMain.data.fileHandle;
             
             recordingFileWritable = await recordingFileHandle.createWritable();
@@ -1115,7 +1138,8 @@ self.onmessage = async function (eventFromMain) {
             let samples = eventFromMain.data.samples;
             let samplesCount = eventFromMain.data.samplesCount;
             let nwbSelectedChannel = eventFromMain.data.selectedChannel;
-            let tempNwbChannelCount = eventFromMain.data.channelCount;
+            // let tempNwbChannelCount = eventFromMain.data.channelCount;
+            let tempNwbChannelCount = totalChannel;
             let isFinishRecording = eventFromMain.data.isFinishRecording;
 
             console.log("samples isFinishRecording: ", isFinishRecording, "samples length:", samples ? samples.length : 0, "samplesCount length:", samplesCount ? samplesCount.length : 0);
@@ -1124,14 +1148,14 @@ self.onmessage = async function (eventFromMain) {
                 // When finishing, Dart passes empty arrays (Int16List(0), Int32List(0))
                 // Native code requires samplesCount[i] > 0, so we allocate minimum valid data
                 // and zero-fill it to avoid writing gibberish
-                const minSamplesPerChannel = 1; // Minimum required by native validation
-                console.log("FINISH RECORDING: ", tempNwbChannelCount, "minSamplesPerChannel: ", minSamplesPerChannel);
+                const minSamplesPerChannel = totalChannel; // Minimum required by native validation
+                console.log("FINISH RECORDING: ", tempNwbChannelCount, "minSamplesPerChannel: ", minSamplesPerChannel, "tempNwbChannelCount: ", tempNwbChannelCount);
                 
                 // Allocate memory for sample counts
                 let samplesCtrPtr = NwbModule._malloc(tempNwbChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
                 let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
-                let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + tempNwbChannelCount));
-                
+                let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + totalChannel));
+                console.log("samplesCtrBuffer: ", samplesCtrBuffer);
                 // Set sample counts to minimum required (1 per channel)
                 samplesCtrBuffer.fill(minSamplesPerChannel);
                 

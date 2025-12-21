@@ -1173,6 +1173,9 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
         }
         // Calculate sample count
         int32_t sample_count = current_sample_rate * MAX_NUMBER_OF_SECONDS;
+        // getDataForDrawing uses inclusive range: sampleCount = toSample - fromSample + 1
+        // So we need to allocate sample_count + 1 elements to avoid buffer overflow
+        int32_t temp_buffer_size = sample_count + 1;
         int32_t sample_out_count= draw_surface_width * 5;//experimentally found
         
         // Create temporary buffers
@@ -1293,11 +1296,11 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_prepare_for_signal_drawing(int16_t
         // *out_event_count = outEventCount;
         // EM_ASM({
         //     // console.log("Buffer DRAW ptr : ", $0, $1, $2, $3, $4);
-        //     console.log("Buffer DRAW HEAD IDX : ", $0);
-        // }, circularBuffer->headIndex[0]);
+        //     console.log("current_channel_count : ", $0);
+        // }, current_channel_count);
         // }, _out_samples[0], out_samples[0][0], sample_count, sample_out_count, out_sample_counts[0]);
         // return -100;
-        out_event_count[0] = outEventCount;
+        // out_event_count[0] = outEventCount;
         
         return 0;
     } catch (...) {

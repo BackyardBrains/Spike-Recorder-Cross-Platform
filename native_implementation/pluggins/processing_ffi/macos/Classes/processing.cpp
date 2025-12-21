@@ -1000,11 +1000,11 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
         
         // Calculate sample count
         // int32_t sample_count = to_sample - from_sample + 1;
-        int32_t sample_count = current_sample_rate * MAX_NUMBER_OF_SECONDS;
-        // getDataForDrawing uses inclusive range: sampleCount = toSample - fromSample + 1
-        // So we need to allocate sample_count + 1 elements to avoid buffer overflow
-        int32_t temp_buffer_size = sample_count + 1;
-        int32_t sample_out_count= draw_surface_width * 5;//experimentally found
+            int32_t sample_count = current_sample_rate * MAX_NUMBER_OF_SECONDS;
+            // getDataForDrawing uses inclusive range: sampleCount = toSample - fromSample + 1
+            // So we need to allocate sample_count + 1 elements to avoid buffer overflow
+            int32_t temp_buffer_size = sample_count + 1;
+            int32_t sample_out_count= draw_surface_width * 5;//experimentally found
         
         // Create temporary buffers with null checks to prevent OOM crashes
         auto** temp_samples = new (std::nothrow) int16_t*[channel_count];

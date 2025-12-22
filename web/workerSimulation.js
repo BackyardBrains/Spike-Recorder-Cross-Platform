@@ -788,7 +788,7 @@ self.onmessage = async function (eventFromMain) {
             inSamplesPtr = Module._malloc( serialPacketLen * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
             inSamplesPtrStart = inSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
             inSamplesBuffer = Module.HEAP16.subarray(inSamplesPtrStart, (inSamplesPtrStart + serialPacketLen * totalChannel));
-            // inSamplesBuffer.fill(0, 0, serialPacketLen * totalChannel);
+            inSamplesBuffer.fill(0, 0, serialPacketLen * totalChannel);
 
             totalChannel = channelCount;
             outSampleCountsPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
@@ -817,37 +817,46 @@ self.onmessage = async function (eventFromMain) {
                     let samplesCtrPtr = NwbModule._malloc(totalChannel * NwbModule.HEAP32.BYTES_PER_ELEMENT);
                     let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
                     let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + totalChannel));
+                    let segmentIndex = 0;
                     for (let i = 0; i < totalChannel; i++) {
                         let samplesLength = outSampleCountsBuffer[i];    
+                        // hardcode
                         if (samplesLength == 0) {
                             samplesLength = 1;
                         }
                         samplesCtrBuffer[i] = samplesLength;
-                        combinedIdx += samplesLength;
+                        combinedIdx += data.length;
+                        segmentIndex += samplesLength;
                     }
-                    let samplesPtr = NwbModule._malloc(combinedIdx * NwbModule.HEAP16.BYTES_PER_ELEMENT);
+                    let samplesPtr = NwbModule._malloc(segmentIndex * NwbModule.HEAP16.BYTES_PER_ELEMENT);
                     let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
-                    let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + combinedIdx));
+                    let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + segmentIndex));
 
                     // Copy data sequentially: [ch0_samples, ch1_samples, ch2_samples, ...]
                     combinedIdx = 0;
+                    segmentIndex = 0;
+                    // console.log("INSAMPLES BUFFER: ", inSamplesBuffer);
                     for (let i = 0; i < totalChannel; i++) {
                         let samplesLength = outSampleCountsBuffer[i];    
+                        // hardcode
                         if (samplesLength == 0) {
                             samplesLength = 1;
                             const tempArray = new Int16Array(1);
-                            samplesBuffer.set(tempArray, combinedIdx);
+                            samplesBuffer.set(tempArray, segmentIndex);
                         } else {
                             const tempArray = inSamplesBuffer.subarray(combinedIdx, combinedIdx + samplesLength);
-                            samplesBuffer.set(tempArray, combinedIdx);
+                            // console.log("samplesLength: ", samplesLength, "tempArray: ", tempArray);
+                            samplesBuffer.set(tempArray, segmentIndex);
                         }
-                        combinedIdx += samplesLength;
+                        combinedIdx += data.length;
+                        segmentIndex += samplesLength;
                     }
 
                     // NwbModule._nwbfile_add_electrical_series(inSamplesPtr, outSampleCountsPtr, 0, 1, isRecording);
-                    // console.log("INSAMPLES BUFFER: ", inSamplesBuffer);
-                    // console.log("SAMPLES CTR BUFFER: ", samplesCtrBuffer);
+                    console.log("INSAMPLES BUFFER: ", inSamplesBuffer);
+                    console.log("Data Length: ", data.length, "SAMPLES CTR BUFFER: ", samplesCtrBuffer);
                     // console.log("SAMPLES BUFFER: ", samplesBuffer);
+                    console.log("TOTAL CHANNEL: ", totalChannel, "samplesBuffer: ", samplesBuffer);
     
                     NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, totalChannel, isRecording);
                     NwbModule._free(samplesPtr);
@@ -1166,7 +1175,7 @@ self.onmessage = async function (eventFromMain) {
                 let samplesPtr = NwbModule._malloc(totalSamples * NwbModule.HEAP16.BYTES_PER_ELEMENT);
                 let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
                 let samplesBufferRecording = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + totalSamples));
-                
+
                 // Zero-fill to ensure no gibberish data
                 samplesBufferRecording.fill(0);
                 

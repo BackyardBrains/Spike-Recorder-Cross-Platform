@@ -1898,7 +1898,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
   
   void listenToMicrophone(channelCount, provider) async {
     print("listenToMicrophone");
+    stopCurrentPlaying();
+
     
+        
     // Prevent multiple simultaneous calls
     if (_isListeningToMicrophone) {
       print("listenToMicrophone already in progress, waiting for completion...");
@@ -3674,6 +3677,43 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
       // soloud!.addAudioDataStream(loadedFileStream!, loadedArrSamples.buffer.asUint8List());
     }    
+  }
+  
+  void stopCurrentPlaying() {
+    try{
+      if (soloud != null) {
+        print("listenToMicrophone soloud != null ");
+        for (int i = 0; i < loadedSoundHandles.length; i++) {
+          soloud?.stop(loadedSoundHandles[i]!);
+        }
+        soloud = null;
+      } else {
+        print("listenToMicrophone soloud == null ");
+      }
+
+      timerPlaybackLoadedFile?.cancel();
+      timerPlaybackLoadedFile = null;
+      timerPlaybackLoadedStartIndex = 0;
+      timerPlaybackLoadedEndIndex = 0;
+      loadedMaxSamples = 0;
+      loadedConfig = Int32List(10);
+      loadedArrSamples = [];
+      loadedArrChannelCount = Int32List(1);
+      startSeekSampleIdx = 0;
+      endSeekSampleIdx = 0;
+      scrubNotifier.value = [];
+      recordingNotifier.value = [0,0];
+      soloud = null;
+      loadedFileStreams = [];
+      loadedSoundHandles = [];
+      isOpeningFile = false;
+      getData = null;
+      periodicTimerSerial?.cancel();
+    }catch(err){
+      print("er listenToMicrophone");
+      print(err);
+    }
+
   }
   
   

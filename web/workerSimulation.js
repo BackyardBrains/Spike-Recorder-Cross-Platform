@@ -853,10 +853,10 @@ self.onmessage = async function (eventFromMain) {
                     }
 
                     // NwbModule._nwbfile_add_electrical_series(inSamplesPtr, outSampleCountsPtr, 0, 1, isRecording);
-                    console.log("INSAMPLES BUFFER: ", inSamplesBuffer);
-                    console.log("Data Length: ", data.length, "SAMPLES CTR BUFFER: ", samplesCtrBuffer);
-                    // console.log("SAMPLES BUFFER: ", samplesBuffer);
-                    console.log("TOTAL CHANNEL: ", totalChannel, "samplesBuffer: ", samplesBuffer);
+                    // console.log("INSAMPLES BUFFER: ", inSamplesBuffer);
+                    // console.log("Data Length: ", data.length, "SAMPLES CTR BUFFER: ", samplesCtrBuffer);
+                    // // console.log("SAMPLES BUFFER: ", samplesBuffer);
+                    // console.log("TOTAL CHANNEL: ", totalChannel, "samplesBuffer: ", samplesBuffer);
     
                     NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, totalChannel, isRecording);
                     NwbModule._free(samplesPtr);

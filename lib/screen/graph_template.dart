@@ -1205,8 +1205,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
                                     if (kIsWeb) {
                                       await GraphTemplate.nwbFileUtil?.recordNewFileLocation();
+                                      int counterTimerCancel = 0;
                                       Timer.periodic(Duration(seconds: 1), (timer) async {
-                                        if (GraphTemplate.nwbFileUtil?.recordedNwbFilePath != "") {
+                                        counterTimerCancel++;
+                                        String strTemp = GraphTemplate.nwbFileUtil?.recordedNwbFilePath ?? "";
+                                        if (strTemp.length! > 3) {
                                           timer.cancel();
                                           if (isAudioListen) {
                                             recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems");
@@ -1220,6 +1223,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                             recordingNotifier.value = [recordingStartTime, recordingStartTime];
                                             setState((){});
                                           });
+                                        }else 
+                                        if (GraphTemplate.nwbFileUtil?.recordedNwbFilePath == "--"){
+                                          print("NWB FILE PATH");
+                                          counterTimerCancel = 0;
+                                          timer.cancel();
                                         }
                                       });
                                     } else {
@@ -3963,8 +3971,8 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
             // },
             softwareSetting.isSettingEnable
                 ? Container(
-                    // color: Colors.black54.withOpacity(0.9),
-                    color: Colors.red,
+                    color: Colors.black54.withOpacity(0.9),
+                    // color: Colors.red,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
                       child: widget.child3,

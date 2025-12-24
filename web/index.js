@@ -410,11 +410,13 @@ async function recordNewNwbFile() {
     fileHandle = await window.showSaveFilePicker(options);
     console.log("fileHandle: ", fileHandle);
     if (fileHandle == null) {
+      window.onNwbFileCreated("--");
       return "File not opened";
     }
   }catch(e){
     console.log("error: ", e);
     if (fileHandle == null) {
+      window.onNwbFileCreated("--");
       return "File not opened";
     }
   }

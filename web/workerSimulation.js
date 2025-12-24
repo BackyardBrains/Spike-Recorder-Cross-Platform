@@ -1,3 +1,5 @@
+let startingCounter = 0;
+let startingTimer = 0;
 let isOpeningFile = false;
 
 let osFilePath = "";
@@ -851,6 +853,19 @@ self.onmessage = async function (eventFromMain) {
                         combinedIdx += data.length;
                         segmentIndex += samplesLength;
                     }
+
+                    if (startingTimer == 0) {
+                        startingTimer = Date.now();
+                        startingCounter = 0;
+                    } else 
+                    if ( Date.now() - startingTimer > 1000) {
+                        startingTimer = Date.now();
+                        console.log("Starting Timer: ", startingTimer, "Current Time: ", Date.now(), "Time Difference: ", Date.now() - startingTimer, "Starting Counter - channel 0: ", startingCounter);
+                        startingCounter = 0;
+                    } else {
+                        startingCounter += outSampleCountsBuffer[0];
+                    }
+
 
                     // NwbModule._nwbfile_add_electrical_series(inSamplesPtr, outSampleCountsPtr, 0, 1, isRecording);
                     // console.log("INSAMPLES BUFFER: ", inSamplesBuffer);

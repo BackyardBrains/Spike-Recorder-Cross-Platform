@@ -64,7 +64,7 @@ List<DownLoadTheFile> downLoadFileList = [
   DownLoadTheFile(
       fileName: "ProtoType 1.0.0",
       url:
-          "https://drive.google.com/file/d/1ZZfY_pP2kzQvh7RsKRuk07T4m4B18NVj/view?usp=drive_link"),
+          "https://google.com"),
 
 ];
 

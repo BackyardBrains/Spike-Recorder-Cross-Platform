@@ -57,6 +57,10 @@ class GraphDataProvider extends ChangeNotifier {
       notifyListeners();
   }
 
+  void notifyEvent(){
+    notifyListeners();
+  }
+
 
   StreamTransformer<Uint8List, List<double>> myStreamTransformer() {
     return StreamTransformer<Uint8List, List<double>>.fromHandlers(

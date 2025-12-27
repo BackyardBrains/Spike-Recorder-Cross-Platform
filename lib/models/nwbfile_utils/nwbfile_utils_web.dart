@@ -27,6 +27,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
     // Store config for later use - validate it has at least 10 elements
     if (config != null && config is List && config.length >= 10) {
       Int32List configList = Int32List.fromList(config.map((e) => e as int).toList());
+      isOpeningFileWeb = true;
       // Call the GraphTemplate callback with the config and result
       if (onStartOpeningFileWebCallback != null) {
         // Pass both the config and success status
@@ -268,7 +269,6 @@ class NwbFileUtilImpl implements NWBFileUtil {
   @override
   Future<String> startOpeningFileWeb(String filePath, int startIdx, int endIdx, int startChannel, int endChannel) async {
     js.context.callMethod('startOpeningFileWeb', [filePath, startIdx, endIdx, startChannel, endChannel, true]);
-    isOpeningFileWeb = true;
     return Future.value("");
   }
   

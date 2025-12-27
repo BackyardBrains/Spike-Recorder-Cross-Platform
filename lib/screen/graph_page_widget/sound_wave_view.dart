@@ -111,7 +111,11 @@ class _BottomButtonsState extends State<BottomButtons> {
           iconSize: 20,
           iconData: Icons.refresh,
           onTapButton: () {
-            context.read<GraphDataProvider>().resetGraphBuffer();
+
+            context.read<GraphDataProvider>().isRewind = true;
+            context.read<GraphDataProvider>().isForward = false;
+            context.read<GraphDataProvider>().notifyEvent();
+            // context.read<GraphDataProvider>().resetGraphBuffer();
           },
         ),
         const SizedBox(
@@ -137,7 +141,10 @@ class _BottomButtonsState extends State<BottomButtons> {
           iconSize: 20,
           iconData: Icons.keyboard_tab,
           onTapButton: () {
-            context.read<GraphDataProvider>().forwardGraphBuffer();
+            context.read<GraphDataProvider>().isRewind = false;
+            context.read<GraphDataProvider>().isForward = true;
+            context.read<GraphDataProvider>().notifyEvent();
+            // context.read<GraphDataProvider>().forwardGraphBuffer();
           },
         ),
       ],

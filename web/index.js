@@ -493,9 +493,7 @@ async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, end
       }
     }catch(e){
       console.log("error: ", e);
-      if (fileHandle == null) {
-        return "File not opened";
-      }
+      return "File not opened";
     }
   }
   console.log("MWORKER TRY TO POST MESSAGE: ");

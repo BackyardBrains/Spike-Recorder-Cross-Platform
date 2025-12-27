@@ -202,6 +202,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
       int startPositionIdx,
       int endPositionIdx) {
     // print("POSITION :  $startPositionIdx $endPositionIdx");
+    ProcessingUtil.fromDrawingIdx = startPositionIdx;
+    ProcessingUtil.toDrawingIdx = endPositionIdx;
+
     js.context.callMethod("prepareDisplayMicrophoneDataWeb", [
       drawSurfaceWidth,
       channelCount,

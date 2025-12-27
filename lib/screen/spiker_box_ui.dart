@@ -21,6 +21,7 @@ import 'package:spikerbox_architecture/provider/fft_status_provider.dart';
 import 'package:spikerbox_architecture/provider/graph_gain_provider.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 import 'package:spikerbox_architecture/provider/isgraphplay_provider.dart';
+import 'package:spikerbox_architecture/provider/sample_rate_provider.dart';
 import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
 import 'package:spikerbox_architecture/provider/vertical_dragprovider.dart';
 import 'package:spikerbox_architecture/provider/data_type_status.dart';
@@ -81,6 +82,7 @@ class TimeCalculateWidget extends StatefulWidget {
 }
 
 class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
+  ValueNotifier<double> lineWidthScaleNotifier = ValueNotifier(100.0);
   // Class-level constants
   final List<double> scales = [
     1,
@@ -114,31 +116,141 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
     "10s",
     "20s"
   ];
-  double widthOfScreen = 800;
+  double widthOfScreen = -1;
   double widthOfScale = 100;
+  @override
+  void initState() {
+    super.initState();
+  }
 
-  String calculateDisplayTime(double? rawTime) {
+  Map<String, dynamic> calculateScaleFromWaveform(
+      double displayTimeMs, double drawSurfaceWidth, int sampleRate) {
+      
+    // Get the actual sample range being displayed
+    int fromSample = DraggableGraph.startPositionIdx;
+    int toSample = DraggableGraph.endPositionIdx;
+    
+    // If sample range is invalid, fall back to displayTimeMs calculation
+    if (toSample <= fromSample || sampleRate <= 0) {
+      calculateDisplayTime(displayTimeMs, sampleRate, drawSurfaceWidth);
+      return {};
+    }
+
+    // Calculate actual time range being displayed (in milliseconds)
+    // This matches how DrawingUtils::prepareSignalForDrawing maps samples to pixels
+    int sampleRange = toSample - fromSample;
+    double timeRangeMs = (sampleRange / sampleRate) * 1000.0;
+
+    // Find appropriate scale that fits within the time range
+    // We want a scale that's roughly 1/5 to 1/2 of the total time range
+    double targetScaleTime = timeRangeMs / 5.0;
+    String finalString = '';
+    double selectedScaleTime = 0;
+
+    // Find the appropriate scale
+    for (int i = 1; i < scales.length; i++) {
+      if (targetScaleTime < scales[i]) {
+        selectedScaleTime = scales[i - 1];
+        finalString = scalesStr[i - 1];
+
+        // STEVANUS
+        TimeCalculateWidget.prevWidthOfScale = TimeCalculateWidget.widthOfScale;
+        TimeCalculateWidget.prevDisplayTimeMsLabel = TimeCalculateWidget.displayTimeMsLabel;
+        double scaleWidth = (selectedScaleTime / timeRangeMs) * drawSurfaceWidth;
+        widthOfScale = scaleWidth;
+        TimeCalculateWidget.widthOfScale = widthOfScale;
+        TimeCalculateWidget.displayTimeMsLabel = selectedScaleTime;
+        if (TimeCalculateWidget.prevWidthOfScale == 0) {
+          TimeCalculateWidget.prevWidthOfScale = widthOfScale;
+          TimeCalculateWidget.prevDisplayTimeMsLabel = scales[i - 1];
+        }
+        break;
+      }
+    }
+
+    // If no scale was found (value is larger than all scales), use the last scale
+    if (finalString.isEmpty) {
+      selectedScaleTime = scales.last;
+      finalString = scalesStr.last;
+    }
+
+    // Calculate the pixel width of the scale bar
+    // This matches the xStep calculation: pixels = (scaleTime / timeRange) * drawSurfaceWidth
+    double scaleWidth = (selectedScaleTime / timeRangeMs) * drawSurfaceWidth;
+
+    // Ensure minimum and maximum widths for visibility
+    if (scaleWidth < 20) scaleWidth = 20;
+    if (scaleWidth > drawSurfaceWidth * 0.8) scaleWidth = drawSurfaceWidth * 0.8;
+    if (finalString.isEmpty) {
+      double value = displayTimeMs / 5;
+      finalString = scalesStr.last;
+      widthOfScale = (scales.last / value) * widthOfScreen;
+      scaleWidth = widthOfScale;
+      TimeCalculateWidget.widthOfScale = widthOfScale;
+    }
+
+
+    return {
+      'label': finalString,
+      'width': scaleWidth,
+      'scaleTime': selectedScaleTime,
+      'timeRange': timeRangeMs,
+    };
+  }
+
+  String finalString = '';
+  String calculateDisplayTime(double? rawTime, int sampleRate, double drawSurfaceWidth) {
     if (rawTime == null) return '10s';
 
-    double value = rawTime / 5;
-    String finalString = '';
+    double value = rawTime / 5; // timeline width - 10s -> 2s default
+    // double value = rawTime;
+    print("VALUE: $value");
+    // await Future.delayed(Duration(milliseconds: 70));
+    if (ProcessingUtil.fromDrawingIdx == 0 && ProcessingUtil.toDrawingIdx == 0) {
+      return finalString;
+    }
+    finalString = '';
 
+    int fromDrawingIdx = ProcessingUtil.fromDrawingIdx;
+    int toDrawingIdx = ProcessingUtil.toDrawingIdx;
+    int sampleRange = toDrawingIdx - fromDrawingIdx;
+
+    double samplesPerMs = sampleRange / rawTime;
+    double samplesPerEnvelopePixel = sampleRange / drawSurfaceWidth;
+    print("FROM DRAWING IDX: $fromDrawingIdx, TO DRAWING IDX: $toDrawingIdx");
+    print("samplesPerMs: $samplesPerMs, samplesPerEnvelopePixel: $samplesPerEnvelopePixel, sampleRange: $sampleRange, rawTime: $rawTime, drawSurfaceWidth: $drawSurfaceWidth");
+    // double lineWidthInSecond = rawTime / 1000;
+
+
+    // print("sampleRange: $sampleRange, envelopeSkipSize: $envelopeSkipSize, RANGE: ${sampleRange/envelopeSkipSize}, fromDrawingIdx: $fromDrawingIdx, toDrawingIdx: $toDrawingIdx");
     // Find the appropriate scale
     for (int i = 1; i < scales.length; i++) {
       if (value < scales[i]) {
         TimeCalculateWidget.prevWidthOfScale = TimeCalculateWidget.widthOfScale;
         TimeCalculateWidget.prevDisplayTimeMsLabel =
             TimeCalculateWidget.displayTimeMsLabel;
-        finalString = scalesStr[i - 1];
-        widthOfScale = (scales[i - 1] / rawTime) * widthOfScreen;
+        finalString = scalesStr[i];
+        // widthOfScale = (scales[i - 1] / rawTime) * widthOfScreen;
+
+        // print("sampleRange: $sampleRange, envelopeSkipSize: $envelopeSkipSize, drawSurfaceWidth: $drawSurfaceWidth | RawTime: ${rawTime} | scales: ${scales[i-1]}");
+        double pixelsPerLineMs = samplesPerMs / samplesPerEnvelopePixel; // 800/ 5 = 160
+        widthOfScale = ((pixelsPerLineMs) * scales[i]).ceilToDouble();
+        print("cales[i]: ${scales[i]}, pixelsPerLineMs: $pixelsPerLineMs, samplesPerMs: $samplesPerMs, samplesPerEnvelopePixel: $samplesPerEnvelopePixel, widthOfScale: $widthOfScale");
+        // 1 pixel = x ms
+        // (pcs/pixel)/ms
         print(
-            "(${scales[i - 1]} / $rawTime) * $widthOfScreen ==== ${(scales[i - 1] / rawTime) * widthOfScreen}");
+            "(${scales[i - 1]} / $rawTime) * $widthOfScreen ==== ${(scales[i - 1] / rawTime) * widthOfScreen} === WidthOfScale: $widthOfScale");
         TimeCalculateWidget.widthOfScale = widthOfScale;
-        TimeCalculateWidget.displayTimeMsLabel = scales[i - 1];
+        TimeCalculateWidget.displayTimeMsLabel = scales[i];
         if (TimeCalculateWidget.prevWidthOfScale == 0) {
           TimeCalculateWidget.prevWidthOfScale = widthOfScale;
-          TimeCalculateWidget.prevDisplayTimeMsLabel = scales[i - 1];
+          TimeCalculateWidget.prevDisplayTimeMsLabel = scales[i];
         }
+
+        Future.delayed(Duration(milliseconds: 100), () {
+          lineWidthScaleNotifier.value = widthOfScale;
+          print("pixelsPerLineMs: $pixelsPerLineMs");
+        });
         // static double prevWidthOfScale = 0;
         // static double prevDisplayTimeMsLabel = 0.0;
 
@@ -158,10 +270,14 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
 
   @override
   Widget build(BuildContext context) {
-
-    widthOfScreen = MediaQuery.of(context).size.width;
     return Consumer<GraphDataProvider>(
         builder: (context, graphDataProvider, _) {
+      final myDataProvider = Provider.of<SampleRateProvider>(context, listen: false);
+      final sampleRate = myDataProvider.sampleRate;
+      final drawSurfaceWidth = MediaQuery.of(context).size.width;
+
+      widthOfScreen = MediaQuery.of(context).size.width;
+      
       return Align(
         alignment: const Alignment(0.8, 0.6),
         child: SizedBox(
@@ -170,25 +286,71 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              StreamBuilder<double>(
-                stream: graphDataProvider.displayTimeStream,
-                initialData: 10000.0,
-                builder: (context, snapshot) {
+              ValueListenableBuilder<double>(
+                valueListenable: lineWidthScaleNotifier, 
+                builder: (context, value, child) {
+                  print("Value: $value");
                   return Container(
                     height: 3,
-                    width: widthOfScale, // Using the calculated width
+                    width: value,
                     color: Colors.white,
                   );
-                },
+                }
               ),
               StreamBuilder<double>(
                 stream: graphDataProvider.displayTimeStream,
                 initialData: 10000.0,
                 builder: (context, snapshot) {
-                  return Text(
-                    calculateDisplayTime(snapshot.data),
-                    style: SoftwareTextStyle().kWtMediumTextStyle,
-                  );
+                  print("Stream builder: Display Time: ${snapshot.data}");
+                  if (snapshot.data != null && snapshot.data!.toDouble() == 10000.0) {
+                    TimeCalculateWidget.displayTimeMsLabel = 2000;
+                    double samplesPerMs = sampleRate / 1000;
+                    double samplesPerEnvelopePixel = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRate / drawSurfaceWidth;
+                    double lineWidthInSecond = ProcessingUtil.MAX_DISPLAY_SECONDS / 5;
+                    double samplesPerLineWidth = lineWidthInSecond * 1000 * samplesPerMs;
+                    double pixelsPerLineWidth = samplesPerLineWidth / samplesPerEnvelopePixel; // 800/ 5 = 160
+
+                    widthOfScale = pixelsPerLineWidth;
+                    TimeCalculateWidget.widthOfScale = pixelsPerLineWidth;
+                    Future.delayed(Duration(milliseconds: 100), () {
+                      lineWidthScaleNotifier.value = widthOfScale;
+                    });
+                    TimeCalculateWidget.prevDisplayTimeMsLabel = TimeCalculateWidget.displayTimeMsLabel;
+                    TimeCalculateWidget.prevWidthOfScale = TimeCalculateWidget.widthOfScale;
+
+                    return Text(
+                      "2s",
+                      style: SoftwareTextStyle().kWtMediumTextStyle,
+                    );
+                  } else {
+                    String textLabel = calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth);
+                    return Text(
+                      textLabel,
+                      style: SoftwareTextStyle().kWtMediumTextStyle,
+                    );
+                    // return FutureBuilder(
+                    //   future: calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth), 
+                    //   builder: (context, futureSnapshot) {
+                    //     if (futureSnapshot.data == null) {
+                    //       return Text(
+                    //         "2s",
+                    //         style: SoftwareTextStyle().kWtMediumTextStyle,
+                    //       );
+                    //     }
+                        
+                    //     return Text(
+                    //       futureSnapshot.data as String,
+                    //       style: SoftwareTextStyle().kWtMediumTextStyle,
+                    //     );
+                    //   }
+                    // );
+                  }
+                  // final map = calculateScaleFromWaveform(snapshot.data!, drawSurfaceWidth, sampleRate);
+                  // return Text(
+                  //   calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth),
+                  //   // map["label"],
+                  //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                  // );
                 },
               ),
             ],
@@ -1348,4 +1510,5 @@ class _FftSectionState extends State<FftSection> {
         )
     );
   }
+
 }

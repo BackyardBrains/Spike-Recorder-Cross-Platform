@@ -36,6 +36,9 @@ abstract class ProcessingUtil {
   static List<int> eventPosition = [];
   int thresholdingArraylength = 1;
 
+  static int fromDrawingIdx = 0;
+  static int toDrawingIdx = 0;
+
   Future<bool> init();
 
   // Initialize microphone with specific settings

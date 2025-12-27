@@ -449,6 +449,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
       int endPositionIdx) {
       // return [Int16List(0)];
     if (processedData.isNotEmpty) {
+      ProcessingUtil.fromDrawingIdx = startPositionIdx;
+      ProcessingUtil.toDrawingIdx = endPositionIdx;
       // Convert Int16List to Float data for signal drawing
       int frameCount = processedData[0].length;
       List<Float32List> floatSignalData = [];
@@ -724,6 +726,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
       int startPositionIdx,
       int endPositionIdx) async {
     // Allocate memory for sample counts
+    ProcessingUtil.fromDrawingIdx = startPositionIdx;
+    ProcessingUtil.toDrawingIdx = endPositionIdx;
 
     
     var outSamplesPtr = calloc<Pointer<Int16>>(channelCount);

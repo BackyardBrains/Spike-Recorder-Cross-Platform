@@ -278,12 +278,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
           int maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
           DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
           DraggableGraph.endPositionIdx = maxSamples;
-          
+
           // Clear event markers
           ProcessingUtil.eventLabels.clear();
           ProcessingUtil.eventPosition.clear();
           ProcessingUtil.currentEventMarkers = 0;
-          
+
           // Reset total sample count
           totalSampleCount = 0;
           
@@ -291,21 +291,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
             listenToMicrophone(1, graphDataProvider);
           } else {
             forceSerialDisconnect = false;
-            isOpeningFile = false;
             GraphTemplate.isLoadingFile = 0;
-            try{
-              _serialUtil.closePort();
-              Future.delayed(Duration(milliseconds: 1500), () {
-                if (context.mounted) {
-                  _availablePorts.clear();
-                }
-              });            
-
-            }catch(err) {
-              print("ERR: $err");
+            if (isOpeningFile) {
+              try{
+                _serialUtil.closePort();
+                Future.delayed(Duration(milliseconds: 1500), () {
+                  if (context.mounted) {
+                    _availablePorts.clear();
+                  }
+                });            
+              }catch(err) {
+                print("ERR: $err");
+              }
+              listenToMicrophone(1, graphDataProvider);
             }
-            listenToMicrophone(1, graphDataProvider);
-
+            isOpeningFile = false;
           }
           setState(() {});
         }
@@ -325,6 +325,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       timerPlaybackLoadedEndIndex = 0;
 
       List<double> timeScrub = scrubNotifier.value;
+      if (timeScrub.isEmpty) return;
       double percentage = timeScrub[0] / timeScrub[1];
 
       // nwbfile_seek_electrical_series(outSamples, outSampleCounts, outConfig, startTimeStamp, endTimeStamp, selectedChannel, channelCount)
@@ -334,7 +335,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       double maxScreenSamples = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRateConfig;
       double arrSamplesLength = maxScreenSamples;
       double startSeekSample = 0;
-      
+
       double currentSamples = percentage * loadedMaxSamples;
       if (currentSamples < maxScreenSamples) {
         startSeekSample = 0;
@@ -366,6 +367,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       startSeekSampleIdx = startSeekSample;
       endSeekSampleIdx = endSeekSample;
       print("START SEEK SAMPLE IDX: $startSeekSample $endSeekSampleIdx");
+      ProcessingUtil.fromDrawingIdx = startSeekSampleIdx.floor();
+      ProcessingUtil.toDrawingIdx = endSeekSampleIdx.floor();
 
       if (endSeekSample == startSeekSample && endSeekSample == 0) {
         endSeekSample = 1;  
@@ -621,14 +624,19 @@ class _GraphTemplateState extends State<GraphTemplate> {
         if (GraphTemplate.isPlayerPaused) {
           // int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
           if (SoundWaveView.dragDetails != null) {
+            print("DRAG DETAILS!!");
             double prevStartElementIdx = screenPositionToElementPosition(SoundWaveView.dragDetails!.position.dx, _sampleRate, ProcessingUtil.positionIndex, 
               TimeCalculateWidget.prevDisplayTimeMsLabel *0.001, TimeCalculateWidget.prevWidthOfScale, MediaQuery.of(context).size.width, bufferPos);
             double startElementIdx = screenPositionToElementPosition(SoundWaveView.dragDetails!.position.dx, _sampleRate, ProcessingUtil.positionIndex, 
               TimeCalculateWidget.displayTimeMsLabel *0.001, TimeCalculateWidget.widthOfScale, MediaQuery.of(context).size.width, bufferPos);
             print("DIFFERENCES = $prevStartElementIdx - $startElementIdx = ${prevStartElementIdx - startElementIdx} | ${ProcessingUtil.positionIndex}");
             // print("LABELS: ${DraggableGraph.eventMarkersPosition} ${DraggableGraph.eventMarkersLabels} ||| ${ProcessingUtil.eventLabels.sublist(0, ProcessingUtil.currentEventMarkers)} - Sublist: ${ProcessingUtil.eventPosition.sublist(0, ProcessingUtil.currentEventMarkers)}");
-
-            bufferPaddingLeft = bufferPaddingLeft - (prevStartElementIdx - startElementIdx);
+// main.dart.js:25928 DIFFERENCES = NaN - 524989.0625 = NaN | 0            
+            if (prevStartElementIdx.isNaN) {
+              bufferPaddingLeft = bufferPaddingLeft;
+            } else {
+              bufferPaddingLeft = bufferPaddingLeft - (prevStartElementIdx - startElementIdx);
+            }
             if (displayTimeMs == 10000) {
               bufferPaddingLeft = 0;
             }
@@ -1207,7 +1215,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       await GraphTemplate.nwbFileUtil?.recordNewFileLocation();
                                       int counterTimerCancel = 0;
                                       Timer.periodic(Duration(seconds: 1), (timer) async {
-                                        counterTimerCancel++;
+                                        // counterTimerCancel++;
+                                        print("GraphTemplate.nwbFileUtil?.recordedNwbFilePath: ${GraphTemplate.nwbFileUtil?.recordedNwbFilePath}");
                                         String strTemp = GraphTemplate.nwbFileUtil?.recordedNwbFilePath ?? "";
                                         if (strTemp.length! > 3) {
                                           timer.cancel();
@@ -1225,8 +1234,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                           });
                                         }else 
                                         if (GraphTemplate.nwbFileUtil?.recordedNwbFilePath == "--"){
+                                          GraphTemplate.nwbFileUtil?.recordedNwbFilePath = "";
                                           print("NWB FILE PATH");
                                           counterTimerCancel = 0;
+                                          isOpeningFile = false;
                                           timer.cancel();
                                         }
                                       });
@@ -1248,10 +1259,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                     // isRecording = 1;
                                   } else {
                                     if (isRecording == 1) {
-                                      isRecording = 2;
                                       if (kIsWeb) {
                                         GraphTemplate.nwbFileUtil?.addElectricalSeries(Int16List(0), Int32List(0), 0, 1, 1);
                                       }
+                                      isRecording = 0;
+                                      GraphTemplate.nwbFileUtil?.recordedNwbFilePath = "";
                                     } else {
                                       isRecording = 0;
                                     }
@@ -1291,6 +1303,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                               if (isRecording != 1) ... {
                                 SpikerBoxButton(onTapButton: () async {
                                   if (kIsWeb) {
+                                    // print("START OPENING FILE WEB");
                                     startOpeningFileWeb("", 0, 1);
                                     // startOpeningFile(result.files.single.path!);
                                   } else {
@@ -2513,20 +2526,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void startOpeningFileWeb(String filePath, int startIdx, int endIdx) async {
     currentLoadedFilePath = filePath;
     forceSerialDisconnect = false;
-    isOpeningFile = true;
-    bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
-    if (!isAudioListen) {
-      _serialUtil.closePort();
-    }
+    isOpeningFile = false;
 
-    Future.delayed(Duration(milliseconds: 1500), () {
-      if (context.mounted) {
-        _availablePorts.clear();
-      }
-    });
-    Int32List arrConfigWeb = Int32List(10);
-    Int32List arrSampleCount = Int32List(widget.channelCount);
-    Int16List arrSamples = Int16List(1);
+    // Int32List arrConfigWeb = Int32List(10);
+    // Int32List arrSampleCount = Int32List(widget.channelCount);
+    // Int16List arrSamples = Int16List(1);
 
     print("======SEEK OPEN FILE - Initiating");
     await GraphTemplate.nwbFileUtil?.startOpeningFileWeb(currentLoadedFilePath, 0, 1, 0, 0);
@@ -2556,6 +2560,24 @@ class _GraphTemplateState extends State<GraphTemplate> {
       print("ERROR: Invalid config in startOpeningFileWebCallback: $config (type: ${config.runtimeType}, length: ${config is List ? config.length : 'N/A'})");
       return;
     }
+
+    print("GraphTemplate.nwbFileUtil?.recordedNwbFilePath : ${GraphTemplate.nwbFileUtil?.recordedNwbFilePath}");
+    if (GraphTemplate.nwbFileUtil?.recordedNwbFilePath == "--") {
+      isOpeningFile = false;
+      return;
+    }
+
+    bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+    print("IS AUDIO LISTEN : $isAudioListen");
+    if (!isAudioListen) {
+      _serialUtil.closePort();
+      Future.delayed(Duration(milliseconds: 1500), () {
+        if (context.mounted) {
+          _availablePorts.clear();
+        }
+      });
+    }
+
     loadedConfig.setAll(0, config);
     widget.channelCount = config[1];
     print("CONFIG WEB CALLBACK: $config");
@@ -2696,6 +2718,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       setState(() {
       });
     });
+    context.read<GraphDataProvider>().broadcastDisplayTime(10000.0);
+
     return;    
     
   }

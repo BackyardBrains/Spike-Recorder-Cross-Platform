@@ -345,12 +345,6 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
                     //   }
                     // );
                   }
-                  // final map = calculateScaleFromWaveform(snapshot.data!, drawSurfaceWidth, sampleRate);
-                  // return Text(
-                  //   calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth),
-                  //   // map["label"],
-                  //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                  // );
                 },
               ),
             ],

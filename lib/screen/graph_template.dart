@@ -258,7 +258,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
         } else 
         if (graphDataProvider.isForward) {
           graphDataProvider.isForward = false;
-          isOpeningFile = false;
           Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(true);
           GraphTemplate.isPlayerPaused = false;
           GraphTemplate.isLoadingFile = 0;
@@ -266,8 +265,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             periodicTimerSerial?.cancel();
           }catch(err) {
             print("ERR: $err");
-          }
-          
+          }          
           // Reset processing position indices to prevent showing more than 10 seconds
           ProcessingUtil.positionIndex = 0;
           ProcessingUtil.fromSample = 0;
@@ -293,6 +291,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
             forceSerialDisconnect = false;
             GraphTemplate.isLoadingFile = 0;
             if (isOpeningFile) {
+              print("CANCELING PERIODIC TIMER SERIAL");
+
               try{
                 _serialUtil.closePort();
                 Future.delayed(Duration(milliseconds: 1500), () {
@@ -305,8 +305,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               }
               listenToMicrophone(1, graphDataProvider);
             }
-            isOpeningFile = false;
           }
+          isOpeningFile = false;
           setState(() {});
         }
       };

@@ -1036,6 +1036,7 @@ self.onmessage = async function (eventFromMain) {
                 }
                 for (let i = 0; i < totalChannel; i++) {
                     outSampleCountsDrawingBuffer[i] = startPosMultiplier;
+                    outSamplesBuffer.fill(0, i * startPosMultiplier, i * startPosMultiplier + startPosMultiplier);
                 }
                   
                 // console.log("SERIAL DRAWING: ", startPositionIdx, endPositionIdx, drawSurfaceWidth, totalChannel);
@@ -1235,9 +1236,14 @@ self.onmessage = async function (eventFromMain) {
             let sampleData = eventFromMain.data.data;
             let sampleCounts = eventFromMain.data.sampleCounts;
             let serialChannelCount = eventFromMain.data.channelCount;
+            console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Serial Channel Count: ", serialChannelCount);
             let serialEventLabels = JSON.parse(eventFromMain.data.eventLabels);
             let serialEventPositions = JSON.parse(eventFromMain.data.eventPositions);
             
+            console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Sample Data: ", sampleData);
+            console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Sample Counts: ", sampleCounts);
+            console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Serial Event Labels: ", serialEventLabels);
+            console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Serial Event Positions: ", serialEventPositions);
 
             let sampleDataPtr = Module._malloc(sampleData.length * Module.HEAP16.BYTES_PER_ELEMENT);
             let sampleDataPtrStart = sampleDataPtr / Module.HEAP16.BYTES_PER_ELEMENT;
@@ -1596,6 +1602,7 @@ async function makeFilePublicWeb(filePath) {
 
 async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outConfig, startIdx, endIdx, startChannel, endChannel, samplesLength, isStartOpeningFileWeb = false, isPlayback) {
     console.log("SECTION seekNwbFileBufferWeb: ", filePath, startIdx, endIdx, samplesLength);
+    console.log("isStartOpeningFileWeb: ", isStartOpeningFileWeb);
     // FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short* outSamples, int* outSamplesCount, int* outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {
     const result = NwbModule.ccall('nwbfile_seek_electrical_series', 'number', ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number'], [filePath, outSamples, outSamplesCount, outConfig, startIdx, endIdx, startChannel, endChannel]);
 
@@ -1720,7 +1727,7 @@ function initWithConfig(config) {
     outEventPositionBuffer = Module.HEAPF64.subarray(outEventPositionPtrStart, (outEventPositionPtrStart + MAX_EVENT_MARKERS));
     for (ii = 0; ii < channelCount; ii++) {
         drawingCountBuffer[ii] = drawSurfaceWidth * 5;
-    }            
+    }
 
     postMessage({
         "message": "ALLOCATE_DRAWING_DATA_BUFFER",

@@ -491,6 +491,13 @@ async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, end
       if (fileHandle == null) {
         return "File not opened";
       }
+
+      const file = await fileHandle[0].getFile();
+      // 3. Access the size property (in bytes)
+      const fileSizeInBytes = file.size;      
+      if (fileSizeInBytes < 10) {
+        return "File can't be opened"
+      }
     }catch(e){
       console.log("error: ", e);
       return "File not opened";

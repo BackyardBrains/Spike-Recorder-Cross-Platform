@@ -7,6 +7,8 @@ import 'package:usb_serial/transaction.dart';
 // import 'package:serial_communication/serial_communication.dart';
 
 class SerialUtilAndroid implements SerialUtil {
+  @override
+  bool isOpeningFile = false;
   UsbPort? _port;
   UsbDevice? _device;
   StreamSubscription<String>? _subscription;
@@ -201,4 +203,10 @@ class SerialUtilAndroid implements SerialUtil {
       return false;
     }
   }
+  
+  @override
+  Future<List<String>> getAvailablePortsWeb(int baudRate, Function audioCallback) {
+    return Future.value([]);
+  }
+
 }

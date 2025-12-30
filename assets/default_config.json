@@ -725,7 +725,7 @@
                 "bybProtocolType": "BYB1",
                 "bybProtocolVersion": "1.0",
                 "maxSampleRate": "10000",
-                "maxNumberOfChannels": "2",
+                "maxNumberOfChannels": "1",
                 "sampleResolution": 14,
                 "defaultTimeScale": "0.1",
                 "supportedPlatforms": "android,ios,win,mac,linux",

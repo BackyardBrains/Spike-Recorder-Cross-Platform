@@ -590,13 +590,10 @@ class _DraggableGraphState extends State<DraggableGraph> {
       left: leftDroplet,
       child: GestureDetector(
         onTap: () {
-          double prevVal = gainChannel[idx];
-          gainChannel[idx] *= 3;
-          selectedThresholdMarker = idx;
+          increaseGain(idx);
           // GraphGainProvider graphGainProvider =
           //     Provider.of<GraphGainProvider>(context, listen: false);
           // graphGainProvider.setGain(graphGainProvider.gain * 3);
-          setThresholdMarker(idx, thresholdMarkerTop, thresholdValue, prevVal, gainChannel[idx]);
         },
         child: Container(
           decoration: BoxDecoration(
@@ -975,6 +972,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
       List<Int16List> temp = [];
       List<int> sampleCounts = [];
       int idx = 0;
+      // channelCount = context.read<ConstantProvider>().getChannelCount();      
+      // int tempChannelCount = context.read<ConstantProvider>().getChannelCount();      
       for (idx = 0; idx < channelCount; idx++) {
         Int16List curBuffer =
             Int16List.fromList(ProcessingUtil.drawingBuffers[idx]);
@@ -1011,8 +1010,10 @@ class _DraggableGraphState extends State<DraggableGraph> {
           //   continue;
           // }
           // print("$idx OUT SAMPLE COUNT VS CURBUFFER: ${curBuffer.length} - ${outSampleCount}");
+          int minSampleCount = min(outSampleCount, curBuffer.length);
+          minSampleCount = minSampleCount > 0 ? minSampleCount : 0;
           buffer =
-              (curBuffer).sublist(0, min(curBuffer.length, outSampleCount));
+              (curBuffer).sublist(0, minSampleCount);
         } else {
           // 410
           // print("$idx OUT SAMPLE COUNT VS CURBUFFER: ${curBuffer.length} - ${outSampleCount}");
@@ -1320,9 +1321,9 @@ class _DraggableGraphState extends State<DraggableGraph> {
         initializeGraph();
         initLevelMedian(channelCount, 0);
         for (int i = 0; i < channelCount; i++) {
-          decreaseGain(i);
-          decreaseGain(i);
-          decreaseGain(i);
+          decreaseGain(i, isInitial:true);
+          decreaseGain(i, isInitial:true);
+          decreaseGain(i, isInitial:true);
         }
         setState(() {});
       });
@@ -1330,14 +1331,27 @@ class _DraggableGraphState extends State<DraggableGraph> {
   }
   
 
-  void decreaseGain(int idx) {
-    // GraphGainProvider graphGainProvider =
-    //     Provider.of<GraphGainProvider>(context, listen: false);
-    // graphGainProvider.setGain(graphGainProvider.gain * 0.25);
+  void decreaseGain(int idx, {bool isInitial = false}) {
     double prevVal = gainChannel[idx];
     gainChannel[idx] /= 3;
     setThresholdMarker(idx, thresholdMarkerTop, thresholdValue, prevVal, gainChannel[idx]);
+    GraphGainProvider graphGainProvider =
+        Provider.of<GraphGainProvider>(context, listen: false);
+    if (!isInitial) {
+      graphGainProvider.decreaseGainChannel(idx);
+    }
 
+  }
+  
+  void increaseGain(int idx) {
+    double prevVal = gainChannel[idx];
+    gainChannel[idx] *= 3;
+    selectedThresholdMarker = idx;
+    setThresholdMarker(idx, thresholdMarkerTop, thresholdValue, prevVal, gainChannel[idx]);
+
+    GraphGainProvider graphGainProvider =
+        Provider.of<GraphGainProvider>(context, listen: false);
+    graphGainProvider.increaseGainChannel(idx);
   }
 }
 

@@ -134,7 +134,7 @@ class LocalPluginWeb implements LocalPlugin {
 
   /// Called only once in the beginning to send address of buffer to dart
   void onDataBufferAllocated(Int16List dataBuffer, final channelIndex) {
-    print("ON BUFFER ALLOCATED LOCAL PLUGIN");
+    print("ON BUFFER ALLOCATED LOCAL PLUGIN - $channelIndex");
     _dataBuffer[channelIndex] = dataBuffer;
   }
 

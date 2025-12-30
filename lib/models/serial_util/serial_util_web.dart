@@ -10,6 +10,8 @@ import 'serial_util_check.dart';
 SerialUtil getSerialUtil() => SerialUtilWeb();
 
 class SerialUtilWeb implements SerialUtil {
+  @override
+  bool isOpeningFile = false;
   SerialPort? _port;
   SerialPortInfo? portInfo;
   Function? audioCallback;
@@ -39,7 +41,29 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   @override
-  void closePort() {
+  Future<void> closePort() async {
+    writer?.releaseLock();
+    reader?.releaseLock();
+    try{
+      if (!streamController.isClosed) {
+        await streamController.close();
+      }
+    } catch(err) {
+      print("Error closing stream controller: $err");
+    }
+    
+    _port?.close().then((_) async {
+      writer = null;
+      reader = null;
+      portInfo = null;
+      _port = null;
+    }).catchError((e) {
+      print("Error closing web serial port: $e");
+      writer = null;
+      reader = null;
+      portInfo = null;
+      _port = null;
+    });
   }
 
   @override
@@ -86,7 +110,7 @@ class SerialUtilWeb implements SerialUtil {
       }
     } catch (e) {
       print("Reading port failed with exception: \n$e");
-      if (audioCallback != null) {
+      if (audioCallback != null && !isOpeningFile) {
         print("Audio Callback not null0");
         // final reader = _port!.readable.reader;
         writer?.releaseLock();
@@ -116,6 +140,23 @@ class SerialUtilWeb implements SerialUtil {
     await connectToPort();
 
     availablePorts = [_port!.getInfo().usbProductId!.toString()];
+    print("getttavailablePorts: $availablePorts");
+  }
+
+  @override
+  Future<List<String>> getAvailablePortsWeb(int baudRate, Function callback) async {
+    audioCallback = callback;
+    _baudRate = baudRate;
+    try{
+      await connectToPort();
+      availablePorts = [_port!.getInfo().usbProductId!.toString()];
+      return availablePorts;
+    }catch(err) {
+      print("error in getAvailablePortsWeb: $err");
+      return [];
+    }
+
+    // print("getttavailablePorts: $availablePorts");
   }
 
   @override

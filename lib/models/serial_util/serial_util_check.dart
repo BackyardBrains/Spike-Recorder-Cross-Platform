@@ -5,8 +5,10 @@ import 'package:spikerbox_architecture/models/serial_util/serial_util.dart'
 
 abstract class SerialUtil {
   factory SerialUtil() => getSerialUtil();
+  bool isOpeningFile = false;
 
   Future<void> getAvailablePorts(int baudRate, Function audioCallback) async => [];
+  Future<List<String>> getAvailablePortsWeb(int baudRate, Function audioCallback) async => [];
 
   void writeToPort({required Uint8List bytesMessage, String? address}) async {}
 

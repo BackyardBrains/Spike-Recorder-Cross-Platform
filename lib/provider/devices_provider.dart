@@ -10,7 +10,7 @@ class ConstantProvider extends ChangeNotifier {
   }
 
   int getChannelCount() {
-    print("GET CHANNEL COUNT: $_channelCount");
+    // print("GET CHANNEL COUNT: $_channelCount");
     return _channelCount;
   }
 

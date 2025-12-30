@@ -440,7 +440,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   void onDrawingBufferAllocated(List<Int16List> dataBufferList,
       Int16List countBufferList, final channelCount) {
-    // print("onDrawingBufferAllocated");
+    print("onDrawingBufferAllocated - channel count: ${channelCount}");
+    print("OnDrawingBufferAllocated - dataBufferList: ${dataBufferList.length}");
     // print(dataBufferList[0].runtimeType);
     // print(Int16List.fromList(dataBufferList[0]).length);
     // print(countBufferList.length);

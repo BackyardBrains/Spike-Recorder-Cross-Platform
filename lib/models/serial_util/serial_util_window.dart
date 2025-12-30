@@ -4,6 +4,8 @@ import 'package:flutter_libserialport/flutter_libserialport.dart';
 import 'serial_util_check.dart';
 
 class SerialUtilWindow implements SerialUtil {
+  @override
+  bool isOpeningFile = false;
   SerialPort? port;
   int _baudRate = 0;
 
@@ -144,4 +146,11 @@ class SerialUtilWindow implements SerialUtil {
       });
     } catch (e) {}
   }
+
+
+  @override
+  Future<List<String>> getAvailablePortsWeb(int baudRate, Function audioCallback) {
+    return Future.value([]);
+  }
+
 }

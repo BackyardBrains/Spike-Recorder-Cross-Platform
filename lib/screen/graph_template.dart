@@ -152,7 +152,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (isOpeningFile) return;
 
       int baudRate = context.read<ConstantProvider>().getBaudRate();
-      _serialUtil.getAvailablePorts(baudRate, listenToMicrophone);
+      _serialUtil.getAvailablePorts(baudRate, serialErrorCallback);
       allDevices.clear();
 
       List<String> filteredPorts;
@@ -1164,7 +1164,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                           await Future.delayed(Duration(milliseconds: 1000));
                                           
                                           int baudRate = context.read<ConstantProvider>().getBaudRate();
-                                          await _serialUtil.getAvailablePorts(baudRate, listenToMicrophone);
+                                          await _serialUtil.getAvailablePorts(baudRate, serialErrorCallback);
                                           allDevices.clear();
 
                                           List<String> filteredPorts;
@@ -1294,39 +1294,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                     }
                                     // isRecording = 1;
                                   } else {
-                                    if (isRecording == 1) {
-                                      if (kIsWeb) {
-                                        GraphTemplate.nwbFileUtil?.addElectricalSeries(Int16List(0), Int32List(0), 0, 1, 1);
-                                      }
-                                      isRecording = 0;
-                                      GraphTemplate.nwbFileUtil?.recordedNwbFilePath = "";
-                                    } else {
-                                      isRecording = 0;
-                                    }
-                                    print("STOP RECORDING");
-                                    Future.delayed(Duration(milliseconds: 300), () async {
-                                      recordingNotifier.value = [0, 0];
-                                      if (recordedFilePath != null && recordedFilePath != "false") {
-                                        if (widgetContext.mounted) {
-                                          if (!kIsWeb) {
-                                            if (Platform.isAndroid) {
-                                              String? publicPath = "";
-                                              if (recordedFilePath != null) {
-                                                publicPath = await GraphTemplate.nwbFileUtil?.makeFilePublic(recordedFilePath!);
-                                              }
-                                              ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $publicPath"), duration: Duration(seconds: 7),));
-                                            } else {
-                                              ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $recordedFilePath"), duration: Duration(seconds: 7),));
-                                            }
-                                          } else {
-                                            // Web platform - file download is handled automatically
-                                            // ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $recordedFilePath"), duration: Duration(seconds: 7),));
-                                          }
-                                        }
-                                      }
-                                      setState((){});
+                                    resetRecordingState(widgetContext);
 
-                                    });
                                     setState((){});
                                   }
                                 },
@@ -3569,7 +3538,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             try {
               int baudRate = context.read<ConstantProvider>().getBaudRate();
               print("getAvailablePorts: $baudRate");
-              List<String> availablePorts = await _serialUtil.getAvailablePortsWeb(baudRate, listenToMicrophone);
+              List<String> availablePorts = await _serialUtil.getAvailablePortsWeb(baudRate, serialErrorCallback);
               if (availablePorts.isEmpty) {
                 _isSerialWebButtonEnabled = false;
                 return;
@@ -3577,7 +3546,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               print("availablePorts GRAPH TEMPLATE: $availablePorts");
 
               Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(false);
-              GraphTemplate.isLoadingFile = 1;
+              GraphTemplate.isLoadingFile = 0;
               isOpeningFile = false;
               bool isPlay = true;
               Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(isPlay);
@@ -3742,8 +3711,54 @@ class _GraphTemplateState extends State<GraphTemplate> {
       : Container();    
   }
   
+  void resetRecordingState(widgetContext) {
+    if (isRecording == 1) {
+      if (kIsWeb) {
+        GraphTemplate.nwbFileUtil?.addElectricalSeries(Int16List(0), Int32List(0), 0, 1, 1);
+      }
+      isRecording = 0;
+      GraphTemplate.nwbFileUtil?.recordedNwbFilePath = "";
+    } else {
+      isRecording = 0;
+    }
+    print("STOP RECORDING");
+    Future.delayed(Duration(milliseconds: 300), () async {
+      recordingNotifier.value = [0, 0];
+      if (recordedFilePath != null && recordedFilePath != "false") {
+        if (widgetContext.mounted) {
+          if (!kIsWeb) {
+            if (Platform.isAndroid) {
+              String? publicPath = "";
+              if (recordedFilePath != null) {
+                publicPath = await GraphTemplate.nwbFileUtil?.makeFilePublic(recordedFilePath!);
+              }
+              ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $publicPath"), duration: Duration(seconds: 7),));
+            } else {
+              ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $recordedFilePath"), duration: Duration(seconds: 7),));
+            }
+          } else {
+            // Web platform - file download is handled automatically
+            // ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $recordedFilePath"), duration: Duration(seconds: 7),));
+          }
+        }
+      }
+      setState((){});
+
+    });    
+  }
+  
   
 
+
+  serialErrorCallback(int channelCount, provider) {
+    print("SERIAL ERROR CALLBACK");
+    if (isRecording > 0) {
+      resetRecordingState(context);
+    }
+    print("End Reset Recording State");
+    final provider = Provider.of<GraphDataProvider>(context, listen: false);
+    listenToMicrophone(1, provider);
+  }
 }
 
 class NotchPassFilterWidget extends StatefulWidget {

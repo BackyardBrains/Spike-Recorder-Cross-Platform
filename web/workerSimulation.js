@@ -18,6 +18,10 @@ let dataArrayStartChannelWise = [];
 let ptrDataArrayChannelWise = [];
 let dataBufferChannelWise = [];
 
+// Buffers for accumulating multi-channel samples during recording
+let bufferedSamplesPerChannel = []; // Array of Int16Array, one per channel
+let bufferedSampleCounts = []; // Array of sample counts per channel
+
 // Should be same as the length of packet sent from Dart
 const packetSize = 2000;
 
@@ -827,56 +831,93 @@ self.onmessage = async function (eventFromMain) {
                 // }
 
                 if (isRecording == 0) {
+                    // Buffer samples per channel - accumulate samples when length > 0
                     let combinedIdx = 0;
-                    let samplesCtrPtr = NwbModule._malloc(totalChannel * NwbModule.HEAP32.BYTES_PER_ELEMENT);
-                    let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
-                    let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + totalChannel));
-                    let segmentIndex = 0;
                     for (let i = 0; i < totalChannel; i++) {
-                        let samplesLength = outSampleCountsBuffer[i];    
-                        // hardcode
-                        if (samplesLength == 0) {
-                            samplesLength = 1;
+                        let samplesLength = outSampleCountsBuffer[i];
+                        
+                        // Initialize buffer for this channel if needed
+                        if (!bufferedSamplesPerChannel[i]) {
+                            bufferedSamplesPerChannel[i] = new Int16Array(0);
+                            bufferedSampleCounts[i] = 0;
                         }
-                        samplesCtrBuffer[i] = samplesLength;
+                        
+                        if (samplesLength > 0) {
+                            // Extract samples for this channel
+                            const channelSamples = inSamplesBuffer.subarray(combinedIdx, combinedIdx + samplesLength);
+                            
+                            // Append to buffered samples for this channel
+                            const newBuffer = new Int16Array(bufferedSamplesPerChannel[i].length + channelSamples.length);
+                            newBuffer.set(bufferedSamplesPerChannel[i], 0);
+                            newBuffer.set(channelSamples, bufferedSamplesPerChannel[i].length);
+                            bufferedSamplesPerChannel[i] = newBuffer;
+                            bufferedSampleCounts[i] = bufferedSamplesPerChannel[i].length;
+                        }
+                        // If samplesLength == 0, don't add anything to buffer (will be handled on flush)
+                        
                         combinedIdx += data.length;
-                        segmentIndex += samplesLength;
                     }
-                    let samplesPtr = NwbModule._malloc(segmentIndex * NwbModule.HEAP16.BYTES_PER_ELEMENT);
-                    let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
-                    let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + segmentIndex));
-
-                    // Copy data sequentially: [ch0_samples, ch1_samples, ch2_samples, ...]
-                    combinedIdx = 0;
-                    segmentIndex = 0;
-                    // console.log("INSAMPLES BUFFER: ", inSamplesBuffer);
+                    
+                    // Record buffered samples when we have accumulated samples
+                    // Check if any channel has samples to record
+                    let hasSamplesToRecord = false;
                     for (let i = 0; i < totalChannel; i++) {
-                        let samplesLength = outSampleCountsBuffer[i];    
-                        // hardcode
-                        if (samplesLength == 0) {
-                            samplesLength = 1;
-                            const tempArray = new Int16Array(1);
-                            samplesBuffer.set(tempArray, segmentIndex);
-                        } else {
-                            const tempArray = inSamplesBuffer.subarray(combinedIdx, combinedIdx + samplesLength);
-                            // console.log("samplesLength: ", samplesLength, "tempArray: ", tempArray);
-                            samplesBuffer.set(tempArray, segmentIndex);
+                        if (bufferedSampleCounts[i] > 0) {
+                            hasSamplesToRecord = true;
+                            break;
                         }
-                        combinedIdx += data.length;
-                        segmentIndex += samplesLength;
                     }
-
-
-
-                    // NwbModule._nwbfile_add_electrical_series(inSamplesPtr, outSampleCountsPtr, 0, 1, isRecording);
-                    // console.log("INSAMPLES BUFFER: ", inSamplesBuffer);
-                    // console.log("Data Length: ", data.length, "SAMPLES CTR BUFFER: ", samplesCtrBuffer);
-                    // // console.log("SAMPLES BUFFER: ", samplesBuffer);
-                    // console.log("TOTAL CHANNEL: ", totalChannel, "samplesBuffer: ", samplesBuffer);
-    
-                    NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, totalChannel, isRecording);
-                    NwbModule._free(samplesPtr);
-                    NwbModule._free(samplesCtrPtr);
+                    
+                    if (hasSamplesToRecord) {
+                        // Calculate total samples and prepare buffers
+                        let totalSamples = 0;
+                        let samplesCtrBuffer = new Int32Array(totalChannel);
+                        
+                        for (let i = 0; i < totalChannel; i++) {
+                            let sampleCount = bufferedSampleCounts[i] > 0 ? bufferedSampleCounts[i] : 1; // Ensure at least 1 sample
+                            samplesCtrBuffer[i] = sampleCount;
+                            totalSamples += sampleCount;
+                        }
+                        
+                        // Allocate memory for samples
+                        let samplesCtrPtr = NwbModule._malloc(totalChannel * NwbModule.HEAP32.BYTES_PER_ELEMENT);
+                        let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
+                        let samplesCtrBufferNWB = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + totalChannel));
+                        samplesCtrBufferNWB.set(samplesCtrBuffer);
+                        
+                        let samplesPtr = NwbModule._malloc(totalSamples * NwbModule.HEAP16.BYTES_PER_ELEMENT);
+                        let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
+                        let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + totalSamples));
+                        
+                        // Copy buffered samples sequentially: [ch0_samples, ch1_samples, ch2_samples, ...]
+                        let segmentIndex = 0;
+                        for (let i = 0; i < totalChannel; i++) {
+                            let samplesLength = samplesCtrBuffer[i];
+                            if (bufferedSampleCounts[i] > 0) {
+                                // Copy actual buffered samples
+                                const tempArray = bufferedSamplesPerChannel[i];
+                                samplesBuffer.set(tempArray, segmentIndex);
+                            } else {
+                                // Fill with zero sample if channel has no buffered data
+                                const tempArray = new Int16Array(1);
+                                samplesBuffer.set(tempArray, segmentIndex);
+                            }
+                            segmentIndex += samplesLength;
+                        }
+                        
+                        // Record the buffered samples
+                        NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, totalChannel, isRecording);
+                        
+                        // Free memory
+                        NwbModule._free(samplesPtr);
+                        NwbModule._free(samplesCtrPtr);
+                        
+                        // Clear buffers after recording
+                        for (let i = 0; i < totalChannel; i++) {
+                            bufferedSamplesPerChannel[i] = new Int16Array(0);
+                            bufferedSampleCounts[i] = 0;
+                        }
+                    }
                 }
                 if (isThresholding) {
                     let eventLabels = JSON.parse(eventFromMain.data.eventLabels);
@@ -1150,6 +1191,15 @@ self.onmessage = async function (eventFromMain) {
                 [filePath, nwbSampleRate, nwbChannelCount, deviceInfoPointer, deviceManufacturerPointer]
             );
             console.log("PROCESSING INIT result: ", result);
+            
+            // Initialize buffers for accumulating samples
+            bufferedSamplesPerChannel = [];
+            bufferedSampleCounts = [];
+            for (let i = 0; i < nwbChannelCount; i++) {
+                bufferedSamplesPerChannel[i] = new Int16Array(0);
+                bufferedSampleCounts[i] = 0;
+            }
+            
             postMessage({
                 "message": "NWB_FILE_CREATED",
                 "result": filePath,
@@ -1171,10 +1221,13 @@ self.onmessage = async function (eventFromMain) {
             console.log("samples isFinishRecording: ", isFinishRecording, "samples length:", samples ? samples.length : 0, "samplesCount length:", samplesCount ? samplesCount.length : 0);
             // console.log("samples: ", samples, samplesCount, nwbSelectedChannel, tempNwbChannelCount, isFinishRecording);
             if (isFinishRecording == 1){ // FINISH RECORDING
+                // Flush any remaining buffered samples before finishing
+                flushBufferedSamples();
+                
                 // When finishing, Dart passes empty arrays (Int16List(0), Int32List(0))
                 // Native code requires samplesCount[i] > 0, so we allocate minimum valid data
                 // and zero-fill it to avoid writing gibberish
-                const minSamplesPerChannel = totalChannel; // Minimum required by native validation
+                const minSamplesPerChannel = 1; // Minimum required: 1 sample per channel
                 console.log("FINISH RECORDING: ", tempNwbChannelCount, "minSamplesPerChannel: ", minSamplesPerChannel, "tempNwbChannelCount: ", tempNwbChannelCount);
                 
                 // Allocate memory for sample counts
@@ -1186,7 +1239,7 @@ self.onmessage = async function (eventFromMain) {
                 samplesCtrBuffer.fill(minSamplesPerChannel);
                 
                 // Calculate total samples needed (sum of all channel sample counts)
-                // Native code expects interleaved data: [ch0_sample0, ch1_sample0, ch0_sample1, ch1_sample1, ...]
+                // Native code expects sequential data: [ch0_samples, ch1_samples, ch2_samples, ...]
                 const totalSamples = tempNwbChannelCount * minSamplesPerChannel;
                 
                 let samplesPtr = NwbModule._malloc(totalSamples * NwbModule.HEAP16.BYTES_PER_ELEMENT);
@@ -1236,14 +1289,14 @@ self.onmessage = async function (eventFromMain) {
             let sampleData = eventFromMain.data.data;
             let sampleCounts = eventFromMain.data.sampleCounts;
             let serialChannelCount = eventFromMain.data.channelCount;
-            console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Serial Channel Count: ", serialChannelCount);
+            // console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Serial Channel Count: ", serialChannelCount);
             let serialEventLabels = JSON.parse(eventFromMain.data.eventLabels);
             let serialEventPositions = JSON.parse(eventFromMain.data.eventPositions);
             
-            console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Sample Data: ", sampleData);
-            console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Sample Counts: ", sampleCounts);
-            console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Serial Event Labels: ", serialEventLabels);
-            console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Serial Event Positions: ", serialEventPositions);
+            // console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Sample Data: ", sampleData);
+            // console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Sample Counts: ", sampleCounts);
+            // console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Serial Event Labels: ", serialEventLabels);
+            // console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Serial Event Positions: ", serialEventPositions);
 
             let sampleDataPtr = Module._malloc(sampleData.length * Module.HEAP16.BYTES_PER_ELEMENT);
             let sampleDataPtrStart = sampleDataPtr / Module.HEAP16.BYTES_PER_ELEMENT;
@@ -1403,6 +1456,85 @@ if ('function' === typeof importScripts) {
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Flush buffered samples to NWB file
+ * Combines all buffered samples per channel and records them
+ */
+function flushBufferedSamples() {
+    if (!NwbModule) {
+        return;
+    }
+
+    // Determine channel count - use totalChannel if available, otherwise use buffered array length
+    const channelCountToUse = (typeof totalChannel !== 'undefined' && totalChannel > 0) 
+        ? totalChannel 
+        : Math.max(bufferedSamplesPerChannel.length, (typeof channelCount !== 'undefined' ? channelCount : 1));
+    
+    // Check if there are any buffered samples to flush
+    let hasSamples = false;
+    for (let i = 0; i < channelCountToUse; i++) {
+        if (i < bufferedSamplesPerChannel.length && bufferedSamplesPerChannel[i] && bufferedSamplesPerChannel[i].length > 0) {
+            hasSamples = true;
+            break;
+        }
+    }
+    
+    // If no samples buffered, ensure at least 1 sample per channel for NWB requirement
+    // Calculate total samples needed (sum of all channel sample counts)
+    let totalSamples = 0;
+    let samplesCtrBuffer = new Int32Array(channelCountToUse);
+    
+    for (let i = 0; i < channelCountToUse; i++) {
+        let sampleCount = 1; // Default: at least 1 sample per channel for NWB requirement
+        if (i < bufferedSamplesPerChannel.length && bufferedSamplesPerChannel[i] && bufferedSamplesPerChannel[i].length > 0) {
+            sampleCount = bufferedSamplesPerChannel[i].length;
+        }
+        samplesCtrBuffer[i] = sampleCount;
+        totalSamples += sampleCount;
+    }
+
+    if (totalSamples === 0) {
+        return;
+    }
+
+    // Allocate memory for samples
+    let samplesCtrPtr = NwbModule._malloc(channelCountToUse * NwbModule.HEAP32.BYTES_PER_ELEMENT);
+    let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
+    let samplesCtrBufferNWB = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + channelCountToUse));
+    samplesCtrBufferNWB.set(samplesCtrBuffer);
+
+    let samplesPtr = NwbModule._malloc(totalSamples * NwbModule.HEAP16.BYTES_PER_ELEMENT);
+    let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
+    let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + totalSamples));
+
+    // Copy buffered samples sequentially: [ch0_samples, ch1_samples, ch2_samples, ...]
+    let segmentIndex = 0;
+    for (let i = 0; i < channelCountToUse; i++) {
+        let samplesLength = samplesCtrBuffer[i];
+        if (i < bufferedSamplesPerChannel.length && bufferedSamplesPerChannel[i] && bufferedSamplesPerChannel[i].length > 0) {
+            // Copy actual buffered samples
+            const tempArray = bufferedSamplesPerChannel[i];
+            samplesBuffer.set(tempArray, segmentIndex);
+        } else {
+            // Fill with zero sample if channel has no buffered data
+            const tempArray = new Int16Array(1);
+            samplesBuffer.set(tempArray, segmentIndex);
+        }
+        segmentIndex += samplesLength;
+    }
+
+    // Record the buffered samples (use isRecording = 0 for normal recording, will be set to 1 when finishing)
+    NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, channelCountToUse, 0);
+    
+    // Free memory
+    NwbModule._free(samplesPtr);
+    NwbModule._free(samplesCtrPtr);
+
+    // Clear buffers after flushing
+    bufferedSamplesPerChannel = [];
+    bufferedSampleCounts = [];
 }
 
 
@@ -1601,6 +1733,7 @@ async function makeFilePublicWeb(filePath) {
 }
 
 async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outConfig, startIdx, endIdx, startChannel, endChannel, samplesLength, isStartOpeningFileWeb = false, isPlayback) {
+    // SECTION seekNwbFileBufferWeb:  SR_minutes.nwb 5760000 347443 -5412557
     console.log("SECTION seekNwbFileBufferWeb: ", filePath, startIdx, endIdx, samplesLength);
     console.log("isStartOpeningFileWeb: ", isStartOpeningFileWeb);
     // FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short* outSamples, int* outSamplesCount, int* outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {

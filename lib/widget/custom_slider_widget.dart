@@ -58,7 +58,15 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     sliderValue = widget.sliderValue;
+
+    print("startValue: ${context.read<CustomRangeSliderProvider>().startValue}");
+    print("endValue: ${context.read<CustomRangeSliderProvider>().endValue}");
+    print("Slider Value: ${sliderValue}");
 
     sampleRate = context.read<SampleRateProvider>().sampleRate.toDouble();
     maxFreq = sampleRate / 2;
@@ -69,6 +77,9 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
     } else {
       end = context.read<CustomRangeSliderProvider>().endValue;
     }
+
+    print("start: $start, end: $end");
+    print("maxFreq: $maxFreq");
 
     _highPassFilterSettings =
         context.read<DataStatusProvider>().highPassFilterSettings;
@@ -88,10 +99,8 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
 
     _isMicrophoneEnable = context.read<DataStatusProvider>().isMicrophoneData;
     _isSampleDataOn = context.read<DataStatusProvider>().isSampleDataOn;
-  }
-
-  @override
-  Widget build(BuildContext context) {
+    
+        
     return Column(
       children: [
         Padding(

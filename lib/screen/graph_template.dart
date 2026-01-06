@@ -54,6 +54,7 @@ class GraphTemplate extends StatefulWidget {
 }
 
 class _GraphTemplateState extends State<GraphTemplate> {
+  String serialUsageType = "";
   List<double> bufferPos = [0, 0];
   var seekElectricalSeriesWebCompleter = Completer<Map<String, dynamic>>(); 
 
@@ -67,7 +68,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   MicrophoneUtil microphoneUtil = MicrophoneUtil();
   final double _sliderValue = 25;
   double startValue = 0;
-  final double endValue = 22000;
+  double endValue = 22000;
   int _sampleRate = 44100;
   double displayTimeMs = 10000;
   
@@ -241,25 +242,27 @@ class _GraphTemplateState extends State<GraphTemplate> {
         graphGainProvider.removeListener(_graphGainProviderListener!);
       }
       _graphGainProviderListener = () {
-        if (graphGainProvider.stepGain > 0) {
-          String selectedCommand = "gainon:${graphGainProvider.curChannelIdx};";
-          print("SELECTED COMMAND: $selectedCommand");
-          Uint8List commandBytes = Uint8List.fromList(utf8.encode(selectedCommand));
-          _serialUtil.writeToPort(bytesMessage: commandBytes, address: _availablePorts.last);
-        } else if (graphGainProvider.stepGain < 0) {
-          String selectedCommand = "gainon:${graphGainProvider.curChannelIdx};";
-          print("SELECTED COMMAND: $selectedCommand");
-          Uint8List commandBytes = Uint8List.fromList(utf8.encode(selectedCommand));
-          _serialUtil.writeToPort(bytesMessage: commandBytes, address: _availablePorts.last);
-          
-        } else {
-          String selectedCommand = "gainoff:${graphGainProvider.curChannelIdx};";
-          print("SELECTED COMMAND: $selectedCommand");
-          Uint8List commandBytes = Uint8List.fromList(utf8.encode(selectedCommand));
-          _serialUtil.writeToPort(bytesMessage: commandBytes, address: _availablePorts.last);
+        // if (selectedBoard?.uniqueName == "HUMANSB;") {
+        //   if (graphGainProvider.stepGain > 0) {
+        //     String selectedCommand = "gainon:${graphGainProvider.curChannelIdx};";
+        //     print("SELECTED COMMAND: $selectedCommand");
+        //     Uint8List commandBytes = Uint8List.fromList(utf8.encode(selectedCommand));
+        //     _serialUtil.writeToPort(bytesMessage: commandBytes, address: _availablePorts.last);
+        //   } else if (graphGainProvider.stepGain < 0) {
+        //     String selectedCommand = "gainon:${graphGainProvider.curChannelIdx};";
+        //     print("SELECTED COMMAND: $selectedCommand");
+        //     Uint8List commandBytes = Uint8List.fromList(utf8.encode(selectedCommand));
+        //     _serialUtil.writeToPort(bytesMessage: commandBytes, address: _availablePorts.last);
+            
+        //   } else {
+        //     String selectedCommand = "gainoff:${graphGainProvider.curChannelIdx};";
+        //     print("SELECTED COMMAND: $selectedCommand");
+        //     Uint8List commandBytes = Uint8List.fromList(utf8.encode(selectedCommand));
+        //     _serialUtil.writeToPort(bytesMessage: commandBytes, address: _availablePorts.last);
 
-          return;
-        }
+        //   }
+        //   return;
+        // }
       };
       graphGainProvider.addListener(_graphGainProviderListener!);
 
@@ -483,6 +486,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     provider.setStreamOfData(_graphStream);
 
     streamScrubBuilder = streamScrubBuilderController.stream.asBroadcastStream();
+    streamValueBuilder = streamValueBuilderController.stream.asBroadcastStream();
 
     SchedulerBinding.instance.addPostFrameCallback((timeStamp) async {
       setSampleRate();
@@ -806,12 +810,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   @override
   Widget build(BuildContext widgetContext) {
-
+    bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     return Scaffold(
       backgroundColor: SoftwareColors.kBackGroundColor,
       body: StreamBuilder<int>(
         stream: streamScrubBuilder,
         builder: (context, snapshot) {
+          print("streamScrubBuilder: ${snapshot.data} -- $startValue, $endValue");
           return _AdaptiveArea(
               recordingNotifier: recordingNotifier,
               notifier: scrubNotifier,
@@ -833,24 +838,30 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       ),
                       child: Column(
                         children: [
+                          SizedBox(height: 20),
+                          // if (!isAudioListen) ... {
+                          if (1==1) ... {
+                            _predefinedFilterSettings(),
+                          },
+                          SizedBox(height: 20),
                           CustomSliderBarButton(
-                            processingUtil: processingUtil,
-                            isMicrophoneEnable: (bool isMicrophoneEnable) {
-                              context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
-                            },
-                            onHighPassFilterSetup: (FilterSetup filterSetup) {
-                              // Keep this for backward compatibility if needed
-                            },
-                            onLowPassFilterSetup: (FilterSetup filterSetup) {
-                              // Keep this for backward compatibility if needed
-                            },
-                            onSampleChange: (bool isSampleDataOn) {
-                              context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
-                            },
-                            startValue: startValue,
-                            endValue: endValue,
-                            sliderValue: _sliderValue,
-                          ),
+                          processingUtil: processingUtil,
+                          isMicrophoneEnable: (bool isMicrophoneEnable) {
+                            context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
+                          },
+                          onHighPassFilterSetup: (FilterSetup filterSetup) {
+                            // Keep this for backward compatibility if needed
+                          },
+                          onLowPassFilterSetup: (FilterSetup filterSetup) {
+                            // Keep this for backward compatibility if needed
+                          },
+                          onSampleChange: (bool isSampleDataOn) {
+                            context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
+                          },
+                          startValue: startValue,
+                          endValue: endValue,
+                          sliderValue: _sliderValue,
+                        ),
                           const SizedBox(
                             height: 10,
                           ),
@@ -1843,6 +1854,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   
   final StreamController<int> streamScrubBuilderController = StreamController();  
   Stream<int>? streamScrubBuilder;
+  final StreamController<int> streamValueBuilderController = StreamController();  
+  Stream<int>? streamValueBuilder;
   
   int recordingStartTime = 0;
   
@@ -2260,6 +2273,102 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
     });
   }
+  
+  int setupFilterValues(List<double> filterValues) {
+    startValue = filterValues[0];
+    endValue = filterValues[1];
+    double type = filterValues[2];
+    Provider.of<CustomRangeSliderProvider>(context, listen: false)
+        .setStartValue(startValue);
+    Provider.of<CustomRangeSliderProvider>(context, listen: false)
+        .setEndValue(endValue);
+    processingUtil.setBandFilter(startValue, endValue);
+    streamScrubBuilderController.add(Random().nextInt(100000));
+    if (selectedBoard?.uniqueName == "HUMANSB;") {
+      switch (type) {
+        case 0: // ECG
+          setSerialHpf(false);
+          setSerialGain(false);
+          break;
+        case 1: // EEG
+          setSerialGain(true);
+          setSerialHpf(false);
+          break;
+        case 2: // EMG
+          setSerialHpf(true);
+          setSerialGain(false);
+          break;
+        case 3: // PLANT
+          setSerialHpf(false);
+          setSerialGain(false);
+          break;
+        case 4: // NEURON
+          setSerialHpf(false);
+          setSerialGain(false);
+          break;
+      }
+    }
+    // if () {
+    // }
+    return 1;
+  }
+  //https://github.com/BackyardBrains/Spike-Recorder/blob/cdb9686947776ab522027b2078c844b009cb0a33/src/engine/RecordingManager.cpp#L795
+  Widget _predefinedFilterSettings() {
+    // startValue: startValue,
+    // endValue: endValue,
+    // sliderValue: _sliderValue,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        ElevatedButton(
+          onPressed: () {
+            print("ECG");
+            serialUsageType = "ECG";
+            startValue = 1;
+            endValue = 100;
+            setupFilterValues([startValue, endValue, 0]);
+          }, child: Text("ECG")
+        ),
+        ElevatedButton(
+          onPressed: () {
+            print("EEG");
+            serialUsageType = "EEG";
+            startValue = 0;
+            endValue = 50;
+            setupFilterValues([startValue, endValue, 1]);
+          }, child: Text("EEG")
+        ),
+        ElevatedButton(
+          onPressed: () {
+            print("EMG");
+            serialUsageType = "EMG";
+            startValue = 70;
+            endValue = 2500;
+            setupFilterValues([startValue, endValue, 2]);
+          }, child: Text("EMG")
+        ),
+        ElevatedButton(
+          onPressed: () {
+            print("Plant");
+            serialUsageType = "Plant";
+            startValue = 0;
+            endValue = 5;
+            setupFilterValues([startValue, endValue, 3]);
+          }, child: Text("Plant")
+        ),
+        ElevatedButton(
+          onPressed: () {
+            print("Neuron");
+            serialUsageType = "Neuron";
+            startValue = 70;
+            endValue = _sampleRate / 2;
+            setupFilterValues([startValue, endValue, 4]);
+          }, child: Text("Neuron")
+        ),
+
+      ],
+    );
+  }
 
   Widget _channelFilterSettings() {
     return Consumer2<ChannelFilterProvider, DataStatusProvider>(
@@ -2471,8 +2580,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
         AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
         // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
         double scrubMaxWidth = MediaQuery.of(context).size.width - 100 - 20;
-        AdaptiveAreaState.horizontalDragX = scrubMaxWidth * 0.3;
-        scrubNotifier.value = [ (scrubMaxWidth * 0.3), scrubMaxWidth];
+        // AdaptiveAreaState.horizontalDragX = scrubMaxWidth * 0.3;
+        // scrubNotifier.value = [ (scrubMaxWidth * 0.3), scrubMaxWidth];
+        double multiplier = _sampleRate / loadedMaxSamples;
+        AdaptiveAreaState.horizontalDragX = multiplier * scrubMaxWidth;
+        if (multiplier >= 1) {
+          AdaptiveAreaState.horizontalDragX = scrubMaxWidth * 0.3;
+        }
+        scrubNotifier.value = [ (AdaptiveAreaState.horizontalDragX), scrubMaxWidth];
         streamScrubBuilderController.add(Random().nextInt(100000));
       }
 
@@ -2577,8 +2692,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
     AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
     // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
     double scrubMaxWidth = MediaQuery.of(context).size.width - 100 - 20;
-    AdaptiveAreaState.horizontalDragX = scrubMaxWidth * 0.3;
-    scrubNotifier.value = [ (scrubMaxWidth * 0.3), scrubMaxWidth];
+    // AdaptiveAreaState.horizontalDragX = scrubMaxWidth * 0.3;
+    // scrubNotifier.value = [ (scrubMaxWidth * 0.3), scrubMaxWidth];
+    double multiplier = _sampleRate / loadedMaxSamples;
+    AdaptiveAreaState.horizontalDragX = multiplier * scrubMaxWidth;
+    if (multiplier >= 1) {
+      AdaptiveAreaState.horizontalDragX = scrubMaxWidth * 0.3;
+    }
+    scrubNotifier.value = [ (AdaptiveAreaState.horizontalDragX), scrubMaxWidth];
     streamScrubBuilderController.add(Random().nextInt(100000));
 
 
@@ -3064,6 +3185,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
   
   void _startPlaybackTimer() {
+    print("START PLAYBACK TIMER");
     timerPlaybackLoadedFile?.cancel();
     timerPlaybackLoadedStartIndex = 0;
     timerPlaybackLoadedEndIndex = 0;
@@ -3087,7 +3209,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
           List<Int16List> sublistArray = [];
           for (int i = 0; i < widget.channelCount; i++) {
-            sublistArray.add(loadedArrSamples[i].sublist(timerPlaybackLoadedStartIndex.floor(), timerPlaybackLoadedEndIndex.floor()));
+            Int16List sublistSamples = loadedArrSamples[i].sublist(timerPlaybackLoadedStartIndex.floor(), timerPlaybackLoadedEndIndex.floor());
+            sublistArray.add(sublistSamples);
+            soloud!.addAudioDataStream(loadedFileStreams[i]!, sublistSamples.buffer.asUint8List());
           }
           timerPlaybackLoadedStartIndex = (timerPlaybackLoadedStartIndex + sampleDivider);
           
@@ -3160,6 +3284,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
   
   void callbackPlayButton(bool isPlay) async {
+    // 1. UI settings
     print("setGraphResumePlay PLAYBACK PAUSE BUTTON");
     Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(isPlay);
     print("setGraphResumePlay PLAYBACK PAUSE BUTTON 22");
@@ -3168,10 +3293,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
     GraphTemplate.isPlayerPaused = !isPlay;
     print("setGraphResumePlay GraphTemplate.isPlayerPaused | SAMPLE RATEZ: $_sampleRate");
 
-
+    // 2. SoLoud initialization
     if (soloud == null) {
       soloud = SoLoud.SoLoud.instance;
       await soloud!.init(
+        bufferSize: 512,
         sampleRate: _sampleRate,
         channels: SoLoud.Channels.mono,
       );
@@ -3204,23 +3330,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     } else {
       loadedFileStreams.clear();
-      // List<int> timeScrub = scrubNotifier.value;
-      // double percentage = 0;
-      // if (timeScrub.isNotEmpty) {
-      //   percentage = timeScrub[0] / timeScrub[1];
-      // }
-      
-      // startPlaybackSeekSampleIdx = percentage * loadedMaxSamples;
+
 
       // print("ADDED FILE STREAMS : $_sampleRate || $startPlaybackSeekSampleIdx ||| $percentage || SCRUB: ${scrubNotifier.value}");
+      // 3. SoLoud buffer stream setup
       for (int i = 0; i < widget.channelCount; i++) {
         loadedFileStreams.add(soloud!.setBufferStream(
-          // maxBufferSizeBytes: 1024 * 1024 * 2,
+          // maxBufferSizeBytes: 1024 * 1024 * 10,
+          // {Size} = {Sample Rate} * {Bytes per Sample} * {MONO CHANNEL} * {Desired Seconds} * {100  constant}
+          maxBufferSizeBytes: _sampleRate * 2 * 1 * 10 ,
+          bufferingTimeNeeds: 0.05,
           bufferingType: SoLoud.BufferingType.released,
           sampleRate: _sampleRate,
           channels: SoLoud.Channels.mono,
           format: SoLoud.BufferType.s16le,
           onBuffering: (isBuffering, handle, time) async {
+            print("IS BUFFERING $isBuffering $handle $time");
             if (context.mounted) {
 
             }
@@ -3230,6 +3355,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
       
       
       // insert old samples, if samplesLength == 0 return null,
+      // List<int> timeScrub = scrubNotifier.value;
+      // double percentage = 0;
+      // if (timeScrub.isNotEmpty) {
+      //   percentage = timeScrub[0] / timeScrub[1];
+      // }      
+      // startPlaybackSeekSampleIdx = percentage * loadedMaxSamples;      
+
+      // 4. Seek sample index setup
       double startSeekSample = startPlaybackSeekSampleIdx.toDouble();
       double maxScreenSamples = ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate; 
       double endSeekSample = 0; // (arrSamplesLength - startSeekSample).floor()
@@ -3269,6 +3402,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
           arrSampleCount = map['arrSampleCount'];
           loadedConfig = map['loadedConfig'];
           print("SEEK ELECTRICAL SERIES WEB COMPLETED: $loadedConfig");
+          // print("arrSampleCount : $arrSampleCount | arrSamplesLength: ${arrSamples.length}");
+          // print("arrSamples : $arrSamples");
 
           int combinedIdx = 0;
           int totalChannelCount = loadedConfig[1];
@@ -3284,8 +3419,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
               // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
               loadedArrChannelCount[i] = initialSampleCount.floor();
               combinedIdx += initialSampleCount.floor();
-              soloud!.addAudioDataStream(loadedFileStreams[i]!, loadedArrSamples[i].buffer.asUint8List());
+              // soloud!.addAudioDataStream(loadedFileStreams[i]!, loadedArrSamples[i].buffer.asUint8List());
             }
+            // soloud!.setVisualizationEnabled(true);
           }catch(err) {
             print("ERR: $err | arrSampleCount: $arrSampleCount -- channelCount: ${widget.channelCount}");
           }
@@ -3297,13 +3433,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
           loadedSoundHandles.clear();
           if (isAudioListen) {
             for (int i = 0; i < widget.channelCount; i++) {
+              print("Initialize PLAY SOUND ${DateTime.now().millisecondsSinceEpoch}");
               soloud!.play(loadedFileStreams[i]!).then((soundHandle) {
+                print("Start PLAY SOUND ${DateTime.now().millisecondsSinceEpoch}");
                 loadedSoundHandles.add(soundHandle);
+                _startPlaybackTimer();
+
                 // loadedSoundHandles[i] = soundHandle;
               });
             }
             // Future.delayed(Duration(milliseconds: 100), () {
-              _startPlaybackTimer();
             // });
           } else {
             for (int i = 0; i < widget.channelCount; i++) {
@@ -3323,21 +3462,23 @@ class _GraphTemplateState extends State<GraphTemplate> {
           GraphTemplate.isLoadingFile = 3;
           loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
           await processingUtil.initWithConfig(loadedConfig);
-          print("START SEEK SAMPLE INITIAL 0000 $startPlaybackSeekSampleIdx ${arrSampleCount[0].floor()} == $loadedMaxSamples");
+          print("START SEEK SAMPLE INITIAL 0000 $startPlaybackSeekSampleIdx | ${arrSampleCount[0].floor()} == $loadedMaxSamples");
           if (startPlaybackSeekSampleIdx > 0 && arrSampleCount[0].floor() > 0) {
-            int startInitialIndex = (startPlaybackSeekSampleIdx ~/ maxScreenSamples.floor()) * maxScreenSamples.floor();
-            int endInitialIndex = (startSeekSample % maxScreenSamples.floor()).floor();
+            int startInitialIndex = (startPlaybackSeekSampleIdx - maxScreenSamples.floor()).floor();
+            startInitialIndex = startInitialIndex > 0 ? startInitialIndex : 0;
+            // int endInitialIndex = startInitialIndex + (startSeekSample % maxScreenSamples.floor()).floor();
+            int endInitialIndex = (startPlaybackSeekSampleIdx).floor();
             Int32List arrSampleCountInitial = Int32List(widget.channelCount);
             Int16List arrSamplesInitial = Int16List(endInitialIndex * widget.channelCount);
+            print("Start Initial Index: $startInitialIndex | End Initial Index: $endInitialIndex");
 
             // hardcode
-
             bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
             if (isAudioListen) {
               seekElectricalSeriesWebCompleter = Completer<Map<String, dynamic>>(); 
               await GraphTemplate.nwbFileUtil?.seekElectricalSeriesWeb(currentLoadedFilePath, arrSamplesInitial, arrSampleCountInitial, loadedConfig, startInitialIndex, endInitialIndex, 0, 0);
               Map<String, dynamic> map = await seekElectricalSeriesWebCompleter.future;
-              print("SEEK ELECTRICAL SERIES WEB COMPLETED2: $map | $startInitialIndex | $endInitialIndex");
+              // print("SEEK ELECTRICAL SERIES WEB COMPLETED2: $map | $startInitialIndex | $endInitialIndex");
               arrSamplesInitial = map['arrSamples'];
               arrSampleCountInitial = map['arrSampleCount'];
               var loadedConfigLocal = map['loadedConfig'];
@@ -3427,12 +3568,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
       GraphTemplate.isLoadingFile = 3;
       loadedConfig[7] = MediaQuery.of(context).size.width.toInt();
       await processingUtil.initWithConfig(loadedConfig);
+      // 5. Seek previous samples and combine with the new samples from playback
       print("START SEEK SAMPLE INITIAL 0000 $startPlaybackSeekSampleIdx ${arrSampleCount[0].floor()} == $loadedMaxSamples");
       if (startPlaybackSeekSampleIdx > 0 && arrSampleCount[0].floor() > 0) {
-        int startInitialIndex = (startPlaybackSeekSampleIdx ~/ maxScreenSamples.floor()) * maxScreenSamples.floor();
-        int endInitialIndex = (startSeekSample % maxScreenSamples.floor()).floor();
+        // int startInitialIndex = (startPlaybackSeekSampleIdx ~/ maxScreenSamples.floor()) * maxScreenSamples.floor();
+        int startInitialIndex = (startPlaybackSeekSampleIdx - maxScreenSamples.floor()).floor();
+        startInitialIndex = startInitialIndex > 0 ? startInitialIndex : 0;
+        // int endInitialIndex = startInitialIndex + (startSeekSample % maxScreenSamples.floor()).floor();
+        int endInitialIndex = (startPlaybackSeekSampleIdx).floor();
         Int32List arrSampleCountInitial = Int32List(widget.channelCount);
         Int16List arrSamplesInitial = Int16List(endInitialIndex * widget.channelCount);
+        print("Start Initial Index: $startInitialIndex | End Initial Index: $endInitialIndex"); 
 
         bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
         if (isAudioListen) {
@@ -3759,6 +3905,33 @@ class _GraphTemplateState extends State<GraphTemplate> {
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
     listenToMicrophone(1, provider);
   }
+  
+  void setSerialHpf(bool active) {
+    String sstm;
+    if(active)
+    {
+        sstm = "hpfon:2;hpfon:1;\n";
+    }
+    else
+    {
+        sstm = "hpfoff:2;hpfoff:1;\n";
+    }    
+    _serialUtil.writeToPort(bytesMessage: Uint8List.fromList(utf8.encode(sstm)), address: _availablePorts.last);
+  }
+
+  void setSerialGain(bool active) {
+    String sstm;
+    if(active)
+    {
+        sstm = "gainon:2;gainon:1;\n";
+    }
+    else
+    {
+        sstm = "gainoff:2;gainoff:1;\n";
+    }    
+    _serialUtil.writeToPort(bytesMessage: Uint8List.fromList(utf8.encode(sstm)), address: _availablePorts.last);
+  }
+
 }
 
 class NotchPassFilterWidget extends StatefulWidget {

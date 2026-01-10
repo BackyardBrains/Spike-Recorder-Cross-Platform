@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:native_add/model/model.dart';
 import 'package:spikerbox_architecture/models/models.dart';
@@ -15,6 +16,9 @@ LocalPlugin getLocalPlugins() => LocalPluginWeb();
 class LocalPluginWeb implements LocalPlugin {
   FilterSetup? _highPassFilterSetup;
   FilterSetup? _lowPassFilterSetup;
+  int defaultChannelCountNoExpansionBoard = -1;
+  int defaultSampleRateNoExpansionBoard = -1;
+  String currentExpansionBoardString = "";
 
   static final List<Int16List?> _dataBuffer =
       List.generate(channelCountBuffer, (index) => null);
@@ -30,6 +34,7 @@ class LocalPluginWeb implements LocalPlugin {
     print("SPAWN HELPER ISOLATE WEB");
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
     postDisplayStream = postDisplayStreamController.stream.asBroadcastStream();
+    postChannelCountStream = postChannelCountController.stream.asBroadcastStream();
     for (int i = 0; i < channelCountBuffer; i++) {
       _bufferHandlerOnDemand[i] = BufferHandlerOnDemand(
         chunkReadSize: 4000,
@@ -45,6 +50,7 @@ class LocalPluginWeb implements LocalPlugin {
     js.context['onCallbackProcessFft'] = onCallbackProcessFft;
     js.context['onCallbackPrepareFftDrawing'] = onCallbackPrepareFftDrawing;
     js.context['setExpansionBoardTypeDart'] = setExpansionBoardTypeDart;
+    js.context['setDefaultDeviceParameters'] = setDefaultDeviceParameters;
     js.context.callMethod("initializeModule", []);
   }
 
@@ -95,6 +101,9 @@ class LocalPluginWeb implements LocalPlugin {
   @override
   StreamController<Uint8List> postFilterStreamController =
       StreamController<Uint8List>();
+  @override
+  StreamController<int> postChannelCountController =
+      StreamController<int>();
 
   /// When another packet is available for processing from buffer
   void onPacketAvailable(Uint8List packet, int channelIndex) {
@@ -138,6 +147,13 @@ class LocalPluginWeb implements LocalPlugin {
     _dataBuffer[channelIndex] = dataBuffer;
   }
 
+  void setDefaultDeviceParameters(sampleRate, channelCount) {
+    if (defaultChannelCountNoExpansionBoard == -1) {
+      defaultSampleRateNoExpansionBoard = sampleRate;
+      defaultChannelCountNoExpansionBoard = channelCount;
+    }
+  }
+
   /// Called from JS when processing completed on a packet
   void onProcessingDone(channelData, channelCounts) {
     // Int16List returnList = Int16List(_dataBuffer[channelIdx]?.length ?? 0);
@@ -166,28 +182,38 @@ class LocalPluginWeb implements LocalPlugin {
       if (GraphTemplate.selectedBoard!.expansionBoards != null) {
         print("setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
         for (var expBoard in GraphTemplate.selectedBoard!.expansionBoards!) {
-          print("setExpansionBoardTypeDart3");
+          print("setExpansionBoardTypeDart3 ${expBoardType.toString()}");
           if (expBoard.boardType == expBoardType.toString()) {
             print("setExpansionBoardTypeDart4");
-            // ProcessingBindings.instance.setSampleRate();
-            if (expBoard.maxSampleRate != null) {
-              print("setExpansionBoardTypeDart5");
-              int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
-              int boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
-              js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+            if (currentExpansionBoardString == "" && expBoardType == 0) {
+              return;
+            } else
+            if (currentExpansionBoardString != expBoardType.toString()) {
+              currentExpansionBoardString = expBoardType.toString();
+              // ProcessingBindings.instance.setSampleRate();
+              if (expBoard.maxSampleRate != null) {
+                print("setExpansionBoardTypeDart5");
+                int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+                int boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
+                postChannelCountController.add(boardChannels);
+                js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+              }
+            }
+          } else 
+          if (expBoardType == 0) {
+            print("setExpansionBoardTypeDart3.5 : $currentExpansionBoardString");
+            if (currentExpansionBoardString.isNotEmpty) {
+              currentExpansionBoardString = "";
+              postChannelCountController.add(defaultChannelCountNoExpansionBoard);
+              js.context.callMethod("initializeSerialWeb", [defaultSampleRateNoExpansionBoard, defaultChannelCountNoExpansionBoard, -1] );
+              defaultChannelCountNoExpansionBoard = -1;
+              defaultSampleRateNoExpansionBoard = -1;              
             }
           }
         }
       }
     }
   }
-
-  int thresholdSliderValue = 1;
-  
-  double FFT_WIDGET_HEIGHT = 0.3;
-  
-  int FFT_30HZ_LENGTH = 32;
-  int FFT_WINDOW_TIME_LENGTH = 4;
 
   void onPostDisplay(channelData, channelCounts) {
     postDisplayStreamController.sink.add(Uint8List(0));
@@ -298,4 +324,8 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
   @override
   StreamController<Uint8List> postDisplayStreamController =
       StreamController<Uint8List>();
+
+  @override
+  Stream<int>? postChannelCountStream;
+
 }

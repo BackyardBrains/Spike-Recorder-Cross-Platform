@@ -26,6 +26,7 @@ import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
 import 'package:spikerbox_architecture/models/processing_utils/processing_util.dart';
 import 'package:spikerbox_architecture/provider/fft_status_provider.dart';
 import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
+import 'package:spikerbox_architecture/provider/custom_slider_provider.dart';
 import 'package:spikerbox_architecture/screen/setting_page.dart';
 import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
 import 'package:window_manager/window_manager.dart';
@@ -510,6 +511,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     localPlugin.spawnHelperIsolate().then(
       (value) {
+        localPlugin.postChannelCountStream?.listen((channelCount) {
+          widget.channelCount = channelCount;
+          context.read<ConstantProvider>().setChannelCount(channelCount);
+          ProcessingUtil.initializeDevice.value = (ProcessingUtil.initializeDevice.value * 10) + 2 + Random().nextInt(10) + channelCount;
+        });
         localPlugin.postFilterStream?.listen((serialData) {
           bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
           if (!isAudioListen) {
@@ -816,7 +822,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       body: StreamBuilder<int>(
         stream: streamScrubBuilder,
         builder: (context, snapshot) {
-          print("streamScrubBuilder: ${snapshot.data} -- $startValue, $endValue");
+          // print("streamScrubBuilder: ${snapshot.data} -- $startValue, $endValue");
           return _AdaptiveArea(
               recordingNotifier: recordingNotifier,
               notifier: scrubNotifier,
@@ -1252,6 +1258,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                     print("!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
                                     
                                     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+                                    visibleSignalsList = context.read<ChannelColorProvider>().getVisibleChannel();
+                                    visibleChannelCount = context.read<ChannelColorProvider>().getVisibleChannelCount();
+
                                     if (kIsWeb) {
                                       await GraphTemplate.nwbFileUtil?.recordNewFileLocation();
                                       int counterTimerCancel = 0;
@@ -1262,9 +1271,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                         if (strTemp.length! > 3) {
                                           timer.cancel();
                                           if (isAudioListen) {
-                                            recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems");
+                                            recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems", visibleSignalsList, visibleChannelCount);
                                           } else {
-                                            recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems");
+                                            recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems", visibleSignalsList, visibleChannelCount);
                                           }
                                           bool isPlay = true;
                                           Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(isPlay);
@@ -1274,6 +1283,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                           
                                           Future.delayed(Duration(milliseconds: 1000), () {
                                             isRecording = 1;
+                                            context.read<ChannelColorProvider>().setIsRecording(1);
+
                                             recordingStartTime = DateTime.now().millisecondsSinceEpoch;
 
                                             recordingNotifier.value = [recordingStartTime, recordingStartTime];
@@ -1290,12 +1301,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       });
                                     } else {
                                       if (isAudioListen) {
-                                        recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems");
+                                        recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems", visibleSignalsList, visibleChannelCount);
                                       } else {
-                                        recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems");
+                                        recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems", visibleSignalsList, visibleChannelCount);
                                       }
                                       Future.delayed(Duration(milliseconds: 1000), () {
                                         isRecording = 1;
+                                        context.read<ChannelColorProvider>().setIsRecording(1);
                                         recordingStartTime = DateTime.now().millisecondsSinceEpoch;
 
                                         recordingNotifier.value = [recordingStartTime, recordingStartTime];
@@ -1697,6 +1709,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
       return;
     }
+    
+    visibleSignalsList = [1];
+    visibleChannelCount = 1;
     
     _isListeningToMicrophone = true;
     _listenToMicrophoneCompleter = Completer<void>();
@@ -2320,51 +2335,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        ElevatedButton(
-          onPressed: () {
-            print("ECG");
-            serialUsageType = "ECG";
-            startValue = 1;
-            endValue = 100;
-            setupFilterValues([startValue, endValue, 0]);
-          }, child: Text("ECG")
-        ),
-        ElevatedButton(
-          onPressed: () {
-            print("EEG");
-            serialUsageType = "EEG";
-            startValue = 0;
-            endValue = 50;
-            setupFilterValues([startValue, endValue, 1]);
-          }, child: Text("EEG")
-        ),
-        ElevatedButton(
-          onPressed: () {
-            print("EMG");
-            serialUsageType = "EMG";
-            startValue = 70;
-            endValue = 2500;
-            setupFilterValues([startValue, endValue, 2]);
-          }, child: Text("EMG")
-        ),
-        ElevatedButton(
-          onPressed: () {
-            print("Plant");
-            serialUsageType = "Plant";
-            startValue = 0;
-            endValue = 5;
-            setupFilterValues([startValue, endValue, 3]);
-          }, child: Text("Plant")
-        ),
-        ElevatedButton(
-          onPressed: () {
-            print("Neuron");
-            serialUsageType = "Neuron";
-            startValue = 70;
-            endValue = _sampleRate / 2;
-            setupFilterValues([startValue, endValue, 4]);
-          }, child: Text("Neuron")
-        ),
+        buildSerialUsageTypeButton("ECG"),
+        buildSerialUsageTypeButton("EEG"),
+        buildSerialUsageTypeButton("EMG"),
+        buildSerialUsageTypeButton("Plant"),
+        buildSerialUsageTypeButton("Neuron"),
 
       ],
     );
@@ -2387,6 +2362,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
   Int32List arrConfigWeb = Int32List(10);
   
   bool _isSerialWebButtonEnabled = false;
+  
+  List<int> visibleSignalsList = [1];
+  int visibleChannelCount = 1;
   // Int32List arrSampleCountWeb = Int32List(0);
   // Int16List arrSamplesWeb = Int16List(1);
 
@@ -3796,6 +3774,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     }
                     if (isDeviceSelected) { // !isDeviceConnect &&
                       _isDataIdentified = true;
+                      Future.delayed(Duration(milliseconds:100), () {
+                        Uint8List commandBytes = Uint8List.fromList(utf8.encode("board:;"));
+                        _serialUtil.writeToPort(bytesMessage: commandBytes, address: _availablePorts.last);
+                      });
                       // STEVE
                       // processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((sampleCount) {
                       //   totalSampleCount += sampleCount;
@@ -3833,7 +3815,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   _serialUtil.closePort();
                   Future.delayed(Duration(milliseconds: 2500), () {
                     forceSerialDisconnect = false;
+                    _isSerialWebButtonEnabled = false;
+                    isDeviceConnect = false;
+                    isDeviceSelected = false;
+                    _isDataIdentified = false;
+                    streamScrubBuilderController.add(Random().nextInt(100000));
                     listenToMicrophone(1, provider);
+                    
                   });
                 // }
               });
@@ -3841,7 +3829,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
             } catch (e) {
               Debugging.printing("Opening port failed:\n$e");
             }
-
             setState(() {});
           },
           child: Row(
@@ -3867,6 +3854,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     } else {
       isRecording = 0;
     }
+    context.read<ChannelColorProvider>().setIsRecording(0);
+
     print("STOP RECORDING");
     Future.delayed(Duration(milliseconds: 300), () async {
       recordingNotifier.value = [0, 0];
@@ -3930,6 +3919,75 @@ class _GraphTemplateState extends State<GraphTemplate> {
         sstm = "gainoff:2;gainoff:1;\n";
     }    
     _serialUtil.writeToPort(bytesMessage: Uint8List.fromList(utf8.encode(sstm)), address: _availablePorts.last);
+  }
+  
+  buildSerialUsageTypeButton(String s) {
+    bool isSelected = serialUsageType.contains(s);
+    ButtonStyle style = ElevatedButton.styleFrom(
+        // Toggle colors based on selection
+        backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
+        foregroundColor: isSelected ? Colors.white : Colors.black,
+    );
+
+    switch (s) {
+      case "ECG":
+        return ElevatedButton(
+          style: style,
+          onPressed: () {
+            print("ECG");
+            serialUsageType = "ECG";
+            startValue = 1;
+            endValue = 100;
+            setupFilterValues([startValue, endValue, 0]);
+          },
+          child: Text("ECG"));
+      case "EEG":
+        return ElevatedButton(
+          style: style,
+          onPressed: () {
+            print("EEG");
+            serialUsageType = "EEG";
+            startValue = 0;
+            endValue = 50;
+            setupFilterValues([startValue, endValue, 1]);
+          }, child: Text("EEG")
+        );
+      case "EMG":
+        return ElevatedButton(
+          style: style,
+          onPressed: () {
+            print("EMG");
+            serialUsageType = "EMG";
+            startValue = 70;
+            endValue = 2500;
+            setupFilterValues([startValue, endValue, 2]);
+          }, child: Text("EMG")
+        );
+      case "Plant":
+        return ElevatedButton(
+          style: style,
+          onPressed: () {
+            print("Plant");
+            serialUsageType = "Plant";
+            startValue = 0;
+            endValue = 5;
+            setupFilterValues([startValue, endValue, 3]);
+          }, child: Text("Plant")
+        );
+      case "Neuron":
+        return ElevatedButton(
+          style: style,
+          onPressed: () {
+            print("Neuron");
+            serialUsageType = "Neuron";
+            startValue = 70;
+            endValue = _sampleRate / 2;
+            setupFilterValues([startValue, endValue, 4]);
+          }, child: Text("Neuron")
+        );
+      default:
+        return Container();
+    }
   }
 
 }

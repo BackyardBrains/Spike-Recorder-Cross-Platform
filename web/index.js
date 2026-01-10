@@ -7,6 +7,9 @@ var mWorker;
 let workerChannel;
 var fileHandle;
 
+let recordingVisibleSignalsList = [];
+let recordingVisibleChannelCount = 1;
+
 function initializeModule() {
   try {
     mWorker.terminate();
@@ -45,9 +48,15 @@ function initializeModule() {
     if (event.data.message === "onWebApplyFilter") {
       window.onProcessingDone(event.data.channelIdx);
     } else
+    if (event.data.message === "SET_DEFAULT_DEVICE_PARAMETERS") {
+      // Share the typed view of allocated buffer with Dart
+      // window.onDataBufferAllocated(event.data.dataBuffer, event.data.chIdx);
+      window.setDefaultDeviceParameters(event.data.sampleRate, event.data.channelCount);
+    } else
     if (event.data.message === "dataBufferAllocation") {
       // Share the typed view of allocated buffer with Dart
       window.onDataBufferAllocated(event.data.dataBuffer, event.data.chIdx);
+      // window.setDefaultDeviceParameters()
     } else
     if (event.data.message === "INPUT_MICROPHONE_BUFFER_FINISHED") { 
       window.onPostDisplay(event.data.bufferViews, event.data.bufferCountViews);
@@ -390,7 +399,8 @@ function prepareFftDrawing(drawBuffer, selectedChannelIdx, windowCount, windowSi
   });
 }
 
-async function recordNewNwbFile() {
+async function recordNewNwbFile(path) {
+  
   const newDate = new Date();
   const newFileName = "spike_recorder"+newDate.getFullYear()+"-"+newDate.getMonth()+"-"+newDate.getDate()+"_"+newDate.getHours()+"."+newDate.getMinutes()+"."+newDate.getSeconds();
   const options = {
@@ -426,10 +436,16 @@ async function recordNewNwbFile() {
   return newFileName;
 }
 
-async function createNwbFile(filePath, sampleRate, channelCount, deviceInfoPointer, deviceManufacturerPointer) {
+async function createNwbFile(filePath, sampleRate, channelCount, deviceInfoPointer, deviceManufacturerPointer, visibleSignalsList, visibleChannelCount) {
   // const newDate = new Date();
 
   // const newFileName = "BYB_Recording_"+newDate.getFullYear()+"-"+newDate.getMonth()+"-"+newDate.getDate()+"_"+newDate.getHours()+"."+newDate.getMinutes()+"."+newDate.getSeconds();
+  let cookie = getCookie("RECORDED_NWB_FILE");
+  if (cookie !== undefined || cookie == "") {
+    cookie = "";
+  }
+  console.log("COOKIE: ", cookie + filePath + ";");
+  setCookie("RECORDED_NWB_FILE", cookie + filePath + ";");
   //2022-03-18_15.36.04
   mWorker.postMessage({
     "message": "CREATE_NWB_FILE",
@@ -439,6 +455,9 @@ async function createNwbFile(filePath, sampleRate, channelCount, deviceInfoPoint
     "deviceInfoPointer": deviceInfoPointer,
     "deviceManufacturerPointer": deviceManufacturerPointer,
     "fileHandle": fileHandle,
+    "visibleSignalsList": visibleSignalsList, 
+    "visibleChannelCount": visibleChannelCount,
+    "recordedFileCookie": cookie
   });
   return "Creating File";
 }
@@ -584,3 +603,29 @@ async function processSerialDataWebResult(data, sampleCounts, channelCount, even
     "eventPositions": eventPositions,
   });
 }
+
+
+function setCookie(cname, cvalue, exdays) {
+  const d = new Date();
+  d.setTime(d.getTime() + (exdays*24*60*60*1000));
+  let expires = "expires="+ d.toUTCString();
+  document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
+}
+
+function getCookie(cname) {
+  let name = cname + "=";
+  let decodedCookie = decodeURIComponent(document.cookie);
+  let ca = decodedCookie.split(';');
+  for(let i = 0; i <ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) == ' ') {
+      c = c.substring(1);
+    }
+    if (c.indexOf(name) == 0) {
+      return c.substring(name.length, c.length);
+    }
+  }
+  return "";
+}
+
+

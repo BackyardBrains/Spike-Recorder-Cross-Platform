@@ -104,3 +104,9 @@ Channel 1 Value - 11520 | Channel 2 Value 0
 
 The logic behind seeking file using NWB:
 
+
+
+Delete after saving, cookies
+
+Device GAIN LIST:
+https://github.com/BackyardBrains/Spike-Recorder/blob/66b1cb83266ad7770a8c6ff5ae4d925a262693ab/src/engine/RecordingManager.cpp#L2910

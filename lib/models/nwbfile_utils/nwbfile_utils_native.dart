@@ -16,7 +16,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
 
   @override
-  Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer) async {
+  Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer, List<int> visibleChannelsList, int visibleChannelCount) async {
     // final path = "${(await getApplicationDocumentsDirectory()).path}/${DateTime.now().millisecondsSinceEpoch}";
     // final path = (await getApplicationDocumentsDirectory()).path + "/example_recording2.nwb";
     recordedTime = DateTime.now().millisecondsSinceEpoch.toString();

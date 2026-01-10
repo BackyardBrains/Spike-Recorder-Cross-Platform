@@ -110,5 +110,12 @@ class LocalPluginWindow implements LocalPlugin {
   int channelCount = 1;
   int sampleRate = 10000;
   int packetLen = 100000;
+  
+  @override
+  Stream<int>? postChannelCountStream;
+  
+  @override
+  // TODO: implement postChannelCountController
+  StreamController<int> get postChannelCountController => throw UnimplementedError();
 
 }

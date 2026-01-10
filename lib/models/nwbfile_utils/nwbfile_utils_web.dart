@@ -78,7 +78,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
   }
 
   @override
-  Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer) async {
+  Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer, List<int> visibleChannelsList, int visibleChannelCount) async {
     print("processingInit: $sampleRate, $channelCount, $deviceInfo, $deviceManufacturer");
     // final path = "${(await getApplicationDocumentsDirectory()).path}/${DateTime.now().millisecondsSinceEpoch}";
     // final path = (await getApplicationDocumentsDirectory()).path + "/example_recording2.nwb";
@@ -87,7 +87,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
     String charPointer = path.toString();
     String deviceInfoPointer = deviceInfo;
     String deviceManufacturerPointer = deviceManufacturer;
-    String resultString =js.context.callMethod('createNwbFile', [charPointer, sampleRate, channelCount, deviceInfoPointer, deviceManufacturerPointer]);
+    String resultString =js.context.callMethod('createNwbFile', [charPointer, sampleRate, channelCount, deviceInfoPointer, deviceManufacturerPointer, visibleChannelsList, visibleChannelCount]);
 
     return Future.value(path);
   }

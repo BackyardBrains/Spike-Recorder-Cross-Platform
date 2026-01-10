@@ -23,6 +23,10 @@ abstract class LocalPlugin {
   /// To be listened only after call [spawnHelperIsolate]
   Stream<Uint8List>? postDisplayStream;
 
+  final StreamController<int> postChannelCountController =
+      StreamController<int>();
+  /// To be listened only after call [spawnHelperIsolate]
+  Stream<int>? postChannelCountStream;
 
   /// Spawns helper Isolate on windows, macOS, android, iOS
   ///

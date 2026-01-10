@@ -609,9 +609,15 @@ class _DraggableGraphState extends State<DraggableGraph> {
       top: midChartY[idx],
       child: GestureDetector(
         onDoubleTap: () {
-          showWaveform[idx] = !showWaveform[idx];
-          setState(() {
-          });
+          int isRecording = context.read<ChannelColorProvider>().getIsRecording();
+          if (isRecording == 0) {
+            showWaveform[idx] = !showWaveform[idx];
+            context.read<ChannelColorProvider>().setVisibleChannel(idx);
+            setState(() {
+            });
+          } else {
+            return;
+          }
         },
         onTap: () {
           if (selectedThresholdIdx != idx) {
@@ -974,12 +980,16 @@ class _DraggableGraphState extends State<DraggableGraph> {
       int idx = 0;
       // channelCount = context.read<ConstantProvider>().getChannelCount();      
       // int tempChannelCount = context.read<ConstantProvider>().getChannelCount();      
-      for (idx = 0; idx < channelCount; idx++) {
-        Int16List curBuffer =
-            Int16List.fromList(ProcessingUtil.drawingBuffers[idx]);
-        temp.add(curBuffer);
-        sampleCounts.add(ProcessingUtil.drawingBufferCounts[idx]);
-        // sampleCounts.add(curBuffer.length);
+      try{
+        for (idx = 0; idx < channelCount; idx++) {
+          Int16List curBuffer =
+              Int16List.fromList(ProcessingUtil.drawingBuffers[idx]);
+          temp.add(curBuffer);
+          sampleCounts.add(ProcessingUtil.drawingBufferCounts[idx]);
+          // sampleCounts.add(curBuffer.length);
+        }
+      }catch(err){
+        return SizedBox();
       }
 
 

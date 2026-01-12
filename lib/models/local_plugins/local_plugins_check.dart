@@ -10,7 +10,7 @@ import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 
 abstract class LocalPlugin {
   factory LocalPlugin() => getLocalPlugins();
-
+  String currentExpansionBoardString = "";
   final StreamController<Uint8List> postFilterStreamController =
       StreamController<Uint8List>();
 

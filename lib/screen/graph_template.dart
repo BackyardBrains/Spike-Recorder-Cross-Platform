@@ -512,8 +512,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
     localPlugin.spawnHelperIsolate().then(
       (value) {
         localPlugin.postChannelCountStream?.listen((channelCount) {
+          print("EXPANSION BOARD CHANNEL COUNT: $channelCount");
           widget.channelCount = channelCount;
           context.read<ConstantProvider>().setChannelCount(channelCount);
+          
+          // Device is serial 
+          context.read<ChannelColorProvider>().setSerialChannelCount(channelCount);
           ProcessingUtil.initializeDevice.value = (ProcessingUtil.initializeDevice.value * 10) + 2 + Random().nextInt(10) + channelCount;
         });
         localPlugin.postFilterStream?.listen((serialData) {
@@ -1483,6 +1487,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
           }
           if (isDeviceSelected) { // !isDeviceConnect &&
             _isDataIdentified = true;
+            Future.delayed(Duration(milliseconds:100), () {
+              Uint8List commandBytes = Uint8List.fromList(utf8.encode("board:;"));
+              _serialUtil.writeToPort(bytesMessage: commandBytes, address: _availablePorts.last);
+            });
+
             // STEVE
             if (!GraphTemplate.isPlayerPaused) {
               List<Int16List> samples = await processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
@@ -1710,6 +1719,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       return;
     }
     
+    localPlugin.currentExpansionBoardString = "";
     visibleSignalsList = [1];
     visibleChannelCount = 1;
     
@@ -1721,6 +1731,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         provider = Provider.of<GraphDataProvider>(context, listen: false);      
       }
       isDeviceConnect = true;
+      _isSerialWebButtonEnabled = false;
       isDeviceSelected = false;
       _isDataIdentified = false;
       deviceChannelCount = channelCount;
@@ -1803,6 +1814,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     } finally {
       _isListeningToMicrophone = false;
       _listenToMicrophoneCompleter = null;
+      _isSerialWebButtonEnabled = false;
+      setState(() => {});
     }
   }
 
@@ -3892,7 +3905,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
     print("End Reset Recording State");
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
-    listenToMicrophone(1, provider);
+    Future.delayed(Duration(seconds: 1), () {
+      print("Listen To Microphone Serial Error");
+      listenToMicrophone(1, provider);
+    });
   }
   
   void setSerialHpf(bool active) {

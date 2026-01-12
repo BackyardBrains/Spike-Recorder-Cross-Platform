@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ffi';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
+import 'package:flutter/material.dart';
 import 'package:native_add/model/model.dart';
 import 'package:native_add/native_add.dart' as native_add;
 import 'package:processing_ffi/processing_ffi.dart' as pb;
@@ -12,7 +13,12 @@ import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 class LocalPluginWindow implements LocalPlugin {
   final List<BufferHandlerOnDemand?> _bufferHandlerOnDemand =
       List.filled(channelCountBuffer, null);
+  @override
+  String currentExpansionBoardString = "";
 
+  @override
+  ValueNotifier channelCountNotifier = ValueNotifier(0);
+  
   @override
   Future<void> spawnHelperIsolate() async {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();

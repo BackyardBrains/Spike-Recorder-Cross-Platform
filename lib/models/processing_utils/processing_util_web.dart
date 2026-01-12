@@ -19,6 +19,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   @override
   var currentDataBuffer;
+  
   Int32List inEventPositionPtr = Int32List(0);
   Int32List inEventIndicesPtr = Int32List(0);
   Int32List inEventLabelsPtr = Int32List(0);
@@ -29,6 +30,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   @override
   Future<bool> init() async {
+
     js.context['onEventPositionAllocated'] = onEventPositionAllocated;
     js.context['onEventPositionCalculated'] = onEventPositionCalculated;
     js.context['onEventFound'] = onEventFound;
@@ -442,6 +444,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       Int16List countBufferList, final channelCount) {
     print("onDrawingBufferAllocated - channel count: ${channelCount}");
     print("OnDrawingBufferAllocated - dataBufferList: ${dataBufferList.length}");
+    ProcessingUtil.medianChannelValueAdjuster = List.generate(channelCount, (_) => 0);    
     // print(dataBufferList[0].runtimeType);
     // print(Int16List.fromList(dataBufferList[0]).length);
     // print(countBufferList.length);
@@ -746,6 +749,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     js.context.callMethod("initWithConfig", [config]);
     _sampleRate = config[0].toInt();
     channelCount = config[1].toInt();
+    ProcessingUtil.medianChannelValueAdjuster = List.generate(channelCount, (_) => 0);
     // _channelCount = config[1].toInt();
 
     int drawSurfaceWidth = config[7].toInt();

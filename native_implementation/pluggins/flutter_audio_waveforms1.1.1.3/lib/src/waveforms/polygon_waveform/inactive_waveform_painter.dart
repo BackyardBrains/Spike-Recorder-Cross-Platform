@@ -102,20 +102,17 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
       int i = 0;
       for (; i < samples.length - 1; i++) {
         final x = sampleWidth * i;
-        final y = samples[i] * gain;
+        final y = -samples[i] * gain + levelMedian;
+        // path.lineTo(x, y);
+        // final y = samples[i] * gain;
         path.lineTo(x, y);
-        // if (i < 10) {
-        //   print("values at index $i : ${samples[i]}");
-        // }
-        // if (i == 0) {
-        //   path.moveTo(x, y);
-        // } else {
-        //   path.lineTo(x, y);
-        // }
       }
 
-      final shiftedPath = path.shift(Offset(0, levelMedian));
-      canvas.drawPath(shiftedPath, mypaint);
+
+      // final shiftedPath = path.shift(Offset(0, levelMedian));
+      // canvas.drawPath(shiftedPath, mypaint);
+
+      canvas.drawPath(path, mypaint);
       if (eventMarkersPosition.isNotEmpty && channelIdx == channelActive) {
         var n = eventMarkersNumber.length;
         double prevX = -1;

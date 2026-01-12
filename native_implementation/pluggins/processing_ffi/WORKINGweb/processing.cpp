@@ -348,8 +348,8 @@ public:
         _ptrExpBoardType[0] = expansionBoardType;
 
         EM_ASM({
-            setExpansionBoardType( $0 );
-            console.log( $0, $1 );
+            setExpansionBoardType( $0, $1 );
+            console.log( "EMASM EXPANSION BOARD TYPE: ", $0, $1 );
         }, _ptrExpBoardType, expansionBoardType);        
     }
 

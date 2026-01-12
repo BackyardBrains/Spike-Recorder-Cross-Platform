@@ -120,6 +120,7 @@ abstract class ProcessingUtil {
   CircularFloatArrayBuffer fftBuffer = CircularFloatArrayBuffer(500, 500);
   static FftDrawData? fftDrawData;
   static FftDrawBuffer? fftDrawBuffer;
+  static List<int> medianChannelValueAdjuster = [];
 
   Future<bool> initWithConfig(Int32List config);
 

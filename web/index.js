@@ -444,6 +444,7 @@ async function createNwbFile(filePath, sampleRate, channelCount, deviceInfoPoint
   if (cookie !== undefined || cookie == "") {
     cookie = "";
   }
+  console.log("visibleChannelCount: ", visibleChannelCount);
   console.log("COOKIE: ", cookie + filePath + ";");
   setCookie("RECORDED_NWB_FILE", cookie + filePath + ";");
   //2022-03-18_15.36.04

@@ -87,5 +87,8 @@ class ChannelColorProvider extends ChangeNotifier {
   int getVisibleChannelCount() {
     return visibleChannelsCount;
   }
+  void setVisibleChannelCount(int count) {
+    visibleChannelsCount = count;
+  }
 
 }

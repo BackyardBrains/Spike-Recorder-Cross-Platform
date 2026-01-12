@@ -62,7 +62,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
     _sampleRate = config[0].toInt();
     channelCount = config[1].toInt();
     _channelCount = config[1].toInt();
-
+    ProcessingUtil.medianChannelValueAdjuster = List.generate(channelCount, (_) => 0);
+    
     int drawSurfaceWidth = config[7].toInt();
     
     ProcessingUtil.drawingBuffers.clear();
@@ -81,7 +82,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
     if (_isInitialized) return true;
 
     // Initialize C++ processing
-
+    ProcessingUtil.medianChannelValueAdjuster = List.generate(channelCount, (_) => 0);
+    
     print('initialize processing');
     final result = pb.processingBindings.init();
     if (result != 0) {
@@ -1293,6 +1295,7 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
     calloc.free(inDataPtr);
     calloc.free(sampleCountsPtr);
   }
+
 }
 
 // This function runs in the processing isolate

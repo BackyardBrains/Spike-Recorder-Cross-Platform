@@ -1612,18 +1612,24 @@ function flushBufferedSamples() {
 }
 
 
-function setExpansionBoardType(rawPosExpBoardType){
+function setExpansionBoardType(rawPosExpBoardType, expBoardType){
     
-    posExpBoardType = rawPosExpBoardType >> 1;
-    const expBoardTypeBuffer = HEAP16.subarray(posExpBoardType, posExpBoardType + 1);
-    if (previousExpBoardType != expBoardTypeBuffer[0]) {
-        previousExpBoardType = expBoardTypeBuffer[0];
-        postMessage({
-            "message": "SET_EXPANSION_BOARD_TYPE",
-            "expansionBoardType": expBoardTypeBuffer[0],
-        });
-        console.log("setExpansionBoardType : ", previousExpBoardType, expBoardTypeBuffer[0]);
-    }
+    postMessage({
+        "message": "SET_EXPANSION_BOARD_TYPE",
+        "expansionBoardType": expBoardType,
+    });
+    console.log("expansionBoardType", expBoardType);
+
+    // let posExpBoardType = rawPosExpBoardType >> 1;
+    // const expBoardTypeBuffer = HEAP16.subarray(posExpBoardType, posExpBoardType + 1);
+    // if (previousExpBoardType != expBoardTypeBuffer[0]) {
+    //     previousExpBoardType = expBoardTypeBuffer[0];
+    //     postMessage({
+    //         "message": "SET_EXPANSION_BOARD_TYPE",
+    //         "expansionBoardType": expBoardTypeBuffer[0],
+    //     });
+    //     console.log("setExpansionBoardType : ", previousExpBoardType, expBoardTypeBuffer[0]);
+    // }
 }
 
 let previousExpBoardType = -1;

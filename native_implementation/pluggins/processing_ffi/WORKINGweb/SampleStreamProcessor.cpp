@@ -29,6 +29,9 @@ namespace backyardbrains {
                 backyardbrains::utils::OnEventListenerListener *listener)
                 : Processor(DEFAULT_SAMPLE_RATE, DEFAULT_CHANNEL_COUNT, DEFAULT_BITS_PER_SAMPLE) {
             SampleStreamProcessor::listener = listener;
+            currentExpansionBoardType = -1;
+            currentExpansionBoardAdjustedValue = 0;
+            currentExpansionBoardAdjustedChannel = 0;
         }
 
         SampleStreamProcessor::~SampleStreamProcessor() = default;
@@ -139,11 +142,18 @@ namespace backyardbrains {
                                 average = 0.0001 * sample + 0.9999 * average;
                                 // use average to remove offset
                                 sample = (short) (sample - average);
- 
+
+                                // if (currentExpansionBoardType == 4) {
+                                //     if (currentExpansionBoardAdjustedChannel == currentChannel) {
+                                //         channels[currentChannel][sampleCounters[currentChannel]++] = sample + 3572;
+                                //     } else {
+                                //     }
+                                // } else {
+                                //     channels[currentChannel][sampleCounters[currentChannel]++] = sample;
+                                // }
                                 channels[currentChannel][sampleCounters[currentChannel]++] = sample;
-                                // EM_ASM({
-                                //     console.log("SAMPLE : ", $0, $1, $2, $3);
-                                // }, msb, lsb, msb | lsb,frameStarted);
+ 
+                                
 
                                 sampleStarted = false;
                                 if (currentChannel >= channelCount - 1) frameStarted = false;
@@ -281,10 +291,25 @@ namespace backyardbrains {
             } else if (backyardbrains::utils::SampleStreamUtils::isExpansionBoardTypeMsg(message)) {
                 const int expansionBoardType = backyardbrains::utils::SampleStreamUtils::getExpansionBoardType(
                         message);
+                // EM_ASM({
+                //     console.log("Expansion Board FOUND0000", $0);
+                // }, expansionBoardType);                        
                 listener->onExpansionBoardTypeDetection(expansionBoardType);
+                currentExpansionBoardType = expansionBoardType;
                 if (backyardbrains::utils::SampleStreamUtils::HUMAN_HARDWARE ==
                     hardwareType || backyardbrains::utils::SampleStreamUtils::HHIBOX_HARDWARE ==
                                     hardwareType) {
+
+                    switch (expansionBoardType) {
+                        default:
+                        case backyardbrains::utils::SampleStreamUtils::HAMMER_EXPANSION_BOARD:
+                            setSampleRateAndChannelCount(EXPANSION_BOARDS_SAMPLE_RATE,
+                                                        HAMMER_JOYSTICK_CHANNEL_COUNT);
+                            stopFilteringAfterChannelIndex = 1;
+                            currentExpansionBoardAdjustedValue = 128;                    
+                            currentExpansionBoardAdjustedChannel = 2; // 0-indexed array
+                        break;
+                    }                                        
                 } else {
                     updateProcessingParameters(expansionBoardType);
                 }
@@ -302,6 +327,7 @@ namespace backyardbrains {
         }
 
         void SampleStreamProcessor::updateProcessingParameters(int expansionBoardType) {
+            currentExpansionBoardType = expansionBoardType;
             switch (expansionBoardType) {
                 default:
                 case backyardbrains::utils::SampleStreamUtils::NONE_BOARD_DETACHED:
@@ -319,11 +345,17 @@ namespace backyardbrains {
                     stopFilteringAfterChannelIndex = 1;
                     break;
                 case backyardbrains::utils::SampleStreamUtils::HAMMER_EXPANSION_BOARD:
+                    setSampleRateAndChannelCount(EXPANSION_BOARDS_SAMPLE_RATE,
+                                                HAMMER_JOYSTICK_CHANNEL_COUNT);
+                    stopFilteringAfterChannelIndex = 1;
+                    currentExpansionBoardAdjustedValue = 512;                    
+                    currentExpansionBoardAdjustedChannel = 2; // 0-indexed array
+                break;
                 case backyardbrains::utils::SampleStreamUtils::JOYSTICK_EXPANSION_BOARD:
                     setSampleRateAndChannelCount(EXPANSION_BOARDS_SAMPLE_RATE,
                                                  HAMMER_JOYSTICK_CHANNEL_COUNT);
                     stopFilteringAfterChannelIndex = 1;
-                    break;
+                break;
             }
         }
 

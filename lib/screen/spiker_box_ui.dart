@@ -1152,6 +1152,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
     double heightScale = 1 / heightFactor;
 
     double median = levelMedian[c] == -1 ? initialLevelMedian[c] : levelMedian[c];
+    print("MEDIAN: $median" );
+
     double medianDistance = listMedianDistance[c];
     
     double tempMarkerTop = median + medianDistance * heightFactor - thresholdIconTopDifference;
@@ -1305,6 +1307,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
       initialLevelMedian[c] = calculatedMedian;
       listMedianDistance[c] = thresholdMarkerTop[c] + thresholdIconTopDifference - calculatedMedian;
     }
+    print("MEDIAN: $initialLevelMedian | $listMedianDistance" );
+
   }
 
   void thresholdMenuListener() {
@@ -1321,6 +1325,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
     isInitializedGraph = false;
     print("Initial Device Listener");
     if (ProcessingUtil.initializeDevice.value == 0 ) {
+      defaultGain = 0.25 * 0.25;
       initializeGraph();
       initLevelMedian(1, 0);
 
@@ -1328,13 +1333,14 @@ class _DraggableGraphState extends State<DraggableGraph> {
       Future.delayed(Duration(seconds: 1), (){
         print("DECREASE GAINNNNN");
         print("initializeDeviceListener channelCount: $channelCount");
+        defaultGain = (0.25 * 0.25) / 27;
         initializeGraph();
         initLevelMedian(channelCount, 0);
-        for (int i = 0; i < channelCount; i++) {
-          decreaseGain(i, isInitial:true);
-          decreaseGain(i, isInitial:true);
-          decreaseGain(i, isInitial:true);
-        }
+        // for (int i = 0; i < channelCount; i++) {
+        //   decreaseGain(i, isInitial:true);
+        //   decreaseGain(i, isInitial:true);
+        //   decreaseGain(i, isInitial:true);
+        // }
         setState(() {});
       });
     }
@@ -1343,7 +1349,12 @@ class _DraggableGraphState extends State<DraggableGraph> {
 
   void decreaseGain(int idx, {bool isInitial = false}) {
     double prevVal = gainChannel[idx];
-    gainChannel[idx] /= 3;
+    // gainChannel[idx] /= 3;
+    if (ProcessingUtil.initializeDevice.value == 0) {
+      gainChannel[idx] = gainChannel[idx] * pow(1.1, -1);
+    } else {
+      gainChannel[idx] = gainChannel[idx] * pow(1.25, -1);
+    }
     setThresholdMarker(idx, thresholdMarkerTop, thresholdValue, prevVal, gainChannel[idx]);
     GraphGainProvider graphGainProvider =
         Provider.of<GraphGainProvider>(context, listen: false);
@@ -1355,7 +1366,12 @@ class _DraggableGraphState extends State<DraggableGraph> {
   
   void increaseGain(int idx) {
     double prevVal = gainChannel[idx];
-    gainChannel[idx] *= 3;
+    // gainChannel[idx] *= 3;
+    if (ProcessingUtil.initializeDevice.value == 0) {
+      gainChannel[idx] = gainChannel[idx] * pow(1.1, 1);
+    } else {
+      gainChannel[idx] = gainChannel[idx] * pow(1.25, 1);
+    }
     selectedThresholdMarker = idx;
     setThresholdMarker(idx, thresholdMarkerTop, thresholdValue, prevVal, gainChannel[idx]);
 

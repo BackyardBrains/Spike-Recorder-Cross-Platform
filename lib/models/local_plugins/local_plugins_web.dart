@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:native_add/model/model.dart';
 import 'package:spikerbox_architecture/models/models.dart';
 import 'package:spikerbox_architecture/models/local_plugins/local_plugins_check.dart';
@@ -18,7 +19,9 @@ class LocalPluginWeb implements LocalPlugin {
   FilterSetup? _lowPassFilterSetup;
   int defaultChannelCountNoExpansionBoard = -1;
   int defaultSampleRateNoExpansionBoard = -1;
+  @override
   String currentExpansionBoardString = "";
+
 
   static final List<Int16List?> _dataBuffer =
       List.generate(channelCountBuffer, (index) => null);
@@ -193,10 +196,39 @@ class LocalPluginWeb implements LocalPlugin {
               // ProcessingBindings.instance.setSampleRate();
               if (expBoard.maxSampleRate != null) {
                 print("setExpansionBoardTypeDart5");
-                int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
-                int boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
-                postChannelCountController.add(boardChannels);
-                js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+                int boardChannels = -1;
+                if (GraphTemplate.selectedBoard!.uniqueName == "HUMANSB") {
+                  if (expBoardType == 1) {
+                    int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+                    boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!);
+                    print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                    postChannelCountController.add(boardChannels);
+                    js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+
+                  } else {
+                    int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+                    boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
+                    print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                    postChannelCountController.add(boardChannels);
+                    js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+
+                  }
+                } else {
+
+                  int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+                  boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
+                  print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                  postChannelCountController.add(boardChannels);
+                  js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+                }
+
+
+                if (expBoard.boardType == "4") {
+                  ProcessingUtil.medianChannelValueAdjuster = List.generate(boardChannels, (_) => 0);
+                  ProcessingUtil.medianChannelValueAdjuster[3] = -4096;
+                }else {
+                  ProcessingUtil.medianChannelValueAdjuster = List.generate(boardChannels, (_) => 0);
+                }
               }
             }
           } else 

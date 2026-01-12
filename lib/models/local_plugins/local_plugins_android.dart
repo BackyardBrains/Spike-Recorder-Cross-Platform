@@ -11,7 +11,8 @@ import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 class LocalPluginAndroid implements LocalPlugin {
   final List<BufferHandlerOnDemand?> _bufferHandlerOnDemand =
       List.filled(channelCountBuffer, null);
-
+  @override
+  String currentExpansionBoardString = "";
   @override
   Future<void> spawnHelperIsolate() async {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();

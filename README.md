@@ -110,3 +110,12 @@ Delete after saving, cookies
 
 Device GAIN LIST:
 https://github.com/BackyardBrains/Spike-Recorder/blob/66b1cb83266ad7770a8c6ff5ae4d925a262693ab/src/engine/RecordingManager.cpp#L2910
+
+
+https://github.com/search?q=repo%3ABackyardBrains%2FSpike-Recorder+gain&type=code&p=1
+https://github.com/search?q=repo%3ABackyardBrains%2FSpike-Recorder+ampScale&type=code
+https://github.com/BackyardBrains/Spike-Recorder/blob/66b1cb83266ad7770a8c6ff5ae4d925a262693ab/src/AnalysisAudioView.cpp#L55
+
+
+
+https://github.com/BackyardBrains/Spike-Recorder/blob/66b1cb83266ad7770a8c6ff5ae4d925a262693ab/src/AudioView.cpp#L442C1-L466C2

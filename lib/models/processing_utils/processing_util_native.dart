@@ -3,12 +3,14 @@ import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ffi';
+import 'dart:io';
 // import 'dart:ui';
 import 'package:ffi/ffi.dart';
 import 'package:spikerbox_architecture/models/CircularFloatArrayBuffer.dart';
 import 'package:spikerbox_architecture/models/FftDrawBuffer.dart';
 import 'package:spikerbox_architecture/models/default_config_model.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
+import 'package:spikerbox_architecture/screen/graph_template.dart';
 import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
 import 'package:spikerbox_architecture/widget/fft_painter.dart';
 import 'processing_util.dart';
@@ -33,6 +35,10 @@ class ProcessingUtilImpl implements ProcessingUtil {
   bool _isInitialized = false;
   int _sampleRate = 44100;
   int _channelCount = 1;
+  int defaultChannelCountNoExpansionBoard = -1;
+  int defaultSampleRateNoExpansionBoard = -1;
+  String currentExpansionBoardString = "";
+  int currentDrawSurfaceWidth = 0;
 
   @override
   CircularFloatArrayBuffer fftBuffer = CircularFloatArrayBuffer(500, 500);
@@ -52,6 +58,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   Future<bool> initWithConfig(Int32List config) async {
     print("initWithConfig: $config");
     final result = pb.processingBindings.init();
+    setupDartCallbacks();
     if (result != 0) {
       print('Failed to initialize processing: $result');
       return false;
@@ -65,6 +72,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     ProcessingUtil.medianChannelValueAdjuster = List.generate(channelCount, (_) => 0);
     
     int drawSurfaceWidth = config[7].toInt();
+    currentDrawSurfaceWidth = drawSurfaceWidth;
     
     ProcessingUtil.drawingBuffers.clear();
     for (int i = 0; i < channelCount; i++) {
@@ -77,10 +85,143 @@ class ProcessingUtilImpl implements ProcessingUtil {
     return Future.value(true);
   }
 
+
+  final ReceivePort _nativeCallbackPort = ReceivePort();
+  @override
+  void setupDartCallbacks() {
+    // Listen for messages from C++
+    print("setupDartCallbacks start");
+    _nativeCallbackPort.listen((message) {
+      print("setupDartCallbacks listen start $message");
+      // if (message is List && message.isNotEmpty) {
+        // final String messageType = message[0] as String;
+        final int value1 = message as int;
+        handleExpansionBoardTypeDetection(value1);
+        // final int value2 = message.length > 2 ? message[2] as int : 0;
+        
+        // Handle different message types
+        // switch (messageType) {
+        //   case 'onExpansionBoardTypeDetection':
+        //     print("onExpansionBoardTypeDetection: $value1");
+        //     handleExpansionBoardTypeDetection(value1);
+        //     break;
+        //   // Add more cases as needed
+        //   default:
+        //     print('Unknown message type: $messageType');
+        // }
+      // }
+    });
+
+    
+    // Pass the required pointer from Dart to C++
+    final result = pb.processingBindings.initDartApiDL(NativeApi.initializeApiDLData);
+    if (result != 0) throw "Failed to initialize Dart DL API";    
+    else {
+      print('Dart DL API initialized successfully');
+    }
+    print("setupDartCallbacks end");
+
+    pb.processingBindings.registerDartPort(_nativeCallbackPort.sendPort.nativePort);
+    // Register the port with C++
+    // final int result = pb.processingBindings.registerDartPort(
+    //   _nativeCallbackPort.sendPort.nativePort
+    // );
+    
+    // if (result != 0) {
+    //   print('Failed to register Dart port: $result');
+    // } else {
+    //   print('Dart port registered successfully');
+    // }
+  }
+
+  // Cleanup when done
+  @override
+  void cleanupDartCallbacks() {
+    pb.processingBindings.unregisterDartPort();
+    postChannelCountController.close();
+    _nativeCallbackPort.close();
+  }  
+
+  void handleExpansionBoardTypeDetection(int expBoardType) {
+    print('Expansion board type detected: $expBoardType');
+    print("setExpansionBoardTypeDart");
+    print(GraphTemplate.selectedBoard);
+    if (GraphTemplate.selectedBoard != null) {
+      print("setExpansionBoardTypeDart1");
+      if (GraphTemplate.selectedBoard!.expansionBoards != null) {
+        print("setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
+        for (var expBoard in GraphTemplate.selectedBoard!.expansionBoards!) {
+          print("setExpansionBoardTypeDart3 ${expBoardType.toString()}");
+          if (expBoard.boardType == expBoardType.toString()) {
+            print("setExpansionBoardTypeDart4");
+            if (currentExpansionBoardString == "" && expBoardType == 0) {
+              return;
+            } else
+            if (currentExpansionBoardString != expBoardType.toString()) {
+              currentExpansionBoardString = expBoardType.toString();
+              if (expBoard.maxSampleRate != null) {
+                print("setExpansionBoardTypeDart5");
+                int boardChannels = -1;
+                if (GraphTemplate.selectedBoard!.uniqueName == "HUMANSB") {
+                  if (expBoardType == 1) {
+                    // int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+                    // boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!);
+                    // print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                    // postChannelCountController.add(boardChannels);
+                    // initializeSerial(GraphTemplate.selectedBoard!, currentDrawSurfaceWidth.toDouble(), expansionBoardChannelCount: int.parse(expBoard.maxNumberOfChannels!) );
+                    // js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+
+                  } else {
+                    int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+                    boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
+                    print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                    postChannelCountController.add(boardChannels);
+                    initializeSerial(GraphTemplate.selectedBoard!, currentDrawSurfaceWidth.toDouble(), expansionBoardChannelCount: int.parse(expBoard.maxNumberOfChannels!) );
+                    // js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+
+                  }
+                } else {
+
+                  int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+                  boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
+                  print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                  postChannelCountController.add(boardChannels);
+                  initializeSerial(GraphTemplate.selectedBoard!, currentDrawSurfaceWidth.toDouble(), expansionBoardChannelCount: int.parse(expBoard.maxNumberOfChannels!) );
+                  // js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+                }
+
+
+                // if (expBoard.boardType == "4") {
+                //   ProcessingUtil.medianChannelValueAdjuster = List.generate(boardChannels, (_) => 0);
+                //   ProcessingUtil.medianChannelValueAdjuster[3] = -4096;
+                // }else {
+                //   ProcessingUtil.medianChannelValueAdjuster = List.generate(boardChannels, (_) => 0);
+                // }
+              }
+            }
+          } else 
+          if (expBoardType == 0) {
+            print("setExpansionBoardTypeDart3.5 : $currentExpansionBoardString");
+            if (currentExpansionBoardString.isNotEmpty) {
+              currentExpansionBoardString = "";
+              postChannelCountController.add(defaultChannelCountNoExpansionBoard);
+              initializeSerial(GraphTemplate.selectedBoard!, currentDrawSurfaceWidth.toDouble(), expansionBoardChannelCount: int.parse(expBoard.maxNumberOfChannels!) );
+
+              // js.context.callMethod("initializeSerialWeb", [defaultSampleRateNoExpansionBoard, defaultChannelCountNoExpansionBoard, -1] );
+              defaultChannelCountNoExpansionBoard = -1;
+              defaultSampleRateNoExpansionBoard = -1;              
+            }
+          }
+        }
+      }
+    }    
+    // Your Dart code here
+  }
+
   @override
   Future<bool> init() async {
     if (_isInitialized) return true;
-
+    setupDartCallbacks();
     // Initialize C++ processing
     ProcessingUtil.medianChannelValueAdjuster = List.generate(channelCount, (_) => 0);
     
@@ -157,6 +298,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     if (!_isInitialized) {
       await init();
     }
+    currentDrawSurfaceWidth = drawSurfaceWidth.floor();
     //todo: check if the currentDataBuffer is already initialized. If yes free memory before reinitializing
     if (currentDataBuffer != null) {
       for (int i = 0; i < _channelCount; i++) {
@@ -368,6 +510,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     if (!_isInitialized) {
       throw StateError('ProcessingUtil not initialized. Call init() first.');
     }
+    currentDrawSurfaceWidth = drawSurfaceWidth;
 
     try {
       // Call the native function with correct parameters
@@ -391,9 +534,16 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   // Get the stream of processed data
   Stream<dynamic> get processedDataStream => _dataController.stream;
+  
+  @override
+  StreamController<int> postChannelCountController = StreamController<int>();
+  @override
+  Stream<int>? postChannelCountStream;
 
   // Cleanup resources
   Future<void> dispose() async {
+    postChannelCountController.close();
+    cleanupDartCallbacks();    
     _processingIsolate?.kill();
     portProcessingIsolateToMain?.close();
     await _dataController.close();
@@ -451,6 +601,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       int endPositionIdx) {
       // return [Int16List(0)];
     if (processedData.isNotEmpty) {
+      currentDrawSurfaceWidth = drawSurfaceWidth;
       ProcessingUtil.fromDrawingIdx = startPositionIdx;
       ProcessingUtil.toDrawingIdx = endPositionIdx;
       // Convert Int16List to Float data for signal drawing
@@ -586,10 +737,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
   List<int> initialSamples = [];
 
   @override
-  void initializeSerial(Board board, double drawSurfaceWidth) {
+  void initializeSerial(Board board, double drawSurfaceWidth, {int expansionBoardChannelCount = 0}) {
     if (!_isInitialized) {}
     final result = pb.processingBindings.init();
-    channelCount = int.parse(board.maxNumberOfChannels!);
+    channelCount = int.parse(board.maxNumberOfChannels!) + expansionBoardChannelCount;
+    print("Initialize Serial === $channelCount $expansionBoardChannelCount");
     _channelCount = channelCount;
     sampleRate = int.parse(board.maxSampleRate!);
     _sampleRate = sampleRate;
@@ -621,10 +773,12 @@ class ProcessingUtilImpl implements ProcessingUtil {
   Future<List<Int16List>> processSerialData(Uint8List samples, int displayTimeMs,
       int deviceType, int drawSurfaceWidth,
       [GraphDataProvider? provider]) async {
+    // print("samples : $samples | channelCount : $channelCount | drawSurfaceWidth: $drawSurfaceWidth");
     var outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
     for (int i = 0; i < channelCount; i++) {
       outSamplesPtr[i] = calloc<Int16>(drawSurfaceWidth * 5); // 5x for envelope
     }
+    // print("END samples : $samples | channelCount : $channelCount");
 
     final outSampleCountsPtr = calloc<Int32>(channelCount);
 
@@ -642,12 +796,12 @@ class ProcessingUtilImpl implements ProcessingUtil {
     // }
     for (int i = 0; i < samples.length; i++) {
       inDataPtr[i] = samples[i];
-      // inDataPtr[i] = initialSamples[i];
+      // inDataPtr[i] = initialSamples[i]; PROCESS SERIAL DATA ERROR START
     }
-    // print("PROCESS SERIAL DATA ERROR ChannelCount: $channelCount -- Samples: ${samples.length} -- drawSurfaceWidth: $drawSurfaceWidth");
+    // print("PROCESS SERIAL DATA ERROR START ChannelCount: $channelCount -- Samples: ${samples.length} -- drawSurfaceWidth: $drawSurfaceWidth");
     int res = pb.processingBindings.processSampleStream(outSamplesPtr,
         outSampleCountsPtr, inDataPtr, samples.length, deviceType);
-    // print("PROCESS SERIAL DATA ERROR RES: $res");
+    // print("PROCESS SERIAL DATA ERROR END RES: $res");
     // return [Int16List(0), Int16List(0)];
     int minCounter = 100000;
     List<Int16List> buffer =[];

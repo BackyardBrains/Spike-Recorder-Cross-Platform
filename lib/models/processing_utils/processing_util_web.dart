@@ -801,6 +801,20 @@ class ProcessingUtilImpl implements ProcessingUtil {
       json.encode(ProcessingUtil.eventPosition)
     ]);
   }
+  
+  @override
+  void cleanupDartCallbacks() {
+  }
+  
+  @override
+  void setupDartCallbacks() {
+  }
+  
+  @override
+  StreamController<int> postChannelCountController = StreamController<int>();
+  
+  @override
+  Stream<int>? postChannelCountStream;
 }
 
 // Factory function to create an instance

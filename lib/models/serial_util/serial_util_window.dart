@@ -153,4 +153,9 @@ class SerialUtilWindow implements SerialUtil {
     return Future.value([]);
   }
 
+  @override
+  Stream<String?> deviceStatusStreamListener() {
+    return Stream.empty();
+  }
+
 }

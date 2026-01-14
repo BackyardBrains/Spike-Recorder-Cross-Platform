@@ -242,6 +242,15 @@ class CircularBuffer {
                         if (outputBuffer[chan] == nullptr) {
                               continue; // Skip invalid channel buffer
                         }
+                        // Check if buffer[chan] is valid before accessing it
+                        // This prevents crash when USB device is disconnected and buffer is deallocated
+                        if (buffer[chan] == nullptr) {
+                              // Fill with zeros if buffer is invalid (device disconnected)
+                              for (int i = 0; i < sampleCount; i++) {
+                                    outputBuffer[chan][i] = 0;
+                              }
+                              continue;
+                        }
                         for (int i = 0; i < sampleCount; i++) {
                               int32_t bufferPos = (headIndex[chan] - (toSample - i) + bufferSize) % bufferSize;
                             //   if (fromSample > 0) {
@@ -1038,7 +1047,19 @@ PROCESSING_API int32_t processing_prepare_for_signal_drawing(int16_t** out_sampl
             }
         }
         // Retrieve data from the circular buffer
+        // Check if circular buffer is valid before accessing it
+        // This prevents crash when USB device is disconnected
         if (isProcessThresholding) {
+            if (circularBufferThreshold == nullptr) {
+                // Clean up and return error if threshold buffer is not available
+                for (int i = 0; i < channel_count; i++) {
+                    delete[] temp_samples[i];
+                    delete[] float_samples[i];
+                }
+                delete[] temp_samples;
+                delete[] float_samples;
+                return -2;
+            }
             circularBufferThreshold->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
         } else
         if (circularBuffer != nullptr) {

@@ -39,6 +39,13 @@ add_library(processing_ffi SHARED
   "SignalUtils.cpp"
   "SpikeAnalysis.cpp"
   "ThresholdProcessor.cpp"
+  "dart_api_dl.c"
+  "dart_api_dl.h"
+  "dart_api.h"
+  "dart_embedder_api.h"
+  "dart_native_api.h"
+  "dart_tools_api.h"
+  "dart_version.h"
 )
 
 set_target_properties(processing_ffi PROPERTIES

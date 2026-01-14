@@ -3,6 +3,15 @@ import 'dart:ffi';
 import 'dart:io';
 
 
+typedef ProcessingRegisterDartPortNative = Int32 Function(Int64 port);
+typedef ProcessingRegisterDartPort = int Function(int port);
+
+typedef ProcessingUnregisterDartPortNative = Void Function();
+typedef ProcessingUnregisterDartPort = void Function();
+
+typedef ProcessingSetDartPostCobjectFuncNative = Void Function(Pointer<Void> funcPtr);
+typedef ProcessingSetDartPostCobjectFunc = void Function(Pointer<Void> funcPtr);
+
 // typedef DartCallbackNative = Void Function(Int32);
 // typedef DartCallbackDart = void Function(int);
 
@@ -265,11 +274,17 @@ typedef ProcessingNwbfileInjectDataResult = int Function(
     int channelCount,
 );
 
+typedef InitDartApiNative = IntPtr Function(Pointer<Void>);
+typedef InitDartApiDart = int Function(Pointer<Void>);
 
 class ProcessingBindings {
   static DynamicLibrary? _lib;
   static ProcessingBindings? _instance;
   static bool _isDebugMode = true;
+
+  late final ProcessingRegisterDartPort registerDartPort;
+  late final ProcessingUnregisterDartPort unregisterDartPort;
+  late final ProcessingSetDartPostCobjectFunc setDartPostCobjectFunc;
 
   late final ProcessingInit init;
   late final ProcessingSetSampleRate setSampleRate;
@@ -307,6 +322,8 @@ class ProcessingBindings {
 
   late final ProcessingGetInformation getInformation;
   late final ProcessingSetIsThresholding setIsThresholding;
+
+  late final InitDartApiDart initDartApiDL;
 
   ProcessingBindings(DynamicLibrary dynamicLibrary) {
     // _lib ??= _loadLibrary();
@@ -397,7 +414,9 @@ class ProcessingBindings {
     
     nwbfileInjectDataResult = _lib!.lookupFunction<ProcessingNwbfileInjectDataResultNative, ProcessingNwbfileInjectDataResult>('processing_nwbfile_inject_data_result');
 
-
+    registerDartPort = _lib!.lookupFunction<ProcessingRegisterDartPortNative, ProcessingRegisterDartPort>('processing_register_dart_port');
+    unregisterDartPort = _lib!.lookupFunction<ProcessingUnregisterDartPortNative, ProcessingUnregisterDartPort>('processing_unregister_dart_port');
+    initDartApiDL = _lib!.lookupFunction<InitDartApiNative, InitDartApiDart>("InitDartApiDL");
 
 
     // Dart code
@@ -511,6 +530,7 @@ class ProcessingBindings {
   static void setDebugMode(bool isDebug) {
     _isDebugMode = isDebug;
   }
+  getLibrary() => _lib;
 }
 
 

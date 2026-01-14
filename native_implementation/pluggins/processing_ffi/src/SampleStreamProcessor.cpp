@@ -57,7 +57,6 @@ namespace backyardbrains {
             byte lsb; // last significant byte
             byte b; // temp variable to hold currently processed bytes
             unsigned char uc; // temp variable to hold currently processed bytes as unsigned char
-
             for (int i = 0; i < length; i++) {
                 uc = inData[i];
 
@@ -143,6 +142,7 @@ namespace backyardbrains {
                                 // use average to remove offset
                                 sample = (short) (sample - average);
 
+                                // STEVANUS TEMPORARY HIDE
                                 channels[currentChannel][sampleCounters[currentChannel]++] = sample;
 
                                 sampleStarted = false;

@@ -197,7 +197,14 @@ PROCESSING_API int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw
 
 // Serial data processing result
 PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* samplesCountRaw, int channelCount);
-                                     
+
+// Dart port registration for C++ to Dart messaging
+PROCESSING_API int32_t processing_register_dart_port(int64_t port);
+PROCESSING_API void processing_unregister_dart_port();
+
+// 1. Initialize the Dart API (Required once)
+PROCESSING_API intptr_t InitDartApiDL(void* data);
+
 #ifdef __cplusplus
 }
 #endif

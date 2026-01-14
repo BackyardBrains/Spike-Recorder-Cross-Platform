@@ -209,4 +209,9 @@ class SerialUtilWeb implements SerialUtil {
       streamController.add(result.value);
     }
   }
+  
+  @override
+  Stream<String?> deviceStatusStreamListener() {
+    return Stream.empty();
+  }
 }

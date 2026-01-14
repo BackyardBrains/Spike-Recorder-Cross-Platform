@@ -5,11 +5,21 @@
 #include <cstring>
 #include <algorithm>
 #include <string>
+#include "dart_api_dl.h"
+
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+
 #define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
 void platform_log_processing(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
+#ifdef __ANDROID__
+    __android_log_vprint(ANDROID_LOG_VERBOSE, "ndk", fmt, args);
+#else
     vprintf(fmt, args);
+#endif
     va_end(args);
 }
 
@@ -89,6 +99,10 @@ static constexpr float FFT_SAMPLE_RATE = 128; // 2^7
 static constexpr int FFT_WINDOW_TIME_LENGTH = 4; // 2^2
 static constexpr int FFT_WINDOW_OVERLAP_PERCENT = 99;
 
+// Dart port for sending messages from C++ to Dart
+// ILLEGAL_PORT is 0, so we use 0 as the invalid port value
+static Dart_Port_DL dart_port = 0;
+
 
 #ifdef _WIN32
 // Windows implementation of gettimeofday
@@ -112,6 +126,8 @@ int gettimeofday(struct timeval* tp, struct timezone* tzp) {
     return 0;
 }
 #endif
+
+
 
 
 //Class for multichannel circular buffer with int16_t samples
@@ -283,7 +299,7 @@ public:
     ~EventListener() = default;
 
 
-    void onEventFound(int sampleIndex, int eventLabel) {
+    void onEventFound(int sampleIndex, int eventLabel) override {
         // platform_log("EVENT FOUND\n");
         // platform_log(std::to_string(sampleIndex).c_str());
         // platform_log("EVENT LABLE\n");
@@ -325,13 +341,22 @@ public:
       //   backyardbrains::utils::JniHelper::invokeVoid(vm, sampleSourceObj, "setExpansionBoardType",
       //                                                "(I)V",
       //                                                expansionBoardType);
+      Dart_CObject obj;
+      obj.type = Dart_CObject_kInt64;
+      obj.value.as_int64 = expansionBoardType;
+  
+      // Send to Dart (Thread-safe)
+      Dart_PostCObject_DL(dart_port, &obj);           
     }   
 
 private:
 
 };
 
-
+// 1. Initialize the Dart API (Required once)
+PROCESSING_API intptr_t InitDartApiDL(void* data) {
+    return Dart_InitializeApiDL(data);
+}
 // Helper functions
 static void initialize_processors() {
 
@@ -1115,6 +1140,7 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
         // platform_log("===========\n");
         
         // Copy float data back to output samples
+        // Validate output buffers before writing to prevent crash when USB device is disconnected
         // circularBuffer->getRecentSamples(out_samples, out_sample_counts[0]*5);
         for (int i = 0; i < channel_count; i++) {
             for (int j = 0; j < out_sample_counts[i]; j++) {
@@ -1133,6 +1159,10 @@ int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* ou
         out_event_count[0] = outEventCount;
         return 0;
     } catch (...) {
+        // Exception occurred - make sure we don't leave dangling pointers
+        // Note: temp_samples and float_samples should already be cleaned up
+        // in the try block, but if an exception occurred during allocation,
+        // we need to handle it here
         return -3;
     }
 }
@@ -1709,3 +1739,55 @@ PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* s
 
     return result;
 }
+
+// Helper function to send a message from C++ to Dart
+// static bool send_message_to_dart(Dart_CObject* message) {
+//     if (dart_port == 0) {
+//         platform_log_processing("Error: Dart port not registered\n");
+//         return false;
+//     }
+    
+//     bool result = Dart_PostCObject_DL(dart_port, message);
+//     if (!result) {
+//         platform_log_processing("Error: Failed to post message to Dart port\n");
+//     }
+//     return result;
+// }
+
+// // Register Dart port for receiving messages from C++
+PROCESSING_API int32_t processing_register_dart_port(int64_t port) {
+    platform_log_processing("Dart port registering: %lld\n", (long long)port);    
+    if (port == 0) {
+        platform_log_processing("Error: Invalid Dart port (port cannot be 0)\n");
+        return -1;
+    }
+    dart_port = static_cast<Dart_Port_DL>(port);
+    return 0;
+}
+
+// // Unregister Dart port
+PROCESSING_API void processing_unregister_dart_port() {
+    dart_port = 0;
+    platform_log_processing("Dart port unregistered\n");
+}
+
+// // Example function to send a test message from C++ to Dart
+// PROCESSING_API int32_t processing_send_test_message(const char* message) {
+//     if (dart_port == ILLEGAL_PORT) {
+//         platform_log_processing("Error: Cannot send message - Dart port not registered\n");
+//         return -1;
+//     }
+    
+//     if (!message) {
+//         platform_log_processing("Error: Message is null\n");
+//         return -1;
+//     }
+    
+//     // Create a message with a string
+//     Dart_CObject dart_message;
+//     dart_message.type = Dart_CObject_kString;
+//     dart_message.value.as_string = message;
+    
+//     bool success = send_message_to_dart(&dart_message);
+//     return success ? 0 : -1;
+// }

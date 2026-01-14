@@ -126,4 +126,12 @@ abstract class ProcessingUtil {
 
   void processingNwbFileInjectData(Int16List data, Int32List sampleCounts, int selectedChannel, int channelCount);
   void processingSerialDataResult(Int16List data, Int32List sampleCounts, int channelCount);
+
+  void setupDartCallbacks();
+  void cleanupDartCallbacks();
+
+  StreamController<int> postChannelCountController = StreamController<int>();
+  Stream<int>? postChannelCountStream;
+  
+
 }

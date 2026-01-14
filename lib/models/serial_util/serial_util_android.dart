@@ -87,7 +87,8 @@ class SerialUtilAndroid implements SerialUtil {
       // Clean up on error
       _port = null;
       _device = null;
-      return null;
+      throw Exception("Error in openPortToListen: $e");
+      // return null;
     }
   }
 
@@ -207,6 +208,11 @@ class SerialUtilAndroid implements SerialUtil {
   @override
   Future<List<String>> getAvailablePortsWeb(int baudRate, Function audioCallback) {
     return Future.value([]);
+  }
+  
+  @override
+  Stream<String?> deviceStatusStreamListener() {
+    return UsbSerial.usbEventStream?.map((event) => event.event) ?? Stream.empty();
   }
 
 }

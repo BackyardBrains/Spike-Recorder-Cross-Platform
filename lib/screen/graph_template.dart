@@ -347,7 +347,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     });
 
-    // Remove old listener if it exists
+  // Remove old listener if it exists
     if (_scrubNotifierListener != null) {
       scrubNotifier.removeListener(_scrubNotifierListener!);
     }
@@ -472,6 +472,18 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     // Initialize ProcessingUtil
     processingUtil = createProcessingUtil();
+    processingUtil.postChannelCountStream = processingUtil.postChannelCountController.stream.asBroadcastStream();
+
+    print("postChannelCountStream: ${processingUtil.postChannelCountStream}");
+    processingUtil.postChannelCountStream?.listen((channelCount) {
+      print("EXPANSION BOARD CHANNEL COUNT: $channelCount");
+      widget.channelCount = channelCount;
+      context.read<ConstantProvider>().setChannelCount(channelCount);
+      
+      // Device is serial 
+      context.read<ChannelColorProvider>().setSerialChannelCount(channelCount);
+      ProcessingUtil.initializeDevice.value = ( (ProcessingUtil.initializeDevice.value * 10) + 2 + Random().nextInt(10) + channelCount).floor();
+    });
     GraphTemplate.processingUtil = processingUtil;
     GraphTemplate.nwbFileUtil = createNwbFileUtil();
     if (GraphTemplate.nwbFileUtil != null) {
@@ -1467,6 +1479,29 @@ class _GraphTemplateState extends State<GraphTemplate> {
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
     totalSampleCount = 0;
 
+    if (Platform.isAndroid) {
+      deviceStatusStreamSubscription?.cancel();
+      deviceStatusStreamSubscription = _serialUtil.deviceStatusStreamListener().listen((event) {
+        print("DEVICE STATUS STREAM: $event");
+        if (event == "android.hardware.usb.action.USB_DEVICE_DETACHED") {
+          forceSerialDisconnect = true;
+          print("SERIAL PORT ERROR -- DISCONNECTED");
+          serialDataSubscription?.cancel();
+          deviceStatusStreamSubscription?.cancel();
+          _serialUtil.closePort();
+          Future.delayed(Duration(milliseconds: 2500), () {
+            forceSerialDisconnect = false;
+            _isSerialWebButtonEnabled = false;
+            isDeviceConnect = false;
+            isDeviceSelected = false;
+            _isDataIdentified = false;
+            streamScrubBuilderController.add(Random().nextInt(100000));
+            listenToMicrophone(1, provider);                   
+          });
+        }
+      });
+    }
+
     serialDataSubscription?.cancel();
     serialDataSubscription = getData?.listen((event) async {
       isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
@@ -1478,7 +1513,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
           isDeviceConnect = false;
         }
         if (_isDataIdentified) {
-          // return;
           // print("GRAPHTEMPLATE IS LOADING FILE ${GraphTemplate.isLoadingFile}");
           serialNativeDataSubscription(event, isAudioListen);
         } else {
@@ -1491,7 +1525,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
               Uint8List commandBytes = Uint8List.fromList(utf8.encode("board:;"));
               _serialUtil.writeToPort(bytesMessage: commandBytes, address: _availablePorts.last);
             });
-
             // STEVE
             if (!GraphTemplate.isPlayerPaused) {
               List<Int16List> samples = await processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
@@ -1679,6 +1712,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   
   StreamSubscription<Uint8List>? microphoneSubscription;
   StreamSubscription<Uint8List>? serialDataSubscription;
+  StreamSubscription<String?>? deviceStatusStreamSubscription;
   
   SendPort? processSerialSendPort;
   ReceivePort? processSerialReceivePort;
@@ -1758,6 +1792,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       print("_messageIdentifier.messageState");
       print(_messageIdentifier.messageState);
       // Initialize both utils
+
 
       await Future.wait([
         microphoneUtil.init()
@@ -3154,8 +3189,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   // createDisplaySerialDataIsolate();
                   // createProcessSerialDataIsolate();
                   Future.delayed(Duration(seconds: 2), (){
-                    var info = processingUtil.getInformation();
-                    print("info : $info");
+                    // var info = processingUtil.getInformation();
+                    // print("info : $info");
                     isDeviceSelected = true;
                   });
                 }

@@ -22,6 +22,8 @@ abstract class SerialUtil {
     return null;
   }
 
+  Stream<String?> deviceStatusStreamListener();
+
   List<String> availablePorts = [];
 
   Future<List<String>> startPortCheck(int baudRate) async {

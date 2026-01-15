@@ -7,9 +7,22 @@
 #include <iostream>
 #include <fstream>
 #include <cstring>
-// #ifdef __ANDROID__
+#ifdef __ANDROID__
 #include <android/log.h>
-// #endif
+#endif
+
+#define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
+void platform_log_stream(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+#ifdef __ANDROID__
+    __android_log_vprint(ANDROID_LOG_VERBOSE, "ndk", fmt, args);
+#else
+    vprintf(fmt, args);
+#endif
+    va_end(args);
+}
+
 
 namespace backyardbrains {
 
@@ -59,13 +72,18 @@ namespace backyardbrains {
             unsigned char uc; // temp variable to hold currently processed bytes as unsigned char
             for (int i = 0; i < length; i++) {
                 uc = inData[i];
-
+                // platform_log_stream("uc: %d | escapeSequenceIndex: %d | ", uc, escapeSequenceIndex);
+                // platform_log_stream("insideEscapeSequence: %d", insideEscapeSequence);
+                // platform_log_stream("val: %d, is_true: %s", 
+                    // (int)insideEscapeSequence, 
+                    // insideEscapeSequence ? "YES" : "NO");
                 // and next byte to custom message sent by SpikerBox
                 escapeSequence[escapeSequenceIndex++] = uc;
 
                 if (insideEscapeSequence) { // we are inside escape sequence
                     sampleIndex = sampleCounters[currentChannel] == 0 ? 0 :
                                   sampleCounters[currentChannel] - 1;
+                    platform_log_stream("sampleIndex: %d", sampleIndex);
                     if (eventMessageIndex >=
                         EVENT_MESSAGE_LENGTH) { // event message shouldn't be longer then 64 bytes
                         auto *copy = new unsigned char[eventMessageIndex + 1];
@@ -98,6 +116,7 @@ namespace backyardbrains {
                         __android_log_print(ANDROID_LOG_DEBUG, TAG, "EVENT MESSAGE %d", eventMessageIndex);
                     }
                 } else {
+
                     if (ESCAPE_SEQUENCE_START[tmpIndex] == uc) {
                         tmpIndex++;
                         if (tmpIndex == ESCAPE_SEQUENCE_START_END_LENGTH) {
@@ -106,6 +125,7 @@ namespace backyardbrains {
                         }
                         continue;
                     }
+                    platform_log_stream("tmpIndex: %d", tmpIndex);
 
                     auto *sequence = new unsigned char[escapeSequenceIndex];
                     std::copy(escapeSequence, escapeSequence + escapeSequenceIndex, sequence);
@@ -219,6 +239,7 @@ namespace backyardbrains {
 //            std::copy(inData, inData + length, inDataPrev);
 //            inDataPrevLength = length;
 
+            platform_log_stream("Looping Stream");
             bool avoidFilteringOfChannels = stopFilteringAfterChannelIndex >= 0;
             for (int i = 0; i < channelCount; i++) {
                 // apply additional filtering if necessary

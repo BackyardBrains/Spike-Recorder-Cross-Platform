@@ -31,7 +31,7 @@ subprojects {
 }
 
 // Fix for old plugins missing namespace (required by AGP 8+)
-// Also set Java 17 compatibility for all plugins
+// Also set Java 17 compatibility and Kotlin options for all plugins
 subprojects {
     pluginManager.withPlugin('com.android.library') {
         if (android.namespace == null) {
@@ -46,6 +46,12 @@ subprojects {
         android.compileOptions {
             sourceCompatibility JavaVersion.VERSION_17
             targetCompatibility JavaVersion.VERSION_17
+        }
+        // Configure Kotlin options if Kotlin plugin is applied
+        if (project.plugins.hasPlugin('org.jetbrains.kotlin.android')) {
+            android.kotlinOptions {
+                jvmTarget = '17'
+            }
         }
     }
 }

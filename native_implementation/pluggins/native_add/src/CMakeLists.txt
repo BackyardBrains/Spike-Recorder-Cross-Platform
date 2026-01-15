@@ -47,6 +47,11 @@ if(WIN32)
   )
 elseif(ANDROID)
   # Add Android-specific libraries here if necessary
+  # Add 16KB page size compatibility for Android devices with 16KB pages
+  # This is required for devices like Pixel 9, Pixel 9 Pro, and future devices
+  set_target_properties(native_add PROPERTIES
+      LINK_FLAGS "-Wl,-z,max-page-size=16384"
+  )
 elseif(APPLE)
   target_link_libraries(native_add PRIVATE 
     ${CORE_AUDIO_LIBRARY}

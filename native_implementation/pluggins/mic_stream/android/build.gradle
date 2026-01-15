@@ -1,33 +1,22 @@
+plugins {
+    id 'com.android.library'
+}
+
 group 'com.code.aaron.micstream'
 version '1.0'
 
-buildscript {
-    repositories {
-        google()
-        jcenter()
-    }
-
-    dependencies {
-        classpath 'com.android.tools.build:gradle:3.5.0'
-    }
-}
-
-rootProject.allprojects {
-    repositories {
-        google()
-        jcenter()
-    }
-}
-
-apply plugin: 'com.android.library'
-
 android {
     namespace 'com.code.aaron.micstream'
-    compileSdkVersion 35
+    compileSdk 35
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
 
     defaultConfig {
-        minSdkVersion 25
-        targetSdkVersion 35
+        minSdk 25
+        targetSdk 35
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 

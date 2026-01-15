@@ -127,8 +127,10 @@ if(ANDROID)
     target_compile_definitions(nwbfile_plugin PRIVATE ANDROID_BUILD=1)
     
     # Use static C++ standard library to avoid runtime dependency
+    # Add 16KB page size compatibility for Android devices with 16KB pages
+    # This is required for devices like Pixel 9, Pixel 9 Pro, and future devices
     set_target_properties(nwbfile_plugin PROPERTIES
-        LINK_FLAGS "-static-libstdc++"
+        LINK_FLAGS "-static-libstdc++ -Wl,-z,max-page-size=16384"
     )
     
     # Add library search path for Android

@@ -59,4 +59,10 @@ target_compile_definitions(processing_ffi PUBLIC DART_SHARED_LIB)
 if(ANDROID)
     find_library(log-lib log)
     target_link_libraries(processing_ffi ${log-lib})
+    
+    # Add 16KB page size compatibility for Android devices with 16KB pages
+    # This is required for devices like Pixel 9, Pixel 9 Pro, and future devices
+    set_target_properties(processing_ffi PROPERTIES
+        LINK_FLAGS "-Wl,-z,max-page-size=16384"
+    )
 endif()

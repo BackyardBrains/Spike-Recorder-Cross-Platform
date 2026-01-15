@@ -47,6 +47,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   // Implementation of the data buffer
   Pointer<Pointer<Int16>>? currentDataBuffer;
+  int? _allocatedChannelCount; // Track the actual number of channels allocated
   // @override
   // var currentDataBuffer;
   Pointer<Int32>? inEventIndicesPtr;
@@ -301,11 +302,20 @@ class ProcessingUtilImpl implements ProcessingUtil {
     currentDrawSurfaceWidth = drawSurfaceWidth.floor();
     //todo: check if the currentDataBuffer is already initialized. If yes free memory before reinitializing
     if (currentDataBuffer != null) {
-      for (int i = 0; i < _channelCount; i++) {
-        calloc.free(currentDataBuffer![i]);
+      try {
+        // Use the actual allocated channel count, or fall back to _channelCount
+        final countToFree = _allocatedChannelCount ?? _channelCount;
+        if (countToFree > 0) {
+          for (int i = 0; i < countToFree; i++) {
+            calloc.free(currentDataBuffer![i]);
+          }
+        }
+        calloc.free(currentDataBuffer!);
+      } catch (e) {
+        print("Error freeing currentDataBuffer: $e");
       }
-      calloc.free(currentDataBuffer!);
       currentDataBuffer = null;
+      _allocatedChannelCount = null;
       ProcessingUtil.currentEventMarkers = 0;
       // for (int i = 0; i < _channelCount; i++) {
       // 	calloc.free((currentDataBuffer!.value + i).cast<Pointer<Int16>>().value);
@@ -354,6 +364,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       for (int i = 0; i < channelCount; i++) {
         currentDataBuffer?[i] = calloc<Int16>(sampleCount); // 5x for envelope
       }
+      _allocatedChannelCount = channelCount; // Track the allocated count
     }
 
     // Allocate memory for each channel
@@ -365,9 +376,18 @@ class ProcessingUtilImpl implements ProcessingUtil {
         'Microphone initialized with $channelCount channels at $sampleRate Hz');
     print('Buffer size: $channelCount channels × $sampleCount samples');
 
-    inEventIndicesPtr = calloc<Int32>(ProcessingUtil.MAX_EVENT_MARKERS);
-    inEventLabelsPtr = calloc<Int32>(ProcessingUtil.MAX_EVENT_MARKERS);
+    // Free existing event marker pointers if they exist (initEventMarkers will reallocate them)
+    if (inEventIndicesPtr != null) {
+      calloc.free(inEventIndicesPtr!);
+      inEventIndicesPtr = null;
+    }
+    if (inEventLabelsPtr != null) {
+      calloc.free(inEventLabelsPtr!);
+      inEventLabelsPtr = null;
+    }
+    
     ProcessingUtil.currentEventMarkers = 0;
+    // initEventMarkers will allocate inEventIndicesPtr and inEventLabelsPtr
     initEventMarkers(_sampleRate);
     ProcessingUtil.eventMarkerNotifier.removeListener(eventMarkerListener);
     ProcessingUtil.eventMarkerNotifier.addListener(eventMarkerListener);
@@ -457,7 +477,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       Pointer<Pointer<Int16>> curDataBuffer = currentDataBuffer as Pointer<Pointer<Int16>>;
       final bufferViews = List<Int16List>.generate(
       	_channelCount,
-      	(i) => (curDataBuffer.value + i).cast<Int16>().asTypedList(sampleCount)
+      	(i) => curDataBuffer[i].cast<Int16>().asTypedList(sampleCount)
       );
       return bufferViews;
 
@@ -556,12 +576,16 @@ class ProcessingUtilImpl implements ProcessingUtil {
       // }
       // calloc.free(currentDataBuffer!.value);
       // calloc.free(currentDataBuffer!);
-      for (int i = 0; i < _channelCount; i++) {
-        calloc.free(currentDataBuffer![i]);
+      final countToFree = _allocatedChannelCount ?? _channelCount;
+      if (countToFree > 0) {
+        for (int i = 0; i < countToFree; i++) {
+          calloc.free(currentDataBuffer![i]);
+        }
       }
       calloc.free(currentDataBuffer!);
 
       currentDataBuffer = null;
+      _allocatedChannelCount = null;
       // free fft pointer      
       try{
         if (window_count.isNotEmpty) {
@@ -870,6 +894,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       calloc.free(outSamplesPtr[i]);
     }
     calloc.free(outSamplesPtr);
+    calloc.free(outSampleCountsPtr);
     return Future.value(buffer);
   }
 
@@ -1039,6 +1064,10 @@ class ProcessingUtilImpl implements ProcessingUtil {
         inEventIndicesPtr![i] = sampleRate * 10;
       }
     } else {
+      // Allocate if null before accessing
+      inEventIndicesPtr = calloc<Int32>(ProcessingUtil.MAX_EVENT_MARKERS);
+      inEventLabelsPtr = calloc<Int32>(ProcessingUtil.MAX_EVENT_MARKERS);
+      ProcessingUtil.eventPosition = List.generate(ProcessingUtil.MAX_EVENT_MARKERS, (generator) => sampleRate * 10);
       for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
         inEventIndicesPtr![i] = sampleRate * 10;
       }

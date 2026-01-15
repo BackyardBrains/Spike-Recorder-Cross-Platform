@@ -119,3 +119,7 @@ https://github.com/BackyardBrains/Spike-Recorder/blob/66b1cb83266ad7770a8c6ff5ae
 
 
 https://github.com/BackyardBrains/Spike-Recorder/blob/66b1cb83266ad7770a8c6ff5ae4d925a262693ab/src/AudioView.cpp#L442C1-L466C2
+
+
+[WORKING]WHEN SERIAL RUN, MICROPHONE PAUSE IT
+CRASH WHEN changing 3 channels serial to microphone

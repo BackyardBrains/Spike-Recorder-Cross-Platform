@@ -17,5 +17,7 @@ abstract class MicrophoneUtil {
   double sampleRate = 48000;
   Future<void> init() async {}
 
+  StreamSubscription? micStatus;
+
   Future<void> checkPointerValue() async {}
 }

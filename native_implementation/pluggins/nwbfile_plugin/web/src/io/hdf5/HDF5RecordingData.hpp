@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../io/BaseIO.hpp"
+#include "io/BaseIO.hpp"
 
 namespace H5
 {
@@ -88,11 +88,6 @@ private:
                               const std::vector<SizeType>& positionOffset,
                               H5::DataSpace& mSpace,
                               H5::DataSpace& fSpace);
-
-  /**
-   * @brief Return status of HDF5 operations.
-   */
-  Status checkStatus(int status);
 
   /**
    * @brief Pointer to an extendable HDF5 dataset

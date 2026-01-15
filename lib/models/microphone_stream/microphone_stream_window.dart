@@ -65,4 +65,7 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
     // final valueis = await native_add.setTheMicData(_bufferData);
     // print("the value is getted $valueis");
   }
+
+  @override
+  StreamSubscription? micStatus;
 }

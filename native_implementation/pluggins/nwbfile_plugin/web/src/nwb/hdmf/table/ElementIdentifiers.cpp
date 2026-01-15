@@ -1,4 +1,4 @@
-#include "ElementIdentifiers.hpp"
+#include "nwb/hdmf/table/ElementIdentifiers.hpp"
 
 using namespace AQNWB::NWB;
 

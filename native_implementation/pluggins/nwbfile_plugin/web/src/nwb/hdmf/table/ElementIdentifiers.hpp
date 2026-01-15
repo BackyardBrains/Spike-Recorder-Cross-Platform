@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../base/Data.hpp"
+#include "nwb/hdmf/base/Data.hpp"
+#include "spec/hdmf_common.hpp"
 
 namespace AQNWB::NWB
 {
@@ -12,8 +13,11 @@ class ElementIdentifiers : public Data
 {
 public:
   // Register ElementIdentifiers class as a registered type
-  REGISTER_SUBCLASS(ElementIdentifiers, "hdmf-common")
+  REGISTER_SUBCLASS(ElementIdentifiers,
+                    Data,
+                    AQNWB::SPEC::HDMF_COMMON::namespaceName)
 
+protected:
   /**
    * @brief Constructor.
    *
@@ -22,6 +26,7 @@ public:
    */
   ElementIdentifiers(const std::string& path, std::shared_ptr<IO::BaseIO> io);
 
+public:
   /**
    * @brief Virtual destructor.
    */
@@ -29,6 +34,6 @@ public:
 
   using RegisteredType::m_io;
   using RegisteredType::m_path;
-  DEFINE_FIELD(readData, DatasetField, int, "", The main data)
+  DEFINE_DATASET_FIELD(readData, recordData, int, "", The main data)
 };
 }  // namespace AQNWB::NWB

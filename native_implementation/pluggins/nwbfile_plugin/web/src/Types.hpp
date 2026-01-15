@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <limits>
 #include <vector>
 
 namespace AQNWB
@@ -20,7 +21,7 @@ public:
    */
   enum Status
   {
-    Success = 0,
+    Success = 1,
     Failure = -1
   };
 
@@ -76,6 +77,12 @@ public:
   using SizeType = size_t;
 
   /**
+   * @brief Value to use to indicate that a SizeType index is not set.
+   */
+  static constexpr SizeType SizeTypeNotSet =
+      std::numeric_limits<SizeType>::max();
+
+  /**
    * @brief Alias for an array of size types used in the project.
    */
   using SizeArray = std::vector<size_t>;
@@ -84,5 +91,23 @@ public:
    * @brief Alias for a vector of channels.
    */
   using ChannelVector = std::vector<Channel>;
+
+  /**
+   * @brief Struct to hold namespace information.
+   */
+  struct NamespaceInfo
+  {
+    std::string name;  ///< The name of the namespace.
+    std::string version;  ///< The version of the namespace.
+
+    /** @brief The specVariables of the namespace.
+     *
+     * This is a vector of pairs, where each pair consists of 1) the
+     * name of the specification filed (e.g., "nwb.base") and 2) the
+     * string with the JSON specification of the format schema.
+     **/
+    std::vector<std::pair<std::string_view, std::string_view>>
+        specVariables;  ///< The specVariables of the namespace.
+  };
 };
 }  // namespace AQNWB

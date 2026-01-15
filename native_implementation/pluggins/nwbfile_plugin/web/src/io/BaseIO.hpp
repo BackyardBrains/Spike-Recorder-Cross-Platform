@@ -11,9 +11,9 @@
 #include <variant>
 #include <vector>
 
-// #include "boost/multi_array.hpp"  // TODO move this and function def to the cpp file
+#include <boost/multi_array.hpp>  // TODO move this and function def to the cpp file
 
-#include "../Types.hpp"
+#include "Types.hpp"
 
 #define DEFAULT_STR_SIZE 256
 #define DEFAULT_ARRAY_SIZE 1
@@ -24,13 +24,17 @@ using SizeArray = AQNWB::Types::SizeArray;
 using SizeType = AQNWB::Types::SizeType;
 
 /*!
- * \namespace AQNWB
- * \brief The main namespace for AqNWB
+ * \namespace AQNWB::IO
+ * \brief The namespace for IO components of AqNWB
  */
 namespace AQNWB::IO
 {
-
 class BaseRecordingData;
+class RecordingObjects;
+}  // namespace AQNWB::IO
+
+namespace AQNWB::IO
+{
 
 /**
  * @brief Represents a base data type.
@@ -387,6 +391,26 @@ public:
       bool exclude_starting_path = false) const;
 
   /**
+   * @brief Get the full name of the type from the attribute in the file
+   *
+   * Note, in NWB v2.9 the type for ElectrodesTable has changed from a basic
+   * DynamicTable to the more specific ElectrodesTable. To ensure consistent
+   * behavior of the API for reading older NWB <=2.8 files, this function
+   * implements backward compatibility logic to return core::ElectrodesTable
+   * for ElectrodesTable::electrodesTablePath even if the file indicated
+   * DynamicTable.
+   *
+   * @param path The path of the registered type.
+   * @exception The function will raise exception if the `neurodata_type` or
+   * `namespace` attributes cannot be read. E.g., when requesting the typename
+   * for a path that does not represent a neurodata_type. It is up to the caller
+   * to handle these exceptions.
+   * @return String with the full name of the type consisting of
+   * `namespace::typename`
+   */
+  std::string getFullTypeName(const std::string& path);
+
+  /**
    * @brief Reads a dataset and determines the data type
    *
    * We use DataBlockGeneric here, i.e., the subclass must determine the
@@ -533,13 +557,13 @@ public:
    * @brief Starts the recording process.
    * @return The status of the operation.
    */
-  virtual Status startRecording() = 0;
+  virtual Status startRecording();
 
   /**
    * @brief Stops the recording process.
    * @return The status of the operation.
    */
-  virtual Status stopRecording() = 0;
+  virtual Status stopRecording();
 
   /**
    * @brief Returns true if the file is in a mode where objects can
@@ -563,9 +587,9 @@ public:
   /**
    * @brief Returns a pointer to a dataset at a given path.
    * @param path The location in the file of the dataset.
-   * @return A pointer to the dataset.
+   * @return A shared pointer to the dataset.
    */
-  virtual std::unique_ptr<BaseRecordingData> getDataSet(
+  virtual std::shared_ptr<BaseRecordingData> getDataSet(
       const std::string& path) = 0;
 
   /**
@@ -599,6 +623,15 @@ public:
    */
   inline bool isReadyToOpen() const { return m_readyToOpen; }
 
+  /**
+   * @brief Returns the recording objects container for this IO object.
+   * @return A shared pointer to the RecordingObjects container.
+   */
+  inline std::shared_ptr<RecordingObjects> getRecordingObjects() const
+  {
+    return m_recording_objects;
+  }
+
 protected:
   /**
    * @brief The name of the file.
@@ -621,6 +654,12 @@ protected:
    * @brief Whether the file is currently open.
    */
   bool m_opened;
+
+  /**
+   * @brief The recording objects for tracking all RegisteredType objects used
+   * for recording associated with this IO object.
+   */
+  std::shared_ptr<RecordingObjects> m_recording_objects;
 };
 
 /**

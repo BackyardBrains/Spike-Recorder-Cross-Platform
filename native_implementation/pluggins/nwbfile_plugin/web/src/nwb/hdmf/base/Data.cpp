@@ -1,4 +1,4 @@
-#include "Data.hpp"
+#include "nwb/hdmf/base/Data.hpp"
 
 using namespace AQNWB::NWB;
 
@@ -9,6 +9,25 @@ REGISTER_SUBCLASS_IMPL(Data)
 Data::Data(const std::string& path, std::shared_ptr<AQNWB::IO::BaseIO> io)
     : RegisteredType(path, io)
 {
+}
+
+Status Data::initialize(const IO::ArrayDataSetConfig& dataConfig)
+{
+  auto ioPtr = getIO();
+  if (ioPtr == nullptr) {
+    std::cerr << "IO object has been deleted. Can't initialize Data: " << m_path
+              << std::endl;
+    return Status::Failure;
+  }
+  // Create the dataset
+  auto dataset = ioPtr->createArrayDataSet(dataConfig, this->m_path);
+  if (dataset == nullptr) {
+    return Status::Failure;
+  }
+  // setup common attributes
+  Status commonAttrsStatus = ioPtr->createCommonNWBAttributes(
+      m_path, this->getNamespace(), this->getTypeName());
+  return commonAttrsStatus;
 }
 
 namespace AQNWB::NWB

@@ -20,7 +20,7 @@ cd build
 echo "Configuring with CMake..."
 emcmake cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_CXX_FLAGS="-s USE_BOOST_HEADERS=1 -s USE_HDF5=1 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] -s EXPORTED_FUNCTIONS=['_sum','_sum_long_running','_processing_init'] -s EXPORT_NAME='NWBPlugin' -s MODULARIZE=1"
+    -DCMAKE_CXX_FLAGS="-s USE_BOOST_HEADERS=1 -s USE_HDF5=1 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS'] -s EXPORTED_FUNCTIONS=['_sum','_sum_long_running','_processing_init','_nwbfile_add_electrical_series','_get_nwb_file_size','_get_nwb_file_data','_nwbfile_read_electrical_series','_debug_nwb_file_structure','_nwbfile_seek_electrical_series'] -s EXPORT_NAME='NWBPlugin' -s MODULARIZE=1 -s USE_FILESYSTEM=1"
 
 # Build the project
 echo "Building with Emscripten..."

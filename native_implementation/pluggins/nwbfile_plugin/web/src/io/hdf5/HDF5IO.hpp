@@ -4,11 +4,11 @@
 #include <memory>
 #include <string>
 
-#include "H5Cpp.h"
+#include <H5Opublic.h>
 
-#include "../../Types.hpp"
-#include "../../io/BaseIO.hpp"
-#include "../../io/ReadIO.hpp"
+#include "Types.hpp"
+#include "io/BaseIO.hpp"
+#include "io/ReadIO.hpp"
 
 namespace H5
 {
@@ -23,7 +23,7 @@ class DataSpace;
 }  // namespace H5
 
 /*!
- * \namespace AQNWB::HDF5
+ * \namespace AQNWB::IO::HDF5
  * \brief Namespace for all components of the HDF5 I/O backend
  */
 namespace AQNWB::IO::HDF5
@@ -267,9 +267,9 @@ public:
   /**
    * @brief Returns a pointer to a dataset at a given path.
    * @param path The location in the file of the dataset.
-   * @return A pointer to the dataset.
+   * @return A shared pointer to the dataset.
    */
-  std::unique_ptr<IO::BaseRecordingData> getDataSet(
+  std::shared_ptr<IO::BaseRecordingData> getDataSet(
       const std::string& path) override;
 
   /**

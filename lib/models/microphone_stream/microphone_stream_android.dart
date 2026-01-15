@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:mic_stream/mic_stream.dart';
 import 'package:sound_stream_now/sound_stream_now.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:spikerbox_architecture/screen/graph_template.dart';
 
 import 'microphone_stream_check.dart';
 
@@ -28,7 +29,8 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
 
   late final RecorderStream _recorder;
   // PlayerStream _player = PlayerStream();
-  late StreamSubscription _recorderStatus;
+  @override
+  StreamSubscription? micStatus;
 
   @override
   Future<void> init() async {
@@ -41,15 +43,22 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
     // });
 
     // micStream = addListenAudioStreamController.stream.asBroadcastStream();
+    micStatus?.cancel();
     var microphoneStream = (await MicStream.microphone(
             audioSource: AudioSource.DEFAULT,
             sampleRate: 44100,
             channelConfig: ChannelConfig.CHANNEL_IN_MONO,
             audioFormat: AudioFormat.ENCODING_PCM_16BIT));
-    micStream = addListenAudioStreamController;
-    microphoneStream?.listen((onData) {
-      micStream?.value = onData;
-    });
+    try{
+      micStream = addListenAudioStreamController;
+      micStatus = microphoneStream?.listen((onData) {
+        if (GraphTemplate.isLoadingFile < 3) {
+          micStream?.value = onData;
+        }
+      });
+    }catch(err) {
+
+    }
 
     // _recorder.audioStream.listen((data) {
     //   // addListenAudioStreamController.add(data);

@@ -64,4 +64,11 @@ android {
     defaultConfig {
         minSdk = 21
     }
+    
+    // Ensure modern packaging for 16KB alignment
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
 }

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chrono>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <ctime>
@@ -10,11 +10,11 @@
 #include <sstream>
 #include <string>
 
-#include "boost/date_time.hpp"
-#include "boost/endian/conversion.hpp"
-#include "boost/uuid/uuid.hpp"
-#include "boost/uuid/uuid_generators.hpp"
-#include "boost/uuid/uuid_io.hpp"
+#include <boost/date_time.hpp>
+#include <boost/endian/conversion.hpp>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 
 #include "boost/date_time/c_local_time_adjustor.hpp"
 #include "io/BaseIO.hpp"
@@ -200,6 +200,39 @@ static inline std::unique_ptr<int16_t[]> transformToInt16(
   convertFloatToInt16LE(scaledData.get(), intData.get(), numSamples);
 
   return intData;
+}
+
+/**
+ * @brief Check if a SizeType index is valid (i.e., not equal to SizeTypeNotSet)
+ * @param index The index to check
+ * @return True if the index is valid, false otherwise
+ */
+static inline bool isValidIndex(SizeType index)
+{
+  return (index != AQNWB::Types::SizeTypeNotSet);
+}
+
+/**
+ * @brief Convert an integer status code to a Types::Status enum value.
+ * Shorthand for `return (status < 0) ? Status::Failure : Status::Success;`
+ * @param status The integer status code to convert.
+ * @return The corresponding Types::Status enum value.
+ */
+static inline Status intToStatus(int status)
+{
+  return (status < 0) ? Status::Failure : Status::Success;
+}
+
+/**
+ * @brief Check status and print to standard error
+ * @param status The status of the operation
+ * @param operation The operation name that will be printed
+ */
+static inline void checkStatus(Status status, const std::string& operation)
+{
+  if (status != Status::Success) {
+    std::cerr << operation << " failed" << std::endl;
+  }
 }
 
 }  // namespace AQNWB

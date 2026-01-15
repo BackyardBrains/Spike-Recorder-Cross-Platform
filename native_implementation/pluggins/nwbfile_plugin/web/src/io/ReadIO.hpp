@@ -11,7 +11,7 @@
 #include <boost/multi_array.hpp>  // TODO move this and function def to the cpp file
 
 #include "BaseIO.hpp"
-#include "../Types.hpp"
+#include "Types.hpp"
 
 using StorageObjectType = AQNWB::Types::StorageObjectType;
 using SizeType = AQNWB::Types::SizeType;
@@ -77,11 +77,11 @@ public:
   DataBlockGeneric(const std::any& inData,
                    const std::vector<SizeType>& inShape,
                    const std::type_index& inTypeIndex,
-                   const IO::BaseDataType baseDataType)
+                   const IO::BaseDataType inBaseDataType)
       : data(inData)
       , shape(inShape)
       , typeIndex(inTypeIndex)
-      , baseDataType(baseDataType)
+      , baseDataType(inBaseDataType)
   {
   }
 

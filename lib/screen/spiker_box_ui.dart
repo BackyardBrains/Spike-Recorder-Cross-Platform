@@ -55,11 +55,11 @@ class _SpikerBoxUiState extends State<SpikerBoxUi> {
       DraggableSection(),
       TimeCalculateWidget(),
       // DraggableRectangle(),
-      Positioned(
-        left:0,
-        top: MediaQuery.of(context).size.height * 0.2,
-        child: FftSection()
-      ),
+      // Positioned(
+      //   left:0,
+      //   top: MediaQuery.of(context).size.height * 0.2,
+      //   child: FftSection()
+      // ),
     ]);
     return Stack(
       children: listUIElements,
@@ -434,6 +434,15 @@ class _DraggableGraphState extends State<DraggableGraph> {
     dataStream.listen((data) {
       isLoading = false;
       setState(() {});
+
+      // prevRefreshTime = DateTime.now().millisecondsSinceEpoch;
+      // // print("--------------------------------");
+      // if (DateTime.now().millisecondsSinceEpoch - prevRefreshTime > 10) {
+      //   // print(DateTime.now().millisecondsSinceEpoch);
+      //   prevRefreshTime = DateTime.now().millisecondsSinceEpoch;
+      //   setState(() {});
+      // }
+
     });
     Future.delayed(Duration(seconds: 1), () {
       initializeGraph();
@@ -908,6 +917,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
   String? keyboardCharacter;
   
   bool isThresholding = false;
+  
+  int prevRefreshTime = 0;
   void _handleKeyEvent(KeyEvent event) {
     if (event is KeyDownEvent) {
       // debouncerKeyboard.run(() {
@@ -1509,6 +1520,8 @@ class FftSection extends StatefulWidget {
   State<FftSection> createState() => _FftSectionState();
 }
 class _FftSectionState extends State<FftSection> {
+  int prevRefreshTime = 0;
+
   @override
   void initState() {
     super.initState();
@@ -1517,7 +1530,13 @@ class _FftSectionState extends State<FftSection> {
                 .outputGraphStream ??
             const Stream.empty();
     dataStream.listen((data) {
-      setState(() {});
+      // print("data: $data");
+      prevRefreshTime = DateTime.now().millisecondsSinceEpoch;
+      // print("--------------------------------");
+      if (DateTime.now().millisecondsSinceEpoch - prevRefreshTime > 300) {
+        prevRefreshTime = DateTime.now().millisecondsSinceEpoch;
+        setState(() {});
+      }
     });
   }
   

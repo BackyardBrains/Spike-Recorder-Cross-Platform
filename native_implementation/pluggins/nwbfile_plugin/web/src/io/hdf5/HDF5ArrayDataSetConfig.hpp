@@ -2,12 +2,12 @@
 
 #include <vector>
 
-#include "H5Cpp.h"
+#include <H5Ppublic.h>
 
-#include "../../io/BaseIO.hpp"
+#include "io/BaseIO.hpp"
 
 /*!
- * \namespace AQNWB::HDF5
+ * \namespace AQNWB::IO::HDF5
  * \brief Namespace for all components of the HDF5 I/O backend
  */
 namespace AQNWB::IO::HDF5

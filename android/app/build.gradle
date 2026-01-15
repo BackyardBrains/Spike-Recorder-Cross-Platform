@@ -84,6 +84,18 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
+    // Required for 16KB page size compatibility (Android devices with 16KB pages like Pixel 9+)
+    // AGP 8.5.1+ automatically aligns uncompressed native libraries to 16KB boundaries
+    // TEMPORARY WORKAROUND: Using legacy packaging to bypass alignment check for third-party
+    // libraries (flutter_soloud, flutter_libserialport) that have pre-built misaligned libraries.
+    // This compresses libraries, increasing install size, but allows the app to run.
+    // TODO: Update flutter_soloud to a version that supports 16KB alignment, or wait for plugin updates
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true  // Temporary workaround for third-party misaligned libraries
+        }
+    }
 }
 
 flutter {

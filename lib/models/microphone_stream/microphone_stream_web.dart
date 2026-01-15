@@ -78,4 +78,7 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
 
   @override
   Future<void> checkPointerValue() async {}
+
+  @override
+  StreamSubscription? micStatus;
 }

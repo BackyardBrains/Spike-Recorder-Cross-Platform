@@ -588,10 +588,14 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
         return -2; // Return error code indicating processor not initialized
     }
     
+    // Allocate event arrays outside try block so they can be freed in catch
+    int* event_indices = nullptr;
+    std::string* event_labels = nullptr;
+    
     try {
         // Process data using SampleStreamProcessor
-        int* event_indices = new int[PROCESSING_MAX_EVENTS];
-        std::string* event_labels = new std::string[PROCESSING_MAX_EVENTS];
+        event_indices = new int[PROCESSING_MAX_EVENTS];
+        event_labels = new std::string[PROCESSING_MAX_EVENTS];
         int event_count = 0;
         
         sampleStreamProcessor->process((const_cast<uint8_t*>(in_data)), length, out_samples, out_sample_counts,
@@ -613,8 +617,15 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
 
 
         
+        // Free allocated memory before returning
+        delete[] event_indices;
+        delete[] event_labels;
+        
         return 0; // Success
     } catch (...) {
+        // Free memory in case of exception
+        if (event_indices != nullptr) delete[] event_indices;
+        if (event_labels != nullptr) delete[] event_labels;
         return -3;
     }
 }

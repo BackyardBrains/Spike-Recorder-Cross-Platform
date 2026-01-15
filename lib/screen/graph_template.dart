@@ -129,7 +129,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   // For audio data
 
   static const int _sampleGeneratedCount = 1000;
-  static const int timeMs = _sampleGeneratedCount ~/ dummySamplingRate * 1000;
+  static const int timeMs = _sampleGeneratedCount * 1000 ~/ dummySamplingRate;
   late final Uint8List _sampleData;
   List<SerialPortDataModel> allDevices = [];
 
@@ -352,7 +352,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       scrubNotifier.removeListener(_scrubNotifierListener!);
     }
     _scrubNotifierListener = () async {
-      print("SECTION ScrubNotifier:");
+      print("SECTION ScrubNotifier: $timeMs");
       // print("scrubNotifier");
       timerPlaybackLoadedStartIndex = 0;
       timerPlaybackLoadedEndIndex = 0;
@@ -745,6 +745,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // Remove mic listener
     try {
       microphoneUtil.micStream.removeListener(micListener);
+      microphoneUtil.micStatus?.cancel();
     } catch (e) {
       print("Error removing micListener: $e");
     }
@@ -2602,7 +2603,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       print("PROCESSING UTIL: adaptiveAREA SCRUB");
       if (isStartOpeningFileWeb) {
-        print("SECTION SCRUB NOTIFIER: $isStartOpeningFileWeb");
+        print("SECTION SCRUB NOTIFIER: $isStartOpeningFileWeb $timeMs");
         AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
         // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
         double scrubMaxWidth = MediaQuery.of(context).size.width - 100 - 20;
@@ -2938,7 +2939,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   
   void periodicSerialDataSubscription() {
     periodicTimerSerial?.cancel();
-    periodicTimerSerial =Timer.periodic(Duration(milliseconds: 20), (timer){
+    periodicTimerSerial =Timer.periodic(Duration(milliseconds: timeMs), (timer){
       bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
       // List<String> listOfPort = Provider.of<PortScanProvider>(context, listen: false).availablePorts;
       serialNativeDataSubscription(Uint8List(0), isAudioListen);
@@ -3180,6 +3181,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   double drawSurfaceWidth = MediaQuery.of(context).size.width;
                   processingUtil.initializeSerial(board, drawSurfaceWidth);
                   ProcessingUtil.initializeDevice.value = 1;
+                  microphoneUtil.micStatus?.cancel();
+
                   
                   deviceChannelCount = int.parse(board.maxNumberOfChannels!);
                   context.read<ChannelColorProvider>().setSerialChannelCount(

@@ -59,7 +59,10 @@ dependencies:
   isolated_worker: ^0.1.1
   usb_serial: ^0.5.2
   permission_handler: ^11.0.0
-  flutter_libserialport: ^0.5.0
+  # flutter_libserialport: ^0.5.0
+  flutter_libserialport:
+    git:
+      url: https://github.com/salah-taha/flutter_libserialport  
   serial: ^0.0.4
   squadron: ^6.2.0
   isolate_manager: ^5.7.2+1

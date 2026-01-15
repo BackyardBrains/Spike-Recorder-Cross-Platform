@@ -125,7 +125,7 @@ namespace backyardbrains {
                         }
                         continue;
                     }
-                    platform_log_stream("tmpIndex: %d", tmpIndex);
+                    // platform_log_stream("tmpIndex: %d", tmpIndex);
 
                     auto *sequence = new unsigned char[escapeSequenceIndex];
                     std::copy(escapeSequence, escapeSequence + escapeSequenceIndex, sequence);
@@ -239,7 +239,7 @@ namespace backyardbrains {
 //            std::copy(inData, inData + length, inDataPrev);
 //            inDataPrevLength = length;
 
-            platform_log_stream("Looping Stream");
+            // platform_log_stream("Looping Stream");
             bool avoidFilteringOfChannels = stopFilteringAfterChannelIndex >= 0;
             for (int i = 0; i < channelCount; i++) {
                 // apply additional filtering if necessary

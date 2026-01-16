@@ -152,7 +152,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _portCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
       if (forceSerialDisconnect) return;
       if (isOpeningFile) return;
+      if (_isDataIdentified) return;
 
+      // print("START PORT CHECK");
       int baudRate = context.read<ConstantProvider>().getBaudRate();
       _serialUtil.getAvailablePorts(baudRate, serialErrorCallback);
       allDevices.clear();
@@ -745,6 +747,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // Remove mic listener
     try {
       microphoneUtil.micStream.removeListener(micListener);
+      print("microphoneUtil.micStatus?.cancel()");
       microphoneUtil.micStatus?.cancel();
     } catch (e) {
       print("Error removing micListener: $e");
@@ -3181,6 +3184,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   double drawSurfaceWidth = MediaQuery.of(context).size.width;
                   processingUtil.initializeSerial(board, drawSurfaceWidth);
                   ProcessingUtil.initializeDevice.value = 1;
+                  print("microphoneUtil.micStatus?.cancel()");
                   microphoneUtil.micStatus?.cancel();
 
                   

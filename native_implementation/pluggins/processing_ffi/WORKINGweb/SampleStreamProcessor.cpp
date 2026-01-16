@@ -68,7 +68,14 @@ namespace backyardbrains {
                 uc = inData[i];
 
                 // and next byte to custom message sent by SpikerBox
-                escapeSequence[escapeSequenceIndex++] = uc;
+                // Bounds check before writing to prevent buffer overflow
+                if (escapeSequenceIndex < MAX_SEQUENCE_LENGTH) {
+                    escapeSequence[escapeSequenceIndex++] = uc;
+                } else {
+                    // Buffer overflow - reset to prevent corruption
+                    reset();
+                    continue;
+                }
 
                 if (insideEscapeSequence) { // we are inside escape sequence
                     sampleIndex = sampleCounters[currentChannel] == 0 ? 0 :
@@ -96,7 +103,13 @@ namespace backyardbrains {
                             reset();
                         }
                     } else {
-                        eventMessage[eventMessageIndex++] = uc;
+                        // Bounds check before writing to prevent buffer overflow
+                        if (eventMessageIndex < EVENT_MESSAGE_LENGTH) {
+                            eventMessage[eventMessageIndex++] = uc;
+                        } else {
+                            // Buffer overflow - reset to prevent corruption
+                            reset();
+                        }
                     }
                 } else {
                     if (ESCAPE_SEQUENCE_START[tmpIndex] == uc) {
@@ -108,10 +121,11 @@ namespace backyardbrains {
                         continue;
                     }
 
-                    auto *sequence = new unsigned char[escapeSequenceIndex];
-                    std::copy(escapeSequence, escapeSequence + escapeSequenceIndex, sequence);
-                    for (int j = 0; j < escapeSequenceIndex; j++) {
-                        b = sequence[j];
+                    // CRITICAL FIX: Avoid unnecessary allocation - process directly from escapeSequence
+                    // Only process if we have data to process
+                    if (escapeSequenceIndex > 0) {
+                        for (int j = 0; j < escapeSequenceIndex; j++) {
+                            b = escapeSequence[j];
                         // check if we have unfinished frame
                         if (frameStarted) {
                             // check if we have unfinished sample
@@ -143,15 +157,25 @@ namespace backyardbrains {
                                 // use average to remove offset
                                 sample = (short) (sample - average);
 
-                                // if (currentExpansionBoardType == 4) {
-                                //     if (currentExpansionBoardAdjustedChannel == currentChannel) {
-                                //         channels[currentChannel][sampleCounters[currentChannel]++] = sample + 3572;
-                                //     } else {
-                                //     }
-                                // } else {
-                                //     channels[currentChannel][sampleCounters[currentChannel]++] = sample;
-                                // }
-                                channels[currentChannel][sampleCounters[currentChannel]++] = sample;
+                                // STEVANUS TEMPORARY HIDE
+                                // Bounds check to prevent buffer overflow
+                                if (currentChannel < MAX_CHANNELS && sampleCounters[currentChannel] < MAX_SAMPLES) {
+                                    // if (currentExpansionBoardType == 4) {
+                                    //     if (currentExpansionBoardAdjustedChannel == currentChannel) {
+                                    //         channels[currentChannel][sampleCounters[currentChannel]++] = sample + 3572;
+                                    //     } else {
+                                    //     }
+                                    // } else {
+                                    //     channels[currentChannel][sampleCounters[currentChannel]++] = sample;
+                                    // }
+                                    channels[currentChannel][sampleCounters[currentChannel]++] = sample;
+                                } else {
+                                    // Buffer overflow - drop frame to prevent corruption
+                                    frameStarted = false;
+                                    sampleStarted = false;
+                                    currentChannel = 0;
+                                    continue;
+                                }
  
                                 
 
@@ -220,8 +244,7 @@ namespace backyardbrains {
                             }
                         }
                     }
-
-                    delete[] sequence;
+                    }
 
                     reset();
                 }

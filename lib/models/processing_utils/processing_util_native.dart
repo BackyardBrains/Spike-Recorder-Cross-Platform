@@ -94,23 +94,27 @@ class ProcessingUtilImpl implements ProcessingUtil {
     print("setupDartCallbacks start");
     _nativeCallbackPort.listen((message) {
       print("setupDartCallbacks listen start $message");
-      // if (message is List && message.isNotEmpty) {
-        // final String messageType = message[0] as String;
-        final int value1 = message as int;
-        handleExpansionBoardTypeDetection(value1);
-        // final int value2 = message.length > 2 ? message[2] as int : 0;
+      if (message is List && message.length >= 3) {
+        // Receive 3 parameters from C++
+        final int value1 = message[0] as int;
+        final int value2 = message[1] as int;
+        final int value3 = message[2] as int;
         
-        // Handle different message types
-        // switch (messageType) {
-        //   case 'onExpansionBoardTypeDetection':
-        //     print("onExpansionBoardTypeDetection: $value1");
-        //     handleExpansionBoardTypeDetection(value1);
-        //     break;
-        //   // Add more cases as needed
-        //   default:
-        //     print('Unknown message type: $messageType');
-        // }
-      // }
+        print("Received 3 parameters: $value1, $value2, $value3");
+        
+        // Handle the expansion board type detection with all 3 parameters
+        if (value1 == 0) { // Expansion board type detection
+          int expBoardType = value2;
+          handleExpansionBoardTypeDetection(expBoardType, value1, value3);
+        } else 
+        if (value1 == 1) { // Event detection
+          int eventLabel = value3;
+          ProcessingUtil.eventMarkerNotifier.value = [eventLabel, -1];
+        }
+      } else if (message is int) {
+        // Fallback for single parameter (backward compatibility)
+        handleExpansionBoardTypeDetection(message, 0, 0);
+      }
     });
 
     
@@ -143,8 +147,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
     _nativeCallbackPort.close();
   }  
 
-  void handleExpansionBoardTypeDetection(int expBoardType) {
-    print('Expansion board type detected: $expBoardType');
+  void handleExpansionBoardTypeDetection(int expBoardType, [int param2 = 0, int param3 = 0]) {
+    print('Expansion board type detected: $expBoardType, param2: $param2, param3: $param3');
     print("setExpansionBoardTypeDart");
     print(GraphTemplate.selectedBoard);
     if (GraphTemplate.selectedBoard != null) {

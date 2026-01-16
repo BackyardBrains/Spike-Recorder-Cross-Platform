@@ -78,7 +78,14 @@ namespace backyardbrains {
                     // (int)insideEscapeSequence, 
                     // insideEscapeSequence ? "YES" : "NO");
                 // and next byte to custom message sent by SpikerBox
-                escapeSequence[escapeSequenceIndex++] = uc;
+                // Bounds check before writing to prevent buffer overflow
+                if (escapeSequenceIndex < MAX_SEQUENCE_LENGTH) {
+                    escapeSequence[escapeSequenceIndex++] = uc;
+                } else {
+                    // Buffer overflow - reset to prevent corruption
+                    reset();
+                    continue;
+                }
 
                 if (insideEscapeSequence) { // we are inside escape sequence
                     sampleIndex = sampleCounters[currentChannel] == 0 ? 0 :
@@ -112,8 +119,14 @@ namespace backyardbrains {
                             reset();
                         }
                     } else {
-                        eventMessage[eventMessageIndex++] = uc;
-                        __android_log_print(ANDROID_LOG_DEBUG, TAG, "EVENT MESSAGE %d", eventMessageIndex);
+                        // Bounds check before writing to prevent buffer overflow
+                        if (eventMessageIndex < EVENT_MESSAGE_LENGTH) {
+                            eventMessage[eventMessageIndex++] = uc;
+                        } else {
+                            // Buffer overflow - reset to prevent corruption
+                            reset();
+                        }
+                        // __android_log_print(ANDROID_LOG_DEBUG, TAG, "EVENT MESSAGE %d", eventMessageIndex);
                     }
                 } else {
 
@@ -127,62 +140,72 @@ namespace backyardbrains {
                     }
                     // platform_log_stream("tmpIndex: %d", tmpIndex);
 
-                    auto *sequence = new unsigned char[escapeSequenceIndex];
-                    std::copy(escapeSequence, escapeSequence + escapeSequenceIndex, sequence);
-                    for (int j = 0; j < escapeSequenceIndex; j++) {
-                        b = sequence[j];
+                    // CRITICAL FIX: Avoid unnecessary allocation - process directly from escapeSequence
+                    // Only process if we have data to process
+                    if (escapeSequenceIndex > 0) {
+                        for (int j = 0; j < escapeSequenceIndex; j++) {
+                            b = escapeSequence[j];
                         // check if we have unfinished frame
-                        if (frameStarted) {
-                            // check if we have unfinished sample
-                            if (sampleStarted) {
-                                lsb = b & CLEANER;
+                            if (frameStarted) {
+                                // check if we have unfinished sample
+                                if (sampleStarted) {
+                                    lsb = b & CLEANER;
 
-                                // if less significant byte is also grater then 127 drop whole frame
-                                if (lsb > 127) {
-                                    //__android_log_print(ANDROID_LOG_DEBUG, TAG, "LSB > 127! DROP WHOLE FRAME!");
-                                    frameStarted = false;
+                                    // if less significant byte is also grater then 127 drop whole frame
+                                    if (lsb > 127) {
+                                        //__android_log_print(ANDROID_LOG_DEBUG, TAG, "LSB > 127! DROP WHOLE FRAME!");
+                                        frameStarted = false;
+                                        sampleStarted = false;
+                                        currentChannel = 0;
+                                        continue;
+                                    }
+
+                                    // get sample value from most and least significant bytes
+                                    msb = msb & REMOVER;
+                                    msb = msb << 7u;
+                                    lsb = lsb & REMOVER;
+                                    if (backyardbrains::utils::SampleStreamUtils::HUMAN_HARDWARE ==
+                                        hardwareType) {
+                                        sample = (short) (((msb | lsb) - 8192));
+                                    } else {
+                                    sample = (short) (((msb | lsb) - 512) * 30);
+                                    }
+
+                                    // calculate average sample
+                                    average = 0.0001 * sample + 0.9999 * average;
+                                    // use average to remove offset
+                                    sample = (short) (sample - average);
+
+                                    // STEVANUS TEMPORARY HIDE
+                                    // Bounds check to prevent buffer overflow
+                                    if (currentChannel < MAX_CHANNELS && sampleCounters[currentChannel] < MAX_SAMPLES) {
+                                        channels[currentChannel][sampleCounters[currentChannel]++] = sample;
+                                    } else {
+                                        // Buffer overflow - drop frame to prevent corruption
+                                        frameStarted = false;
+                                        sampleStarted = false;
+                                        currentChannel = 0;
+                                        continue;
+                                    }
+
                                     sampleStarted = false;
-                                    currentChannel = 0;
-                                    continue;
-                                }
-
-                                // get sample value from most and least significant bytes
-                                msb = msb & REMOVER;
-                                msb = msb << 7u;
-                                lsb = lsb & REMOVER;
-                                if (backyardbrains::utils::SampleStreamUtils::HUMAN_HARDWARE ==
-                                    hardwareType) {
-                                    sample = (short) (((msb | lsb) - 8192));
+                                    if (currentChannel >= channelCount - 1) frameStarted = false;
                                 } else {
-                                sample = (short) (((msb | lsb) - 512) * 30);
+                                    msb = b & CLEANER;
+                                    // we already started the frame so if msb is greater then 127 drop whole frame
+                                    if (msb > 127) {
+                                        //__android_log_print(ANDROID_LOG_DEBUG, TAG,"MSB > 127 WITHIN THE FRAME! DROP WHOLE FRAME!");
+
+                                        frameStarted = false;
+                                        sampleStarted = false;
+                                        currentChannel = 0;
+                                    } else {
+                                        currentChannel++;
+
+                                        sampleStarted = true;
+                                    }
                                 }
-
-                                // calculate average sample
-                                average = 0.0001 * sample + 0.9999 * average;
-                                // use average to remove offset
-                                sample = (short) (sample - average);
-
-                                // STEVANUS TEMPORARY HIDE
-                                channels[currentChannel][sampleCounters[currentChannel]++] = sample;
-
-                                sampleStarted = false;
-                                if (currentChannel >= channelCount - 1) frameStarted = false;
                             } else {
-                                msb = b & CLEANER;
-                                // we already started the frame so if msb is greater then 127 drop whole frame
-                                if (msb > 127) {
-                                    //__android_log_print(ANDROID_LOG_DEBUG, TAG,"MSB > 127 WITHIN THE FRAME! DROP WHOLE FRAME!");
-
-                                    frameStarted = false;
-                                    sampleStarted = false;
-                                    currentChannel = 0;
-                                } else {
-                                    currentChannel++;
-
-                                    sampleStarted = true;
-                                }
-                            }
-                        } else {
                             msb = b & CLEANER;
                             if (msb > 127) {
                                 currentChannel = 0;
@@ -228,10 +251,8 @@ namespace backyardbrains {
                                 currentChannel = 0;
                             }
                         }
+                        }
                     }
-
-                    delete[] sequence;
-
                     reset();
                 }
             }

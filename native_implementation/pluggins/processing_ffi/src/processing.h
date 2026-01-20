@@ -8,6 +8,8 @@
     #else
         #define PROCESSING_API __declspec(dllimport)
     #endif
+#elif defined(__APPLE__) || defined(__linux__)
+    #define PROCESSING_API __attribute__((visibility("default")))
 #else
     #define PROCESSING_API
 #endif

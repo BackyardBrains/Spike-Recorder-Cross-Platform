@@ -8,6 +8,8 @@
     #else
         #define PROCESSING_API __declspec(dllimport)
     #endif
+#elif defined(__APPLE__) || defined(__linux__)
+    #define PROCESSING_API __attribute__((visibility("default")))
 #else
     #define PROCESSING_API
 #endif
@@ -197,6 +199,13 @@ PROCESSING_API int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw
 
 // Serial data processing result
 PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* samplesCountRaw, int channelCount);
+
+PROCESSING_API int32_t processing_register_dart_port(int64_t port);
+PROCESSING_API void processing_unregister_dart_port();
+
+// 1. Initialize the Dart API (Required once)
+PROCESSING_API intptr_t InitDartApiDL(void* data);
+
                                      
 #ifdef __cplusplus
 }

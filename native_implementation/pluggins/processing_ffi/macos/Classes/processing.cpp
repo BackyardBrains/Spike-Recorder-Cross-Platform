@@ -5,6 +5,8 @@
 #include <cstring>
 #include <algorithm>
 #include <string>
+#include "dart_api_dl.h"
+
 #define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
 void platform_log_processing(const char *fmt, ...) {
     va_list args;
@@ -89,6 +91,7 @@ static constexpr float FFT_SAMPLE_RATE = 128; // 2^7
 static constexpr int FFT_WINDOW_TIME_LENGTH = 4; // 2^2
 static constexpr int FFT_WINDOW_OVERLAP_PERCENT = 99;
 
+static Dart_Port_DL dart_port = 0;
 
 #ifdef _WIN32
 // Windows implementation of gettimeofday
@@ -292,7 +295,7 @@ public:
     ~EventListener() = default;
 
 
-    void onEventFound(int sampleIndex, int eventLabel) {
+    void onEventFound(int sampleIndex, int eventLabel) override {
         // platform_log("EVENT FOUND\n");
         // platform_log(std::to_string(sampleIndex).c_str());
         // platform_log("EVENT LABLE\n");
@@ -305,6 +308,46 @@ public:
         //     });
         //     console.log( $0, $1 );
         // }, sampleIndex, eventLabel);        
+        Dart_CObject* param1 = new Dart_CObject;
+        Dart_CObject* param2 = new Dart_CObject;
+        Dart_CObject* param3 = new Dart_CObject;
+        
+        // Step 2: Set up each parameter with its type and value
+        // Parameter 1: int64
+        param1->type = Dart_CObject_kInt64;
+        param1->value.as_int64 = 1;
+        
+        // Parameter 2: int64 (replace with your actual value)
+        param2->type = Dart_CObject_kInt64;
+        param2->value.as_int64 = sampleIndex; // TODO: Replace with actual value
+        
+        // Parameter 3: int64 (replace with your actual value)
+        param3->type = Dart_CObject_kInt64;
+        param3->value.as_int64 = eventLabel; // TODO: Replace with actual value
+        
+        // Step 3: Create array object to hold all parameters
+        Dart_CObject obj;
+        obj.type = Dart_CObject_kArray;
+        obj.value.as_array.length = 3;
+        Dart_CObject** values = new Dart_CObject*[3];
+        values[0] = param1;
+        values[1] = param2;
+        values[2] = param3;
+        obj.value.as_array.values = values;
+    
+        // Step 4: Send array to Dart (Thread-safe)
+        bool success = Dart_PostCObject_DL(dart_port, &obj);
+        
+        // Step 5: Clean up allocated memory
+        delete param1;
+        delete param2;
+        delete param3;
+        delete[] values;
+        
+        if (!success) {
+          // Handle error if needed
+          platform_log_processing("Error: Failed to send 3 parameters to Dart\n");
+        }        
     }
     void onSpikerBoxHardwareTypeDetected(int hardwareType) override {
       //   backyardbrains::utils::JniHelper::invokeVoid(vm, sampleSourceObj, "setHardwareType", "(I)V",
@@ -334,6 +377,49 @@ public:
       //   backyardbrains::utils::JniHelper::invokeVoid(vm, sampleSourceObj, "setExpansionBoardType",
       //                                                "(I)V",
       //                                                expansionBoardType);
+      
+      // Send 3 parameters from C++ to Dart as an array
+      // Step 1: Allocate Dart_CObject pointers for each parameter
+      Dart_CObject* param1 = new Dart_CObject;
+      Dart_CObject* param2 = new Dart_CObject;
+      Dart_CObject* param3 = new Dart_CObject;
+      
+      // Step 2: Set up each parameter with its type and value
+      // Parameter 1: int64
+      param1->type = Dart_CObject_kInt64;
+      param1->value.as_int64 = 0;
+      
+      // Parameter 2: int64 (replace with your actual value)
+      param2->type = Dart_CObject_kInt64;
+      param2->value.as_int64 = expansionBoardType; // TODO: Replace with actual value
+      
+      // Parameter 3: int64 (replace with your actual value)
+      param3->type = Dart_CObject_kInt64;
+      param3->value.as_int64 = -1; // TODO: Replace with actual value
+      
+      // Step 3: Create array object to hold all parameters
+      Dart_CObject obj;
+      obj.type = Dart_CObject_kArray;
+      obj.value.as_array.length = 3;
+      Dart_CObject** values = new Dart_CObject*[3];
+      values[0] = param1;
+      values[1] = param2;
+      values[2] = param3;
+      obj.value.as_array.values = values;
+  
+      // Step 4: Send array to Dart (Thread-safe)
+      bool success = Dart_PostCObject_DL(dart_port, &obj);
+      
+      // Step 5: Clean up allocated memory
+      delete param1;
+      delete param2;
+      delete param3;
+      delete[] values;
+      
+      if (!success) {
+        // Handle error if needed
+        platform_log_processing("Error: Failed to send 3 parameters to Dart\n");
+      }
     }   
 
 private:
@@ -1724,4 +1810,25 @@ PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* s
     delete[] inSamples;
 
     return result;
+}
+
+// // Register Dart port for receiving messages from C++
+PROCESSING_API int32_t processing_register_dart_port(int64_t port) {
+    platform_log_processing("Dart port registering: %lld\n", (long long)port);    
+    if (port == 0) {
+        platform_log_processing("Error: Invalid Dart port (port cannot be 0)\n");
+        return -1;
+    }
+    dart_port = static_cast<Dart_Port_DL>(port);
+    return 0;
+}
+
+// // Unregister Dart port
+PROCESSING_API void processing_unregister_dart_port() {
+    dart_port = 0;
+    platform_log_processing("Dart port unregistered\n");
+}
+
+PROCESSING_API intptr_t InitDartApiDL(void* data) {
+    return Dart_InitializeApiDL(data);
 }

@@ -4,6 +4,8 @@
 // Use FFI export macro for cross-platform compatibility
 #ifdef _WIN32
     #define PROCESSING_API __declspec(dllexport)
+#elif defined(__APPLE__) || defined(__linux__)
+    #define PROCESSING_API __attribute__((visibility("default")))
 #else
     #define PROCESSING_API
 #endif

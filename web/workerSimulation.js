@@ -1960,10 +1960,10 @@ function initWithConfig(config) {
 
 
 
-function onEventFound(sampleIndex, eventLabel){
-    postMessage({
-        "message": "EVENT_FOUND",
-        "sampleIndex": sampleIndex,
-        "eventLabel": eventLabel,
-    });
-}
+// function onEventFound(sampleIndex, eventLabel){
+//     postMessage({
+//         "message": "EVENT_FOUND",
+//         "sampleIndex": sampleIndex,
+//         "eventLabel": eventLabel,
+//     });
+// }

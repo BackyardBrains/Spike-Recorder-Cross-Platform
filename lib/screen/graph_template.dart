@@ -152,7 +152,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _portCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
       if (forceSerialDisconnect) return;
       if (isOpeningFile) return;
-      if (_isDataIdentified) return;
 
       // print("START PORT CHECK");
       int baudRate = context.read<ConstantProvider>().getBaudRate();
@@ -747,8 +746,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // Remove mic listener
     try {
       microphoneUtil.micStream.removeListener(micListener);
-      print("microphoneUtil.micStatus?.cancel()");
-      microphoneUtil.micStatus?.cancel();
+      if (!kIsWeb) {
+        print("microphoneUtil.micStatus?.cancel()");
+        microphoneUtil.micStatus?.cancel();
+      }
     } catch (e) {
       print("Error removing micListener: $e");
     }
@@ -871,23 +872,23 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           },
                           SizedBox(height: 20),
                           CustomSliderBarButton(
-                          processingUtil: processingUtil,
-                          isMicrophoneEnable: (bool isMicrophoneEnable) {
-                            context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
-                          },
-                          onHighPassFilterSetup: (FilterSetup filterSetup) {
-                            // Keep this for backward compatibility if needed
-                          },
-                          onLowPassFilterSetup: (FilterSetup filterSetup) {
-                            // Keep this for backward compatibility if needed
-                          },
-                          onSampleChange: (bool isSampleDataOn) {
-                            context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
-                          },
-                          startValue: startValue,
-                          endValue: endValue,
-                          sliderValue: _sliderValue,
-                        ),
+                            processingUtil: processingUtil,
+                            isMicrophoneEnable: (bool isMicrophoneEnable) {
+                              context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
+                            },
+                            onHighPassFilterSetup: (FilterSetup filterSetup) {
+                              // Keep this for backward compatibility if needed
+                            },
+                            onLowPassFilterSetup: (FilterSetup filterSetup) {
+                              // Keep this for backward compatibility if needed
+                            },
+                            onSampleChange: (bool isSampleDataOn) {
+                              context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
+                            },
+                            startValue: startValue,
+                            endValue: endValue,
+                            sliderValue: _sliderValue,
+                          ),
                           const SizedBox(
                             height: 10,
                           ),
@@ -1201,7 +1202,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                           await Future.delayed(Duration(milliseconds: 1000));
                                           
                                           int baudRate = context.read<ConstantProvider>().getBaudRate();
-                                          await _serialUtil.getAvailablePorts(baudRate, serialErrorCallback);
+                                          await _serialUtil.getAvailablePorts(baudRate, listenToMicrophone);
                                           allDevices.clear();
 
                                           List<String> filteredPorts;
@@ -1278,9 +1279,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                     print("!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
                                     
                                     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
-                                    visibleSignalsList = context.read<ChannelColorProvider>().getVisibleChannel();
-                                    visibleChannelCount = context.read<ChannelColorProvider>().getVisibleChannelCount();
-
                                     if (kIsWeb) {
                                       await GraphTemplate.nwbFileUtil?.recordNewFileLocation();
                                       int counterTimerCancel = 0;
@@ -1291,9 +1289,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                         if (strTemp.length! > 3) {
                                           timer.cancel();
                                           if (isAudioListen) {
-                                            recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems", visibleSignalsList, visibleChannelCount);
+                                            recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems");
                                           } else {
-                                            recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems", visibleSignalsList, visibleChannelCount);
+                                            recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems");
                                           }
                                           bool isPlay = true;
                                           Provider.of<GraphResumePlayProvider>(context, listen: false).setGraphResumePlay(isPlay);
@@ -1303,8 +1301,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                           
                                           Future.delayed(Duration(milliseconds: 1000), () {
                                             isRecording = 1;
-                                            context.read<ChannelColorProvider>().setIsRecording(1);
-
                                             recordingStartTime = DateTime.now().millisecondsSinceEpoch;
 
                                             recordingNotifier.value = [recordingStartTime, recordingStartTime];
@@ -1321,13 +1317,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       });
                                     } else {
                                       if (isAudioListen) {
-                                        recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems", visibleSignalsList, visibleChannelCount);
+                                        recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "Audio|||", "SpikeRecorder Systems");
                                       } else {
-                                        recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems", visibleSignalsList, visibleChannelCount);
+                                        recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(_sampleRate, widget.channelCount, "SpikeRecorder Device|||", "SpikeRecorder Systems");
                                       }
                                       Future.delayed(Duration(milliseconds: 1000), () {
                                         isRecording = 1;
-                                        context.read<ChannelColorProvider>().setIsRecording(1);
                                         recordingStartTime = DateTime.now().millisecondsSinceEpoch;
 
                                         recordingNotifier.value = [recordingStartTime, recordingStartTime];
@@ -1337,8 +1332,39 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                     }
                                     // isRecording = 1;
                                   } else {
-                                    resetRecordingState(widgetContext);
+                                    if (isRecording == 1) {
+                                      if (kIsWeb) {
+                                        GraphTemplate.nwbFileUtil?.addElectricalSeries(Int16List(0), Int32List(0), 0, 1, 1);
+                                      }
+                                      isRecording = 0;
+                                      GraphTemplate.nwbFileUtil?.recordedNwbFilePath = "";
+                                    } else {
+                                      isRecording = 0;
+                                    }
+                                    print("STOP RECORDING");
+                                    Future.delayed(Duration(milliseconds: 300), () async {
+                                      recordingNotifier.value = [0, 0];
+                                      if (recordedFilePath != null && recordedFilePath != "false") {
+                                        if (widgetContext.mounted) {
+                                          if (!kIsWeb) {
+                                            if (Platform.isAndroid) {
+                                              String? publicPath = "";
+                                              if (recordedFilePath != null) {
+                                                publicPath = await GraphTemplate.nwbFileUtil?.makeFilePublic(recordedFilePath!);
+                                              }
+                                              ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $publicPath"), duration: Duration(seconds: 7),));
+                                            } else {
+                                              ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $recordedFilePath"), duration: Duration(seconds: 7),));
+                                            }
+                                          } else {
+                                            // Web platform - file download is handled automatically
+                                            // ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(content: Text("File recorded successfully: $recordedFilePath"), duration: Duration(seconds: 7),));
+                                          }
+                                        }
+                                      }
+                                      setState((){});
 
+                                    });
                                     setState((){});
                                   }
                                 },
@@ -1483,29 +1509,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
     totalSampleCount = 0;
 
-    if (Platform.isAndroid) {
-      deviceStatusStreamSubscription?.cancel();
-      deviceStatusStreamSubscription = _serialUtil.deviceStatusStreamListener().listen((event) {
-        print("DEVICE STATUS STREAM: $event");
-        if (event == "android.hardware.usb.action.USB_DEVICE_DETACHED") {
-          forceSerialDisconnect = true;
-          print("SERIAL PORT ERROR -- DISCONNECTED");
-          serialDataSubscription?.cancel();
-          deviceStatusStreamSubscription?.cancel();
-          _serialUtil.closePort();
-          Future.delayed(Duration(milliseconds: 2500), () {
-            forceSerialDisconnect = false;
-            _isSerialWebButtonEnabled = false;
-            isDeviceConnect = false;
-            isDeviceSelected = false;
-            _isDataIdentified = false;
-            streamScrubBuilderController.add(Random().nextInt(100000));
-            listenToMicrophone(1, provider);                   
-          });
-        }
-      });
-    }
-
     serialDataSubscription?.cancel();
     serialDataSubscription = getData?.listen((event) async {
       isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
@@ -1517,6 +1520,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           isDeviceConnect = false;
         }
         if (_isDataIdentified) {
+          // return;
           // print("GRAPHTEMPLATE IS LOADING FILE ${GraphTemplate.isLoadingFile}");
           serialNativeDataSubscription(event, isAudioListen);
         } else {
@@ -1525,10 +1529,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
           }
           if (isDeviceSelected) { // !isDeviceConnect &&
             _isDataIdentified = true;
-            Future.delayed(Duration(milliseconds:100), () {
-              Uint8List commandBytes = Uint8List.fromList(utf8.encode("board:;"));
-              _serialUtil.writeToPort(bytesMessage: commandBytes, address: _availablePorts.last);
-            });
             // STEVE
             if (!GraphTemplate.isPlayerPaused) {
               List<Int16List> samples = await processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
@@ -1769,7 +1769,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
         provider = Provider.of<GraphDataProvider>(context, listen: false);      
       }
       isDeviceConnect = true;
-      _isSerialWebButtonEnabled = false;
       isDeviceSelected = false;
       _isDataIdentified = false;
       deviceChannelCount = channelCount;
@@ -1796,7 +1795,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
       print("_messageIdentifier.messageState");
       print(_messageIdentifier.messageState);
       // Initialize both utils
-
 
       await Future.wait([
         microphoneUtil.init()
@@ -2606,7 +2604,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       print("PROCESSING UTIL: adaptiveAREA SCRUB");
       if (isStartOpeningFileWeb) {
-        print("SECTION SCRUB NOTIFIER: $isStartOpeningFileWeb $timeMs");
+        print("SECTION SCRUB NOTIFIER: $isStartOpeningFileWeb");
         AdaptiveAreaState.maxTime = loadedMaxSamples / _sampleRate;
         // AdaptiveAreaState.strMaxTime = loadedMaxSamples / _sampleRate;
         double scrubMaxWidth = MediaQuery.of(context).size.width - 100 - 20;
@@ -2942,7 +2940,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   
   void periodicSerialDataSubscription() {
     periodicTimerSerial?.cancel();
-    periodicTimerSerial =Timer.periodic(Duration(milliseconds: timeMs), (timer){
+    periodicTimerSerial =Timer.periodic(Duration(milliseconds: 20), (timer){
       bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
       // List<String> listOfPort = Provider.of<PortScanProvider>(context, listen: false).availablePorts;
       serialNativeDataSubscription(Uint8List(0), isAudioListen);
@@ -3184,8 +3182,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   double drawSurfaceWidth = MediaQuery.of(context).size.width;
                   processingUtil.initializeSerial(board, drawSurfaceWidth);
                   ProcessingUtil.initializeDevice.value = 1;
-                  print("microphoneUtil.micStatus?.cancel()");
-                  microphoneUtil.micStatus?.cancel();
+                  if (!kIsWeb) {
+                    print("microphoneUtil.micStatus?.cancel()");
+                    microphoneUtil.micStatus?.cancel();
+                  }
 
                   
                   deviceChannelCount = int.parse(board.maxNumberOfChannels!);

@@ -128,7 +128,15 @@ async function startListeningToMicrophone(sampleRate) {
                 window.onDataBufferAllocated(sharedBufferViewWorkerToJS, 0, _sampleRate);
             } else if (event.data.bufferReady && sharedBufferViewWorkerToJS) {
                 // Read samples from the shared buffer when it's ready
-                window.onDataReceived();
+                if (window.onDataReceived && typeof window.onDataReceived === 'function') {
+                    try {
+                        window.onDataReceived();
+                    } catch (error) {
+                        console.error("Error calling onDataReceived:", error);
+                    }
+                } else {
+                    console.warn("onDataReceived is not available or not a function");
+                }
             } else {
                 console.log("Message from Audio Processor: ", event.data);
             }

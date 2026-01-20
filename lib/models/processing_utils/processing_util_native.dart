@@ -88,11 +88,16 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
 
   final ReceivePort _nativeCallbackPort = ReceivePort();
+  StreamSubscription? nativeCallbackPortSubscription;
+
   @override
   void setupDartCallbacks() {
     // Listen for messages from C++
     print("setupDartCallbacks start");
-    _nativeCallbackPort.listen((message) {
+    if (nativeCallbackPortSubscription != null) {
+      return;
+    }
+    nativeCallbackPortSubscription = _nativeCallbackPort.listen((message) {
       print("setupDartCallbacks listen start $message");
       if (message is List && message.length >= 3) {
         // Receive 3 parameters from C++
@@ -1207,6 +1212,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   Pointer<Int32>? out_fft_color_count;
   
   List<Float32List> fft = List.generate(500, (idx)=>Float32List(500));
+  
 
   
   @override

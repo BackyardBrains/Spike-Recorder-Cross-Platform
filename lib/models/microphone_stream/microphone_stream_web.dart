@@ -49,7 +49,8 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
     
     // micStream = addListenAudioStreamController;
     js.context['onDataBufferAllocated'] = onDataBufferAllocated;
-    js.context['onDataReceived'] = onDataReceived;
+    // Wrap in closure to preserve 'this' context when called from JavaScript
+    js.context['onDataReceived'] = () => onDataReceived();
     await Future.delayed(const Duration(seconds: 1));
     print("startListeningToMicrophone | sampleRate: $sampleRate");    
     js.context.callMethod('startListeningToMicrophone', [sampleRate]);

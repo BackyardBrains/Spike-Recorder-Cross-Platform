@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:native_add/model/model.dart';
 import 'package:provider/provider.dart';
@@ -104,9 +105,10 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 0),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisSize: MainAxisSize.max,
+            // crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SetFrequencyWidget(
                 frequencyType: "Low",
@@ -122,6 +124,39 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   setState(() {});
                 },
               ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Text("Set band-pass filter cutoff frequencies", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    RangeSlider(
+                      inactiveColor: Colors.grey,
+                      activeColor: SoftwareColors.kGraphColor,
+                      values: RangeValues(start, end),
+                      labels: RangeLabels(start.toString(), end.toString()),
+                      onChanged: (value) {
+                        setState(() {
+                          start = value.start;
+                          end = value.end;
+                          
+                          // Update the slider values in provider
+                          Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                              .setStartValue(start);
+                          Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                              .setEndValue(end);
+                    
+                          // Pass -1 if start is 0 or end is at max
+                          double lowFreq = start == 0 ? -1 : start;
+                          double highFreq = end >= maxFreq ? -1 : end;
+                          widget.processingUtil.setBandFilter(lowFreq, highFreq);
+                        });
+                      },
+                      min: 0,
+                      max: maxFreq,
+                    ),
+                  ],
+                ),
+              ),
+              // LogarithmicFilter(),
               SetFrequencyWidget(
                 frequencyType: "High",
                 frequencyValue: end.toInt(),
@@ -139,37 +174,37 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
             ],
           ),
         ),
-        Row(
-          children: [
-            Expanded(
-              child: RangeSlider(
-                inactiveColor: Colors.grey,
-                activeColor: SoftwareColors.kGraphColor,
-                values: RangeValues(start, end),
-                labels: RangeLabels(start.toString(), end.toString()),
-                onChanged: (value) {
-                  setState(() {
-                    start = value.start;
-                    end = value.end;
+      //   Row(
+      //     children: [
+      //       Expanded(
+      //         child: RangeSlider(
+      //           inactiveColor: Colors.grey,
+      //           activeColor: SoftwareColors.kGraphColor,
+      //           values: RangeValues(start, end),
+      //           labels: RangeLabels(start.toString(), end.toString()),
+      //           onChanged: (value) {
+      //             setState(() {
+      //               start = value.start;
+      //               end = value.end;
                     
-                    // Update the slider values in provider
-                    Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                        .setStartValue(start);
-                    Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                        .setEndValue(end);
+      //               // Update the slider values in provider
+      //               Provider.of<CustomRangeSliderProvider>(context, listen: false)
+      //                   .setStartValue(start);
+      //               Provider.of<CustomRangeSliderProvider>(context, listen: false)
+      //                   .setEndValue(end);
 
-                    // Pass -1 if start is 0 or end is at max
-                    double lowFreq = start == 0 ? -1 : start;
-                    double highFreq = end >= maxFreq ? -1 : end;
-                    widget.processingUtil.setBandFilter(lowFreq, highFreq);
-                  });
-                },
-                min: 0,
-                max: maxFreq,
-              ),
-            ),
-          ],
-        ),
+      //               // Pass -1 if start is 0 or end is at max
+      //               double lowFreq = start == 0 ? -1 : start;
+      //               double highFreq = end >= maxFreq ? -1 : end;
+      //               widget.processingUtil.setBandFilter(lowFreq, highFreq);
+      //             });
+      //           },
+      //           min: 0,
+      //           max: maxFreq,
+      //         ),
+      //       ),
+      //     ],
+      //   ),
       ],
     );
   }
@@ -245,11 +280,14 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // SoftwareTextStyle().kWtMediumTextStyle..color = Color(0xFF707070);
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "${widget.frequencyType} Frequency",
-          style: SoftwareTextStyle().kWtMediumTextStyle,
+          "${widget.frequencyType}",
+          style: SoftwareTextStyle().kWtMediumTextStyle.copyWith(color: Color(0xFF707070), fontWeight: FontWeight.w500),
+          textAlign: TextAlign.left,
         ),
         SizedBox(
           width: 100,
@@ -283,3 +321,92 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
     );
   }
 }
+
+
+
+
+// class LogarithmicFilter extends StatefulWidget {
+//   @override
+//   _LogarithmicFilterState createState() => _LogarithmicFilterState();
+// }
+
+// class _LogarithmicFilterState extends State<LogarithmicFilter> {
+//   // We use a linear range for the slider (0 to 1) and map it to log values
+//   RangeValues _sliderValues = const RangeValues(0.1, 0.5); 
+  
+//   final double minFreq = 1.0;
+//   final double maxFreq = 22050.0;
+
+//   // Convert linear slider position to logarithmic frequency
+//   double _lerpLog(double value) {
+//     return minFreq * pow(maxFreq / minFreq, value);
+//   }
+
+//   // Convert frequency back to linear slider position (for initial setup)
+//   double _invLerpLog(double frequency) {
+//     return log(frequency / minFreq) / log(maxFreq / minFreq);
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     double lowFreq = _lerpLog(_sliderValues.start);
+//     double highFreq = _lerpLog(_sliderValues.end);
+
+//     return Column(
+//       children: [
+//         Row(
+//           mainAxisAlignment: MainAxisAlignment.spaceAround,
+//           children: [
+//             _buildValueBox("Low", lowFreq.toInt().toString(), isSelected: true),
+//             _buildValueBox("High", highFreq.toInt().toString(), isSelected: false),
+//           ],
+//         ),
+//         SliderTheme(
+//           data: SliderThemeData(
+//             activeTrackColor: Color(0xFFFF7A5C),
+//             inactiveTrackColor: Colors.grey[800],
+//             trackHeight: 20,
+//             rangeThumbShape: RoundRangeSliderThumbShape(enabledThumbRadius: 0),
+//           ),
+//           child: RangeSlider(
+//             values: _sliderValues,
+//             min: 0.0,
+//             max: 1.0,
+//             onChanged: (values) {
+//               setState(() => _sliderValues = values);
+//             },
+//           ),
+//         ),
+//         // Frequency labels aligned to the log scale
+//         Padding(
+//           padding: const EdgeInsets.symmetric(horizontal: 20),
+//           child: Row(
+//             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//             children: [1, 10, 100, 1000, 10000].map((f) {
+//               return Text('$f', style: TextStyle(color: Colors.white, fontSize: 10));
+//             }).toList(),
+//           ),
+//         )
+//       ],
+//     );
+//   }
+
+//   // Helper for the value boxes
+//   Widget _buildValueBox(String label, String value, {bool isSelected = false}) {
+//     return Column(
+//       children: [
+//         Text(label, style: TextStyle(color: Colors.grey, fontSize: 12)),
+//         Container(
+//           margin: EdgeInsets.only(top: 4),
+//           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+//           decoration: BoxDecoration(
+//             color: Color(0xFF333333),
+//             border: Border.all(color: isSelected ? Colors.purpleAccent : Colors.transparent),
+//             borderRadius: BorderRadius.circular(4),
+//           ),
+//           child: Text(value, style: TextStyle(color: Colors.white)),
+//         ),
+//       ],
+//     );
+//   }
+// }

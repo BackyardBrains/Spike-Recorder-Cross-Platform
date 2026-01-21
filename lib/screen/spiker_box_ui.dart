@@ -606,7 +606,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
         },
         child: Container(
           decoration: BoxDecoration(
-            color: SoftwareColors.kButtonBackGroundColor,
+            color: Colors.white,
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.add, color: Colors.black, size: 15),
@@ -770,15 +770,27 @@ class _DraggableGraphState extends State<DraggableGraph> {
 
               setState(() {});
             },
-            
-            child: Transform.rotate(
-              angle: -90 * pi / 180,
+            child: !showWaveform[idx] ? SizedBox() : Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Color(0xFF00aa50),
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Icon(
-                showWaveform[idx] ? Icons.water_drop_outlined : Icons.water_drop_outlined,
-                color: selectedChannelColor,
+                IconData(0xe906, fontFamily: "IcomoonIcons"),
+                color: Colors.white,
                 size: 36,
               ),
             ),
+            // child: Transform.rotate(
+            //   angle: -90 * pi / 180,
+            //   child: Icon(
+            //     showWaveform[idx] ? Icons.water_drop_outlined : Icons.water_drop_outlined,
+            //     color: selectedChannelColor,
+            //     size: 36,
+            //   ),
+            // ),
           ),
 
         ),
@@ -856,7 +868,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
         },
         child: Container(
           decoration: BoxDecoration(
-            color: SoftwareColors.kButtonBackGroundColor,
+            color: Colors.white,
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.remove, color: Colors.black, size: 15),

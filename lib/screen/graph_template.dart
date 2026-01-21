@@ -8,10 +8,12 @@ import 'package:another_xlider/models/handler.dart';
 import 'package:another_xlider/models/tooltip/tooltip.dart';
 import 'package:another_xlider/models/trackbar.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_soloud/flutter_soloud.dart' as SoLoud;
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:panara_dialogs/panara_dialogs.dart';
 import 'package:mic_stream/mic_stream.dart';
 // import 'package:flutter_libserialport/flutter_libserialport.dart';
@@ -29,6 +31,8 @@ import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
 import 'package:spikerbox_architecture/provider/custom_slider_provider.dart';
 import 'package:spikerbox_architecture/screen/setting_page.dart';
 import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
+import 'package:spikerbox_architecture/widget/darkdropdown_widget.dart';
+import 'package:spikerbox_architecture/widget/hump_custom_painter.dart';
 import 'package:window_manager/window_manager.dart';
 import '../provider/provider_export.dart';
 import '../widget/widget_export.dart';
@@ -37,6 +41,7 @@ import 'package:spikerbox_architecture/models/microphone_stream/microphone_strea
 
 import 'package:another_xlider/another_xlider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:vector_graphics/vector_graphics.dart';
 
 class GraphTemplate extends StatefulWidget {
   static int isLoadingFile = 0;
@@ -849,236 +854,282 @@ class _GraphTemplateState extends State<GraphTemplate> {
               recordingNotifier: recordingNotifier,
               notifier: scrubNotifier,
               child1: const _GraphArea(),
-              child3: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Row(children: [
-                    SpikerBoxButton(
-                        onTapButton: () {
-                          context.read<SoftwareConfigProvider>().settingStatus(false);
-                        },
-                        iconData: Icons.settings),
-                  ]),
-                  Expanded(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 500,
-                      ),
-                      child: Column(
-                        children: [
-                          SizedBox(height: 20),
-                          // if (!isAudioListen) ... {
-                          if (1==1) ... {
-                            _predefinedFilterSettings(),
-                          },
-                          SizedBox(height: 20),
-                          CustomSliderBarButton(
-                          processingUtil: processingUtil,
-                          isMicrophoneEnable: (bool isMicrophoneEnable) {
-                            context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
-                          },
-                          onHighPassFilterSetup: (FilterSetup filterSetup) {
-                            // Keep this for backward compatibility if needed
-                          },
-                          onLowPassFilterSetup: (FilterSetup filterSetup) {
-                            // Keep this for backward compatibility if needed
-                          },
-                          onSampleChange: (bool isSampleDataOn) {
-                            context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
-                          },
-                          startValue: startValue,
-                          endValue: endValue,
-                          sliderValue: _sliderValue,
+              child3: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min, 
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // 1. Header Row
+                    SizedBox(
+                      child: Row(children: [
+                        SpikerBoxButton(
+                            onTapButton: () {
+                              context.read<SoftwareConfigProvider>().settingStatus(false);
+                            },
+                            iconData: Icons.chevron_left),
+                        SizedBox(width: 10,),
+                        Text("Configuration", style: TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold),),
+                      ]),
+                    ),
+                    // 2. Main Content Container 
+                    // Replaced Expanded with Center + ConstrainedBox
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: Platform.isIOS || Platform.isAndroid ? 500 : 600,
                         ),
-                          const SizedBox(
-                            height: 10,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min, // Vital for scrolling
+                          children: [
+                            SizedBox(height: 0),
+                            _predefinedFilterSettings(),
+                            _isMutingSpeakers(),
+                            SizedBox(height: 20),
+                            CustomSliderBarButton(
+                            processingUtil: processingUtil,
+                            isMicrophoneEnable: (bool isMicrophoneEnable) {
+                              context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
+                            },
+                            onHighPassFilterSetup: (FilterSetup filterSetup) {
+                              // Keep this for backward compatibility if needed
+                            },
+                            onLowPassFilterSetup: (FilterSetup filterSetup) {
+                              // Keep this for backward compatibility if needed
+                            },
+                            onSampleChange: (bool isSampleDataOn) {
+                              context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
+                            },
+                            startValue: startValue,
+                            endValue: endValue,
+                            sliderValue: _sliderValue,
                           ),
-                          NotchPassFilterWidget(sampleRateParam:_sampleRate.toDouble(), onTapNotchFrequency: (notchFilterSettings) async {
-                            notchFilterSettings.filterConfiguration.sampleRate = _sampleRate;
-                            print("the notch filter setting is ${notchFilterSettings.toJson()}");
-                            if (notchFilterSettings.isFilterOn) {
-                              if (notchFilterSettings.filterConfiguration.cutOffFrequency == 50) {
-                                int temp = await processingUtil.setNotchFilter(50);
-                                print("processingUtil.setNotchFilter(50) $temp");
-                              } else 
-                              if (notchFilterSettings.filterConfiguration.cutOffFrequency == 60) {
-                                processingUtil.setNotchFilter(60);
-                                print("processingUtil.setNotchFilter(60)");
-                              } else {
-                                processingUtil.setNotchFilter(-1);
+                            const SizedBox(
+                              height: 10,
+                            ),
+                            NotchPassFilterWidget(sampleRateParam:_sampleRate.toDouble(), onTapNotchFrequency: (notchFilterSettings) async {
+                              notchFilterSettings.filterConfiguration.sampleRate = _sampleRate;
+                              print("the notch filter setting is ${notchFilterSettings.toJson()}");
+                              if (notchFilterSettings.isFilterOn) {
+                                if (notchFilterSettings.filterConfiguration.cutOffFrequency == 50) {
+                                  int temp = await processingUtil.setNotchFilter(50);
+                                  print("processingUtil.setNotchFilter(50) $temp");
+                                } else 
+                                if (notchFilterSettings.filterConfiguration.cutOffFrequency == 60) {
+                                  processingUtil.setNotchFilter(60);
+                                  print("processingUtil.setNotchFilter(60)");
+                                } else {
+                                  processingUtil.setNotchFilter(-1);
+                                }
                               }
-                            }
-          
-                            context.read<DataStatusProvider>().setNotchPassFilterSetting(notchFilterSettings);
-                            // localPlugin.initNotchPassFilters(notchFilterSettings);
-                          }),
-                          const SizedBox(
-                            height: 10,
-                          ),
-                          Expanded(
-                            child: SettingPage(
-                              settingPage: Column(
-                                crossAxisAlignment: CrossAxisAlignment.center,
+                          
+                              context.read<DataStatusProvider>().setNotchPassFilterSetting(notchFilterSettings);
+                              // localPlugin.initNotchPassFilters(notchFilterSettings);
+                            }),
+                            const SizedBox(
+                              height: 10,
+                            ),
+                            
+                            // 3. Settings Area                            
+                            Container(
+                              padding: EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Color(0xFF2e2e2e),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min, // Vital for scrolling
                                 children: [
-                                  Expanded(
-                                    flex: 1,
-                                    child: SingleChildScrollView(
-                                      child: Column(
-                                        children: [
-                                          FilterProcessWidget(isMicrophoneEnable: (bool isMicrophoneEnable) {
-                                            // _toEnableMicrophone =
-                                            //     isMicrophoneEnable;
-          
-                                            context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
-                                          }, onHighPassFilterSetup: (FilterSetup filterSetup) {
-                                            localPlugin.initHighPassFilters(filterSetup);
-                                          }, onLowPassFilterSetup: (FilterSetup filterSetup) {
-                                            localPlugin.initLowPassFilters(filterSetup);
-                                          }, onSampleChange: (bool isSampleDataOn) {
-                                            context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
-                                            // _toGenerateDummyData =
-                                            //     isSampleDataOn;
-                                          }),
-                                          _channelColorSettings(),
-                                          _channelFilterSettings(),
-                                          // DropdownButtonFormField<int>(
-                                          //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                          //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                                          //   items: _dataBit
-                                          //       .map(
-                                          //         (e) => DropdownMenuItem(
-                                          //           value: e,
-                                          //           child: Text(
-                                          //             e.toString(),
-                                          //           ),
-                                          //         ),
-                                          //       )
-                                          //       .toList(),
-                                          //   onChanged: (int? bitDataSelect) {
-                                          //     context.read<ConstantProvider>().setBitData(bitDataSelect!);
-                                          //   },
-                                          //   value: context.read<ConstantProvider>().getBitData(),
-                                          // ),
-                                          // DropdownButtonFormField(
-                                          //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                          //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                                          //   items: _baudRate
-                                          //       .map(
-                                          //         (e) => DropdownMenuItem(
-                                          //           value: e,
-                                          //           child: Text(
-                                          //             e.toString(),
-                                          //           ),
-                                          //         ),
-                                          //       )
-                                          //       .toList(),
-                                          //   onChanged: (baudRateSelect) {
-                                          //     context.read<ConstantProvider>().setBaudRate(baudRateSelect!);
-                                          //   },
-                                          //   value: context.read<ConstantProvider>().getBaudRate(),
-                                          // ),
-                                          // DropdownButtonFormField(
-                                          //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                          //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                                          //   items: _channelCount
-                                          //       .map(
-                                          //         (e) => DropdownMenuItem(
-                                          //           value: e,
-                                          //           child: Text(
-                                          //             e.toString(),
-                                          //           ),
-                                          //         ),
-                                          //       )
-                                          //       .toList(),
-                                          //   onChanged: (int? channelCountSelect) {
-                                          //     context.read<ConstantProvider>().setChannelCount(channelCountSelect!);
-                                          //   },
-                                          //   value: context.read<ConstantProvider>().getChannelCount(),
-                                          // ),
-                                        ],
-                                      ),
+                                  FilterProcessWidget(isMicrophoneEnable: (bool isMicrophoneEnable) {
+                                    context.read<DataStatusProvider>().setMicrophoneDataStatus(isMicrophoneEnable);
+                                  }, onHighPassFilterSetup: (FilterSetup filterSetup) {
+                                    localPlugin.initHighPassFilters(filterSetup);
+                                  }, onLowPassFilterSetup: (FilterSetup filterSetup) {
+                                    localPlugin.initLowPassFilters(filterSetup);
+                                  }, onSampleChange: (bool isSampleDataOn) {
+                                    context.read<DataStatusProvider>().setSampleDataStatus(isSampleDataOn);
+                                    // _toGenerateDummyData =
+                                    //     isSampleDataOn;
+                                  }),
+                                  _channelColorSettings(),
+                                  _channelFilterSettings(),
+                                  // DropdownButtonFormField<int>(
+                                  //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                  //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                                  //   items: _dataBit
+                                  //       .map(
+                                  //         (e) => DropdownMenuItem(
+                                  //           value: e,
+                                  //           child: Text(
+                                  //             e.toString(),
+                                  //           ),
+                                  //         ),
+                                  //       )
+                                  //       .toList(),
+                                  //   onChanged: (int? bitDataSelect) {
+                                  //     context.read<ConstantProvider>().setBitData(bitDataSelect!);
+                                  //   },
+                                  //   value: context.read<ConstantProvider>().getBitData(),
+                                  // ),
+                                  // DropdownButtonFormField(
+                                  //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                  //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                                  //   items: _baudRate
+                                  //       .map(
+                                  //         (e) => DropdownMenuItem(
+                                  //           value: e,
+                                  //           child: Text(
+                                  //             e.toString(),
+                                  //           ),
+                                  //         ),
+                                  //       )
+                                  //       .toList(),
+                                  //   onChanged: (baudRateSelect) {
+                                  //     context.read<ConstantProvider>().setBaudRate(baudRateSelect!);
+                                  //   },
+                                  //   value: context.read<ConstantProvider>().getBaudRate(),
+                                  // ),
+                                  // DropdownButtonFormField(
+                                  //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                  //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                                  //   items: _channelCount
+                                  //       .map(
+                                  //         (e) => DropdownMenuItem(
+                                  //           value: e,
+                                  //           child: Text(
+                                  //             e.toString(),
+                                  //           ),
+                                  //         ),
+                                  //       )
+                                  //       .toList(),
+                                  //   onChanged: (int? channelCountSelect) {
+                                  //     context.read<ConstantProvider>().setChannelCount(channelCountSelect!);
+                                  //   },
+                                  //   value: context.read<ConstantProvider>().getChannelCount(),
+                                  // ),
+                                ],
+                              ),
+                            ),
+
+                            // 4. Ports Area                            
+                            Consumer<PortScanProvider>(builder: (context, portList, snapshot) {
+                              return _PortsArea(
+                                deviceName: _deviceName,
+                                availablePorts: portList.availablePorts,
+                                onReceive: (String add) async {
+                                  // int baudRate = context
+                                  //     .read<ConstantProvider>()
+                                  //     .getBaudRate();
+                                              
+                                  // await _serialUtil.openPortToListen(
+                                  //     add, baudRate);
+                                              
+                                  // // ignore: use_build_context_synchronously
+                                  // context
+                                  //     .read<DataStatusProvider>()
+                                  //     .setMicrophoneDataStatus(false);
+                                              
+                                  // // if (!mounted) return;
+                                  // // bool dummyDataStatus = context
+                                  // //     .read<DataStatusProvider>()
+                                  // //     .isSampleDataOn;
+                                  // // bool isAudioListen = context
+                                  // //     .read<DataStatusProvider>()
+                                  // //     .isMicrophoneData;
+                                  // // try {
+                                  // //   _serialUtil.dataStream?.listen((event) {
+                                  // //     if (!dummyDataStatus &&
+                                  // //         !isAudioListen) {
+                                  // //       _preEscapeSequenceBuffer
+                                  // //           .addBytes(event);
+                                  // //       if (isDeviceConnect) {
+                                  // //         _serialUtil.writeToPort(
+                                  // //             bytesMessage: UsbCommand
+                                  // //                 .hwTypeInquiry
+                                  // //                 .cmdAsBytes(),
+                                  // //             address: add);
+                                              
+                                  // //         isDeviceConnect = false;
+                                  // //       }
+                                  // //       if (_isDataIdentified) {
+                                  // //         // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
+                                  // //         // stopwatch.reset();
+                                  // //       } else {
+                                  // //         Uint8List? firstFrameData =
+                                  // //             _frameDetect.addData(event);
+                                              
+                                  // //         if (firstFrameData != null) {
+                                  // //           _preEscapeSequenceBuffer
+                                  // //               .addBytes(firstFrameData);
+                                  // //           _isDataIdentified = true;
+                                  // //         }
+                                  // //       }
+                                  // //     }
+                                  // //   });
+                                  // //   portName = add;
+                                  // // } catch (e) {
+                                  // //   print(
+                                  // //       "the error is $e from serial port");
+                                  // // }
+                                },
+                                onWrite: (String add) async {
+                                  MessageValueSet? selectedCommand = await showCommandPopUp(add);
+                                  if (selectedCommand != null) {
+                                    _serialUtil.writeToPort(bytesMessage: selectedCommand.cmdAsBytes(), address: add);
+                                  }
+                                },
+                              );
+                            }),
+
+                            // 5. Footer Row
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20),                              child: Row(
+                                mainAxisSize: MainAxisSize.max,
+                                children: [
+                                  // 1. The Custom Switch
+                                  Switch(
+                                    value: isDarkMode,
+                                    activeColor: Colors.white,
+                                    activeTrackColor: Color(0xFFFF7A5C), // The orange/coral color in your image
+                                    onChanged: (value) {
+                                      setState(() {
+                                        isDarkMode = value;
+                                      });
+                                    },
+                                  ),
+                                  SizedBox(width: 8),
+                                  
+                                  // 2. The Main Label
+                                  Text(
+                                    'Dark Mode',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
                                     ),
                                   ),
-                                  Expanded(
-                                    flex: 1,
-                                    child: Consumer<PortScanProvider>(builder: (context, portList, snapshot) {
-                                      return _PortsArea(
-                                        deviceName: _deviceName,
-                                        availablePorts: portList.availablePorts,
-                                        onReceive: (String add) async {
-                                          // int baudRate = context
-                                          //     .read<ConstantProvider>()
-                                          //     .getBaudRate();
-          
-                                          // await _serialUtil.openPortToListen(
-                                          //     add, baudRate);
-          
-                                          // // ignore: use_build_context_synchronously
-                                          // context
-                                          //     .read<DataStatusProvider>()
-                                          //     .setMicrophoneDataStatus(false);
-          
-                                          // // if (!mounted) return;
-                                          // // bool dummyDataStatus = context
-                                          // //     .read<DataStatusProvider>()
-                                          // //     .isSampleDataOn;
-                                          // // bool isAudioListen = context
-                                          // //     .read<DataStatusProvider>()
-                                          // //     .isMicrophoneData;
-                                          // // try {
-                                          // //   _serialUtil.dataStream?.listen((event) {
-                                          // //     if (!dummyDataStatus &&
-                                          // //         !isAudioListen) {
-                                          // //       _preEscapeSequenceBuffer
-                                          // //           .addBytes(event);
-                                          // //       if (isDeviceConnect) {
-                                          // //         _serialUtil.writeToPort(
-                                          // //             bytesMessage: UsbCommand
-                                          // //                 .hwTypeInquiry
-                                          // //                 .cmdAsBytes(),
-                                          // //             address: add);
-          
-                                          // //         isDeviceConnect = false;
-                                          // //       }
-                                          // //       if (_isDataIdentified) {
-                                          // //         // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
-                                          // //         // stopwatch.reset();
-                                          // //       } else {
-                                          // //         Uint8List? firstFrameData =
-                                          // //             _frameDetect.addData(event);
-          
-                                          // //         if (firstFrameData != null) {
-                                          // //           _preEscapeSequenceBuffer
-                                          // //               .addBytes(firstFrameData);
-                                          // //           _isDataIdentified = true;
-                                          // //         }
-                                          // //       }
-                                          // //     }
-                                          // //   });
-                                          // //   portName = add;
-                                          // // } catch (e) {
-                                          // //   print(
-                                          // //       "the error is $e from serial port");
-                                          // // }
-                                        },
-                                        onWrite: (String add) async {
-                                          MessageValueSet? selectedCommand = await showCommandPopUp(add);
-                                          if (selectedCommand != null) {
-                                            _serialUtil.writeToPort(bytesMessage: selectedCommand.cmdAsBytes(), address: add);
-                                          }
-                                        },
-                                      );
-                                    }),
+                                  
+                                  // 3. Spacing to push version info to the right
+                                  Spacer(),
+                                  
+                                  // 4. App Version Info
+                                  Icon(Icons.info_outline, color: Colors.grey, size: 16),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'SpikeRecorder App ver. 2.0.5',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               child4: !kIsWeb && Platform.isAndroid && isThresholdingButton ? Positioned(
                 left: 10,
@@ -1112,7 +1163,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                   onTapButton: () async {
                                     context.read<SoftwareConfigProvider>().settingStatus(true);
                                   },
-                                  iconData: Icons.settings),
+                                  // iconData: Icons.settings),
+                                  iconData: IconData(0xe90a, fontFamily: "IcomoonIcons") ),
                               const SizedBox(
                                 width: 10,
                               ),
@@ -1145,7 +1197,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                   setState((){});
                                 },
                                 iconColor: isThresholdingButton? Colors.yellow : Colors.white,
-                                iconData: Icons.graphic_eq_outlined,
+                                // iconData: Icons.graphic_eq_outlined,
+                                iconData: IconData(0xe90b, fontFamily: "IcomoonIcons"),
                               ),
                               const SizedBox(
                                 width: 20,
@@ -1362,7 +1415,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       startOpeningFile(result.files.single.path!);
                                     }
                                   }
-                                }, iconData: Icons.menu)
+                                // }, iconData: Icons.menu)
+                                }, iconData: IconData(0xe909, fontFamily: "IcomoonIcons"),)
                               },
                             ],
                           )
@@ -2386,16 +2440,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // startValue: startValue,
     // endValue: endValue,
     // sliderValue: _sliderValue,
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        buildSerialUsageTypeButton("ECG"),
-        buildSerialUsageTypeButton("EEG"),
-        buildSerialUsageTypeButton("EMG"),
-        buildSerialUsageTypeButton("Plant"),
-        buildSerialUsageTypeButton("Neuron"),
-
-      ],
+    return Container(
+      padding: EdgeInsets.fromLTRB(0,10,0, 0),
+      decoration: BoxDecoration(
+        color: Color(0xFF2e2e2e),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          buildSerialUsageTypeButton("EMG"),
+          buildSerialUsageTypeButton("ECG"),
+          buildSerialUsageTypeButton("Neuron"),
+          buildSerialUsageTypeButton("EEG"),
+          buildSerialUsageTypeButton("Plant"),
+        ],
+      ),
     );
   }
 
@@ -2419,6 +2479,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   
   List<int> visibleSignalsList = [1];
   int visibleChannelCount = 1;
+  
+  bool isDarkMode = true;
   // Int32List arrSampleCountWeb = Int32List(0);
   // Int16List arrSamplesWeb = Int16List(1);
 
@@ -3017,35 +3079,77 @@ class _GraphTemplateState extends State<GraphTemplate> {
           ),
           min: 1,
           max: 50,
+
+          handlerHeight: 50, 
+          handlerWidth: 50,          
           handler: FlutterSliderHandler(
-            child: Material(
-              type: MaterialType.canvas,
-              color: Colors.grey.shade500,
-              elevation: 3,
-              child: Container(
-                  padding: EdgeInsets.all(5),
-                  // child: Icon(Icons.adjust, size: 25,)
-                ),
-            ),                                                          
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(0),
-              color: Colors.grey,
-              border: Border.all(width: 3, color: Colors.white),
-            )
-          ),
+            decoration: BoxDecoration(),
+            child: Container(
+              width: 80,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                // shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    spreadRadius: 0.05,
+                    blurRadius: 5,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+              ),
+            ),
+          ),          
+          // handler: FlutterSliderHandler(
+          //   child: Material(
+          //     type: MaterialType.canvas,
+          //     color: Colors.grey.shade500,
+          //     elevation: 3,
+          //     child: Container(
+          //         padding: EdgeInsets.all(5),
+          //         // child: Icon(Icons.adjust, size: 25,)
+          //       ),
+          //   ),                                                          
+          //   decoration: BoxDecoration(
+          //     borderRadius: BorderRadius.circular(0),
+          //     color: Colors.grey,
+          //     border: Border.all(width: 3, color: Colors.white),
+          //   )
+          // ),
           trackBar: FlutterSliderTrackBar(
-            inactiveTrackBarHeight: 70,
-            activeTrackBarHeight: 70,
-            inactiveTrackBar: BoxDecoration(
-              borderRadius: BorderRadius.circular(0),
-              color: Colors.grey,
-              border: Border.all(width: 3, color: Colors.black45),
-            ),
+            activeTrackBarHeight: 40,
+            inactiveTrackBarHeight: 40,
             activeTrackBar: BoxDecoration(
-              borderRadius: BorderRadius.circular(0),
-              color: Colors.grey.withOpacity(0.5)
+              // borderRadius: BorderRadius.circular(0),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20),
+                bottomLeft: Radius.circular(20),
+                topRight: Radius.circular(0), // Keeps the right side flat
+                bottomRight: Radius.circular(0),
+              ),              
+              color: Color(0xFFFF7F5C), // The coral color from your image
             ),
-          ), values: [thresholdSliderValue.floorToDouble()],
+            inactiveTrackBar: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              color: Color(0xFF1E1E1E), // Dark background color
+            ),
+          ),          
+          // trackBar: FlutterSliderTrackBar(
+          //   inactiveTrackBarHeight: 70,
+          //   activeTrackBarHeight: 70,
+          //   inactiveTrackBar: BoxDecoration(
+          //     borderRadius: BorderRadius.circular(0),
+          //     color: Colors.grey,
+          //     border: Border.all(width: 3, color: Colors.black45),
+          //   ),
+          //   activeTrackBar: BoxDecoration(
+          //     borderRadius: BorderRadius.circular(0),
+          //     color: Colors.grey.withOpacity(0.5)
+          //   ),
+          // ), 
+          values: [thresholdSliderValue.floorToDouble()],
         )
       ),
       Container(
@@ -4010,66 +4114,261 @@ class _GraphTemplateState extends State<GraphTemplate> {
         backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
         foregroundColor: isSelected ? Colors.white : Colors.black,
     );
+    print("COMPARE: $serialUsageType -- $s == $isSelected");
 
     switch (s) {
       case "ECG":
-        return ElevatedButton(
-          style: style,
-          onPressed: () {
-            print("ECG");
-            serialUsageType = "ECG";
-            startValue = 1;
-            endValue = 100;
-            setupFilterValues([startValue, endValue, 0]);
-          },
-          child: Text("ECG"));
+        Color? iconColor = isSelected ? Color(0xFFff805f) : Color(0xFF585858);
+        return Column(
+          children: [
+            GestureDetector(
+              onTap: () {
+                print("ECG");
+                serialUsageType = "ECG";
+                startValue = 1;
+                endValue = 100;
+                setupFilterValues([startValue, endValue, 0]);
+              },
+              child: Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: iconColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: iconColor, width: 30),
+                    ),
+                  ),
+                  Positioned(
+                    top:0,
+                    right:10,
+                    child: SvgPicture.asset(
+                      'assets/icons/config_ecg_off.svg',  width: 60, height: 60,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            SizedBox(height: 5,),
+            Text("ECG", style: TextStyle(fontSize: 14, color: Colors.white),),
+            SizedBox(height: 3,),
+            Text("Heartbeats", style: TextStyle(color: Color(0xFF707070)),),
+            getSelectedNotchWidget(isSelected, iconColor),
+            
+          ],
+        );
       case "EEG":
-        return ElevatedButton(
-          style: style,
-          onPressed: () {
-            print("EEG");
-            serialUsageType = "EEG";
-            startValue = 0;
-            endValue = 50;
-            setupFilterValues([startValue, endValue, 1]);
-          }, child: Text("EEG")
+        Color? iconColor = isSelected ? Color(0xFF0093ff) : Color(0xFF585858);
+        return Column(
+          children: [
+
+            GestureDetector(
+              onTap: () {
+                print("EEG");
+                serialUsageType = "EEG";
+                startValue = 0;
+                endValue = 50;
+                setupFilterValues([startValue, endValue, 1]);
+              },
+              child: Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: iconColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: iconColor, width: 30),
+                    ),
+                  ),
+                  Positioned(
+                    top:0,
+                    right:5,
+                    child: SvgPicture.asset(
+                      'assets/icons/config_eeg_off.svg',  width: 60, height: 60,
+                    ),
+                  ),
+                ],
+              ),
+            ),            
+            SizedBox(height: 5,),
+            Text("EEG", style: TextStyle(fontSize: 14, color: Colors.white)),
+            SizedBox(height: 3,),
+            Text("Brainwaves", style: TextStyle(color: Color(0xFF707070)),),
+            getSelectedNotchWidget(isSelected, iconColor),
+          ],
         );
       case "EMG":
-        return ElevatedButton(
-          style: style,
-          onPressed: () {
-            print("EMG");
-            serialUsageType = "EMG";
-            startValue = 70;
-            endValue = 2500;
-            setupFilterValues([startValue, endValue, 2]);
-          }, child: Text("EMG")
+        Color? iconColor = isSelected ? Color(0xFFffc600) : Color(0xFF585858);
+        return Column(
+          children: [
+            GestureDetector(
+              onTap: () {
+                print("EMG");
+                serialUsageType = "EMG";
+                startValue = 70;
+                endValue = 2500;
+                setupFilterValues([startValue, endValue, 2]);
+              },
+              child: Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: iconColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: iconColor, width: 30),
+                    ),
+                  ),
+                  Positioned(
+                    top:0,
+                    right:5,
+                    child: SvgPicture.asset(
+                      'assets/icons/config_emg_off.svg',  width: 60, height: 60,
+                    ),
+                  ),
+                ],
+              ),
+            ),            
+            SizedBox(height: 5,),
+            Text("EMG", style: TextStyle(fontSize: 16, color: Colors.white),),
+            SizedBox(height: 3,),
+            Text("Muscle signals", style: TextStyle(fontSize: 12, color: Color(0xFF707070)),),
+            getSelectedNotchWidget(isSelected, iconColor),
+          ],
         );
       case "Plant":
-        return ElevatedButton(
-          style: style,
-          onPressed: () {
-            print("Plant");
-            serialUsageType = "Plant";
-            startValue = 0;
-            endValue = 5;
-            setupFilterValues([startValue, endValue, 3]);
-          }, child: Text("Plant")
+        Color? iconColor = isSelected ? Color(0xFF00aa50) : Color(0xFF585858);
+        return Column(
+          children: [
+            GestureDetector(
+              onTap: () {
+                print("Plant");
+                serialUsageType = "Plant";
+                startValue = 0;
+                endValue = 5;
+                setupFilterValues([startValue, endValue, 3]);
+              },
+              child: Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: iconColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: iconColor, width: 30),
+                    ),
+                  ),
+                  Positioned(
+                    top:0,
+                    right:5,
+                    child: SvgPicture.asset(
+                      'assets/icons/config_plant_off.svg',  width: 60, height: 60,
+                    ),
+                  ),
+                ],
+              ),            
+            ),
+            SizedBox(height: 5,),
+            Text("Plant", style: TextStyle(fontSize: 16, color: Colors.white),),
+            SizedBox(height: 3,),
+            Text("Plant signals", style: TextStyle(fontSize: 12, color: Color(0xFF707070)),),
+            getSelectedNotchWidget(isSelected, iconColor),
+          ],
         );
       case "Neuron":
-        return ElevatedButton(
-          style: style,
-          onPressed: () {
-            print("Neuron");
-            serialUsageType = "Neuron";
-            startValue = 70;
-            endValue = _sampleRate / 2;
-            setupFilterValues([startValue, endValue, 4]);
-          }, child: Text("Neuron")
+        Color? iconColor = isSelected ? Color(0xFFd205a5) : Color(0xFF585858);
+        return Column(
+          children: [
+            GestureDetector(
+              onTap: () {
+                print("Neuron");
+                serialUsageType = "Neuron";
+                startValue = 70;
+                endValue = _sampleRate / 2;
+                setupFilterValues([startValue, endValue, 4]);
+              },
+              child: Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: iconColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: iconColor, width: 30),
+                    ),
+                  ),
+                  Positioned(
+                    top:0,
+                    right:5,
+                    child: SvgPicture.asset(
+                      'assets/icons/config_neuron_off.svg',  width: 60, height: 60,
+                    ),
+                  ),
+                ],
+              ),            
+            ),            
+
+            SizedBox(height: 5,),
+            Text("Neuron", style: TextStyle(fontSize: 16, color: Colors.white),),
+            SizedBox(height: 3,),
+            Text("Neuron signals", style: TextStyle(fontSize: 12, color: Color(0xFF707070)),),
+            getSelectedNotchWidget(isSelected, iconColor),
+
+          ],
         );
       default:
         return Container();
     }
+  }
+  
+  _isMutingSpeakers() {
+    return Container(
+      margin: EdgeInsets.only(top:10),
+      padding: EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Color(0xFF2e2e2e),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Checkbox(value: true, onChanged: (flag) {}),
+          SizedBox(width:5),
+          Icon(CupertinoIcons.speaker_2, color: Colors.white),
+          SizedBox(width:5),
+          Text("Mute Speakers", style: TextStyle(color: Colors.white)),
+        ],
+      ),
+    );
+  }
+  
+  getSelectedNotchWidget(bool isSelected, Color iconColor) {
+    return isSelected ?
+      Stack(
+        children: [
+          SizedBox(
+            height:20,
+            width: 100,
+            child: CustomPaint(
+              painter: HumpCustomPainter(),
+            ),              
+          ),
+          Positioned(
+            top: 5,
+            left: 48,
+            child: Center(
+              child: Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: iconColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          )                  
+        ],
+      )
+      :
+      SizedBox(
+        height:20,
+        width:100,
+      );    
   }
 
 }
@@ -4104,65 +4403,79 @@ class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
   @override
   Widget build(BuildContext context) {
     return Consumer2<SampleRateProvider, DataStatusProvider>(builder: (context, sampleRate, dataStatus, snapshot) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            "Alternate frequency (Notch filter) : ",
-            style: SoftwareTextStyle().kWtMediumTextStyle,
-          ),
-          Row(
-            children: [
-              Text(
-                "50 Hz",
-                style: SoftwareTextStyle().kWtMediumTextStyle,
-              ),
-              WhiteColorCheckBox(
-                valueStatus: dataStatus.is50Hertz,
-                onChanged: (value) {
-                  if (isNotch60) {
-                    dataStatus.set60HertzStatus(false);
-
-                    isNotch50 = value!;
-                  } else {
-                    isNotch50 = value!;
-                  }
-                  dataStatus.set50HertzStatus(value);
-                  _notchPassFilterSettings = _notchPassFilterSettings.copyWith(filterType: FilterType.notchFilter, isFilterOn: value, filterConfiguration: FilterConfiguration(cutOffFrequency: 50, sampleRate: sampleRate.sampleRate));
-                  widget.onTapNotchFrequency(_notchPassFilterSettings);
-                },
-              ),
-            ],
-          ),
-          const SizedBox(
-            width: 10,
-          ),
-          Row(
-            children: [
-              Text(
-                "60 Hz",
-                style: SoftwareTextStyle().kWtMediumTextStyle,
-              ),
-              WhiteColorCheckBox(
-                valueStatus: dataStatus.is60Hertz,
-                onChanged: (value) {
-                  print("value");
-                  print(value);
-
-                  if (isNotch50) {
-                    dataStatus.set50HertzStatus(false);
-                    isNotch60 = value!;
-                  } else {
-                    isNotch60 = value!;
-                  }
-                  dataStatus.set60HertzStatus(value);
-                  _notchPassFilterSettings = _notchPassFilterSettings.copyWith(filterType: FilterType.notchFilter, isFilterOn: value, filterConfiguration: FilterConfiguration(cutOffFrequency: 60, sampleRate: sampleRate.sampleRate));
-                  widget.onTapNotchFrequency(_notchPassFilterSettings);
-                },
-              ),
-            ],
-          )
-        ],
+      return Container(
+        padding: EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Color(0xFF2e2e2e),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Icon(
+              IconData(0xe90b, fontFamily: "IcomoonIcons"),
+              color: Colors.white,
+            ),
+            SizedBox(
+              width: 10,
+            ),
+            Text(
+              "Attenuate frequency (Notch filter) : ",
+              style: SoftwareTextStyle().kWtMediumTextStyle,
+            ),
+            Row(
+              children: [
+                Text(
+                  "50 Hz",
+                  style: SoftwareTextStyle().kWtMediumTextStyle,
+                ),
+                WhiteColorCheckBox(
+                  valueStatus: dataStatus.is50Hertz,
+                  onChanged: (value) {
+                    if (isNotch60) {
+                      dataStatus.set60HertzStatus(false);
+        
+                      isNotch50 = value!;
+                    } else {
+                      isNotch50 = value!;
+                    }
+                    dataStatus.set50HertzStatus(value);
+                    _notchPassFilterSettings = _notchPassFilterSettings.copyWith(filterType: FilterType.notchFilter, isFilterOn: value, filterConfiguration: FilterConfiguration(cutOffFrequency: 50, sampleRate: sampleRate.sampleRate));
+                    widget.onTapNotchFrequency(_notchPassFilterSettings);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(
+              width: 10,
+            ),
+            Row(
+              children: [
+                Text(
+                  "60 Hz",
+                  style: SoftwareTextStyle().kWtMediumTextStyle,
+                ),
+                WhiteColorCheckBox(
+                  valueStatus: dataStatus.is60Hertz,
+                  onChanged: (value) {
+                    print("value");
+                    print(value);
+        
+                    if (isNotch50) {
+                      dataStatus.set50HertzStatus(false);
+                      isNotch60 = value!;
+                    } else {
+                      isNotch60 = value!;
+                    }
+                    dataStatus.set60HertzStatus(value);
+                    _notchPassFilterSettings = _notchPassFilterSettings.copyWith(filterType: FilterType.notchFilter, isFilterOn: value, filterConfiguration: FilterConfiguration(cutOffFrequency: 60, sampleRate: sampleRate.sampleRate));
+                    widget.onTapNotchFrequency(_notchPassFilterSettings);
+                  },
+                ),
+              ],
+            )
+          ],
+        ),
       );
     });
   }
@@ -4517,16 +4830,37 @@ class _PortsArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 10, 0, 0),
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
+      decoration: BoxDecoration(
+        color: Color(0xFF2e2e2e),
+        borderRadius: BorderRadius.circular(10),
+      ),
+
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          for (final address in availablePorts)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                  child: Icon(IconData(0xe90c, fontFamily: "IcomoonIcons"), color: Colors.white,),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                  child: Text("Select port", style: TextStyle(color: Colors.white, fontSize: 16),),
+                ),
                 Expanded(
-                  child: Text(address, style: SoftwareTextStyle().kWtMediumTextStyle),
+                  child: Container(
+                    height: 40,
+                    padding: const EdgeInsets.fromLTRB(0, 10, 0, 0),
+                    // child: Text("address", style: SoftwareTextStyle().kWtMediumTextStyle),
+                    child: DarkDropdown(),
+                  ),
                 ),
                 // Flexible(
                 //   child: SizedBox(
@@ -4540,16 +4874,20 @@ class _PortsArea extends StatelessWidget {
                 //     ),
                 //   ),
                 // ),
-                Flexible(
-                  child: SizedBox(
-                    child: CustomButton(
-                      colors: SoftwareColors.kButtonBackGroundColor,
-                      childWidget: Text(
-                        "Write",
-                        style: SoftwareTextStyle().kBBkMediumTextStyle,
+                Container(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: SoftwareColors.kButtonBackGroundColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      onTap: () => onWrite(address),
                     ),
+                    child: Text(
+                      "CONNECT",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    onPressed: () => onWrite(""),
                   ),
                 ),
               ],

@@ -84,7 +84,7 @@ dependencies:
 
 
   window_manager: 0.3.6
-
+  flutter_svg: 2.1.0
   # flutter_recorder: 1.1.1 # it is slow
   # flutter_audio_waveforms: ^1.2.1+8
   # flutter_audio_waveforms: ^1.2.1+8
@@ -115,7 +115,10 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
+  fonts:
+    - family: IcomoonIcons
+      fonts:
+        - asset: assets/fonts/byb_sr_symbols.ttf
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
@@ -124,6 +127,8 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/
+    - assets/icons/
+    - assets/optimized/
     - assets/spiker_logo.jpeg
     # - assets/recordwithsoftware.txt
   #   - images/a_dot_ham.jpeg

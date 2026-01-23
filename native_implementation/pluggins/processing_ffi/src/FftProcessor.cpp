@@ -6,7 +6,16 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <cstdarg>
 #define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
+
+// Resolve byte ambiguity for Windows
+#ifdef _WIN32
+    #ifdef byte
+    #undef byte
+    #endif
+    typedef unsigned char byte;
+#endif
 void platform_log_fftp(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -346,7 +355,7 @@ namespace backyardbrains {
             // platform_log("\n init Normalization params : \n");
 
 
-            maxMagnitude = 4.83;
+            maxMagnitude = 4.83f;
             halfMaxMagnitude = maxMagnitude * .5f;
         }
 

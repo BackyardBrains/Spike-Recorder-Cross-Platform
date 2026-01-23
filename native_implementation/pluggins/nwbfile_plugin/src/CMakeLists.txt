@@ -10,7 +10,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find required packages
-find_package(PkgConfig REQUIRED)
+# find_package(PkgConfig REQUIRED)
+if (NOT WIN32)
+    find_package(PkgConfig REQUIRED)
+endif()
 
 # Set include directories
 include_directories(
@@ -26,6 +29,9 @@ if(ANDROID)
     )
 elseif(WIN32)
     include_directories(
+        ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../android/src/main/cpp/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../android/src/main/cpp/boost
         ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/include
         ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/include/hdf5
         ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/include/boost
@@ -81,31 +87,10 @@ if(ANDROID)
         "../android/src/main/cpp/src/io/hdf5/HDF5RecordingData.cpp"
     )
 elseif(WIN32)
-    # Windows platform with HDF5 and Boost support
-    add_library(nwbfile_plugin SHARED
-        "../windows/src/nwbfile_processing_plugin.cpp"
-        "../windows/src/Channel.cpp"
-        "../windows/src/io/BaseIO.cpp"
-        "../windows/src/nwb/NWBFile.cpp"
-        "../windows/src/nwb/RecordingContainers.cpp"
-        "../windows/src/nwb/RegisteredType.cpp"
-        "../windows/src/nwb/base/TimeSeries.cpp"
-        "../windows/src/nwb/device/Device.cpp"
-        "../windows/src/nwb/ecephys/ElectricalSeries.cpp"
-        "../windows/src/nwb/ecephys/SpikeEventSeries.cpp"
-        "../windows/src/nwb/file/ElectrodeGroup.cpp"
-        "../windows/src/nwb/file/ElectrodeTable.cpp"
-        # "../windows/src/nwb/file/ElectrodesTable.cpp"
-        "../windows/src/nwb/hdmf/base/Container.cpp"
-        "../windows/src/nwb/hdmf/base/Data.cpp"
-        "../windows/src/nwb/hdmf/table/DynamicTable.cpp"
-        "../windows/src/nwb/hdmf/table/ElementIdentifiers.cpp"
-        "../windows/src/nwb/hdmf/table/VectorData.cpp"
-        "../windows/src/nwb/misc/AnnotationSeries.cpp"
-        "../windows/src/io/hdf5/HDF5IO.cpp"
-        "../windows/src/io/hdf5/HDF5ArrayDataSetConfig.cpp"
-        "../windows/src/io/hdf5/HDF5RecordingData.cpp"
-    )
+    # Windows platform uses its own CMakeLists.txt in windows/ directory
+    # This is handled by windows/CMakeLists.txt which is called from the plugin's windows/CMakeLists.txt
+    # No need to build here - the windows/CMakeLists.txt handles everything
+    message(STATUS "Windows build is handled by windows/CMakeLists.txt")
 else()
     # Non-Android platforms can use the full C++ implementation
     # This will be expanded later when we add HDF5/Boost for Android
@@ -151,24 +136,9 @@ if(ANDROID)
         m
     )
 elseif(WIN32)
-    # Windows-specific libraries with HDF5 and Boost
-    target_link_libraries(nwbfile_plugin
-        # HDF5 libraries
-        ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/lib/hdf5.lib
-        ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/lib/hdf5_cpp.lib
-        ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/lib/hdf5_hl.lib
-        ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/lib/hdf5_hl_cpp.lib
-        # Boost libraries
-        ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/lib/boost_filesystem.lib
-        ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/lib/boost_system.lib
-        ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/lib/boost_thread.lib
-        ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/lib/boost_chrono.lib
-        ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/lib/boost_atomic.lib
-        # Windows system libraries
-        ws2_32
-        iphlpapi
-        psapi
-    )
+    # Windows platform uses its own CMakeLists.txt in windows/ directory
+    # Linking is handled by windows/CMakeLists.txt
+    message(STATUS "Windows linking is handled by windows/CMakeLists.txt")
 else()
     # Other platforms can link additional libraries here
     # target_link_libraries(nwbfile_plugin ...)

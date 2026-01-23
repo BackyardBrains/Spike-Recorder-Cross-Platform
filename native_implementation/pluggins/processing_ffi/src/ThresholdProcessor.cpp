@@ -25,7 +25,7 @@ namespace backyardbrains {
             // we need to initialize initial trigger values and local buffer because they depend on channel count
             triggerValue = new float[getChannelCount()];
             for (int i = 0; i < getChannelCount(); i++) {
-                triggerValue[i] = INT_MAX;
+                triggerValue[i] = static_cast<float>(INT_MAX);
             }
             lastTriggeredValue = new float[getChannelCount()]{0};
 

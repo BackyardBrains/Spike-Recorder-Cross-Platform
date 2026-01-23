@@ -3,33 +3,7 @@
 //
 
 #include "SpikeAnalysis.h"
-#ifdef _WIN32
-    #include <windows.h>
-    #include <time.h>
-
-    // Windows implementation of timeval if not already defined
-    //#ifndef _TIMEVAL_DEFINED
-    //    #define _TIMEVAL_DEFINED
-    //    struct timeval {
-    //        long tv_sec;
-    //        long tv_usec;
-    //    };
-    //#endif
-
-    // Windows implementation of timezone if not already defined
-    #ifndef _TIMEZONE_DEFINED
-    #define _TIMEZONE_DEFINED
-    struct timezone {
-        int tz_minuteswest;
-        int tz_dsttime;
-    };
-    #endif
-
-    // Implementation of gettimeofday for Windows
-    int gettimeofday(struct timeval* tp, struct timezone* tzp);
-#else
-    #include <sys/time.h>
-#endif
+#include "includes/WindowsCompat.h"
 
 
 
@@ -140,12 +114,16 @@ namespace backyardbrains {
 
 
             // 3. DETERMINE ACCEPTABLE SPIKE VALUES WHICH ARE VALUES GRATER THEN 40% OF SDTs MULTIPLIED BY 2
-            auto *sig = new short[channelCount]{0};
-            auto *negSig = new short[channelCount]{0};
+            auto *sig = new short[channelCount];
+            auto *negSig = new short[channelCount];
             for (int i = 0; i < channelCount; i++) {
-                float tmpSig = 2 * standardDeviations[i][(int) ceil(deviationCounters[i] * 0.4f)];
+                sig[i] = 0;
+                negSig[i] = 0;
+            }
+            for (int i = 0; i < channelCount; i++) {
+                float tmpSig = 2.0f * standardDeviations[i][static_cast<int>(ceil(static_cast<float>(deviationCounters[i]) * 0.4f))];
                 sig[i] = static_cast<short>(tmpSig > SHRT_MAX ? SHRT_MAX : tmpSig);
-                float tmpNegSig = -1 * sig[i]; // we need it for negative values as well
+                float tmpNegSig = -1.0f * static_cast<float>(sig[i]); // we need it for negative values as well
                 negSig[i] = static_cast<short>(tmpNegSig < SHRT_MIN ? SHRT_MIN : tmpNegSig);
                 //__android_log_print(ANDROID_LOG_DEBUG, TAG, "SIG: %d, NEG_SIG: %d", sig[i], negSig[i]);
             }

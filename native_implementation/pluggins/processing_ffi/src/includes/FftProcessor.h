@@ -100,7 +100,7 @@ namespace backyardbrains {
             int *dsIndices;
             int dsIndexCount;
 
-            float maxMagnitude = 4.83;
+            float maxMagnitude = 4.83f;
             float halfMaxMagnitude = maxMagnitude * .5f;
         };
     }

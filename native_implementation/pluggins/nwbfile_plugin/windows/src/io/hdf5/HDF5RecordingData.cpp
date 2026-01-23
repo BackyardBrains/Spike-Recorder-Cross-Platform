@@ -6,8 +6,8 @@
 
 #include "../../io/hdf5/HDF5RecordingData.hpp"
 
-#include "../../../include/H5Cpp.h"
-#include "../../../include/H5Fpublic.h"
+#include "../../include/H5Cpp.h"
+#include "../../include/H5Fpublic.h"
 
 #include "../../Utils.hpp"
 

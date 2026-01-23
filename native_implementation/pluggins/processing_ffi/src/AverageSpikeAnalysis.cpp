@@ -53,7 +53,7 @@ namespace backyardbrains {
                     if ((read = drwav_read_s16(wavPtr, bsc, samples)) > 0) {
                         for (int k = 0; k < read; k++) {
                             tmpAvr[i].averageSpike[k] += samples[k];
-                            tmpAvr[i].topSTDLine[k] += pow(samples[k], 2);
+                            tmpAvr[i].topSTDLine[k] += static_cast<float>(pow(samples[k], 2));
                         }
                     }
                     tmpAvr[i].countOfSpikes++;

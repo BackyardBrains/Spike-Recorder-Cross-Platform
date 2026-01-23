@@ -3,33 +3,7 @@
 //
 
 #include "EventTriggeredAverageAnalysis.h"
-#ifdef _WIN32
-    #include <windows.h>
-    #include <time.h>
-
-    // Windows implementation of timeval if not already defined
-    //#ifndef _TIMEVAL_DEFINED
-    //#define _TIMEVAL_DEFINED
-    //struct timeval {
-    //    long tv_sec;
-    //    long tv_usec;
-    //};
-    //#endif
-
-    // Windows implementation of timezone if not already defined
-    #ifndef _TIMEZONE_DEFINED
-    #define _TIMEZONE_DEFINED
-    struct timezone {
-        int tz_minuteswest;
-        int tz_dsttime;
-    };
-    #endif
-
-    // Implementation of gettimeofday for Windows
-    int gettimeofday(struct timeval* tp, struct timezone* tzp);
-#else
-    #include <sys/time.h>
-#endif
+#include "includes/WindowsCompat.h"
 
 
 

@@ -14,7 +14,16 @@
 
 #include <cstring>
 #include <string>
+#include <cstdarg>
 #define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
+
+// Resolve byte ambiguity for Windows
+#ifdef _WIN32
+    #ifdef byte
+    #undef byte
+    #endif
+    typedef unsigned char byte;
+#endif
 void platform_log(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -143,13 +152,13 @@ namespace backyardbrains {
                                                    int sampleEnd, int drawStart, int drawEnd, int sampleCount,
                                                    int width) {
             int glWindowWidth = drawEnd - drawStart;
-            float scale = (float) width / (sampleCount - 1);
+            float scale = static_cast<float>(width) / static_cast<float>(sampleCount - 1);
             float index, value;
             for (int i = 0; i < spikeCount; i++) {
-                index = inSpikeIndices[i];
+                index = static_cast<float>(inSpikeIndices[i]);
                 if (sampleStart <= index && index < sampleEnd) {
-                    index += glWindowWidth - sampleEnd;
-                    index = backyardbrains::utils::AnalysisUtils::map(index, 0, glWindowWidth, 0, sampleCount);
+                    index += static_cast<float>(glWindowWidth - sampleEnd);
+                    index = backyardbrains::utils::AnalysisUtils::map(index, 0.0f, static_cast<float>(glWindowWidth), 0.0f, static_cast<float>(sampleCount));
                     index *= scale;
                     value = inSpikeVertices[i];
                     outVertices[outVertexCount++] = index;
@@ -211,7 +220,7 @@ namespace backyardbrains {
                     if (samplesPerPixel == 1 && samplesPerPixelRest == 0) {
                         if (eventCounter > 0) {
                             for (int k = 0; k < eventCounter; k++) {
-                                outEventIndices[eventIndex++] = sampleIndex;
+                                outEventIndices[eventIndex++] = static_cast<float>(sampleIndex);
                             }
                         }
                         outSamples[i][sampleIndex++] = sample;
@@ -223,7 +232,7 @@ namespace backyardbrains {
                         if (envelopeCounter == samplesPerEnvelope) {
                             if (eventCounter > 0) {
                                 for (int k = 0; k < eventCounter; k++) {
-                                    outEventIndices[eventIndex++] = sampleIndex;
+                                    outEventIndices[eventIndex++] = static_cast<float>(sampleIndex);
                                 }
                             }
                             outSamples[i][sampleIndex++] = max;

@@ -5,6 +5,8 @@
 #ifndef SPIKE_RECORDER_ANDROID_FILTERBASE_H
 #define SPIKE_RECORDER_ANDROID_FILTERBASE_H
 
+#include "WindowsCompat.h"
+
 #include <cstdint>
 
 //

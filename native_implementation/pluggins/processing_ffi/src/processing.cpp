@@ -1,5 +1,6 @@
 #define BUILDING_DLL
 #include "processing.h"
+#include "includes/WindowsCompat.h"
 #include <cmath>
 #include <vector>
 #include <cstring>
@@ -24,29 +25,8 @@ void platform_log_processing(const char *fmt, ...) {
 }
 
 #ifdef _WIN32
-    #include <windows.h>
-    #include <time.h>
-
-    // Windows implementation of timeval if not already defined
-  /*  #ifndef _TIMEVAL_DEFINED
-    #define _TIMEVAL_DEFINED
-    struct timeval {
-        long tv_sec;
-        long tv_usec;
-    };
-    #endif*/
-
-    // Windows implementation of timezone if not already defined
-    #ifndef _TIMEZONE_DEFINED
-    #define _TIMEZONE_DEFINED
-    struct timezone {
-        int tz_minuteswest;
-        int tz_dsttime;
-    };
-    #endif
-
-    // Implementation of gettimeofday for Windows
-    int gettimeofday(struct timeval* tp, struct timezone* tzp);
+    // Windows headers and gettimeofday are now provided by WindowsCompat.h
+    // No need to define timeval/timezone here as they're in WindowsCompat.h
 #else
     #include <sys/time.h>
 #endif
@@ -104,28 +84,7 @@ static constexpr int FFT_WINDOW_OVERLAP_PERCENT = 99;
 static Dart_Port_DL dart_port = 0;
 
 
-#ifdef _WIN32
-// Windows implementation of gettimeofday
-int gettimeofday(struct timeval* tp, struct timezone* tzp) {
-    // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
-    // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
-    // until 00:00:00 January 1, 1970
-    static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
-
-    SYSTEMTIME system_time;
-    FILETIME file_time;
-    uint64_t time;
-
-    GetSystemTime(&system_time);
-    SystemTimeToFileTime(&system_time, &file_time);
-    time = ((uint64_t)file_time.dwLowDateTime);
-    time += ((uint64_t)file_time.dwHighDateTime) << 32;
-
-    tp->tv_sec = (long)((time - EPOCH) / 10000000L);
-    tp->tv_usec = (long)(system_time.wMilliseconds * 1000);
-    return 0;
-}
-#endif
+// gettimeofday is now provided by WindowsCompat.h as an inline function
 
 
 
@@ -567,10 +526,10 @@ int32_t processing_set_sample_rate(int32_t sample_rate) {
 
         uint32_t FFT_WINDOW_SAMPLE_COUNT = static_cast<const uint32_t>(FFT_WINDOW_TIME_LENGTH * FFT_SAMPLE_RATE); // 2^9
         int FFT_WINDOW_SAMPLE_DIFF_COUNT = (int) (FFT_WINDOW_SAMPLE_COUNT * (1.0f - (FFT_WINDOW_OVERLAP_PERCENT / 100.0f)));
-        amModulationProcessor->setSampleRate( sample_rate );
-        thresholdProcessor->setSampleRate( sample_rate );
-        sampleStreamProcessor->setSampleRate(sample_rate);
-        fftProcessor->setSampleRate(sample_rate);
+        amModulationProcessor->setSampleRate( static_cast<float>(sample_rate) );
+        thresholdProcessor->setSampleRate( static_cast<float>(sample_rate) );
+        sampleStreamProcessor->setSampleRate(static_cast<float>(sample_rate));
+        fftProcessor->setSampleRate(static_cast<float>(sample_rate));
 
 
         PROCESSING_MAX_FFT_WINDOWS_COUNT = (int) ((FFT_PROCESSING_TIME * FFT_SAMPLE_RATE) / FFT_WINDOW_SAMPLE_DIFF_COUNT);

@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
+// import 'package:firebase_core/firebase_core.dart';
+// import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+// import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -24,24 +24,24 @@ enum Command {
 int screenWidth = 0;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    // await Firebase.initializeApp(
+    //   options: DefaultFirebaseOptions.currentPlatform,
+    // );
   } catch (e) {
     print('Firebase initialization error: $e');
     // Continue without Firebase on web if it fails
   }
-  
+
   // Pass all uncaught "fatal" errors from the framework to Crashlytics
   // Note: Crashlytics is not supported on web
   if (!kIsWeb) {
-    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-    PlatformDispatcher.instance.onError = (error, stack) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-      return true;
-    };
+    // FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+    // PlatformDispatcher.instance.onError = (error, stack) {
+    //   FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    //   return true;
+    // };
   }
   // Future.delayed(Duration(seconds: 7), () {
   //   throw Exception('Test Crash');
@@ -72,7 +72,7 @@ void main() async {
 }
 
 class MyApp extends StatefulWidget {
-  static FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+  // static FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 
   const MyApp({super.key});
 

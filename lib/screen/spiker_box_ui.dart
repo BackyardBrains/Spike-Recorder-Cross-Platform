@@ -664,15 +664,25 @@ class _DraggableGraphState extends State<DraggableGraph> {
           context.read<ThresholdStatusProvider>().setThresholdParams(thresholdValue);
 
         },
-        child: Container(
-          child: Transform.rotate(
-            angle: 90 * pi / 180,
-            child: Icon(
-              showWaveform[idx] ? Icons.water_drop : Icons.water_drop_outlined,
-              color: channelColor,
-              size: 36,
+        child: Stack(
+          children: [
+            SizedBox(
+              child: Transform.rotate(
+                angle: 90 * pi / 180,
+                child: Icon(
+                  showWaveform[idx] ? Icons.water_drop : Icons.water_drop_outlined,
+                  color: channelColor,
+                  size: 36,
+                ),
+              ),
             ),
-          ),
+            Positioned(
+              left: 10,
+              top: 12,
+              child: Icon(Icons.menu, color: Colors.black, size: 10)
+            ),
+
+          ],
         ),
 
         // child: Container(

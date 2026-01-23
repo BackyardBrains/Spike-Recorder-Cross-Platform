@@ -4824,13 +4824,19 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 publicPath = await GraphTemplate.nwbFileUtil
                     ?.makeFilePublic(recordedFilePath!);
               }
+              // ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(
+              //   content: Text("File recorded successfully: $publicPath"),
+              //   duration: Duration(seconds: 7),
+              // ));
               ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(
-                content: Text("File recorded successfully: $publicPath"),
+                // content: Text("File recorded successfully: $publicPath"),
+                content: getSavedRecordingBanner(publicPath),
                 duration: Duration(seconds: 7),
               ));
             } else {
               ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(
-                content: Text("File recorded successfully: $recordedFilePath"),
+                // content: Text("File recorded successfully: $recordedFilePath"),
+                content: getSavedRecordingBanner(recordedFilePath),
                 duration: Duration(seconds: 7),
               ));
             }
@@ -4888,7 +4894,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
       foregroundColor: isSelected ? Colors.white : Colors.black,
     );
-    print("COMPARE: $serialUsageType -- $s == $isSelected");
+    // print("COMPARE: $serialUsageType -- $s == $isSelected");
 
     switch (s) {
       case "ECG":
@@ -5194,6 +5200,52 @@ class _GraphTemplateState extends State<GraphTemplate> {
             height: 20,
             width: 100,
           );
+  }
+  
+  getSavedRecordingBanner(String? publicPath) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF4A4A4A), // Dark grey background
+        borderRadius: BorderRadius.circular(40), // Large rounded corners
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.save_outlined, // Floppy disk style icon
+            color: Colors.white,
+            size: 28,
+          ),
+          const SizedBox(width: 16),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Saved recording to',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  publicPath ?? "",
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );    
   }
 }
 

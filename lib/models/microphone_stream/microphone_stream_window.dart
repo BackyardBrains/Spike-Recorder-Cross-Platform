@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:mic_stream/mic_stream.dart';
 import 'package:record/record.dart';
 // import 'package:mic_stream/mic_stream.dart';
 import 'package:spikerbox_architecture/screen/graph_template.dart';
@@ -28,38 +30,42 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
 
   @override
   Future<void> init() async {
-    micStatus?.cancel();
-    sampleRate = 48000;
-    final stream = await record.startStream(RecordConfig(
-        numChannels: 1,
-        sampleRate: sampleRate.toInt(),
-        encoder: AudioEncoder.pcm16bits));
-    micStream = addListenAudioStreamController;
-    micStatus = stream?.listen((onData) {
-      if (GraphTemplate.isLoadingFile < 3) {
-        micStream?.value = onData;
-      }
-    });
-    /*
-    
-    MicStream.shouldRequestPermission(true);
-    var microphoneStream = (await MicStream.microphone(
-        audioSource: AudioSource.DEFAULT,
-        sampleRate: 44100,
-        channelConfig: ChannelConfig.CHANNEL_IN_MONO,
-        audioFormat: AudioFormat.ENCODING_PCM_16BIT));
-    micStream = addListenAudioStreamController;
-    microphoneStream?.listen((onData) {
-      if (GraphTemplate.isLoadingFile < 3) {
-        micStream?.value = onData;
-      }
-    });
+    if (Platform.isWindows) {
+      micStatus?.cancel();
+      sampleRate = 48000;
+      final stream = await record.startStream(RecordConfig(
+          numChannels: 1,
+          sampleRate: sampleRate.toInt(),
+          encoder: AudioEncoder.pcm16bits));
+      micStream = addListenAudioStreamController;
+      micStatus = stream?.listen((onData) {
+        if (GraphTemplate.isLoadingFile < 3) {
+          micStream?.value = onData;
+        }
+      });
+    } else {
 
-    double? tempSampleRate = await MicStream.sampleRate;
-    if (tempSampleRate != null) {
-      sampleRate = tempSampleRate;
+      // /*
+      
+      MicStream.shouldRequestPermission(true);
+      var microphoneStream = (await MicStream.microphone(
+          audioSource: AudioSource.DEFAULT,
+          sampleRate: 44100,
+          channelConfig: ChannelConfig.CHANNEL_IN_MONO,
+          audioFormat: AudioFormat.ENCODING_PCM_16BIT));
+      micStream = addListenAudioStreamController;
+      microphoneStream?.listen((onData) {
+        if (GraphTemplate.isLoadingFile < 3) {
+          micStream?.value = onData;
+        }
+      });
+
+      double? tempSampleRate = await MicStream.sampleRate;
+      if (tempSampleRate != null) {
+        sampleRate = tempSampleRate;
+      }
+      // */
     }
-    */
     // double? sampleRate = await MicStream.sampleRate;
     // print("MICSTREAM $sampleRate");
     // micStream = addListenAudioStreamController.stream.asBroadcastStream();

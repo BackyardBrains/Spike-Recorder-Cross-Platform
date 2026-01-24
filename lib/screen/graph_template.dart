@@ -168,7 +168,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   Future<void> _startPortCheck() async {
     _portCheckTimer?.cancel();
-    return;
     _portCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
       if (forceSerialDisconnect) return;
       if (isOpeningFile) return;
@@ -189,6 +188,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
             .toList();
       } else {
         filteredPorts = _serialUtil.availablePorts;
+        if (Platform.isWindows) {
+          filteredPorts = _serialUtil.availablePorts
+              .where((port) => port.contains('COM4'))
+              .toList();
+        }
       }
 
       bool isComMatch = areListsEqual(_availablePorts, filteredPorts);
@@ -5201,7 +5205,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             width: 100,
           );
   }
-  
+
   getSavedRecordingBanner(String? publicPath) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -5245,7 +5249,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           ),
         ],
       ),
-    );    
+    );
   }
 }
 

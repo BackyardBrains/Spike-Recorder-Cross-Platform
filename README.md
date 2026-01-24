@@ -123,4 +123,6 @@ https://github.com/BackyardBrains/Spike-Recorder/blob/66b1cb83266ad7770a8c6ff5ae
 
 [WORKING] WHEN SERIAL RUN, MICROPHONE PAUSE IT
 [WORKING] CRASH WHEN changing 3 channels serial to microphone
-EVENT from device
+[WORKING] EVENT from device
+
+flutter run -d windows --verbose 2>&1 | Select-String -Pattern "error|Error|ERROR|fail|Fail|FAIL" -Context 3 | Select-Object -Last 50

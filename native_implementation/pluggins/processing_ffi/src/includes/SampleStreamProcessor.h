@@ -85,9 +85,9 @@ namespace backyardbrains {
             // Whether new sample is started being processed
             bool sampleStarted = false;
             // Whether channel count has changed during processing of the latest chunk of incoming data
-            int prevChannelCount;
+            int prevChannelCount = 0;
             // Holds currently processed channel
-            int currentChannel;
+            int currentChannel = 0;
             // Beyond this channel index channels should not be filtered
             int stopFilteringAfterChannelIndex = -1;
             // Holds samples from all channels processed in a single batch
@@ -95,19 +95,19 @@ namespace backyardbrains {
             // Array of sample counters, one for every channel
             int sampleCounters[MAX_CHANNELS];
             // Whether we are inside an escape sequence or not
-            bool insideEscapeSequence;
+            bool insideEscapeSequence = false;
             // Index of the byte within start or end of the escape sequence
-            int tmpIndex;
+            int tmpIndex = 0;
             // Holds currently processed escape sequence
             unsigned char escapeSequence[MAX_SEQUENCE_LENGTH];
             // Index of the byte within currently processed escape sequence
-            int escapeSequenceIndex;
+            int escapeSequenceIndex = 0;
             // Holds currently processed event message
             unsigned char eventMessage[EVENT_MESSAGE_LENGTH];
             // Index of the byte within currently processed event message
-            int eventMessageIndex;
+            int eventMessageIndex = 0;
             // Holds count of processed events in the current sample batch
-            int eventCounter;
+            int eventCounter = 0;
             // Holds event indices processed in a single batch
             int eventIndices[MAX_EVENTS];
             // Holds event labels processed in a single batch
@@ -115,7 +115,7 @@ namespace backyardbrains {
             // Most significant and least significant bytes
             byte msb;
             // Average signal which we use to avoid signal offset
-            double average;
+            double average = 0.0;
 
             void writeLogsInFile(std::string string);
 

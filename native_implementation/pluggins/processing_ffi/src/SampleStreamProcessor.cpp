@@ -12,13 +12,28 @@
 #endif
 
 #define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
+#ifdef _WIN32
+#include <windows.h>
+#include <cstdio>
+#endif
+
+#define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
 void platform_log_stream(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 #ifdef __ANDROID__
     __android_log_vprint(ANDROID_LOG_VERBOSE, "ndk", fmt, args);
+#elif defined(_WIN32)
+    // On Windows, use OutputDebugString for visible logging
+    char buffer[1024];
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    OutputDebugStringA(buffer);
+    // Also print to stdout in case console is attached
+    vprintf(fmt, args);
+    fflush(stdout);
 #else
     vprintf(fmt, args);
+    fflush(stdout);
 #endif
     va_end(args);
 }
@@ -51,7 +66,8 @@ namespace backyardbrains {
                                             int &outEventCount, const int channelCount,
                                             int hardwareType) {
 //            batchCounter++;
-
+            // platform_log_stream("PROCESS SAMPLE STREAM PROCESSOR C++ START\n");
+            // platform_log_stream("PROCESS SAMPLE STREAM PROCESSOR C++ CHANNEL COUNT: %d --- %d \n", channelCount, escapeSequenceIndex);
             if (prevChannelCount != channelCount) { // number of channels changed during processing of previous batch
                 frameStarted = false;
                 sampleStarted = false;
@@ -90,7 +106,6 @@ namespace backyardbrains {
                 if (insideEscapeSequence) { // we are inside escape sequence
                     sampleIndex = sampleCounters[currentChannel] == 0 ? 0 :
                                   sampleCounters[currentChannel] - 1;
-                    platform_log_stream("sampleIndex: %d", sampleIndex);
                     if (eventMessageIndex >=
                         EVENT_MESSAGE_LENGTH) { // event message shouldn't be longer then 64 bytes
                         auto *copy = new unsigned char[eventMessageIndex + 1];
@@ -256,6 +271,7 @@ namespace backyardbrains {
                     reset();
                 }
             }
+            // platform_log_stream("PROCESS SAMPLE STREAM PROCESS333 C++ START\n");
 
 //            std::copy(inData, inData + length, inDataPrev);
 //            inDataPrevLength = length;

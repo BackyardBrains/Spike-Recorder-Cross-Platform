@@ -35,6 +35,7 @@ class SerialUtilWindow implements SerialUtil {
   void writeToPort({required Uint8List bytesMessage, String? address}) {
     if (port?.name == address) {
       try {
+        print("writing to port: ${bytesMessage}");
         final intsize = port?.write(bytesMessage);
         print("command is sent. Length: $intsize, cmd: ${intsize}");
       } catch (err, _) {
@@ -68,7 +69,10 @@ class SerialUtilWindow implements SerialUtil {
   }
 
   @override
-  Future<int> connectToPort() { return Future.value(0);}
+  Future<int> connectToPort() {
+    return Future.value(0);
+  }
+
   late SerialPortReader reader;
   StreamSubscription? serialBufferSubscription;
   StreamController<Uint8List> _serialBufferController = StreamController();
@@ -79,7 +83,6 @@ class SerialUtilWindow implements SerialUtil {
   @override
   Future<Stream<Uint8List>?> openPortToListen(
       String? portName, int baudRate) async {
-    
     if (serialBufferSubscription != null) {
       serialBufferSubscription?.cancel();
     }
@@ -147,9 +150,9 @@ class SerialUtilWindow implements SerialUtil {
     } catch (e) {}
   }
 
-
   @override
-  Future<List<String>> getAvailablePortsWeb(int baudRate, Function audioCallback) {
+  Future<List<String>> getAvailablePortsWeb(
+      int baudRate, Function audioCallback) {
     return Future.value([]);
   }
 
@@ -157,5 +160,4 @@ class SerialUtilWindow implements SerialUtil {
   Stream<String?> deviceStatusStreamListener() {
     return Stream.empty();
   }
-
 }

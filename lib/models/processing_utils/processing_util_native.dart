@@ -70,11 +70,12 @@ class ProcessingUtilImpl implements ProcessingUtil {
     _sampleRate = config[0].toInt();
     channelCount = config[1].toInt();
     _channelCount = config[1].toInt();
-    ProcessingUtil.medianChannelValueAdjuster = List.generate(channelCount, (_) => 0);
-    
+    ProcessingUtil.medianChannelValueAdjuster =
+        List.generate(channelCount, (_) => 0);
+
     int drawSurfaceWidth = config[7].toInt();
     currentDrawSurfaceWidth = drawSurfaceWidth;
-    
+
     ProcessingUtil.drawingBuffers.clear();
     for (int i = 0; i < channelCount; i++) {
       ProcessingUtil.drawingBuffers
@@ -85,7 +86,6 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
     return Future.value(true);
   }
-
 
   final ReceivePort _nativeCallbackPort = ReceivePort();
   StreamSubscription? nativeCallbackPortSubscription;
@@ -104,15 +104,16 @@ class ProcessingUtilImpl implements ProcessingUtil {
         final int value1 = message[0] as int;
         final int value2 = message[1] as int;
         final int value3 = message[2] as int;
-        
+
         print("Received 3 parameters: $value1, $value2, $value3");
-        
+
         // Handle the expansion board type detection with all 3 parameters
-        if (value1 == 0) { // Expansion board type detection
+        if (value1 == 0) {
+          // Expansion board type detection
           int expBoardType = value2;
           handleExpansionBoardTypeDetection(expBoardType, value1, value3);
-        } else 
-        if (value1 == 1) { // Event detection
+        } else if (value1 == 1) {
+          // Event detection
           int eventLabel = value3;
           ProcessingUtil.eventMarkerNotifier.value = [eventLabel, -1];
         }
@@ -122,21 +123,23 @@ class ProcessingUtilImpl implements ProcessingUtil {
       }
     });
 
-    
     // Pass the required pointer from Dart to C++
-    final result = pb.processingBindings.initDartApiDL(NativeApi.initializeApiDLData);
-    if (result != 0) throw "Failed to initialize Dart DL API";    
+    final result =
+        pb.processingBindings.initDartApiDL(NativeApi.initializeApiDLData);
+    if (result != 0)
+      throw "Failed to initialize Dart DL API";
     else {
       print('Dart DL API initialized successfully');
     }
     print("setupDartCallbacks end");
 
-    pb.processingBindings.registerDartPort(_nativeCallbackPort.sendPort.nativePort);
+    pb.processingBindings
+        .registerDartPort(_nativeCallbackPort.sendPort.nativePort);
     // Register the port with C++
     // final int result = pb.processingBindings.registerDartPort(
     //   _nativeCallbackPort.sendPort.nativePort
     // );
-    
+
     // if (result != 0) {
     //   print('Failed to register Dart port: $result');
     // } else {
@@ -150,24 +153,26 @@ class ProcessingUtilImpl implements ProcessingUtil {
     pb.processingBindings.unregisterDartPort();
     postChannelCountController.close();
     _nativeCallbackPort.close();
-  }  
+  }
 
-  void handleExpansionBoardTypeDetection(int expBoardType, [int param2 = 0, int param3 = 0]) {
-    print('Expansion board type detected: $expBoardType, param2: $param2, param3: $param3');
+  void handleExpansionBoardTypeDetection(int expBoardType,
+      [int param2 = 0, int param3 = 0]) {
+    print(
+        'Expansion board type detected: $expBoardType, param2: $param2, param3: $param3');
     print("setExpansionBoardTypeDart");
     print(GraphTemplate.selectedBoard);
     if (GraphTemplate.selectedBoard != null) {
       print("setExpansionBoardTypeDart1");
       if (GraphTemplate.selectedBoard!.expansionBoards != null) {
-        print("setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
+        print(
+            "setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
         for (var expBoard in GraphTemplate.selectedBoard!.expansionBoards!) {
           print("setExpansionBoardTypeDart3 ${expBoardType.toString()}");
           if (expBoard.boardType == expBoardType.toString()) {
             print("setExpansionBoardTypeDart4");
             if (currentExpansionBoardString == "" && expBoardType == 0) {
               return;
-            } else
-            if (currentExpansionBoardString != expBoardType.toString()) {
+            } else if (currentExpansionBoardString != expBoardType.toString()) {
               currentExpansionBoardString = expBoardType.toString();
               if (expBoard.maxSampleRate != null) {
                 print("setExpansionBoardTypeDart5");
@@ -180,26 +185,34 @@ class ProcessingUtilImpl implements ProcessingUtil {
                     // postChannelCountController.add(boardChannels);
                     // initializeSerial(GraphTemplate.selectedBoard!, currentDrawSurfaceWidth.toDouble(), expansionBoardChannelCount: int.parse(expBoard.maxNumberOfChannels!) );
                     // js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
-
                   } else {
                     int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
-                    boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
-                    print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                    boardChannels = int.parse(
+                            GraphTemplate.selectedBoard!.maxNumberOfChannels!) +
+                        int.parse(expBoard.maxNumberOfChannels!);
+                    print(
+                        "SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
                     postChannelCountController.add(boardChannels);
-                    initializeSerial(GraphTemplate.selectedBoard!, currentDrawSurfaceWidth.toDouble(), expansionBoardChannelCount: int.parse(expBoard.maxNumberOfChannels!) );
+                    initializeSerial(GraphTemplate.selectedBoard!,
+                        currentDrawSurfaceWidth.toDouble(),
+                        expansionBoardChannelCount:
+                            int.parse(expBoard.maxNumberOfChannels!));
                     // js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
-
                   }
                 } else {
-
                   int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
-                  boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
-                  print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                  boardChannels = int.parse(
+                          GraphTemplate.selectedBoard!.maxNumberOfChannels!) +
+                      int.parse(expBoard.maxNumberOfChannels!);
+                  print(
+                      "SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
                   postChannelCountController.add(boardChannels);
-                  initializeSerial(GraphTemplate.selectedBoard!, currentDrawSurfaceWidth.toDouble(), expansionBoardChannelCount: int.parse(expBoard.maxNumberOfChannels!) );
+                  initializeSerial(GraphTemplate.selectedBoard!,
+                      currentDrawSurfaceWidth.toDouble(),
+                      expansionBoardChannelCount:
+                          int.parse(expBoard.maxNumberOfChannels!));
                   // js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
                 }
-
 
                 // if (expBoard.boardType == "4") {
                 //   ProcessingUtil.medianChannelValueAdjuster = List.generate(boardChannels, (_) => 0);
@@ -209,22 +222,26 @@ class ProcessingUtilImpl implements ProcessingUtil {
                 // }
               }
             }
-          } else 
-          if (expBoardType == 0) {
-            print("setExpansionBoardTypeDart3.5 : $currentExpansionBoardString");
+          } else if (expBoardType == 0) {
+            print(
+                "setExpansionBoardTypeDart3.5 : $currentExpansionBoardString");
             if (currentExpansionBoardString.isNotEmpty) {
               currentExpansionBoardString = "";
-              postChannelCountController.add(defaultChannelCountNoExpansionBoard);
-              initializeSerial(GraphTemplate.selectedBoard!, currentDrawSurfaceWidth.toDouble(), expansionBoardChannelCount: int.parse(expBoard.maxNumberOfChannels!) );
+              postChannelCountController
+                  .add(defaultChannelCountNoExpansionBoard);
+              initializeSerial(GraphTemplate.selectedBoard!,
+                  currentDrawSurfaceWidth.toDouble(),
+                  expansionBoardChannelCount:
+                      int.parse(expBoard.maxNumberOfChannels!));
 
               // js.context.callMethod("initializeSerialWeb", [defaultSampleRateNoExpansionBoard, defaultChannelCountNoExpansionBoard, -1] );
               defaultChannelCountNoExpansionBoard = -1;
-              defaultSampleRateNoExpansionBoard = -1;              
+              defaultSampleRateNoExpansionBoard = -1;
             }
           }
         }
       }
-    }    
+    }
     // Your Dart code here
   }
 
@@ -233,8 +250,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
     if (_isInitialized) return true;
     setupDartCallbacks();
     // Initialize C++ processing
-    ProcessingUtil.medianChannelValueAdjuster = List.generate(channelCount, (_) => 0);
-    
+    ProcessingUtil.medianChannelValueAdjuster =
+        List.generate(channelCount, (_) => 0);
+
     print('initialize processing');
     final result = pb.processingBindings.init();
     if (result != 0) {
@@ -394,7 +412,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       calloc.free(inEventLabelsPtr!);
       inEventLabelsPtr = null;
     }
-    
+
     ProcessingUtil.currentEventMarkers = 0;
     // initEventMarkers will allocate inEventIndicesPtr and inEventLabelsPtr
     initEventMarkers(_sampleRate);
@@ -429,11 +447,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
           currentDataBuffer!, outSampleCountsPtr, inDataPtr, data.length);
       // print("ERROR PROCESS MICROPHONE DATA: ${data.length} $result");
       if (result != 0) {
-
         // throw Exception('Failed to process microphone data: $result');
-      } else {
-      }
-
+      } else {}
 
       // Free input data memory
       calloc.free(inDataPtr);
@@ -483,14 +498,12 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
       // Create Dart view of the native memory
       final sampleCount = outSampleCountsPtr.value;
-      Pointer<Pointer<Int16>> curDataBuffer = currentDataBuffer as Pointer<Pointer<Int16>>;
-      final bufferViews = List<Int16List>.generate(
-      	_channelCount,
-      	(i) => curDataBuffer[i].cast<Int16>().asTypedList(sampleCount)
-      );
+      Pointer<Pointer<Int16>> curDataBuffer =
+          currentDataBuffer as Pointer<Pointer<Int16>>;
+      final bufferViews = List<Int16List>.generate(_channelCount,
+          (i) => curDataBuffer[i].cast<Int16>().asTypedList(sampleCount));
       return bufferViews;
 
-      
       // return [];
     } finally {
       calloc.free(outSampleCountsPtr);
@@ -523,7 +536,6 @@ class ProcessingUtilImpl implements ProcessingUtil {
     return pb.processingBindings
         .setChannelFilterEnabled(channel, enabled ? 1 : 0);
   }
-
 
   @override
   int prepareForSignalDrawingProcess(
@@ -563,7 +575,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   // Get the stream of processed data
   Stream<dynamic> get processedDataStream => _dataController.stream;
-  
+
   @override
   StreamController<int> postChannelCountController = StreamController<int>();
   @override
@@ -572,7 +584,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   // Cleanup resources
   Future<void> dispose() async {
     postChannelCountController.close();
-    cleanupDartCallbacks();    
+    cleanupDartCallbacks();
     _processingIsolate?.kill();
     portProcessingIsolateToMain?.close();
     await _dataController.close();
@@ -595,8 +607,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
       currentDataBuffer = null;
       _allocatedChannelCount = null;
-      // free fft pointer      
-      try{
+      // free fft pointer
+      try {
         if (window_count.isNotEmpty) {
           for (int i = 0; i < window_count[0]; i++) {
             calloc.free(out_fft_data![i]);
@@ -609,8 +621,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
         calloc.free(out_fft_colors!);
         calloc.free(out_fft_vertex_count!);
         calloc.free(out_fft_index_count!);
-        calloc.free(out_fft_color_count!);    
-      }catch(err) {
+        calloc.free(out_fft_color_count!);
+      } catch (err) {
         print("err");
         print(err);
       }
@@ -632,7 +644,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       GraphDataProvider provider,
       int startPositionIdx,
       int endPositionIdx) {
-      // return [Int16List(0)];
+    // return [Int16List(0)];
     if (processedData.isNotEmpty) {
       currentDrawSurfaceWidth = drawSurfaceWidth;
       ProcessingUtil.fromDrawingIdx = startPositionIdx;
@@ -686,7 +698,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
             startPositionIdx, // int (fromSample)
             endPositionIdx, // int (toSample)
             drawSurfaceWidth // int
-        );
+            );
 
         if (result == 0) {
           // Copy the results back to Dart
@@ -728,11 +740,12 @@ class ProcessingUtilImpl implements ProcessingUtil {
           int endPositionIdx = DraggableGraph.endPositionIdx;
           for (int i = 0; i < len; i++) {
             // print("RANGE : $startPositionIdx - $endPositionIdx");
-            if (ProcessingUtil.eventPosition[i] >= startPositionIdx && ProcessingUtil.eventPosition[i] <= endPositionIdx ) {
-              DraggableGraph.eventMarkersLabels.add(ProcessingUtil.eventLabels[i]);
+            if (ProcessingUtil.eventPosition[i] >= startPositionIdx &&
+                ProcessingUtil.eventPosition[i] <= endPositionIdx) {
+              DraggableGraph.eventMarkersLabels
+                  .add(ProcessingUtil.eventLabels[i]);
             }
           }
-
 
           // print(
           //     "DraggableGraph.eventMarkersPosition: ${DraggableGraph.eventMarkersPosition}");
@@ -770,16 +783,18 @@ class ProcessingUtilImpl implements ProcessingUtil {
   List<int> initialSamples = [];
 
   @override
-  void initializeSerial(Board board, double drawSurfaceWidth, {int expansionBoardChannelCount = 0}) {
+  void initializeSerial(Board board, double drawSurfaceWidth,
+      {int expansionBoardChannelCount = 0}) {
     if (!_isInitialized) {}
     final result = pb.processingBindings.init();
-    channelCount = int.parse(board.maxNumberOfChannels!) + expansionBoardChannelCount;
+    channelCount =
+        int.parse(board.maxNumberOfChannels!) + expansionBoardChannelCount;
     print("Initialize Serial === $channelCount $expansionBoardChannelCount");
     _channelCount = channelCount;
     sampleRate = int.parse(board.maxSampleRate!);
     _sampleRate = sampleRate;
     packetLen = sampleRate * MAX_DISPLAY_SECONDS;
-    
+
     // print("Initialize Serial === $result $channelCount $sampleRate -- PACKET LEN : $packetLen");
     ProcessingUtil.drawingBuffers.clear();
     for (int i = 0; i < channelCount; i++) {
@@ -803,8 +818,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   @override
-  Future<List<Int16List>> processSerialData(Uint8List samples, int displayTimeMs,
-      int deviceType, int drawSurfaceWidth,
+  Future<List<Int16List>> processSerialData(Uint8List samples,
+      int displayTimeMs, int deviceType, int drawSurfaceWidth,
       [GraphDataProvider? provider]) async {
     // print("samples : $samples | channelCount : $channelCount | drawSurfaceWidth: $drawSurfaceWidth");
     var outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
@@ -831,21 +846,19 @@ class ProcessingUtilImpl implements ProcessingUtil {
       inDataPtr[i] = samples[i];
       // inDataPtr[i] = initialSamples[i]; PROCESS SERIAL DATA ERROR START
     }
-    // print("PROCESS SERIAL DATA ERROR START ChannelCount: $channelCount -- Samples: ${samples.length} -- drawSurfaceWidth: $drawSurfaceWidth");
     int res = pb.processingBindings.processSampleStream(outSamplesPtr,
         outSampleCountsPtr, inDataPtr, samples.length, deviceType);
-    // print("PROCESS SERIAL DATA ERROR END RES: $res");
     // return [Int16List(0), Int16List(0)];
     int minCounter = 100000;
-    List<Int16List> buffer =[];
+    List<Int16List> buffer = [];
     // if (res != 0) {
-      for (int i = 0; i < channelCount; i++) {
-        minCounter = min(outSampleCountsPtr[i], minCounter);
-        Int16List temp = outSamplesPtr[i].asTypedList(outSampleCountsPtr[i]);
-        Int16List arr = Int16List(outSampleCountsPtr[i]);
-        arr.setAll(0, temp);
-        buffer.add(arr);
-      }
+    for (int i = 0; i < channelCount; i++) {
+      minCounter = min(outSampleCountsPtr[i], minCounter);
+      Int16List temp = outSamplesPtr[i].asTypedList(outSampleCountsPtr[i]);
+      Int16List arr = Int16List(outSampleCountsPtr[i]);
+      arr.setAll(0, temp);
+      buffer.add(arr);
+    }
     // }
     // Int32List sampleCount = outSampleCountsPtr.asTypedList(channelCount);
     // provider.inputListener(outSamplesPtr[0].asTypedList(sampleCount).buffer.asUint8List());
@@ -853,7 +866,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     //   print("RES : $res - $samples === ${samples.length} @@@ : [1]=> $list [2]=> $list2");
     // }
     // print("RES : $res - ${samples.length} : == ");
-      // Free input data memory
+    // Free input data memory
     calloc.free(inDataPtr);
     int frameCount = minCounter;
     int removedIndicesCount = 0;
@@ -862,7 +875,6 @@ class ProcessingUtilImpl implements ProcessingUtil {
       if (inEventIndicesPtr![i] - frameCount > 0) {
         inEventIndicesPtr![i] -= frameCount;
         ProcessingUtil.eventPosition[i] = inEventIndicesPtr![i];
-
       } else {
         if (inEventIndicesPtr![i] != -1) {
           removedIndicesCount++;
@@ -881,7 +893,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
         }
       }
     }
-    
+
     int tempCurrentEvent = ProcessingUtil.currentEventMarkers;
     ProcessingUtil.currentEventMarkers -= removedIndicesCount;
     if (inEventIndicesPtr != null && inEventIndicesPtr![0] == -1) {
@@ -890,7 +902,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
         inEventIndicesPtr![i] = ProcessingUtil.eventPosition[i];
       }
       for (int i = eventPositionLen; i < tempCurrentEvent; i++) {
-        inEventIndicesPtr![i] = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+        inEventIndicesPtr![i] =
+            (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
       }
     }
 
@@ -919,7 +932,6 @@ class ProcessingUtilImpl implements ProcessingUtil {
     ProcessingUtil.fromDrawingIdx = startPositionIdx;
     ProcessingUtil.toDrawingIdx = endPositionIdx;
 
-    
     var outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
     final outSampleCountsPtr = calloc<Int32>(channelCount);
     for (int i = 0; i < channelCount; i++) {
@@ -936,7 +948,6 @@ class ProcessingUtilImpl implements ProcessingUtil {
     // final inEventIndicesPtr = calloc<Int32>(0); // No events yet
     // print("drawSurfaceWidth : $drawSurfaceWidth");
     try {
-      
       // return Future.value(Uint8List(0));
       // print("PREPARE FOR SIGNAL DRAWING - Start Channel Count $channelCount");
       int result = pb.processingBindings.prepareForSignalDrawing(
@@ -952,7 +963,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
           endPositionIdx, // int (toSample)
           drawSurfaceWidth // int
           );
-    
+
       if (result == 0) {
         // print("startPositionIdx : $startPositionIdx");
         int sampleCount = outSampleCountsPtr.value;
@@ -982,8 +993,10 @@ class ProcessingUtilImpl implements ProcessingUtil {
         int startPositionIdx = DraggableGraph.startPositionIdx;
         int endPositionIdx = DraggableGraph.endPositionIdx;
         for (int i = 0; i < len; i++) {
-          if (ProcessingUtil.eventPosition[i] >= startPositionIdx && ProcessingUtil.eventPosition[i] <= endPositionIdx ) {
-            DraggableGraph.eventMarkersLabels.add(ProcessingUtil.eventLabels[i]);
+          if (ProcessingUtil.eventPosition[i] >= startPositionIdx &&
+              ProcessingUtil.eventPosition[i] <= endPositionIdx) {
+            DraggableGraph.eventMarkersLabels
+                .add(ProcessingUtil.eventLabels[i]);
           }
         }
         // print("RANGE : $startPositionIdx - $endPositionIdx");
@@ -1068,7 +1081,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
       // for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
       //   ProcessingUtil.eventPosition.add(0);
       // }
-      ProcessingUtil.eventPosition = List.generate(ProcessingUtil.MAX_EVENT_MARKERS, (generator) => sampleRate * 10);
+      ProcessingUtil.eventPosition = List.generate(
+          ProcessingUtil.MAX_EVENT_MARKERS, (generator) => sampleRate * 10);
       for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
         inEventIndicesPtr![i] = sampleRate * 10;
       }
@@ -1076,7 +1090,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
       // Allocate if null before accessing
       inEventIndicesPtr = calloc<Int32>(ProcessingUtil.MAX_EVENT_MARKERS);
       inEventLabelsPtr = calloc<Int32>(ProcessingUtil.MAX_EVENT_MARKERS);
-      ProcessingUtil.eventPosition = List.generate(ProcessingUtil.MAX_EVENT_MARKERS, (generator) => sampleRate * 10);
+      ProcessingUtil.eventPosition = List.generate(
+          ProcessingUtil.MAX_EVENT_MARKERS, (generator) => sampleRate * 10);
       for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
         inEventIndicesPtr![i] = sampleRate * 10;
       }
@@ -1103,11 +1118,15 @@ class ProcessingUtilImpl implements ProcessingUtil {
     ProcessingUtil.eventLabels.add(list[0]);
     // print("ADD LISTENER :  ${ProcessingUtil.eventLabels} === ${ProcessingUtil.eventPosition}");
   }
-  
+
   bool isThresholdBufferInitialized = false;
   @override
-  List<int> processThresholdData(List<Int16List> data, int thresholdChannelCount, int drawSurfaceWidth, int selectedChannel, bool isAverageSamples) {
-
+  List<int> processThresholdData(
+      List<Int16List> data,
+      int thresholdChannelCount,
+      int drawSurfaceWidth,
+      int selectedChannel,
+      bool isAverageSamples) {
     final inSampleCountsPtr = calloc<Int32>(thresholdChannelCount);
     final outSampleCountsPtr = calloc<Int32>(thresholdChannelCount);
     final outSamplesPtr = calloc<Pointer<Int16>>(thresholdChannelCount);
@@ -1118,7 +1137,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
     for (int i = 0; i < thresholdChannelCount; i++) {
       inSampleCountsPtr[i] = (frameCount);
-      outSamplesPtr[i] = calloc<Int16>( (_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS / 2).floor() ); // 5x for envelope
+      outSamplesPtr[i] = calloc<Int16>(
+          (_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS / 2)
+              .floor()); // 5x for envelope
     }
 
     try {
@@ -1126,7 +1147,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       // int defaultChannelIndex = 1;
       final inDataPtr = calloc<Pointer<Int16>>(thresholdChannelCount);
       for (int i = 0; i < thresholdChannelCount; i++) {
-        inDataPtr[i] = calloc<Int16>( frameCount );
+        inDataPtr[i] = calloc<Int16>(frameCount);
         for (int j = 0; j < frameCount; j++) {
           inDataPtr[i][j] = data[i][j];
         }
@@ -1135,15 +1156,24 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
       // Process the microphone data using pre-allocated buffer
       final inEventLabelsPtr = calloc<Int32>(ProcessingUtil.eventLabels.length);
-      final inEventPositionPtr = calloc<Int32>(ProcessingUtil.eventLabels.length);
-      for (int i = 0; i < ProcessingUtil.eventLabels.length;  i++) {
-        inEventPositionPtr[i] = _sampleRate * 10 - ProcessingUtil.eventPosition[i] - frameCount;
+      final inEventPositionPtr =
+          calloc<Int32>(ProcessingUtil.eventLabels.length);
+      for (int i = 0; i < ProcessingUtil.eventLabels.length; i++) {
+        inEventPositionPtr[i] =
+            _sampleRate * 10 - ProcessingUtil.eventPosition[i] - frameCount;
         inEventLabelsPtr[i] = ProcessingUtil.eventLabels[i];
       }
 
       // print("inEventLabelsPtr: ");
       final result = pb.processingBindings.processThreshold(
-          outSamplesPtr, outSampleCountsPtr, inDataPtr, inSampleCountsPtr, inEventPositionPtr, inEventLabelsPtr,ProcessingUtil.eventLabels.length, isAverageSamples);
+          outSamplesPtr,
+          outSampleCountsPtr,
+          inDataPtr,
+          inSampleCountsPtr,
+          inEventPositionPtr,
+          inEventLabelsPtr,
+          ProcessingUtil.eventLabels.length,
+          isAverageSamples);
 
       if (result != 0) {
         print('Failed to process microphone data: $result');
@@ -1164,27 +1194,26 @@ class ProcessingUtilImpl implements ProcessingUtil {
       calloc.free(inEventLabelsPtr);
       // print("tempArrayCount: $tempArrayCount");
       return [tempArrayCount];
-    } catch(err){
+    } catch (err) {
       print("err: $err");
-    }
-    finally {
-    }    
+    } finally {}
     return [];
   }
-  
+
   @override
-  void initThreshold(int channelCount, int sampleRate, double drawSurfaceWidth) {
+  void initThreshold(
+      int channelCount, int sampleRate, double drawSurfaceWidth) {
     pb.processingBindings.init();
     pb.processingBindings.setChannelCount(channelCount);
     pb.processingBindings.setSampleRate(sampleRate);
   }
-  
+
   @override
   void setThresholdTriggerType(int eventThresholdTriggeredType) {
     // print("setThresholdTriggerType: ${listMenuOptions.indexOf(eventThresholdTriggeredType)}");
     pb.processingBindings.setAveragingTriggerType(eventThresholdTriggeredType);
   }
-  
+
   @override
   void setIsThresholding(bool flag) {
     pb.processingBindings.setIsThresholding(flag);
@@ -1192,16 +1221,15 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   @override
   int thresholdingArraylength = 1;
-  
+
   @override
   List<Float32List> out_fft = [];
-  
+
   @override
   List<int> window_count = [];
-  
+
   @override
   List<int> window_size = [];
-  
 
   Pointer<Pointer<Float>>? out_fft_data;
   Pointer<Float>? out_fft_vertices;
@@ -1210,14 +1238,17 @@ class ProcessingUtilImpl implements ProcessingUtil {
   Pointer<Int32>? out_fft_vertex_count;
   Pointer<Int32>? out_fft_index_count;
   Pointer<Int32>? out_fft_color_count;
-  
-  List<Float32List> fft = List.generate(500, (idx)=>Float32List(500));
-  
 
-  
+  List<Float32List> fft = List.generate(500, (idx) => Float32List(500));
+
   @override
   // void processFftData(Int16List inSamples, List<int> inSampleCounts) {
-  void processFftMicrophoneData(List<Int16List> in_samples, List<int> windowCount, List<int> windowSize, List<int> in_sample_counts, int channelCount) async {
+  void processFftMicrophoneData(
+      List<Int16List> in_samples,
+      List<int> windowCount,
+      List<int> windowSize,
+      List<int> in_sample_counts,
+      int channelCount) async {
     // print("processFftMicrophoneData EXIST");
     if (windowCount.isNotEmpty) {
       window_count.clear();
@@ -1230,7 +1261,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     Pointer<Int32> out_window_size;
     Pointer<Int32> out_frequency_counter;
     int selectedChannel = 0;
-    
+
     if (out_fft_data == null) {
       // print("FFT DATA POINTER EXIST : ${windowCount[selectedChannel]} --- ${windowSize[0]}");
       out_fft_data = calloc<Pointer<Float>>(windowCount[selectedChannel]);
@@ -1239,11 +1270,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
         out_fft_data![i] = calloc<Float>(windowSize[0]);
       }
       out_fft.clear();
-      out_fft = List<Float32List>.generate(windowCount[selectedChannel], (idx)=> Float32List(windowSize[selectedChannel]));
+      out_fft = List<Float32List>.generate(windowCount[selectedChannel],
+          (idx) => Float32List(windowSize[selectedChannel]));
     }
 
     // print("OUT FFT DATA PARAMS : ${windowCount[0]} --- ${windowSize[0]}");
-
 
     out_window_count = calloc<Int32>(channelCount);
     // out_window_count.asTypedList(channelCount).setAll(0, windowCount);
@@ -1266,11 +1297,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
       inSampleCounts[i] = in_sample_counts[i];
     }
 
+    int res = pb.processingBindings.processFft(out_fft_data!, out_window_count,
+        out_window_size, out_frequency_counter, inSamples, inSampleCounts);
 
-    int res = pb.processingBindings.processFft(out_fft_data!, out_window_count, out_window_size, out_frequency_counter, inSamples, inSampleCounts);    
+    // resync the fft with out fft,
 
-    // resync the fft with out fft, 
-    
     window_count.setAll(0, out_window_count.asTypedList(channelCount));
     window_size.setAll(0, out_window_size.asTypedList(channelCount));
 
@@ -1308,34 +1339,34 @@ class ProcessingUtilImpl implements ProcessingUtil {
     calloc.free(out_window_size);
     calloc.free(out_frequency_counter);
     calloc.free(inSampleCounts);
-
   }
 
-Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outColorList) {
-  // Ensure the input list has a multiple of 4 elements (R, G, B, A).
-  if (fftColorList.length % 4 != 0) {
-    print("The RGBA color list must have a length that is a multiple of 4.");
-    // throw ArgumentError('The RGBA color list must have a length that is a multiple of 4.');
+  Int32List convertRgbaFloat32ListToInt32(
+      Float32List fftColorList, Int32List outColorList) {
+    // Ensure the input list has a multiple of 4 elements (R, G, B, A).
+    if (fftColorList.length % 4 != 0) {
+      print("The RGBA color list must have a length that is a multiple of 4.");
+      // throw ArgumentError('The RGBA color list must have a length that is a multiple of 4.');
+    }
+
+    final int colorCount = fftColorList.length ~/ 4;
+
+    for (int i = 0; i < colorCount; i++) {
+      // Read the four float components (R, G, B, A)
+      double R = fftColorList[i * 4];
+      double G = fftColorList[i * 4 + 1];
+      double B = fftColorList[i * 4 + 2];
+      double A = fftColorList[i * 4 + 3];
+
+      int r = (R * 255).round();
+      int g = (G * 255).round();
+      int b = (B * 255).round();
+      int a = (A * 255).round();
+      outColorList[i] = (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    return outColorList;
   }
-
-  final int colorCount = fftColorList.length ~/ 4;
-
-  for (int i = 0; i < colorCount; i++) {
-    // Read the four float components (R, G, B, A)
-    double R = fftColorList[i * 4];
-    double G = fftColorList[i * 4 + 1];
-    double B = fftColorList[i * 4 + 2];
-    double A = fftColorList[i * 4 + 3];
-    
-    int r = (R * 255).round();
-    int g = (G * 255).round();
-    int b = (B * 255).round();
-    int a = (A * 255).round();   
-    outColorList[i] = (a << 24) | (r << 16) | (g << 8) | b;
-  }
-
-  return outColorList;
-}  
 
 // int32_t processing_prepare_fft_for_drawing(float* out_vertices, int16_t* out_indices,
 //                                          float* out_colors, int32_t* out_vertex_count,
@@ -1343,94 +1374,111 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
 //                                          float** fft_data, int32_t window_count,
 //                                          int32_t window_size, float width, float height) {
   @override
-  int prepareForFftDrawing(int windowCount, int windowSize, int targetWindowCount, double width, double height){
-    if (out_fft_vertices != null && out_fft_indices != null && out_fft_colors != null 
-        && out_fft_vertex_count != null && out_fft_index_count != null && out_fft_color_count != null 
-          && out_fft_data != null){
+  int prepareForFftDrawing(int windowCount, int windowSize,
+      int targetWindowCount, double width, double height) {
+    if (out_fft_vertices != null &&
+        out_fft_indices != null &&
+        out_fft_colors != null &&
+        out_fft_vertex_count != null &&
+        out_fft_index_count != null &&
+        out_fft_color_count != null &&
+        out_fft_data != null) {
       // print("PREPARE FFT DRAWING : ${windowCount} -- ${windowSize} ||| ${width} ___ ${height}");
       // if (out_fft_color_count![0] != 0) {
-        int selectedChannelIdx = 0;
-        int maxWindowCount = out_fft.length;
-        int count = fftBuffer.get(fft);
+      int selectedChannelIdx = 0;
+      int maxWindowCount = out_fft.length;
+      int count = fftBuffer.get(fft);
 
-        if (count > 0) {
-          ProcessingUtil.fftDrawBuffer!.add(fft, count);
+      if (count > 0) {
+        ProcessingUtil.fftDrawBuffer!.add(fft, count);
 
-          Pointer<Pointer<Float>> drawBuffer = calloc<Pointer<Float>>(windowCount);
-          int len = ProcessingUtil.fftDrawBuffer!.buffer[0].length;
-          for (int i = 0; i < windowCount; i++) {
-            drawBuffer[i] = calloc<Float>(len);
-            drawBuffer[i].asTypedList(len).setAll(0, ProcessingUtil.fftDrawBuffer!.buffer[i]);
-          }
-          // return -1;
-
-
-          pb.processingBindings.prepareFftDrawing(
-            out_fft_vertices!, out_fft_indices!, out_fft_colors!, 
-            out_fft_vertex_count!, out_fft_index_count!, out_fft_color_count!,
-            drawBuffer, windowCount, windowSize, targetWindowCount,width, height);
-            // out_fft_data!, windowCount, windowSize, width, height);
-
-          // out_fft.clear();
-          // for (int i = 0; i < windowCount; i++) {
-          //   out_fft.add(fft_data[i].asTypedList(windowSize));
-          // }
-
-          int vertexCount = out_fft_vertex_count![selectedChannelIdx];
-          int indicesCountRaw = out_fft_index_count![selectedChannelIdx];
-          int indicesCount = indicesCountRaw;
-          int colorCountRaw = out_fft_color_count![selectedChannelIdx];
-          int colorCount = out_fft_color_count![selectedChannelIdx] ~/ 4;
-          Int32List colorList = Int32List(colorCount);
-          Float32List fftColorList = out_fft_colors!.asTypedList(colorCountRaw);
-          Int16List indicesList = out_fft_indices!.asTypedList(indicesCountRaw);
-
-          convertRgbaFloat32ListToInt32(fftColorList, colorList);
-          out_fft_colors!.asTypedList(channelCount);
-          // Counter: 65536, 194310, 32768 | 131072 194310
-          // print("Counter: $vertexCount, $indicesCount, $colorCount | $colorCountRaw $indicesCountRaw");
-          // print("Color List: $colorList"); -16777088, -16777088,
- 
-          // print("VertexCount: $vertexCount");
-          // print("IndexCount: $indicesCountRaw");
-          // print("ColorCount: $colorCount ?==? ${colorList.length}");
-          // print(out_fft_indices!.asTypedList(indicesCount).length);
-          // out_fft_vertices!.asTypedList(vertexCount).fillRange(0, 10, (Random().nextDouble() * 10) );
-          // out_fft_vertices![0] = (Random().nextDouble() * 100);
-          // out_fft_vertices![1] = (Random().nextDouble() * 100);
-          // out_fft_vertices![2] = (Random().nextDouble() * 100);
-          // out_fft_vertices![3] = (Random().nextDouble() * 100);
-          // out_fft_vertices![4] = (Random().nextDouble() * 100);
-          // out_fft_vertices![5] = (Random().nextDouble() * 100);
-          // out_fft_vertices![6] = (Random().nextDouble() * 100);
-          // out_fft_vertices![7] = (Random().nextDouble() * 100);
-          // print("vertexList.sublist(0, 20): ${out_fft_vertices!.asTypedList(vertexCount).sublist(0, 20)}");
-          // print("indicesList.sublist(0, 20): ${indicesList.sublist(0, 20)}");
-          
-          ProcessingUtil.fftDrawData = FftDrawData(
-              vertices: out_fft_vertices!.asTypedList(vertexCount), colors: colorList, 
-              indices: out_fft_indices!.asTypedList(indicesCount).buffer.asUint16List(), 
-              vertexCount: vertexCount, 
-              colorCount: colorList.length, 
-              indexCount: indicesCount, 
-              scaleX: 1, scaleY: 1);          
-
-          for (int i = 0; i < windowCount; i++) {
-            calloc.free(drawBuffer[i]);
-          }
-          calloc.free(drawBuffer);
-
+        Pointer<Pointer<Float>> drawBuffer =
+            calloc<Pointer<Float>>(windowCount);
+        int len = ProcessingUtil.fftDrawBuffer!.buffer[0].length;
+        for (int i = 0; i < windowCount; i++) {
+          drawBuffer[i] = calloc<Float>(len);
+          drawBuffer[i]
+              .asTypedList(len)
+              .setAll(0, ProcessingUtil.fftDrawBuffer!.buffer[i]);
         }
+        // return -1;
 
+        pb.processingBindings.prepareFftDrawing(
+            out_fft_vertices!,
+            out_fft_indices!,
+            out_fft_colors!,
+            out_fft_vertex_count!,
+            out_fft_index_count!,
+            out_fft_color_count!,
+            drawBuffer,
+            windowCount,
+            windowSize,
+            targetWindowCount,
+            width,
+            height);
+        // out_fft_data!, windowCount, windowSize, width, height);
 
+        // out_fft.clear();
+        // for (int i = 0; i < windowCount; i++) {
+        //   out_fft.add(fft_data[i].asTypedList(windowSize));
+        // }
 
+        int vertexCount = out_fft_vertex_count![selectedChannelIdx];
+        int indicesCountRaw = out_fft_index_count![selectedChannelIdx];
+        int indicesCount = indicesCountRaw;
+        int colorCountRaw = out_fft_color_count![selectedChannelIdx];
+        int colorCount = out_fft_color_count![selectedChannelIdx] ~/ 4;
+        Int32List colorList = Int32List(colorCount);
+        Float32List fftColorList = out_fft_colors!.asTypedList(colorCountRaw);
+        Int16List indicesList = out_fft_indices!.asTypedList(indicesCountRaw);
+
+        convertRgbaFloat32ListToInt32(fftColorList, colorList);
+        out_fft_colors!.asTypedList(channelCount);
+        // Counter: 65536, 194310, 32768 | 131072 194310
+        // print("Counter: $vertexCount, $indicesCount, $colorCount | $colorCountRaw $indicesCountRaw");
+        // print("Color List: $colorList"); -16777088, -16777088,
+
+        // print("VertexCount: $vertexCount");
+        // print("IndexCount: $indicesCountRaw");
+        // print("ColorCount: $colorCount ?==? ${colorList.length}");
+        // print(out_fft_indices!.asTypedList(indicesCount).length);
+        // out_fft_vertices!.asTypedList(vertexCount).fillRange(0, 10, (Random().nextDouble() * 10) );
+        // out_fft_vertices![0] = (Random().nextDouble() * 100);
+        // out_fft_vertices![1] = (Random().nextDouble() * 100);
+        // out_fft_vertices![2] = (Random().nextDouble() * 100);
+        // out_fft_vertices![3] = (Random().nextDouble() * 100);
+        // out_fft_vertices![4] = (Random().nextDouble() * 100);
+        // out_fft_vertices![5] = (Random().nextDouble() * 100);
+        // out_fft_vertices![6] = (Random().nextDouble() * 100);
+        // out_fft_vertices![7] = (Random().nextDouble() * 100);
+        // print("vertexList.sublist(0, 20): ${out_fft_vertices!.asTypedList(vertexCount).sublist(0, 20)}");
+        // print("indicesList.sublist(0, 20): ${indicesList.sublist(0, 20)}");
+
+        ProcessingUtil.fftDrawData = FftDrawData(
+            vertices: out_fft_vertices!.asTypedList(vertexCount),
+            colors: colorList,
+            indices: out_fft_indices!
+                .asTypedList(indicesCount)
+                .buffer
+                .asUint16List(),
+            vertexCount: vertexCount,
+            colorCount: colorList.length,
+            indexCount: indicesCount,
+            scaleX: 1,
+            scaleY: 1);
+
+        for (int i = 0; i < windowCount; i++) {
+          calloc.free(drawBuffer[i]);
+        }
+        calloc.free(drawBuffer);
+      }
     }
     return 0;
   }
-  
+
   void initFft() {
-    int windowCount = ( (10.0 * 128) / (512 * 0.01).floor() ).floor();
-    int windowSize = ( (32 * 4) ).floor();
+    int windowCount = ((10.0 * 128) / (512 * 0.01).floor()).floor();
+    int windowSize = ((32 * 4)).floor();
 
     out_fft_vertices = calloc<Float>(windowCount * windowSize * 2);
     out_fft_indices = calloc<Int16>(windowCount * windowSize * 6);
@@ -1440,7 +1488,7 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
     print("FFT COLORS : ${windowCount * windowSize * 5}");
 
     ProcessingUtil.fftDrawBuffer = FftDrawBuffer(windowCount, windowSize);
-    try{
+    try {
       out_fft_vertex_count = calloc<Int32>(1);
       out_fft_index_count = calloc<Int32>(1);
       out_fft_color_count = calloc<Int32>(1);
@@ -1448,32 +1496,34 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
       out_fft_vertex_count![0] = 0;
       out_fft_index_count![0] = 0;
       out_fft_color_count![0] = 0;
-
-    }catch(err) {
+    } catch (err) {
       print("err $err");
     }
   }
-  
+
   @override
-  void onCallbackPrepareFftDrawingWeb(int resultFftDraw, int selectedChannelIdx) {
-  }
-  
+  void onCallbackPrepareFftDrawingWeb(
+      int resultFftDraw, int selectedChannelIdx) {}
+
   @override
-  void processingNwbFileInjectData(Int16List data, Int32List sampleCounts, int selectedChannel, int channelCount) {
+  void processingNwbFileInjectData(Int16List data, Int32List sampleCounts,
+      int selectedChannel, int channelCount) {
     Pointer<Int16> inDataPtr = calloc<Int16>(data.length);
     inDataPtr.asTypedList(data.length).setAll(0, data);
-    
+
     Pointer<Int32> sampleCountPtr = calloc<Int32>(channelCount);
     sampleCountPtr.asTypedList(channelCount).setAll(0, sampleCounts);
 
-    pb.processingBindings.nwbfileInjectDataResult(inDataPtr, sampleCountPtr, selectedChannel, channelCount);
+    pb.processingBindings.nwbfileInjectDataResult(
+        inDataPtr, sampleCountPtr, selectedChannel, channelCount);
 
     calloc.free(inDataPtr);
-    calloc.free(sampleCountPtr);    
+    calloc.free(sampleCountPtr);
   }
-  
+
   @override
-  void processingSerialDataResult(Int16List data, Int32List sampleCounts, int channelCount) {
+  void processingSerialDataResult(
+      Int16List data, Int32List sampleCounts, int channelCount) {
     Pointer<Int16> inDataPtr = calloc<Int16>(data.length);
     inDataPtr.asTypedList(data.length).setAll(0, data);
     Pointer<Int32> sampleCountsPtr = calloc<Int32>(sampleCounts.length);
@@ -1483,12 +1533,12 @@ Int32List convertRgbaFloat32ListToInt32(Float32List fftColorList, Int32List outC
     // print("Channel Value 0 : ${data[0]} | Channel Value 1 : ${data[sampleCounts[1]]}");
     // print("DATA : $data");
 
-    pb.processingBindings.processSerialDataResult(inDataPtr, sampleCountsPtr, channelCount);
-    
+    pb.processingBindings
+        .processSerialDataResult(inDataPtr, sampleCountsPtr, channelCount);
+
     calloc.free(inDataPtr);
     calloc.free(sampleCountsPtr);
   }
-
 }
 
 // This function runs in the processing isolate
@@ -1563,14 +1613,15 @@ ProcessingUtil createProcessingUtil() => ProcessingUtilImpl();
 
 // final dartCallbackPointer = Pointer.fromFunction<DartCallbackNative>(dartCallback);
 
-
-
-Int16List uint8ListToInt16List(Uint8List uint8List, {Endian endian = Endian.little}) {
+Int16List uint8ListToInt16List(Uint8List uint8List,
+    {Endian endian = Endian.little}) {
   if (uint8List.length % 2 != 0) {
-    throw ArgumentError("Uint8List length must be an even number for Int16List conversion.");
+    throw ArgumentError(
+        "Uint8List length must be an even number for Int16List conversion.");
   }
 
-  final ByteData byteData = uint8List.buffer.asByteData(uint8List.offsetInBytes, uint8List.lengthInBytes);
+  final ByteData byteData = uint8List.buffer
+      .asByteData(uint8List.offsetInBytes, uint8List.lengthInBytes);
 
   final int numInt16 = uint8List.length ~/ 2;
   final Int16List int16List = Int16List(numInt16);
@@ -1585,4 +1636,3 @@ Int16List uint8ListToInt16List(Uint8List uint8List, {Endian endian = Endian.litt
 // PROCESSING_API int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
 //                              int32_t* out_window_size, const int16_t** in_samples,
 //                              const int32_t* in_sample_counts);
-

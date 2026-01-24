@@ -12,14 +12,28 @@
 #include <android/log.h>
 #endif
 
+#ifdef _WIN32
+#include <windows.h>
+#include <cstdio>
+#endif
+
 #define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
 void platform_log_processing(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 #ifdef __ANDROID__
     __android_log_vprint(ANDROID_LOG_VERBOSE, "ndk", fmt, args);
+#elif defined(_WIN32)
+    // On Windows, use OutputDebugString for visible logging
+    char buffer[1024];
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    OutputDebugStringA(buffer);
+    // Also print to stdout in case console is attached
+    vprintf(fmt, args);
+    fflush(stdout);
 #else
     vprintf(fmt, args);
+    fflush(stdout);
 #endif
     va_end(args);
 }
@@ -634,9 +648,11 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
         event_labels = new std::string[PROCESSING_MAX_EVENTS];
         int event_count = 0;
         
+        // platform_log_processing("PROCESS SAMPLE STREAM DEBUG C++ INITIALISED\n");
         sampleStreamProcessor->process((const_cast<uint8_t*>(in_data)), length, out_samples, out_sample_counts,
                                      event_indices, event_labels, event_count,
                                      current_channel_count, hardware_type);
+        // platform_log_processing("PROCESS SAMPLE STREAM DEBUG C++ PROCESS CALLED\n");
         // Add processed data to circular buffer
         // return -199;
         if (circularBuffer != nullptr) {

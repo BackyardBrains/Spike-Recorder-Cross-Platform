@@ -131,7 +131,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
           padding: EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: Color(0xFF2e2e2e),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(16),
           ),
           // padding: const EdgeInsets.symmetric(horizontal: 0),
           child: Row(
@@ -140,37 +140,38 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
             mainAxisSize: MainAxisSize.max,
             // crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // SetFrequencyWidget(
-              //   frequencyType: "Low",
-              //   frequencyValue: start.toInt(),
-              //   maxFrequency: maxFreq,
-              //   onFrequencyChanged: (value) {
-              //     start = value.toDouble();
-              //     Provider.of<CustomRangeSliderProvider>(context, listen: false)
-              //         .setStartValue(start);
-              //     double lowFreq = start == 0 ? -1 : start;
-              //     double highFreq = end >= maxFreq ? -1 : end;
-              //     widget.processingUtil.setBandFilter(lowFreq, highFreq);
-              //     setState(() {});
-              //   },
-              // ),
+              SetFrequencyWidget(
+                frequencyType: "Low",
+                frequencyValue: start.toInt(),
+                maxFrequency: maxFreq,
+                onFrequencyChanged: (value) {
+                  start = value.toDouble();
+                  Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                      .setStartValue(start);
+                  double lowFreq = start == 0 ? -1 : start;
+                  double highFreq = end >= maxFreq ? -1 : end;
+                  widget.processingUtil.setBandFilter(lowFreq, highFreq);
+                  setState(() {});
+                },
+              ),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(IconData(0xe90d, fontFamily: "IcomoonIcons"), color: Colors.white),
-                        SizedBox(width: 10),
-                        Text("Band-pass filter cutoff frequencies", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                        Spacer(),
-                        GestureDetector(
-                          onTap: () {
-                            print("Show up setting configuration");
-                          },
-                          child: Icon(IconData(0xe90a, fontFamily: "IcomoonIcons"), color: Colors.white)
-                        ),
+                        // Icon(const IconData(0xe90d, fontFamily: "IcomoonIcons"), color: Colors.white),
+                        // SizedBox(width: 10),
+                        Text("Set band-pass filter cutoff frequencies", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                        // Spacer(),
+                        // GestureDetector(
+                        //   onTap: () {
+                        //     print("Show up setting configuration");
+                        //   },
+                        //   child: Icon(const IconData(0xe90a, fontFamily: "IcomoonIcons"), color: Colors.white)
+                        // ),
                       ],
                     ),
                     FlutterSlider(
@@ -268,20 +269,20 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   ],
                 ),
               ),
-              // SetFrequencyWidget(
-              //   frequencyType: "High",
-              //   frequencyValue: end.toInt(),
-              //   maxFrequency: maxFreq,
-              //   onFrequencyChanged: (value) {
-              //     end = value.toDouble();
-              //     Provider.of<CustomRangeSliderProvider>(context, listen: false)
-              //         .setEndValue(end);
-              //     double lowFreq = start == 0 ? -1 : start;
-              //     double highFreq = end >= maxFreq ? -1 : end;
-              //     widget.processingUtil.setBandFilter(lowFreq, highFreq);
-              //     setState(() {});
-              //   },
-              // ),
+              SetFrequencyWidget(
+                frequencyType: "High",
+                frequencyValue: end.toInt(),
+                maxFrequency: maxFreq,
+                onFrequencyChanged: (value) {
+                  end = value.toDouble();
+                  Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                      .setEndValue(end);
+                  double lowFreq = start == 0 ? -1 : start;
+                  double highFreq = end >= maxFreq ? -1 : end;
+                  widget.processingUtil.setBandFilter(lowFreq, highFreq);
+                  setState(() {});
+                },
+              ),
             ],
           ),
         ),
@@ -340,12 +341,12 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
           label: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              SizedBox(height: 42),
               Container(
                 width: 1,
-                height: 12, // Major tick height
+                height: 10, // Major tick height
                 color: Colors.white,
               ),
-              SizedBox(height: 4),
               Text(
                 _formatLabel(majorVal.toDouble()),
                 style: TextStyle(color: Colors.white, fontSize: 10),
@@ -369,6 +370,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
             FlutterSliderHatchMarkLabel(
               percent: minorPercent,
               label: Container(
+                margin: EdgeInsets.only(top: 24),
                 width: 1,
                 height: 6, // Minor tick height
                 color: Colors.white,
@@ -497,6 +499,7 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
           style: SoftwareTextStyle().kWtMediumTextStyle.copyWith(color: Color(0xFF707070), fontWeight: FontWeight.w500),
           textAlign: TextAlign.left,
         ),
+        SizedBox(height: 4),
         SizedBox(
           width: 100,
           child: TextField(

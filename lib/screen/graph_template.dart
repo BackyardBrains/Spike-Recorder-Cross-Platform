@@ -936,9 +936,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   int deviceType = -1;
 
+  String configTitle = "Configuration";
+
   @override
   Widget build(BuildContext widgetContext) {
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+    String openedFilePath = "";
+    if (currentLoadedFilePath.isNotEmpty) {
+      openedFilePath = currentLoadedFilePath.split("/").last;
+    }
     return Scaffold(
       backgroundColor: SoftwareColors.kBackGroundColor,
       body: StreamBuilder<int>(
@@ -949,26 +955,52 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 recordingNotifier: recordingNotifier,
                 notifier: scrubNotifier,
                 child1: const _GraphArea(),
-                child3: SingleChildScrollView(
+                child3: Container(
+                  decoration: BoxDecoration(
+                    color: Color(0xFF222222),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.max,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. Header Row
-                      SizedBox(
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(0, 10, 0, 10),
                         child: Row(children: [
-                          SpikerBoxButton(
-                              onTapButton: () {
+                          ElevatedButton(
+                            onPressed: () {
+                              if (configTitle == "Channel Settings") {
+                                configTitle = "Configuration";
+                                isDetailConfiguration = false;
+                                customizeDetailChannelIdx = -1;
+                              } else {
                                 context
                                     .read<SoftwareConfigProvider>()
                                     .settingStatus(false);
-                              },
-                              iconData: Icons.chevron_left),
+                              }
+                              setState(() {});
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2C2C2C),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: const CircleBorder(),
+                              padding: EdgeInsets.zero, // Clear padding to center the icon perfectly
+                            ).copyWith(
+                              side: WidgetStateProperty.resolveWith<BorderSide>((states) {
+                                if (states.contains(WidgetState.hovered)) {
+                                  return const BorderSide(color: Colors.blue, width: 1.5);
+                                }
+                                return const BorderSide(color: Colors.transparent);
+                              }),
+                            ),
+                            child: const Icon(Icons.chevron_left, size: 24),
+                          ),
                           SizedBox(
                             width: 10,
                           ),
                           Text(
-                            "Configuration",
+                            configTitle,
                             style: TextStyle(
                                 fontSize: 24,
                                 color: Colors.white,
@@ -976,23 +1008,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           ),
                         ]),
                       ),
-                      // 2. Main Content Container
-                      // Replaced Expanded with Center + ConstrainedBox
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: Platform.isIOS || Platform.isAndroid
-                                ? 500
-                                : 600,
+                      if (isDetailConfiguration) ... [
+                        Container(
+                          margin: EdgeInsets.fromLTRB(10, 0, 10, 0),
+                          decoration: BoxDecoration(
+                            color: Color(0xFF222222),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
-                            mainAxisSize:
-                                MainAxisSize.min, // Vital for scrolling
                             children: [
-                              SizedBox(height: 0),
-                              _predefinedFilterSettings(),
-                              _isMutingSpeakers(),
-                              SizedBox(height: 20),
+                              _mutingSpeakers(),
+                              SizedBox(height: 10),
                               CustomSliderBarButton(
                                 processingUtil: processingUtil,
                                 isMicrophoneEnable: (bool isMicrophoneEnable) {
@@ -1049,237 +1075,275 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                         processingUtil.setNotchFilter(-1);
                                       }
                                     }
-
+                
                                     context
                                         .read<DataStatusProvider>()
                                         .setNotchPassFilterSetting(
                                             notchFilterSettings);
                                     // localPlugin.initNotchPassFilters(notchFilterSettings);
                                   }),
-                              const SizedBox(
-                                height: 10,
-                              ),
-
-                              // 3. Settings Area
-                              Container(
-                                padding: EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFF2e2e2e),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Column(
-                                  mainAxisSize:
-                                      MainAxisSize.min, // Vital for scrolling
-                                  children: [
-                                    FilterProcessWidget(isMicrophoneEnable:
-                                        (bool isMicrophoneEnable) {
-                                      context
-                                          .read<DataStatusProvider>()
-                                          .setMicrophoneDataStatus(
-                                              isMicrophoneEnable);
-                                    }, onHighPassFilterSetup:
-                                        (FilterSetup filterSetup) {
-                                      localPlugin
-                                          .initHighPassFilters(filterSetup);
-                                    }, onLowPassFilterSetup:
-                                        (FilterSetup filterSetup) {
-                                      localPlugin
-                                          .initLowPassFilters(filterSetup);
-                                    }, onSampleChange: (bool isSampleDataOn) {
-                                      context
-                                          .read<DataStatusProvider>()
-                                          .setSampleDataStatus(isSampleDataOn);
-                                      // _toGenerateDummyData =
-                                      //     isSampleDataOn;
-                                    }),
-                                    _channelColorSettings(),
-                                    _channelFilterSettings(),
-                                    // DropdownButtonFormField<int>(
-                                    //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                    //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                                    //   items: _dataBit
-                                    //       .map(
-                                    //         (e) => DropdownMenuItem(
-                                    //           value: e,
-                                    //           child: Text(
-                                    //             e.toString(),
-                                    //           ),
-                                    //         ),
-                                    //       )
-                                    //       .toList(),
-                                    //   onChanged: (int? bitDataSelect) {
-                                    //     context.read<ConstantProvider>().setBitData(bitDataSelect!);
-                                    //   },
-                                    //   value: context.read<ConstantProvider>().getBitData(),
-                                    // ),
-                                    // DropdownButtonFormField(
-                                    //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                    //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                                    //   items: _baudRate
-                                    //       .map(
-                                    //         (e) => DropdownMenuItem(
-                                    //           value: e,
-                                    //           child: Text(
-                                    //             e.toString(),
-                                    //           ),
-                                    //         ),
-                                    //       )
-                                    //       .toList(),
-                                    //   onChanged: (baudRateSelect) {
-                                    //     context.read<ConstantProvider>().setBaudRate(baudRateSelect!);
-                                    //   },
-                                    //   value: context.read<ConstantProvider>().getBaudRate(),
-                                    // ),
-                                    // DropdownButtonFormField(
-                                    //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                    //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                                    //   items: _channelCount
-                                    //       .map(
-                                    //         (e) => DropdownMenuItem(
-                                    //           value: e,
-                                    //           child: Text(
-                                    //             e.toString(),
-                                    //           ),
-                                    //         ),
-                                    //       )
-                                    //       .toList(),
-                                    //   onChanged: (int? channelCountSelect) {
-                                    //     context.read<ConstantProvider>().setChannelCount(channelCountSelect!);
-                                    //   },
-                                    //   value: context.read<ConstantProvider>().getChannelCount(),
-                                    // ),
-                                  ],
-                                ),
-                              ),
-
-                              // 4. Ports Area
-                              Consumer<PortScanProvider>(
-                                  builder: (context, portList, snapshot) {
-                                return _PortsArea(
-                                  deviceName: _deviceName,
-                                  availablePorts: portList.availablePorts,
-                                  onReceive: (String add) async {
-                                    // int baudRate = context
-                                    //     .read<ConstantProvider>()
-                                    //     .getBaudRate();
-
-                                    // await _serialUtil.openPortToListen(
-                                    //     add, baudRate);
-
-                                    // // ignore: use_build_context_synchronously
-                                    // context
-                                    //     .read<DataStatusProvider>()
-                                    //     .setMicrophoneDataStatus(false);
-
-                                    // // if (!mounted) return;
-                                    // // bool dummyDataStatus = context
-                                    // //     .read<DataStatusProvider>()
-                                    // //     .isSampleDataOn;
-                                    // // bool isAudioListen = context
-                                    // //     .read<DataStatusProvider>()
-                                    // //     .isMicrophoneData;
-                                    // // try {
-                                    // //   _serialUtil.dataStream?.listen((event) {
-                                    // //     if (!dummyDataStatus &&
-                                    // //         !isAudioListen) {
-                                    // //       _preEscapeSequenceBuffer
-                                    // //           .addBytes(event);
-                                    // //       if (isDeviceConnect) {
-                                    // //         _serialUtil.writeToPort(
-                                    // //             bytesMessage: UsbCommand
-                                    // //                 .hwTypeInquiry
-                                    // //                 .cmdAsBytes(),
-                                    // //             address: add);
-
-                                    // //         isDeviceConnect = false;
-                                    // //       }
-                                    // //       if (_isDataIdentified) {
-                                    // //         // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
-                                    // //         // stopwatch.reset();
-                                    // //       } else {
-                                    // //         Uint8List? firstFrameData =
-                                    // //             _frameDetect.addData(event);
-
-                                    // //         if (firstFrameData != null) {
-                                    // //           _preEscapeSequenceBuffer
-                                    // //               .addBytes(firstFrameData);
-                                    // //           _isDataIdentified = true;
-                                    // //         }
-                                    // //       }
-                                    // //     }
-                                    // //   });
-                                    // //   portName = add;
-                                    // // } catch (e) {
-                                    // //   print(
-                                    // //       "the error is $e from serial port");
-                                    // // }
-                                  },
-                                  onWrite: (String add) async {
-                                    MessageValueSet? selectedCommand =
-                                        await showCommandPopUp(add);
-                                    if (selectedCommand != null) {
-                                      _serialUtil.writeToPort(
-                                          bytesMessage:
-                                              selectedCommand.cmdAsBytes(),
-                                          address: add);
-                                    }
-                                  },
-                                );
-                              }),
-
-                              // 5. Footer Row
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 20),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.max,
-                                  children: [
-                                    // 1. The Custom Switch
-                                    Switch(
-                                      value: isDarkMode,
-                                      activeColor: Colors.white,
-                                      activeTrackColor: Color(
-                                          0xFFFF7A5C), // The orange/coral color in your image
-                                      onChanged: (value) {
-                                        setState(() {
-                                          isDarkMode = value;
-                                        });
-                                      },
-                                    ),
-                                    SizedBox(width: 8),
-
-                                    // 2. The Main Label
-                                    Text(
-                                      'Dark Mode',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-
-                                    // 3. Spacing to push version info to the right
-                                    Spacer(),
-
-                                    // 4. App Version Info
-                                    Icon(Icons.info_outline,
-                                        color: Colors.grey, size: 16),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'SpikeRecorder App ver. 2.0.5',
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                              
+                            ]
                           ),
                         ),
-                      ),
-                    ],
+                      ] else ... [
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                // 1. Header Row
+                                // 2. Main Content Container
+                                // Replaced Expanded with Center + ConstrainedBox
+                                Center(
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: kIsWeb? 600 : Platform.isIOS || Platform.isAndroid ? 500 : 600,
+                                    ),
+                                    child: Column(
+                                      mainAxisSize:
+                                          MainAxisSize.min, // Vital for scrolling
+                                      children: [
+                                        SizedBox(height: 0),
+                                        _predefinedFilterSettings(),
+                                        // _mutingSpeakers(),
+
+                          
+                                        // 3. Settings Area
+                                        Container(
+                                          // padding: EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            // color: Color(0xFF2e2e2e),
+                                            // borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          child: Column(
+                                            mainAxisSize:
+                                                MainAxisSize.min, // Vital for scrolling
+                                            children: [
+                                              FilterProcessWidget(isMicrophoneEnable:
+                                                  (bool isMicrophoneEnable) {
+                                                context
+                                                    .read<DataStatusProvider>()
+                                                    .setMicrophoneDataStatus(
+                                                        isMicrophoneEnable);
+                                              }, onHighPassFilterSetup:
+                                                  (FilterSetup filterSetup) {
+                                                localPlugin
+                                                    .initHighPassFilters(filterSetup);
+                                              }, onLowPassFilterSetup:
+                                                  (FilterSetup filterSetup) {
+                                                localPlugin
+                                                    .initLowPassFilters(filterSetup);
+                                              }, onSampleChange: (bool isSampleDataOn) {
+                                                context
+                                                    .read<DataStatusProvider>()
+                                                    .setSampleDataStatus(isSampleDataOn);
+                                                // _toGenerateDummyData =
+                                                //     isSampleDataOn;
+                                              }),
+                                              _channelColorSettings(),
+                                              _channelFilterSettings(),
+                                              // DropdownButtonFormField<int>(
+                                              //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                              //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                                              //   items: _dataBit
+                                              //       .map(
+                                              //         (e) => DropdownMenuItem(
+                                              //           value: e,
+                                              //           child: Text(
+                                              //             e.toString(),
+                                              //           ),
+                                              //         ),
+                                              //       )
+                                              //       .toList(),
+                                              //   onChanged: (int? bitDataSelect) {
+                                              //     context.read<ConstantProvider>().setBitData(bitDataSelect!);
+                                              //   },
+                                              //   value: context.read<ConstantProvider>().getBitData(),
+                                              // ),
+                                              // DropdownButtonFormField(
+                                              //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                              //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                                              //   items: _baudRate
+                                              //       .map(
+                                              //         (e) => DropdownMenuItem(
+                                              //           value: e,
+                                              //           child: Text(
+                                              //             e.toString(),
+                                              //           ),
+                                              //         ),
+                                              //       )
+                                              //       .toList(),
+                                              //   onChanged: (baudRateSelect) {
+                                              //     context.read<ConstantProvider>().setBaudRate(baudRateSelect!);
+                                              //   },
+                                              //   value: context.read<ConstantProvider>().getBaudRate(),
+                                              // ),
+                                              // DropdownButtonFormField(
+                                              //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                                              //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                                              //   items: _channelCount
+                                              //       .map(
+                                              //         (e) => DropdownMenuItem(
+                                              //           value: e,
+                                              //           child: Text(
+                                              //             e.toString(),
+                                              //           ),
+                                              //         ),
+                                              //       )
+                                              //       .toList(),
+                                              //   onChanged: (int? channelCountSelect) {
+                                              //     context.read<ConstantProvider>().setChannelCount(channelCountSelect!);
+                                              //   },
+                                              //   value: context.read<ConstantProvider>().getChannelCount(),
+                                              // ),
+                                            ],
+                                          ),
+                                        ),
+                          
+                                        // 4. Ports Area
+                                        Consumer<PortScanProvider>(
+                                            builder: (context, portList, snapshot) {
+                                          return _PortsArea(
+                                            deviceName: _deviceName,
+                                            availablePorts: portList.availablePorts,
+                                            onTriggerDisconnect: onTriggerDisconnect,
+                                            onReceive: (String add) async {
+                                              // int baudRate = context
+                                              //     .read<ConstantProvider>()
+                                              //     .getBaudRate();
+                          
+                                              // await _serialUtil.openPortToListen(
+                                              //     add, baudRate);
+                          
+                                              // // ignore: use_build_context_synchronously
+                                              // context
+                                              //     .read<DataStatusProvider>()
+                                              //     .setMicrophoneDataStatus(false);
+                          
+                                              // // if (!mounted) return;
+                                              // // bool dummyDataStatus = context
+                                              // //     .read<DataStatusProvider>()
+                                              // //     .isSampleDataOn;
+                                              // // bool isAudioListen = context
+                                              // //     .read<DataStatusProvider>()
+                                              // //     .isMicrophoneData;
+                                              // // try {
+                                              // //   _serialUtil.dataStream?.listen((event) {
+                                              // //     if (!dummyDataStatus &&
+                                              // //         !isAudioListen) {
+                                              // //       _preEscapeSequenceBuffer
+                                              // //           .addBytes(event);
+                                              // //       if (isDeviceConnect) {
+                                              // //         _serialUtil.writeToPort(
+                                              // //             bytesMessage: UsbCommand
+                                              // //                 .hwTypeInquiry
+                                              // //                 .cmdAsBytes(),
+                                              // //             address: add);
+                          
+                                              // //         isDeviceConnect = false;
+                                              // //       }
+                                              // //       if (_isDataIdentified) {
+                                              // //         // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
+                                              // //         // stopwatch.reset();
+                                              // //       } else {
+                                              // //         Uint8List? firstFrameData =
+                                              // //             _frameDetect.addData(event);
+                          
+                                              // //         if (firstFrameData != null) {
+                                              // //           _preEscapeSequenceBuffer
+                                              // //               .addBytes(firstFrameData);
+                                              // //           _isDataIdentified = true;
+                                              // //         }
+                                              // //       }
+                                              // //     }
+                                              // //   });
+                                              // //   portName = add;
+                                              // // } catch (e) {
+                                              // //   print(
+                                              // //       "the error is $e from serial port");
+                                              // // }
+                                            },
+                                            onWrite: (String add) async {
+                                              serialWebButtonPressed();
+                                              // MessageValueSet? selectedCommand =
+                                              //     await showCommandPopUp(add);
+                                              // if (selectedCommand != null) {
+                                              //   _serialUtil.writeToPort(
+                                              //       bytesMessage:
+                                              //           selectedCommand.cmdAsBytes(),
+                                              //       address: add);
+                                              // }
+                                            },
+                                          );
+                                        }),
+                          
+                                        // 5. Footer Row
+                                        Container(
+                                          margin: const EdgeInsets.fromLTRB(0, 10, 0, 10),
+                                          padding:
+                                              const EdgeInsets.fromLTRB(5, 10, 10, 10),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(16),
+                                            color: Color(0xFF2e2e2e),
+                                          ),
+                      
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.max,
+                                            children: [
+                                              // 1. The Custom Switch
+                                              Switch(
+                                                value: isDarkMode,
+                                                activeColor: Colors.white,
+                                                activeTrackColor: Color(
+                                                    0xFFFF7A5C), // The orange/coral color in your image
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    isDarkMode = value;
+                                                  });
+                                                },
+                                              ),
+                                              SizedBox(width: 8),
+                          
+                                              // 2. The Main Label
+                                              Text(
+                                                'Dark Mode',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                          
+                                              // 3. Spacing to push version info to the right
+                                              Spacer(),
+                          
+                                              // 4. App Version Info
+                                              Icon(Icons.info_outline,
+                                                  color: Colors.grey, size: 16),
+                                              SizedBox(width: 6),
+                                              Text(
+                                                'SpikeRecorder App ver. 2.0.5',
+                                                style: TextStyle(
+                                                  color: Colors.grey,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+
+                      ],
                   ),
                 ),
                 child4: !kIsWeb && Platform.isAndroid && isThresholdingButton
@@ -1319,7 +1383,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               .settingStatus(true);
                                         },
                                         // iconData: Icons.settings),
-                                        iconData: IconData(0xe90a,
+                                        iconData: const IconData(0xe90a,
                                             fontFamily: "IcomoonIcons")),
                                 const SizedBox(
                                   width: 10,
@@ -1370,7 +1434,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                             ? Colors.yellow
                                             : Colors.white,
                                         // iconData: Icons.graphic_eq_outlined,
-                                        iconData: IconData(0xe90b,
+                                        iconData: const IconData(0xe90b,
                                             fontFamily: "IcomoonIcons"),
                                       ),
                                 const SizedBox(
@@ -1541,163 +1605,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                             ),
                             Row(
                               children: [
-                                isOpeningFile
-                                    ? SizedBox()
-                                    : SpikerBoxButton(
-                                        onTapButton: () async {
-                                          print(
-                                              "STATUS RECORDING: $isRecording");
-                                          if (isRecording == 0) {
-                                            print(
-                                                "!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
 
-                                            bool isAudioListen = context
-                                                .read<DataStatusProvider>()
-                                                .isMicrophoneData;
-                                            visibleSignalsList = context
-                                                .read<ChannelColorProvider>()
-                                                .getVisibleChannel();
-                                            visibleChannelCount = context
-                                                .read<ChannelColorProvider>()
-                                                .getVisibleChannelCount();
-
-                                            if (kIsWeb) {
-                                              await GraphTemplate.nwbFileUtil
-                                                  ?.recordNewFileLocation();
-                                              int counterTimerCancel = 0;
-                                              Timer.periodic(
-                                                  Duration(seconds: 1),
-                                                  (timer) async {
-                                                // counterTimerCancel++;
-                                                print(
-                                                    "GraphTemplate.nwbFileUtil?.recordedNwbFilePath: ${GraphTemplate.nwbFileUtil?.recordedNwbFilePath}");
-                                                String strTemp = GraphTemplate
-                                                        .nwbFileUtil
-                                                        ?.recordedNwbFilePath ??
-                                                    "";
-                                                if (strTemp.length! > 3) {
-                                                  timer.cancel();
-                                                  if (isAudioListen) {
-                                                    recordedFilePath = await GraphTemplate
-                                                        .nwbFileUtil
-                                                        ?.processingInit(
-                                                            _sampleRate,
-                                                            widget.channelCount,
-                                                            "Audio|||",
-                                                            "SpikeRecorder Systems",
-                                                            visibleSignalsList,
-                                                            visibleChannelCount);
-                                                  } else {
-                                                    recordedFilePath = await GraphTemplate
-                                                        .nwbFileUtil
-                                                        ?.processingInit(
-                                                            _sampleRate,
-                                                            widget.channelCount,
-                                                            "SpikeRecorder Device|||",
-                                                            "SpikeRecorder Systems",
-                                                            visibleSignalsList,
-                                                            visibleChannelCount);
-                                                  }
-                                                  bool isPlay = true;
-                                                  Provider.of<GraphResumePlayProvider>(
-                                                          context,
-                                                          listen: false)
-                                                      .setGraphResumePlay(
-                                                          isPlay);
-                                                  _toPauseGraph = isPlay;
-                                                  GraphTemplate.isPlayerPaused =
-                                                      !isPlay;
-                                                  _pendingPlayback = false;
-
-                                                  Future.delayed(
-                                                      Duration(
-                                                          milliseconds: 1000),
-                                                      () {
-                                                    isRecording = 1;
-                                                    context
-                                                        .read<
-                                                            ChannelColorProvider>()
-                                                        .setIsRecording(1);
-
-                                                    recordingStartTime = DateTime
-                                                            .now()
-                                                        .millisecondsSinceEpoch;
-
-                                                    recordingNotifier.value = [
-                                                      recordingStartTime,
-                                                      recordingStartTime
-                                                    ];
-                                                    setState(() {});
-                                                  });
-                                                } else if (GraphTemplate
-                                                        .nwbFileUtil
-                                                        ?.recordedNwbFilePath ==
-                                                    "--") {
-                                                  GraphTemplate.nwbFileUtil
-                                                      ?.recordedNwbFilePath = "";
-                                                  print("NWB FILE PATH");
-                                                  counterTimerCancel = 0;
-                                                  isOpeningFile = false;
-                                                  timer.cancel();
-                                                }
-                                              });
-                                            } else {
-                                              if (isAudioListen) {
-                                                recordedFilePath =
-                                                    await GraphTemplate
-                                                        .nwbFileUtil
-                                                        ?.processingInit(
-                                                            _sampleRate,
-                                                            widget.channelCount,
-                                                            "Audio|||",
-                                                            "SpikeRecorder Systems",
-                                                            visibleSignalsList,
-                                                            visibleChannelCount);
-                                              } else {
-                                                recordedFilePath = await GraphTemplate
-                                                    .nwbFileUtil
-                                                    ?.processingInit(
-                                                        _sampleRate,
-                                                        widget.channelCount,
-                                                        "SpikeRecorder Device|||",
-                                                        "SpikeRecorder Systems",
-                                                        visibleSignalsList,
-                                                        visibleChannelCount);
-                                              }
-                                              Future.delayed(
-                                                  Duration(milliseconds: 1000),
-                                                  () {
-                                                isRecording = 1;
-                                                context
-                                                    .read<
-                                                        ChannelColorProvider>()
-                                                    .setIsRecording(1);
-                                                recordingStartTime =
-                                                    DateTime.now()
-                                                        .millisecondsSinceEpoch;
-
-                                                recordingNotifier.value = [
-                                                  recordingStartTime,
-                                                  recordingStartTime
-                                                ];
-                                                setState(() {});
-                                              });
-                                            }
-                                            // isRecording = 1;
-                                          } else {
-                                            resetRecordingState(widgetContext);
-
-                                            setState(() {});
-                                          }
-                                        },
-                                        iconData: Icons.fiber_manual_record,
-                                        iconColor: isRecording == 1
-                                            ? Colors.red
-                                            : Colors.white,
-                                      ),
-                                const SizedBox(
-                                  width: 10,
-                                ),
                                 if (isRecording != 1) ...{
                                   SpikerBoxButton(
                                     onTapButton: () async {
@@ -1716,7 +1624,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       }
                                       // }, iconData: Icons.menu)
                                     },
-                                    iconData: IconData(0xe909,
+                                    iconData: const IconData(0xe909,
                                         fontFamily: "IcomoonIcons"),
                                   )
                                 },
@@ -1724,28 +1632,207 @@ class _GraphTemplateState extends State<GraphTemplate> {
                             )
                           ],
                         ),
-                        isRecording != 0
-                            ? SizedBox()
-                            : BottomButtons(
-                                pauseButton: (bool isPlay) async {
-                                  if (!isOpeningFile) {
-                                    Provider.of<GraphResumePlayProvider>(
-                                            context,
-                                            listen: false)
-                                        .setGraphResumePlay(isPlay);
-                                    _toPauseGraph = isPlay;
-                                    GraphTemplate.isPlayerPaused = !isPlay;
-                                    _pendingPlayback = false;
-                                    setState(() {});
-                                  } else {
-                                    callbackPlayButton(isPlay);
-                                  }
-                                },
-                              ),
+                        // Text("isOpeningFile: $isOpeningFile && isRecording: $isRecording"),
+                        if (isOpeningFile)...[
+                          BottomButtons(
+                            pauseButton: (bool isPlay) async {
+                              if (!isOpeningFile) {
+                                Provider.of<GraphResumePlayProvider>(
+                                        context,
+                                        listen: false)
+                                    .setGraphResumePlay(isPlay);
+                                _toPauseGraph = isPlay;
+                                GraphTemplate.isPlayerPaused = !isPlay;
+                                _pendingPlayback = false;
+                                setState(() {});
+                              } else {
+                                callbackPlayButton(isPlay);
+                              }
+                            },
+                          ),
+                        ],
+                        if (!isOpeningFile) ...[
+                          Center(
+                            child: SpikerBoxButton(
+                                    onTapButton: () async {
+                                      print(
+                                          "STATUS RECORDING: $isRecording");
+                                      if (isRecording == 0) {
+                                        print(
+                                            "!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
+
+                                        bool isAudioListen = context
+                                            .read<DataStatusProvider>()
+                                            .isMicrophoneData;
+                                        visibleSignalsList = context
+                                            .read<ChannelColorProvider>()
+                                            .getVisibleChannel();
+                                        visibleChannelCount = context
+                                            .read<ChannelColorProvider>()
+                                            .getVisibleChannelCount();
+
+                                        if (kIsWeb) {
+                                          await GraphTemplate.nwbFileUtil
+                                              ?.recordNewFileLocation();
+                                          int counterTimerCancel = 0;
+                                          Timer.periodic(
+                                              Duration(seconds: 1),
+                                              (timer) async {
+                                            // counterTimerCancel++;
+                                            print(
+                                                "GraphTemplate.nwbFileUtil?.recordedNwbFilePath: ${GraphTemplate.nwbFileUtil?.recordedNwbFilePath}");
+                                            String strTemp = GraphTemplate
+                                                    .nwbFileUtil
+                                                    ?.recordedNwbFilePath ??
+                                                "";
+                                            if (strTemp.length! > 3) {
+                                              timer.cancel();
+                                              if (isAudioListen) {
+                                                recordedFilePath = await GraphTemplate
+                                                    .nwbFileUtil
+                                                    ?.processingInit(
+                                                        _sampleRate,
+                                                        widget.channelCount,
+                                                        "Audio|||",
+                                                        "SpikeRecorder Systems",
+                                                        visibleSignalsList,
+                                                        visibleChannelCount);
+                                              } else {
+                                                recordedFilePath = await GraphTemplate
+                                                    .nwbFileUtil
+                                                    ?.processingInit(
+                                                        _sampleRate,
+                                                        widget.channelCount,
+                                                        "SpikeRecorder Device|||",
+                                                        "SpikeRecorder Systems",
+                                                        visibleSignalsList,
+                                                        visibleChannelCount);
+                                              }
+                                              bool isPlay = true;
+                                              Provider.of<GraphResumePlayProvider>(
+                                                      context,
+                                                      listen: false)
+                                                  .setGraphResumePlay(
+                                                      isPlay);
+                                              _toPauseGraph = isPlay;
+                                              GraphTemplate.isPlayerPaused =
+                                                  !isPlay;
+                                              _pendingPlayback = false;
+
+                                              Future.delayed(
+                                                  Duration(
+                                                      milliseconds: 1000),
+                                                  () {
+                                                isRecording = 1;
+                                                context
+                                                    .read<
+                                                        ChannelColorProvider>()
+                                                    .setIsRecording(1);
+
+                                                recordingStartTime = DateTime
+                                                        .now()
+                                                    .millisecondsSinceEpoch;
+
+                                                recordingNotifier.value = [
+                                                  recordingStartTime,
+                                                  recordingStartTime
+                                                ];
+                                                setState(() {});
+                                              });
+                                            } else if (GraphTemplate
+                                                    .nwbFileUtil
+                                                    ?.recordedNwbFilePath ==
+                                                "--") {
+                                              GraphTemplate.nwbFileUtil
+                                                  ?.recordedNwbFilePath = "";
+                                              print("NWB FILE PATH");
+                                              counterTimerCancel = 0;
+                                              isOpeningFile = false;
+                                              timer.cancel();
+                                            }
+                                          });
+                                        } else {
+                                          if (isAudioListen) {
+                                            recordedFilePath =
+                                                await GraphTemplate
+                                                    .nwbFileUtil
+                                                    ?.processingInit(
+                                                        _sampleRate,
+                                                        widget.channelCount,
+                                                        "Audio|||",
+                                                        "SpikeRecorder Systems",
+                                                        visibleSignalsList,
+                                                        visibleChannelCount);
+                                          } else {
+                                            recordedFilePath = await GraphTemplate
+                                                .nwbFileUtil
+                                                ?.processingInit(
+                                                    _sampleRate,
+                                                    widget.channelCount,
+                                                    "SpikeRecorder Device|||",
+                                                    "SpikeRecorder Systems",
+                                                    visibleSignalsList,
+                                                    visibleChannelCount);
+                                          }
+                                          Future.delayed(
+                                              Duration(milliseconds: 1000),
+                                              () {
+                                            isRecording = 1;
+                                            context
+                                                .read<
+                                                    ChannelColorProvider>()
+                                                .setIsRecording(1);
+                                            recordingStartTime =
+                                                DateTime.now()
+                                                    .millisecondsSinceEpoch;
+
+                                            recordingNotifier.value = [
+                                              recordingStartTime,
+                                              recordingStartTime
+                                            ];
+                                            setState(() {});
+                                          });
+                                        }
+                                        // isRecording = 1;
+                                      } else {
+                                        resetRecordingState(widgetContext);
+
+                                        setState(() {});
+                                      }
+                                    },
+                                    iconData: Icons.fiber_manual_record,
+                                    iconColor: isRecording == 1
+                                        ? Colors.red
+                                        : Colors.white,
+                            ),
+                          ),
+                        ],
+                        // isRecording != 0
+                        //     ? SizedBox()
+                        //     : !isOpeningFile ? SizedBox() : 
                       ],
                     ),
                   ),
-                ));
+                ),
+                childOverlay: !isOpeningFile ? SizedBox() : Positioned(
+                  top: 0,
+                  left: 0,
+                  child: SizedBox(
+                    width: MediaQuery.of(context).size.width,
+                    child: Center(
+                      child: Container(
+                        margin: EdgeInsets.only(top: 25),
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(16)
+                        ),
+                        child: Text(openedFilePath, style: TextStyle(color: Colors.white))
+                      ),
+                    )
+                  ),
+                ),
+              );
           }),
       floatingActionButton: null,
     );
@@ -2166,6 +2253,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void listenToMicrophone(channelCount, provider) async {
     print("listenToMicrophone");
     stopCurrentPlaying();
+    _deviceName.value = "";
 
     // Prevent multiple simultaneous calls
     if (_isListeningToMicrophone) {
@@ -2775,39 +2863,133 @@ class _GraphTemplateState extends State<GraphTemplate> {
       ChannelColorProvider provider, bool isAudio) {
     final colors = isAudio ? provider.audioColors : provider.serialColors;
     String title = isAudio ? 'Audio Channel Colors' : 'Serial Channel Colors';
+
+    List<Widget> children = [];
+    for (int idx = 0; idx < colors.length; idx++) {
+      children.add(
+        // ...List.generate(colors.length, (idx) {
+          // return 
+          Material(
+            color: Colors.transparent,
+            
+            child: InkWell(
+              onTap: () {},
+              hoverColor: Color(0xFF4c4c4c),
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                margin: EdgeInsets.fromLTRB(1, 1, 1, 1),
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Color(0xFF2e2e2e),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                children: [
+                  // Icon(IconData(0xe90e, fontFamily: "IcomoonIcons"), color: Colors.white),
+                  Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(child: Text('${idx + 1}', style: SoftwareTextStyle().kWtMediumTextStyle))
+                  ),
+                  SizedBox(width: 10),
+                  SvgPicture.asset(
+                    'assets/icons/config_board.svg',
+                    width: 20,
+                    height: 20,
+                  ),              
+                  SizedBox(width: 10),
+                  Text('SpikerBox Channel',
+                      style: SoftwareTextStyle().kWtMediumTextStyle),
+                  const SizedBox(width: 8),
+                  Container(
+                    height: 30,
+                    margin: EdgeInsets.fromLTRB(0, 5, 0, 5),
+                    padding: EdgeInsets.fromLTRB(3, 2, 3, 2),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.blueGrey),
+                      borderRadius: BorderRadius.circular(5),
+                    ),                    
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<Color>(
+                        padding: EdgeInsets.fromLTRB(0, 0, 0, 0),
+                        icon: Icon(IconData(0xe90e, fontFamily: "IcomoonIcons"), size: 20, color: Colors.grey),
+                        value: colors[idx],
+                        dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                        items: availableColors
+                            .map((c) => DropdownMenuItem(
+                                  value: c,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      color: c,
+                                      border: Border.all(color: c, width: 1),
+                                    ),
+                                    width: 40, height: 20, 
+                                  ),
+                                ))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            if (isAudio) {
+                              provider.setAudioColor(idx, val);
+                            } else {
+                              provider.setSerialColor(idx, val);
+                            }
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      isDetailConfiguration = !isDetailConfiguration;
+                      customizeDetailChannelIdx = idx;
+                      configTitle = "Channel Settings";
+
+                      setState(() {});
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF333333), // Dark grey background
+                      foregroundColor: Colors.white,            // White text color
+                      elevation: 0,                            // Flat design as seen in image
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: const StadiumBorder(),            // Creates the perfect "pill" shape
+                    ).copyWith(
+                      // Adding the hover border logic we discussed
+                      side: WidgetStateProperty.resolveWith<BorderSide>((states) {
+                        if (states.contains(WidgetState.hovered)) {
+                          return const BorderSide(color: Colors.blue, width: 1.5);
+                        }
+                        return BorderSide.none; 
+                      }),
+                    ), 
+                    child: const Text("Customize"),                    
+                  ),
+                  Spacer(),
+                  GestureDetector(
+                    child: Icon(IconData(0xe90a, fontFamily: "IcomoonIcons"), size: 20, color: Colors.grey)
+                  ),
+                ],
+              ),
+            ),
+          ),
+          )
+        // }),
+
+      );
+      children.add(SizedBox(height: 5));
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: SoftwareTextStyle().kWtMediumTextStyle),
-        ...List.generate(colors.length, (idx) {
-          return Row(
-            children: [
-              Text('Channel ${idx + 1}',
-                  style: SoftwareTextStyle().kWtMediumTextStyle),
-              const SizedBox(width: 8),
-              DropdownButton<Color>(
-                value: colors[idx],
-                dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                items: availableColors
-                    .map((c) => DropdownMenuItem(
-                          value: c,
-                          child: Container(width: 20, height: 20, color: c),
-                        ))
-                    .toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    if (isAudio) {
-                      provider.setAudioColor(idx, val);
-                    } else {
-                      provider.setSerialColor(idx, val);
-                    }
-                  }
-                },
-              ),
-            ],
-          );
-        })
-      ],
+      children: children,
+      // [
+      //   // Text(title, style: SoftwareTextStyle().kWtMediumTextStyle),
+      // ],
     );
   }
 
@@ -2906,7 +3088,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       padding: EdgeInsets.fromLTRB(0, 10, 0, 0),
       decoration: BoxDecoration(
         color: Color(0xFF2e2e2e),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2944,6 +3126,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
   int visibleChannelCount = 1;
 
   bool isDarkMode = true;
+  
+  bool isDetailConfiguration = false;
+  int customizeDetailChannelIdx = -1;
   // Int32List arrSampleCountWeb = Int32List(0);
   // Int16List arrSamplesWeb = Int16List(1);
 
@@ -3643,7 +3828,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   // shape: BoxShape.circle,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.3),
@@ -3771,15 +3956,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (devices == null) {
         return;
       }
-      _deviceName.value = devices;
-      print("devices :   $devices");
       // if (_deviceName.value != null) {
       //   deviceType = listOfDevices.indexOf(_deviceName.value!);
       //   print("deviceType");
       //   print(deviceType);
       // }
 
-      SetUpFunctionality().setTheDeviceSetting(_deviceName.value).then((value) {
+      SetUpFunctionality().setTheDeviceSetting(devices).then((value) {
         print("VALUE : $value");
         if (value != null) {
           String tempDevices = value.uniqueName ?? "";
@@ -3839,6 +4022,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               for (Board board in connectedBoards) {
                 if (board.uniqueName == foundDevices) {
                   GraphTemplate.selectedBoard = board;
+                  _deviceName.value = GraphTemplate.selectedBoard?.userFriendlyFullName;
+                  print("devices :   $devices");
                   // HARDCODE
                   deviceType = listOfDevices.indexOf("$foundDevices;") + 1;
                   print(
@@ -4509,284 +4694,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       SoftwareColors.kButtonBackGroundColor, // Button color
                 ),
                 onPressed: () async {
-                  if (_isSerialWebButtonEnabled) {
-                    _isSerialWebButtonEnabled = false;
-                    _serialUtil.closePort();
-                    isDeviceConnect = false;
-                    isDeviceSelected = false;
-                    _isDataIdentified = false;
-                    GraphDataProvider graphDataProvider =
-                        Provider.of<GraphDataProvider>(context, listen: false);
-                    listenToMicrophone(1, graphDataProvider);
-                    streamScrubBuilderController.add(Random().nextInt(100000));
-
-                    return;
-                  }
-                  _isSerialWebButtonEnabled = true;
-                  try {
-                    int baudRate =
-                        context.read<ConstantProvider>().getBaudRate();
-                    print("getAvailablePorts: $baudRate");
-                    List<String> availablePorts = await _serialUtil
-                        .getAvailablePortsWeb(baudRate, serialErrorCallback);
-                    if (availablePorts.isEmpty) {
-                      _isSerialWebButtonEnabled = false;
-                      return;
-                    }
-                    print("availablePorts GRAPH TEMPLATE: $availablePorts");
-
-                    Provider.of<GraphResumePlayProvider>(context, listen: false)
-                        .setGraphResumePlay(false);
-                    GraphTemplate.isLoadingFile = 0;
-                    isOpeningFile = false;
-                    bool isPlay = true;
-                    Provider.of<GraphResumePlayProvider>(context, listen: false)
-                        .setGraphResumePlay(isPlay);
-                    _toPauseGraph = isPlay;
-                    GraphTemplate.isPlayerPaused = !isPlay;
-                    _pendingPlayback = false;
-
-                    serialDataSubscription?.cancel();
-                    _availablePorts = _serialUtil.availablePorts;
-                    if (!mounted) return;
-                    Provider.of<PortScanProvider>(context, listen: false)
-                        .setPortScanList(_availablePorts);
-                    context
-                        .read<DataStatusProvider>()
-                        .setMicrophoneDataStatus(false);
-
-                    if (!mounted) return;
-                    bool dummyDataStatus =
-                        context.read<DataStatusProvider>().isSampleDataOn;
-                    bool isAudioListen =
-                        context.read<DataStatusProvider>().isMicrophoneData;
-                    final provider =
-                        Provider.of<GraphDataProvider>(context, listen: false);
-                    print(
-                        "_serialUtil.dataStream $isAudioListen $dummyDataStatus | $_isDataIdentified $isDeviceSelected");
-                    isDeviceConnect = true;
-                    isDeviceSelected = false;
-                    _isDataIdentified = false;
-                    streamScrubBuilderController.add(Random().nextInt(100000));
-
-                    serialDataSubscription =
-                        _serialUtil.dataStream?.listen((event) async {
-                      if (isOpeningFile) {
-                        return;
-                      }
-                      if (!dummyDataStatus && !isAudioListen) {
-                        arr = [processingUtil.thresholdingArraylength];
-
-                        int drawSurfaceWidth =
-                            MediaQuery.of(context).size.width.toInt();
-                        if (isDeviceConnect) {
-                          _serialUtil.writeToPort(
-                              bytesMessage:
-                                  UsbCommand.hwTypeInquiry.cmdAsBytes(),
-                              address: _availablePorts.last);
-                          isDeviceConnect = false;
-                        }
-                        if (_isDataIdentified) {
-                          if (!GraphTemplate.isPlayerPaused) {
-                            processingUtil
-                                .processSerialData(event, displayTimeMs.toInt(),
-                                    deviceType, drawSurfaceWidth, provider)
-                                .then((samples) {
-                              totalSampleCount += samples[0].length;
-                              if (totalSampleCount > sampleCountToDisplay) {
-                                totalSampleCount = 0;
-                                if (isThresholdingButton) {
-                                  double displayTimeDivision =
-                                      (displayTimeMs / 10000);
-                                  double gap =
-                                      (arr[0] * (1 - displayTimeDivision));
-                                  int maxSamples =
-                                      (ProcessingUtil.MAX_DISPLAY_SECONDS *
-                                              _sampleRate)
-                                          .floor();
-                                  int toSample = maxSamples - (gap / 2).floor();
-                                  int fromSample =
-                                      toSample - arr[0] + (gap).floor();
-                                  DraggableGraph.startPositionIdx = fromSample;
-                                  DraggableGraph.endPositionIdx = toSample;
-
-                                  processingUtil.processDisplaySerialData(
-                                      displayTimeMs.toInt(),
-                                      deviceType,
-                                      drawSurfaceWidth,
-                                      provider,
-                                      fromSample,
-                                      toSample);
-                                } else {
-                                  int maxSamples =
-                                      (ProcessingUtil.MAX_DISPLAY_SECONDS *
-                                              _sampleRate)
-                                          .floor();
-                                  int maxDisplaySamples =
-                                      (displayTimeMs * 0.001 * _sampleRate)
-                                          .floor();
-                                  DraggableGraph.startPositionIdx =
-                                      maxSamples - maxDisplaySamples;
-                                  DraggableGraph.endPositionIdx = maxSamples;
-
-                                  processingUtil.processDisplaySerialData(
-                                      displayTimeMs.toInt(),
-                                      deviceType,
-                                      drawSurfaceWidth,
-                                      provider,
-                                      0,
-                                      maxDisplaySamples);
-                                }
-                              }
-                            });
-                            if (isRecording == 1) {
-                              recordingNotifier.value = [
-                                recordingStartTime,
-                                DateTime.now().millisecondsSinceEpoch
-                              ];
-                            }
-                          } else {
-                            if (SoundWaveView.dragDetails != null) {
-                              // int fromSample = (-bufferPaddingLeft).toInt();
-                              // int toSample = (fromSample + displayTimeMs * 0.001 * _sampleRate).toInt();
-                              totalSampleCount += 2;
-                              if (totalSampleCount > sampleCountToDisplay) {
-                                totalSampleCount = 0;
-
-                                int maxSamples =
-                                    (ProcessingUtil.MAX_DISPLAY_SECONDS *
-                                            _sampleRate)
-                                        .floor();
-                                int toSample =
-                                    (maxSamples + bufferPaddingLeft).toInt();
-                                toSample = min(maxSamples, toSample);
-                                int fromSample = (toSample -
-                                        displayTimeMs * 0.001 * _sampleRate)
-                                    .toInt();
-                                DraggableGraph.startPositionIdx = fromSample;
-                                DraggableGraph.endPositionIdx = toSample;
-
-                                // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
-                                if (isThresholdingButton) {
-                                  double displayTimeDivision =
-                                      (displayTimeMs / 10000);
-                                  double gap =
-                                      (arr[0] * (1 - displayTimeDivision));
-                                  toSample = maxSamples - (gap / 2).floor();
-                                  fromSample =
-                                      toSample - arr[0] + (gap).floor();
-                                  processingUtil.processDisplaySerialData(
-                                      displayTimeMs.toInt(),
-                                      deviceType,
-                                      drawSurfaceWidth,
-                                      provider,
-                                      fromSample,
-                                      toSample);
-                                } else {
-                                  processingUtil.processDisplaySerialData(
-                                      displayTimeMs.toInt(),
-                                      deviceType,
-                                      drawSurfaceWidth,
-                                      provider,
-                                      fromSample,
-                                      toSample);
-                                }
-                              }
-                            } else {}
-                          }
-                        } else {
-                          if (!isDeviceConnect && !isDeviceSelected) {
-                            _preEscapeSequenceBuffer.addBytes(event);
-                            // print("ENTER:  $event = $isAudioListen $dummyDataStatus | $_isDataIdentified $isDeviceSelected");
-                          }
-                          if (isDeviceSelected) {
-                            // !isDeviceConnect &&
-                            _isDataIdentified = true;
-                            Future.delayed(Duration(milliseconds: 100), () {
-                              Uint8List commandBytes =
-                                  Uint8List.fromList(utf8.encode("board:;"));
-                              _serialUtil.writeToPort(
-                                  bytesMessage: commandBytes,
-                                  address: _availablePorts.last);
-                            });
-                            // STEVE
-                            // processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((sampleCount) {
-                            //   totalSampleCount += sampleCount;
-                            processingUtil
-                                .processSerialData(event, displayTimeMs.toInt(),
-                                    deviceType, drawSurfaceWidth, provider)
-                                .then((samples) {
-                              totalSampleCount += samples[0].length;
-                              if (totalSampleCount > sampleCountToDisplay) {
-                                totalSampleCount = 0;
-                                if (isThresholdingButton) {
-                                  double displayTimeDivision =
-                                      (displayTimeMs / 10000);
-                                  double gap =
-                                      (arr[0] * (1 - displayTimeDivision));
-                                  int maxSamples =
-                                      (ProcessingUtil.MAX_DISPLAY_SECONDS *
-                                              _sampleRate)
-                                          .floor();
-                                  int toSample = maxSamples - (gap / 2).floor();
-                                  int fromSample =
-                                      toSample - arr[0] + (gap).floor();
-                                  DraggableGraph.startPositionIdx = fromSample;
-                                  DraggableGraph.endPositionIdx = toSample;
-                                  processingUtil.processDisplaySerialData(
-                                      displayTimeMs.toInt(),
-                                      deviceType,
-                                      drawSurfaceWidth,
-                                      provider,
-                                      fromSample,
-                                      toSample);
-                                } else {
-                                  int maxSamples =
-                                      (ProcessingUtil.MAX_DISPLAY_SECONDS *
-                                              _sampleRate)
-                                          .floor();
-                                  int maxDisplaySamples =
-                                      (displayTimeMs * 0.001 * _sampleRate)
-                                          .floor();
-                                  DraggableGraph.startPositionIdx =
-                                      maxSamples - maxDisplaySamples;
-                                  DraggableGraph.endPositionIdx = maxSamples;
-
-                                  processingUtil.processDisplaySerialData(
-                                      displayTimeMs.toInt(),
-                                      deviceType,
-                                      drawSurfaceWidth,
-                                      provider,
-                                      0,
-                                      (maxDisplaySamples).floor());
-                                }
-                              }
-                            });
-                          }
-                        }
-                      }
-                    }, onError: (error) {
-                      // if (error is SerialPortError) {
-                      forceSerialDisconnect = true;
-                      print("SERIAL PORT ERROR -- DISCONNECTED");
-                      _serialUtil.closePort();
-                      Future.delayed(Duration(milliseconds: 2500), () {
-                        forceSerialDisconnect = false;
-                        _isSerialWebButtonEnabled = false;
-                        isDeviceConnect = false;
-                        isDeviceSelected = false;
-                        _isDataIdentified = false;
-                        streamScrubBuilderController
-                            .add(Random().nextInt(100000));
-                        listenToMicrophone(1, provider);
-                      });
-                      // }
-                    });
-                    portName = _availablePorts.first;
-                  } catch (e) {
-                    Debugging.printing("Opening port failed:\n$e");
-                  }
-                  setState(() {});
+                  serialWebButtonPressed();
                 },
                 child: Row(
                   children: [
@@ -4834,13 +4742,25 @@ class _GraphTemplateState extends State<GraphTemplate> {
               // ));
               ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(
                 // content: Text("File recorded successfully: $publicPath"),
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: Colors.transparent,
                 content: getSavedRecordingBanner(publicPath),
+                width: MediaQuery.of(widgetContext).size.width / 3, // Fixed width helps it look like a dialog/toast
+                margin: EdgeInsets.only(
+                  bottom: MediaQuery.of(widgetContext).size.height / 2 - 30, // Adjust -25 based on approximate SnackBar height
+                ),                
                 duration: Duration(seconds: 7),
               ));
             } else {
               ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(
                 // content: Text("File recorded successfully: $recordedFilePath"),
+                // content: getSavedRecordingBanner(recordedFilePath),
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: Colors.transparent,
                 content: getSavedRecordingBanner(recordedFilePath),
+                margin: EdgeInsets.only(
+                  bottom: MediaQuery.of(widgetContext).size.height / 2 - 30, // Adjust -25 based on approximate SnackBar height
+                ),                
                 duration: Duration(seconds: 7),
               ));
             }
@@ -5153,13 +5073,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
   }
 
-  _isMutingSpeakers() {
+  _mutingSpeakers() {
     return Container(
       margin: EdgeInsets.only(top: 10),
       padding: EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Color(0xFF2e2e2e),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
@@ -5251,6 +5171,307 @@ class _GraphTemplateState extends State<GraphTemplate> {
       ),
     );
   }
+  
+  void serialWebButtonPressed() async {
+    if (_isSerialWebButtonEnabled) {
+      _isSerialWebButtonEnabled = false;
+      _serialUtil.closePort();
+      isDeviceConnect = false;
+      isDeviceSelected = false;
+      _isDataIdentified = false;
+      GraphDataProvider graphDataProvider =
+          Provider.of<GraphDataProvider>(context, listen: false);
+      listenToMicrophone(1, graphDataProvider);
+      streamScrubBuilderController.add(Random().nextInt(100000));
+
+      return;
+    }
+    _isSerialWebButtonEnabled = true;
+    try {
+      int baudRate =
+          context.read<ConstantProvider>().getBaudRate();
+      print("getAvailablePorts: $baudRate");
+      List<String> availablePorts = await _serialUtil
+          .getAvailablePortsWeb(baudRate, serialErrorCallback);
+      if (availablePorts.isEmpty) {
+        _isSerialWebButtonEnabled = false;
+        return;
+      }
+      print("availablePorts GRAPH TEMPLATE: $availablePorts");
+
+      Provider.of<GraphResumePlayProvider>(context, listen: false)
+          .setGraphResumePlay(false);
+      GraphTemplate.isLoadingFile = 0;
+      isOpeningFile = false;
+      bool isPlay = true;
+      Provider.of<GraphResumePlayProvider>(context, listen: false)
+          .setGraphResumePlay(isPlay);
+      _toPauseGraph = isPlay;
+      GraphTemplate.isPlayerPaused = !isPlay;
+      _pendingPlayback = false;
+
+      serialDataSubscription?.cancel();
+      _availablePorts = _serialUtil.availablePorts;
+      if (!mounted) return;
+      Provider.of<PortScanProvider>(context, listen: false)
+          .setPortScanList(_availablePorts);
+      context
+          .read<DataStatusProvider>()
+          .setMicrophoneDataStatus(false);
+
+      if (!mounted) return;
+      bool dummyDataStatus =
+          context.read<DataStatusProvider>().isSampleDataOn;
+      bool isAudioListen =
+          context.read<DataStatusProvider>().isMicrophoneData;
+      final provider =
+          Provider.of<GraphDataProvider>(context, listen: false);
+      print(
+          "_serialUtil.dataStream $isAudioListen $dummyDataStatus | $_isDataIdentified $isDeviceSelected");
+      isDeviceConnect = true;
+      isDeviceSelected = false;
+      _isDataIdentified = false;
+      streamScrubBuilderController.add(Random().nextInt(100000));
+
+      serialDataSubscription =
+          _serialUtil.dataStream?.listen((event) async {
+        if (isOpeningFile) {
+          return;
+        }
+        if (!dummyDataStatus && !isAudioListen) {
+          arr = [processingUtil.thresholdingArraylength];
+
+          int drawSurfaceWidth =
+              MediaQuery.of(context).size.width.toInt();
+          if (isDeviceConnect) {
+            _serialUtil.writeToPort(
+                bytesMessage:
+                    UsbCommand.hwTypeInquiry.cmdAsBytes(),
+                address: _availablePorts.last);
+            isDeviceConnect = false;
+          }
+          if (_isDataIdentified) {
+            if (!GraphTemplate.isPlayerPaused) {
+              processingUtil
+                  .processSerialData(event, displayTimeMs.toInt(),
+                      deviceType, drawSurfaceWidth, provider)
+                  .then((samples) {
+                totalSampleCount += samples[0].length;
+                if (totalSampleCount > sampleCountToDisplay) {
+                  totalSampleCount = 0;
+                  if (isThresholdingButton) {
+                    double displayTimeDivision =
+                        (displayTimeMs / 10000);
+                    double gap =
+                        (arr[0] * (1 - displayTimeDivision));
+                    int maxSamples =
+                        (ProcessingUtil.MAX_DISPLAY_SECONDS *
+                                _sampleRate)
+                            .floor();
+                    int toSample = maxSamples - (gap / 2).floor();
+                    int fromSample =
+                        toSample - arr[0] + (gap).floor();
+                    DraggableGraph.startPositionIdx = fromSample;
+                    DraggableGraph.endPositionIdx = toSample;
+
+                    processingUtil.processDisplaySerialData(
+                        displayTimeMs.toInt(),
+                        deviceType,
+                        drawSurfaceWidth,
+                        provider,
+                        fromSample,
+                        toSample);
+                  } else {
+                    int maxSamples =
+                        (ProcessingUtil.MAX_DISPLAY_SECONDS *
+                                _sampleRate)
+                            .floor();
+                    int maxDisplaySamples =
+                        (displayTimeMs * 0.001 * _sampleRate)
+                            .floor();
+                    DraggableGraph.startPositionIdx =
+                        maxSamples - maxDisplaySamples;
+                    DraggableGraph.endPositionIdx = maxSamples;
+
+                    processingUtil.processDisplaySerialData(
+                        displayTimeMs.toInt(),
+                        deviceType,
+                        drawSurfaceWidth,
+                        provider,
+                        0,
+                        maxDisplaySamples);
+                  }
+                }
+              });
+              if (isRecording == 1) {
+                recordingNotifier.value = [
+                  recordingStartTime,
+                  DateTime.now().millisecondsSinceEpoch
+                ];
+              }
+            } else {
+              if (SoundWaveView.dragDetails != null) {
+                // int fromSample = (-bufferPaddingLeft).toInt();
+                // int toSample = (fromSample + displayTimeMs * 0.001 * _sampleRate).toInt();
+                totalSampleCount += 2;
+                if (totalSampleCount > sampleCountToDisplay) {
+                  totalSampleCount = 0;
+
+                  int maxSamples =
+                      (ProcessingUtil.MAX_DISPLAY_SECONDS *
+                              _sampleRate)
+                          .floor();
+                  int toSample =
+                      (maxSamples + bufferPaddingLeft).toInt();
+                  toSample = min(maxSamples, toSample);
+                  int fromSample = (toSample -
+                          displayTimeMs * 0.001 * _sampleRate)
+                      .toInt();
+                  DraggableGraph.startPositionIdx = fromSample;
+                  DraggableGraph.endPositionIdx = toSample;
+
+                  // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+                  if (isThresholdingButton) {
+                    double displayTimeDivision =
+                        (displayTimeMs / 10000);
+                    double gap =
+                        (arr[0] * (1 - displayTimeDivision));
+                    toSample = maxSamples - (gap / 2).floor();
+                    fromSample =
+                        toSample - arr[0] + (gap).floor();
+                    processingUtil.processDisplaySerialData(
+                        displayTimeMs.toInt(),
+                        deviceType,
+                        drawSurfaceWidth,
+                        provider,
+                        fromSample,
+                        toSample);
+                  } else {
+                    processingUtil.processDisplaySerialData(
+                        displayTimeMs.toInt(),
+                        deviceType,
+                        drawSurfaceWidth,
+                        provider,
+                        fromSample,
+                        toSample);
+                  }
+                }
+              } else {}
+            }
+          } else {
+            if (!isDeviceConnect && !isDeviceSelected) {
+              _preEscapeSequenceBuffer.addBytes(event);
+              // print("ENTER:  $event = $isAudioListen $dummyDataStatus | $_isDataIdentified $isDeviceSelected");
+            }
+            if (isDeviceSelected) {
+              // !isDeviceConnect &&
+              _isDataIdentified = true;
+              Future.delayed(Duration(milliseconds: 100), () {
+                Uint8List commandBytes =
+                    Uint8List.fromList(utf8.encode("board:;"));
+                _serialUtil.writeToPort(
+                    bytesMessage: commandBytes,
+                    address: _availablePorts.last);
+              });
+              // STEVE
+              // processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((sampleCount) {
+              //   totalSampleCount += sampleCount;
+              processingUtil
+                  .processSerialData(event, displayTimeMs.toInt(),
+                      deviceType, drawSurfaceWidth, provider)
+                  .then((samples) {
+                totalSampleCount += samples[0].length;
+                if (totalSampleCount > sampleCountToDisplay) {
+                  totalSampleCount = 0;
+                  if (isThresholdingButton) {
+                    double displayTimeDivision =
+                        (displayTimeMs / 10000);
+                    double gap =
+                        (arr[0] * (1 - displayTimeDivision));
+                    int maxSamples =
+                        (ProcessingUtil.MAX_DISPLAY_SECONDS *
+                                _sampleRate)
+                            .floor();
+                    int toSample = maxSamples - (gap / 2).floor();
+                    int fromSample =
+                        toSample - arr[0] + (gap).floor();
+                    DraggableGraph.startPositionIdx = fromSample;
+                    DraggableGraph.endPositionIdx = toSample;
+                    processingUtil.processDisplaySerialData(
+                        displayTimeMs.toInt(),
+                        deviceType,
+                        drawSurfaceWidth,
+                        provider,
+                        fromSample,
+                        toSample);
+                  } else {
+                    int maxSamples =
+                        (ProcessingUtil.MAX_DISPLAY_SECONDS *
+                                _sampleRate)
+                            .floor();
+                    int maxDisplaySamples =
+                        (displayTimeMs * 0.001 * _sampleRate)
+                            .floor();
+                    DraggableGraph.startPositionIdx =
+                        maxSamples - maxDisplaySamples;
+                    DraggableGraph.endPositionIdx = maxSamples;
+
+                    processingUtil.processDisplaySerialData(
+                        displayTimeMs.toInt(),
+                        deviceType,
+                        drawSurfaceWidth,
+                        provider,
+                        0,
+                        (maxDisplaySamples).floor());
+                  }
+                }
+              });
+            }
+          }
+        }
+      }, onError: (error) {
+        // if (error is SerialPortError) {
+        forceSerialDisconnect = true;
+        print("SERIAL PORT ERROR -- DISCONNECTED");
+        _serialUtil.closePort();
+        Future.delayed(Duration(milliseconds: 2500), () {
+          forceSerialDisconnect = false;
+          _isSerialWebButtonEnabled = false;
+          isDeviceConnect = false;
+          isDeviceSelected = false;
+          _isDataIdentified = false;
+          streamScrubBuilderController
+              .add(Random().nextInt(100000));
+          listenToMicrophone(1, provider);
+        });
+        // }
+      });
+      portName = _availablePorts.first;
+    } catch (e) {
+      Debugging.printing("Opening port failed:\n$e");
+    }
+    setState(() {});    
+  }
+
+  onTriggerDisconnect(String p1) {
+    final provider =
+        Provider.of<GraphDataProvider>(context, listen: false);
+
+    forceSerialDisconnect = true;
+    print("SERIAL PORT ERROR -- DISCONNECTED");
+    _serialUtil.closePort();
+    Future.delayed(Duration(milliseconds: 2500), () {
+      forceSerialDisconnect = false;
+      _isSerialWebButtonEnabled = false;
+      isDeviceConnect = false;
+      isDeviceSelected = false;
+      _isDataIdentified = false;
+      streamScrubBuilderController
+          .add(Random().nextInt(100000));
+      listenToMicrophone(1, provider);
+    });
+
+  }
 }
 
 class NotchPassFilterWidget extends StatefulWidget {
@@ -5292,13 +5513,13 @@ class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
         padding: EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Color(0xFF2e2e2e),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
             Icon(
-              IconData(0xe90b, fontFamily: "IcomoonIcons"),
+              const IconData(0xe90b, fontFamily: "IcomoonIcons"),
               color: Colors.white,
             ),
             SizedBox(
@@ -5442,6 +5663,7 @@ class _AdaptiveArea extends StatefulWidget {
       required this.child3,
       required this.child2,
       required this.child4,
+      required this.childOverlay,
       required this.notifier,
       required this.recordingNotifier});
 
@@ -5449,6 +5671,7 @@ class _AdaptiveArea extends StatefulWidget {
   final Widget child2;
   final Widget child3;
   final Widget child4;
+  final Widget childOverlay;
   final ValueNotifier<List<double>> notifier;
   final ValueNotifier<List<int>> recordingNotifier;
 
@@ -5476,9 +5699,10 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
         child: Stack(
           children: [
             widget.child1,
+
             Positioned(
               left: 0,
-              top: 0,
+              bottom: 100,
               child: ValueListenableBuilder<List<int>>(
                   valueListenable: widget.recordingNotifier,
                   builder: (context, snapshot, _) {
@@ -5491,14 +5715,35 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
                                   snapshot[0])); // Duration: 2:30:45.864000
                       String strTimeDiff = formatDuration(difference);
 
-                      return Container(
-                          color: Colors.red,
+                      return SizedBox(
+                          // color: Colors.red,
                           width: MediaQuery.of(context).size.width,
                           height: 30,
                           child: Center(
-                            child: Text(
-                              strTimeDiff,
-                              style: TextStyle(color: Colors.white),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black,
+                                borderRadius: BorderRadius.circular(16)
+                              ),
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      borderRadius: BorderRadius.circular(8)
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    strTimeDiff,
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ],
+                              ),
                             ),
                           ));
                     } else {
@@ -5539,16 +5784,19 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
 
             // },
             softwareSetting.isSettingEnable
-                ? Container(
-                    color: Colors.black54.withOpacity(0.9),
-                    // color: Colors.red,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 15),
-                      child: widget.child3,
+                ? Positioned.fill(
+                    child: Container(
+                      color: Colors.black54.withOpacity(0.9),
+                      // color: Colors.red,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 15),
+                        child: widget.child3,
+                      ),
                     ),
                   )
-                : Container()
+                : Container(),
+            widget.childOverlay,
           ],
         ),
       );
@@ -5716,11 +5964,14 @@ class _GraphAreaState extends State<_GraphArea> {
   List<String> listOfFrequency = ["40 Hz", "30 Hz", "20 Hz", "10 Hz"];
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       children: [
         Expanded(
           flex: 6,
-          child: SoundWaveView(),
+          child: Container(
+            color: Color(0xFF222222),
+            child: SoundWaveView(),
+          ),
         ),
       ],
     );
@@ -5732,12 +5983,15 @@ class _PortsArea extends StatelessWidget {
       {required this.deviceName,
       required this.availablePorts,
       required this.onReceive,
-      required this.onWrite});
+      required this.onWrite,
+      required this.onTriggerDisconnect,
+      });
 
   final ValueNotifier<String?> deviceName;
   final List<String> availablePorts;
   final Function(String) onReceive;
   final Function(String) onWrite;
+  final Function(String) onTriggerDisconnect;
 
   @override
   Widget build(BuildContext context) {
@@ -5746,7 +6000,7 @@ class _PortsArea extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
       decoration: BoxDecoration(
         color: Color(0xFF2e2e2e),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -5759,7 +6013,7 @@ class _PortsArea extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
                 child: Icon(
-                  IconData(0xe90c, fontFamily: "IcomoonIcons"),
+                  const IconData(0xe90c, fontFamily: "IcomoonIcons"),
                   color: Colors.white,
                 ),
               ),
@@ -5775,7 +6029,7 @@ class _PortsArea extends StatelessWidget {
                   height: 40,
                   padding: const EdgeInsets.fromLTRB(0, 10, 0, 0),
                   // child: Text("address", style: SoftwareTextStyle().kWtMediumTextStyle),
-                  child: DarkDropdown(),
+                  child: DarkDropdown(kIsWeb: kIsWeb, availablePorts: availablePorts, onPortSelected: onPortSelected, valueListenable: deviceName),
                 ),
               ),
               // Flexible(
@@ -5790,7 +6044,8 @@ class _PortsArea extends StatelessWidget {
               //     ),
               //   ),
               // ),
-              Container(
+
+              kIsWeb? Container() : Container(
                 padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
@@ -5800,30 +6055,64 @@ class _PortsArea extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    "CONNECT",
+                    "DISCONNECT",
                     style: TextStyle(color: Colors.white),
                   ),
-                  onPressed: () => onWrite(""),
+                  onPressed: () {
+                    onTriggerDisconnect(deviceName.value ?? "");
+                  },
                 ),
               ),
             ],
           ),
-          ValueListenableBuilder<String?>(
-            valueListenable: deviceName,
-            builder: (context, snapshot, _) {
-              return snapshot != null
-                  ? Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Text(snapshot),
-                      ),
-                    )
-                  : const SizedBox.shrink();
-            },
-          ),
+          // ValueListenableBuilder<String?>(
+          //   valueListenable: deviceName,
+          //   builder: (context, snapshot, _) {
+          //     return snapshot != null
+          //         ? Card(
+          //             child: Padding(
+          //               padding: const EdgeInsets.all(8.0),
+          //               child: Text(snapshot),
+          //             ),
+          //           )
+          //         : const SizedBox.shrink();
+          //   },
+          // ),
         ],
       ),
     );
+  }
+
+  onPortSelected(String p1) {
+    print("onPortSelected: $p1");
+    print("DISCONNECT USB");
+    onWrite(p1);
+    // forceSerialDisconnect =
+    //     !forceSerialDisconnect;
+    // _serialUtil.closePort();
+    // Future.delayed(
+    //     Duration(
+    //         milliseconds:
+    //             1500), () {
+    //   if (context.mounted) {
+    //     _availablePorts
+    //         .clear();
+    //     context
+    //         .read<
+    //             DataStatusProvider>()
+    //         .setMicrophoneDataStatus(
+    //             _availablePorts
+    //                 .isEmpty);
+    //     final provider = Provider
+    //         .of<GraphDataProvider>(
+    //             context,
+    //             listen:
+    //                 false);
+    //     listenToMicrophone(
+    //         1, provider);
+    //   }
+    //   // final provider = Provider.of<GraphDataProvider>(context, listen: false);
+    // });    
   }
 }
 
@@ -5906,23 +6195,23 @@ class _FilterProcessWidgetState extends State<FilterProcessWidget> {
           // ),
           Row(
             children: [
-              WhiteColorCheckBox(
-                valueStatus: dataStatus.isMicrophoneData,
-                onChanged: (value) {
-                  setState(() {
-                    _isMicrophoneEnable = value ?? false;
-                    if (_isMicrophoneEnable && _isSampleDataOn) {
-                      _isSampleDataOn = false;
-                      widget.onSampleChange(_isSampleDataOn);
-                    }
-                  });
-                  widget.isMicrophoneEnable(_isMicrophoneEnable);
-                },
-              ),
-              Text(
-                "Microphone On",
-                style: SoftwareTextStyle().kWtMediumTextStyle,
-              )
+              // WhiteColorCheckBox(
+              //   valueStatus: dataStatus.isMicrophoneData,
+              //   onChanged: (value) {
+              //     setState(() {
+              //       _isMicrophoneEnable = value ?? false;
+              //       if (_isMicrophoneEnable && _isSampleDataOn) {
+              //         _isSampleDataOn = false;
+              //         widget.onSampleChange(_isSampleDataOn);
+              //       }
+              //     });
+              //     widget.isMicrophoneEnable(_isMicrophoneEnable);
+              //   },
+              // ),
+              // Text(
+              //   "Microphone On",
+              //   style: SoftwareTextStyle().kWtMediumTextStyle,
+              // )
             ],
           ),
         ],

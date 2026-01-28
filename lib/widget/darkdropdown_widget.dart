@@ -2,7 +2,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class DarkDropdown extends StatefulWidget {
-  const DarkDropdown({super.key});
+  DarkDropdown({super.key, required this.kIsWeb, required this.availablePorts, required this.onPortSelected, required this.valueListenable});
+  final bool kIsWeb;
+  final List<String> availablePorts;
+  String selectedValue = "";
+  Function(String) onPortSelected;
+  final ValueNotifier<String?> valueListenable;
 
   @override
   State<DarkDropdown> createState() => _DarkDropdownState();
@@ -10,9 +15,61 @@ class DarkDropdown extends StatefulWidget {
 
 class _DarkDropdownState extends State<DarkDropdown> {
   String? selectedValue;
+  List<DropdownMenuItem<String>> dropdownItems = [];
+  @override
+  void initState() {
+    super.initState();
+    widget.valueListenable.removeListener(deviceListener);
+    widget.valueListenable.addListener(deviceListener);
+  }
+
+  @override
+  void dispose() {
+    widget.valueListenable.removeListener(deviceListener);
+    super.dispose();
+  }
+
+  void deviceListener() {
+    print("deviceListener: ${widget.valueListenable.value}");
+    if (mounted) {
+      setState(() {
+        dropdownItems.clear();
+        // dropdownItems = widget.availablePorts.map((String value) {
+        //   return DropdownMenuItem<String>(value: value, child: Text(value, style: const TextStyle(color: Colors.white)));
+        // }).toList();
+        if (widget.valueListenable.value != null) {
+          dropdownItems.add(DropdownMenuItem<String>(value: widget.valueListenable.value, child: Text(widget.valueListenable.value ?? "", style: const TextStyle(color: Colors.white))));
+          selectedValue = widget.valueListenable.value;          
+        }
+        print("dropdownItemsListener: $dropdownItems");
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+// widget.availablePorts}");
+    if (widget.kIsWeb) {
+      return GestureDetector(
+        onTap: () {
+          widget.onPortSelected(selectedValue ?? "");
+        },
+        child: Container(
+          margin: const EdgeInsets.only(left: 0, right: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2C2C2C), // Dark background
+            borderRadius: BorderRadius.circular(20), // Highly rounded corners
+            border: Border.all(
+              color: Colors.white10, // Subtle grey/white border
+              width: 1,
+            ),
+          ),
+          child: Text("Choose the device serial port", style: TextStyle(color: Colors.white)),
+        ),
+      );
+    }
+    
     return Container(
       // 1. Styling the outer box
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -44,13 +101,14 @@ class _DarkDropdownState extends State<DarkDropdown> {
             size: 20,
           ),
           isExpanded: true, // Takes up full container width
-          items: <String>['Port 1', 'Port 2', 'Port 3']
-              .map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(value, style: const TextStyle(color: Colors.white)),
-            );
-          }).toList(),
+          items: dropdownItems,
+          // items: widget.availablePorts
+          //     .map((String value) {
+          //   return DropdownMenuItem<String>(
+          //     value: value,
+          //     child: Text(value, style: const TextStyle(color: Colors.white)),
+          //   );
+          // }).toList(),
           onChanged: (newValue) {
             setState(() {
               selectedValue = newValue;

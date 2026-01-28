@@ -126,3 +126,15 @@ https://github.com/BackyardBrains/Spike-Recorder/blob/66b1cb83266ad7770a8c6ff5ae
 [WORKING] EVENT from device
 
 flutter run -d windows --verbose 2>&1 | Select-String -Pattern "error|Error|ERROR|fail|Fail|FAIL" -Context 3 | Select-Object -Last 50
+
+
+Flow layout for channels every 2 channels
+
+
+
+[WORKING] Disconnect
+[Working] file path
+[Working] recording time
+[Working] Zoom + and -
+Popup channel settings
+color selector

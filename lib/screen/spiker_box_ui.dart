@@ -281,7 +281,7 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
       return Align(
         alignment: const Alignment(0.8, 0.6),
         child: SizedBox(
-          height: 40,
+          height: 50,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -290,10 +290,45 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
                 valueListenable: lineWidthScaleNotifier, 
                 builder: (context, value, child) {
                   print("Value: $value");
-                  return Container(
-                    height: 3,
-                    width: value,
-                    color: Colors.white,
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          graphDataProvider.notifyZoomEvent(10);
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Color(0xFF707070)),
+                            color: Color(0xFFdbdbdb),
+                          ),
+                          child: Icon(Icons.remove, color: Color(0xFF707070), size: 16,)
+                        )
+                      ),
+                      SizedBox(width: 4),
+
+                      Container(
+                        height: 3,
+                        width: value,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: () {
+                          graphDataProvider.notifyZoomEvent(-10);
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Color(0xFF707070)),
+                            color: Color(0xFFdbdbdb),
+                          ),
+                          child: Icon(Icons.add, color: Color(0xFF707070), size: 16,)
+                        )
+                      ),
+
+                    ],
                   );
                 }
               ),
@@ -788,7 +823,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
-                IconData(0xe906, fontFamily: "IcomoonIcons"),
+                const IconData(0xe906, fontFamily: "IcomoonIcons"),
                 color: Colors.white,
                 size: 36,
               ),
@@ -1110,7 +1145,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
         top: 0,
         left: 0,
         child: Container(
-          color: Colors.black,
+          color: Color(0xFF222222),
           width: 34,
           height: MediaQuery.of(context).size.height,
         ),

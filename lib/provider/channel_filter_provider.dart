@@ -21,10 +21,24 @@ class ChannelFilterProvider extends ChangeNotifier {
     }
   }
 
+  bool getAudioFilter(int index) {
+    if (index >= 0 && index < audioFilters.length) {
+      return audioFilters[index];
+    }
+    return false;
+  }
+
   void setSerialFilter(int index, bool value) {
     if (index >= 0 && index < serialFilters.length) {
       serialFilters[index] = value;
       notifyListeners();
     }
+  }
+
+  bool getSerialFilter(int index) {
+    if (index >= 0 && index < serialFilters.length) {
+      return serialFilters[index];
+    }
+    return false;
   }
 }

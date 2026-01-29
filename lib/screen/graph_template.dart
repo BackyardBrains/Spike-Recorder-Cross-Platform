@@ -945,6 +945,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     if (currentLoadedFilePath.isNotEmpty) {
       openedFilePath = currentLoadedFilePath.split("/").last;
     }
+    
     return Scaffold(
       backgroundColor: SoftwareColors.kBackGroundColor,
       body: StreamBuilder<int>(
@@ -1143,7 +1144,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                                 //     isSampleDataOn;
                                               }),
                                               _channelColorSettings(),
-                                              _channelFilterSettings(),
+                                              // _channelFilterSettings(),
                                               // DropdownButtonFormField<int>(
                                               //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
                                               //   style: SoftwareTextStyle().kWtMediumTextStyle,
@@ -2893,7 +2894,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       color: Colors.orange,
                       shape: BoxShape.circle,
                     ),
-                    child: Center(child: Text('${idx + 1}', style: SoftwareTextStyle().kWtMediumTextStyle))
+                    child: Center(child: Text('${idx + 1}', style: TextStyle(color: Colors.white)))
                   ),
                   SizedBox(width: 10),
                   SvgPicture.asset(
@@ -3129,6 +3130,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   
   bool isDetailConfiguration = false;
   int customizeDetailChannelIdx = -1;
+  
+  var isSpeakerMuted = [true, true, true, true, true, true, true, true, true, true];
   // Int32List arrSampleCountWeb = Int32List(0);
   // Int16List arrSamplesWeb = Int16List(1);
 
@@ -5074,6 +5077,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   _mutingSpeakers() {
+    bool isAudio = context.read<DataStatusProvider>().isMicrophoneData;
+    var provider = context.read<ChannelFilterProvider>();
+    bool currentFilterEnabled = isAudio ? provider.getAudioFilter(customizeDetailChannelIdx) : provider.getSerialFilter(customizeDetailChannelIdx);
     return Container(
       margin: EdgeInsets.only(top: 10),
       padding: EdgeInsets.all(10),
@@ -5083,11 +5089,34 @@ class _GraphTemplateState extends State<GraphTemplate> {
       ),
       child: Row(
         children: [
-          Checkbox(value: true, onChanged: (flag) {}),
+          Checkbox(
+            value: isSpeakerMuted[customizeDetailChannelIdx], 
+            onChanged: (flag) {
+              if (flag != null) {
+                isSpeakerMuted[customizeDetailChannelIdx] = flag;
+              }
+              setState(() {});
+            }
+          ),
           SizedBox(width: 5),
           Icon(CupertinoIcons.speaker_2, color: Colors.white),
           SizedBox(width: 5),
           Text("Mute Speakers", style: TextStyle(color: Colors.white)),
+          Spacer(),
+          Checkbox(value: currentFilterEnabled, onChanged: (flag) async{
+            int idx = customizeDetailChannelIdx;
+            if (isAudio) {
+              provider.setAudioFilter(idx, !currentFilterEnabled);
+            } else {
+              provider.setSerialFilter(idx, !currentFilterEnabled);
+            }
+            await processingUtil.setChannelFilterEnabled(idx, isAudio);
+            setState(() {});
+
+          }),
+          SizedBox(width: 5),
+          Icon(CupertinoIcons.color_filter, color: Colors.white),
+          Text("Channel Filter", style: TextStyle(color: Colors.white)),
         ],
       ),
     );

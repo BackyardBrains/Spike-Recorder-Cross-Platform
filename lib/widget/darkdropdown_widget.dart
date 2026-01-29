@@ -65,7 +65,7 @@ class _DarkDropdownState extends State<DarkDropdown> {
               width: 1,
             ),
           ),
-          child: Text("Choose the device serial port", style: TextStyle(color: Colors.white)),
+          child: Text("Choose the serial port device", style: TextStyle(color: Colors.white)),
         ),
       );
     }

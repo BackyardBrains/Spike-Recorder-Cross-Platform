@@ -74,9 +74,9 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
   Widget build(BuildContext context) {
     sliderValue = widget.sliderValue;
 
-    print("startValue: ${context.read<CustomRangeSliderProvider>().startValue}");
-    print("endValue: ${context.read<CustomRangeSliderProvider>().endValue}");
-    print("Slider Value: ${sliderValue}");
+    // print("startValue: ${context.read<CustomRangeSliderProvider>().startValue}");
+    // print("endValue: ${context.read<CustomRangeSliderProvider>().endValue}");
+    // print("Slider Value: ${sliderValue}");
 
     sampleRate = context.read<SampleRateProvider>().sampleRate.toDouble();
     maxFreq = sampleRate / 2;
@@ -88,8 +88,8 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
       end = context.read<CustomRangeSliderProvider>().endValue;
     }
 
-    print("start: $start, end: $end");
-    print("maxFreq: $maxFreq");
+    // print("start: $start, end: $end");
+    // print("maxFreq: $maxFreq");
 
     _highPassFilterSettings =
         context.read<DataStatusProvider>().highPassFilterSettings;
@@ -110,15 +110,19 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
     _isMicrophoneEnable = context.read<DataStatusProvider>().isMicrophoneData;
     _isSampleDataOn = context.read<DataStatusProvider>().isSampleDataOn;
     
-    // Ensure start is at least 1Hz for logarithmic scale
-    if (start < 1) start = 1;
-    if (end < 1) end = 1;
+    // Allow 0 as minimum, but clamp end to maxFreq
+    if (start < 0) start = 0;
+    if (end < 0) end = 0;
     if (end > maxFreq) end = maxFreq;
     
+    // Use 0.1Hz as the minimum for logarithmic calculation (represents 0 in linear space)
+    const double minFreqForLog = 0.1;
     double maxLog = log(maxFreq) / ln10;
-    double minLog = log(1) / ln10; // Start from 1Hz
-    double startLog = log(start) / ln10; 
-    double endLog = log(end) / ln10;
+    double minLog = log(minFreqForLog) / ln10; // Use 0.1Hz for log calculation
+    
+    // Convert linear to log space, handling 0 specially
+    double startLog = start == 0 ? minLog : log(start.clamp(minFreqForLog, maxFreq)) / ln10;
+    double endLog = end == 0 ? minLog : log(end.clamp(minFreqForLog, maxFreq)) / ln10;
     
     // Clamp log values to valid range
     startLog = startLog.clamp(minLog, maxLog);
@@ -148,7 +152,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   start = value.toDouble();
                   Provider.of<CustomRangeSliderProvider>(context, listen: false)
                       .setStartValue(start);
-                  double lowFreq = start == 0 ? -1 : start;
+                  double lowFreq = start; // Allow 0 value
                   double highFreq = end >= maxFreq ? -1 : end;
                   widget.processingUtil.setBandFilter(lowFreq, highFreq);
                   setState(() {});
@@ -214,6 +218,12 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                         format: (String value) {
                           // Convert log value back to linear frequency for display
                           double logVal = double.tryParse(value) ?? 0;
+                          const double minFreqForLog = 0.1;
+                          double minLog = log(minFreqForLog) / ln10;
+                          // If at minimum log position, return 0
+                          if (logVal <= minLog) {
+                            return "0";
+                          }
                           double freq = pow(10, logVal).toDouble();
                           return freq >= 1000 ? "${(freq / 1000).toStringAsFixed(1)}k" : freq.toStringAsFixed(0);
                         },
@@ -222,20 +232,33 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                       onDragging: (handlerIndex, lowerValue, upperValue) {
                         setState(() {
                           // Convert from log space back to linear frequency space
-                          start = pow(10, lowerValue).toDouble();
-                          end = pow(10, upperValue).toDouble();
+                          const double minFreqForLog = 0.1;
+                          double minLog = log(minFreqForLog) / ln10;
                           
-                          // Clamp values to valid range
-                          start = start.clamp(1.0, maxFreq);
-                          end = end.clamp(1.0, maxFreq);
+                          // If at minimum log position, set to 0, otherwise convert from log
+                          if (lowerValue <= minLog) {
+                            start = 0;
+                          } else {
+                            start = pow(10, lowerValue).toDouble();
+                          }
+                          
+                          if (upperValue <= minLog) {
+                            end = 0;
+                          } else {
+                            end = pow(10, upperValue).toDouble();
+                          }
+                          
+                          // Clamp values to valid range (allow 0, max is maxFreq)
+                          start = start.clamp(0.0, maxFreq);
+                          end = end.clamp(0.0, maxFreq);
 
                           // 1. Update Provider
                           final provider = Provider.of<CustomRangeSliderProvider>(context, listen: false);
                           provider.setStartValue(start);
                           provider.setEndValue(end);
 
-                          // 2. Logic for processingUtil
-                          double lowFreq = start == 0 ? -1 : start;
+                          // 2. Logic for processingUtil - allow 0 value
+                          double lowFreq = start; // Allow 0 value
                           double highFreq = end >= maxFreq ? -1 : end;
                           widget.processingUtil.setBandFilter(lowFreq, highFreq);
                         });
@@ -277,7 +300,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   end = value.toDouble();
                   Provider.of<CustomRangeSliderProvider>(context, listen: false)
                       .setEndValue(end);
-                  double lowFreq = start == 0 ? -1 : start;
+                  double lowFreq = start; // Allow 0 value
                   double highFreq = end >= maxFreq ? -1 : end;
                   widget.processingUtil.setBandFilter(lowFreq, highFreq);
                   setState(() {});
@@ -324,6 +347,32 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
 
   List<FlutterSliderHatchMarkLabel> _generateRulerItems(double minL, double maxL) {
     List<FlutterSliderHatchMarkLabel> items = [];
+
+    // Add 0 label at the leftmost position (minL represents 0 via 0.1Hz mapping)
+    const double minFreqForLog = 0.1;
+    double minLogForZero = log(minFreqForLog) / ln10;
+    if ((minL - minLogForZero).abs() < 0.01) { // Check if minL represents 0
+      items.add(
+        FlutterSliderHatchMarkLabel(
+          percent: 0,
+          label: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: 42),
+              Container(
+                width: 1,
+                height: 10, // Major tick height
+                color: Colors.white,
+              ),
+              Text(
+                "0",
+                style: TextStyle(color: Colors.white, fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     // Iterate through decades (1, 10, 100, 1000, 10000)
     for (int exp = 0; exp <= 4; exp++) {

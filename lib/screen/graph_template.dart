@@ -540,6 +540,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       // Device is serial
       context.read<ChannelColorProvider>().setSerialChannelCount(channelCount);
+      context.read<ChannelFilterProvider>().setSerialChannelCount(channelCount);
       ProcessingUtil.initializeDevice.value =
           ((ProcessingUtil.initializeDevice.value * 10) +
                   2 +
@@ -610,6 +611,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
           context
               .read<ChannelColorProvider>()
               .setSerialChannelCount(channelCount);
+          context
+              .read<ChannelFilterProvider>()
+              .setSerialChannelCount(channelCount);
+
+
           ProcessingUtil.initializeDevice.value =
               (ProcessingUtil.initializeDevice.value * 10) +
                   2 +
@@ -3131,7 +3137,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   bool isDetailConfiguration = false;
   int customizeDetailChannelIdx = -1;
   
-  var isSpeakerMuted = [true, true, true, true, true, true, true, true, true, true];
+  var isSpeakerChannelMuted = [false, false, false, false, false, false, false, false, false, false];
   // Int32List arrSampleCountWeb = Int32List(0);
   // Int16List arrSamplesWeb = Int16List(1);
 
@@ -3228,6 +3234,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
       context
           .read<ChannelColorProvider>()
           .setSerialChannelCount(widget.channelCount);
+      context
+          .read<ChannelFilterProvider>()
+          .setSerialChannelCount(widget.channelCount);
+
+
       periodicSerialDataSubscription();
       microphoneUtil.micStream.removeListener(micListener);
       microphoneUtil.micStream = ValueNotifier(Uint8List(0));
@@ -3458,6 +3469,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
               Random().nextInt(10);
       context
           .read<ChannelColorProvider>()
+          .setSerialChannelCount(widget.channelCount);
+      context
+          .read<ChannelFilterProvider>()
           .setSerialChannelCount(widget.channelCount);
 
       periodicSerialDataSubscription();
@@ -3740,6 +3754,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void periodicSerialDataSubscription() {
     periodicTimerSerial?.cancel();
+    // HARDCODE
+      // bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+      // serialNativeDataSubscription(Uint8List(0), isAudioListen);
+      // return;
+
     periodicTimerSerial =
         Timer.periodic(Duration(milliseconds: timeMs), (timer) {
       bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
@@ -4047,6 +4066,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       int.parse(board.maxNumberOfChannels!));
                   context.read<ChannelFilterProvider>().setSerialChannelCount(
                       int.parse(board.maxNumberOfChannels!));
+                  print("SERIAL BOARD CHANNEL COUNT : ${widget.channelCount}");
+
                   // createDisplaySerialDataIsolate();
                   // createProcessSerialDataIsolate();
                   Future.delayed(Duration(seconds: 2), () {
@@ -4104,8 +4125,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 timerPlaybackLoadedStartIndex.floor(),
                 timerPlaybackLoadedEndIndex.floor());
             sublistArray.add(sublistSamples);
-            soloud!.addAudioDataStream(
-                loadedFileStreams[i]!, sublistSamples.buffer.asUint8List());
+            if (isSpeakerChannelMuted[i]) {
+              soloud!.addAudioDataStream(
+                  loadedFileStreams[i]!, (Int16List(sublistSamples.length)).buffer.asUint8List());
+
+            } else {
+              soloud!.addAudioDataStream(
+                  loadedFileStreams[i]!, sublistSamples.buffer.asUint8List());
+
+            }
           }
           timerPlaybackLoadedStartIndex =
               (timerPlaybackLoadedStartIndex + sampleDivider);
@@ -4260,7 +4288,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // 3. SoLoud buffer stream setup
       print("widget.channelCount: ${widget.channelCount} ${_sampleRate}");
       for (int i = 0; i < widget.channelCount; i++) {
-        if (Platform.isAndroid) {
+        if (Platform.isAndroid || Platform.isMacOS) {
           loadedFileStreams.add(soloud!.setBufferStream(
             // maxBufferSizeBytes: 1024 * 1024 * 10,
             // {Size} = {Sample Rate} * {Bytes per Sample} * {MONO CHANNEL} * {Desired Seconds} * {100  constant}
@@ -4541,8 +4569,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
         // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
         loadedArrChannelCount[i] = initialSampleCount.floor();
         combinedIdx += initialSampleCount.floor();
-        soloud!.addAudioDataStream(
-            loadedFileStreams[i]!, loadedArrSamples[i].buffer.asUint8List());
+        if (isSpeakerChannelMuted[i]) {
+          soloud!.addAudioDataStream(
+              loadedFileStreams[i]!, (Int16List(loadedArrSamples[i].length)).buffer.asUint8List());
+
+        } else {
+          soloud!.addAudioDataStream(
+              loadedFileStreams[i]!, loadedArrSamples[i].buffer.asUint8List());
+
+        }
+
       }
 
       print("ADDED DATA STREAM Channel Count: ${widget.channelCount}");
@@ -4657,6 +4693,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         print("listenToMicrophone soloud == null ");
       }
 
+      isSpeakerChannelMuted.fillRange(0, isSpeakerChannelMuted.length, false);
       timerPlaybackLoadedFile?.cancel();
       timerPlaybackLoadedFile = null;
       timerPlaybackLoadedStartIndex = 0;
@@ -5080,6 +5117,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     bool isAudio = context.read<DataStatusProvider>().isMicrophoneData;
     var provider = context.read<ChannelFilterProvider>();
     bool currentFilterEnabled = isAudio ? provider.getAudioFilter(customizeDetailChannelIdx) : provider.getSerialFilter(customizeDetailChannelIdx);
+    print("currentFilterEnabled: $currentFilterEnabled | isAudio: $isAudio | customizeDetailChannelIdx: $customizeDetailChannelIdx");
     return Container(
       margin: EdgeInsets.only(top: 10),
       padding: EdgeInsets.all(10),
@@ -5090,10 +5128,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
       child: Row(
         children: [
           Checkbox(
-            value: isSpeakerMuted[customizeDetailChannelIdx], 
+            value: isSpeakerChannelMuted[customizeDetailChannelIdx], 
             onChanged: (flag) {
               if (flag != null) {
-                isSpeakerMuted[customizeDetailChannelIdx] = flag;
+                isSpeakerChannelMuted[customizeDetailChannelIdx] = flag;
               }
               setState(() {});
             }
@@ -5109,13 +5147,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
               provider.setAudioFilter(idx, !currentFilterEnabled);
             } else {
               provider.setSerialFilter(idx, !currentFilterEnabled);
+              print("setSerialFilter: $idx | ${!currentFilterEnabled}");
             }
             await processingUtil.setChannelFilterEnabled(idx, isAudio);
             setState(() {});
 
           }),
           SizedBox(width: 5),
-          Icon(CupertinoIcons.color_filter, color: Colors.white),
+          Icon(Icons.filter_alt_outlined, color: Colors.white),
           Text("Channel Filter", style: TextStyle(color: Colors.white)),
         ],
       ),
@@ -5483,6 +5522,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   onTriggerDisconnect(String p1) {
+    // if (p1 == "") { 
+    //   return;
+    // }
+
     final provider =
         Provider.of<GraphDataProvider>(context, listen: false);
 

@@ -784,7 +784,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
                   // old calculation
                   // thresholdValue[c] = tempThresholdValue;
                   double scaleRatio = 1;
-                  if (!kIsWeb) {
+                  if (kIsWeb) {
                   } else
                   if (Platform.isAndroid) {
                     // print("MediaQuery.of(context).devicePixelRatio : ${MediaQuery.of(context).devicePixelRatio} || ${MediaQuery.of(context).size.aspectRatio}");

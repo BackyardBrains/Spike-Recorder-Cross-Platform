@@ -21,7 +21,7 @@ import '../screen/graph_template.dart';
 import '../models/processing_utils/processing_util.dart';
 
 class CustomSliderBarButton extends StatefulWidget {
-  const CustomSliderBarButton({
+  CustomSliderBarButton({
     required this.sliderValue,
     required this.startValue,
     required this.endValue,
@@ -31,11 +31,15 @@ class CustomSliderBarButton extends StatefulWidget {
     required this.onLowPassFilterSetup,
     required this.onSampleChange,
     required this.isMicrophoneEnable,
+    required this.channelIdx,
+    required this.channelCount,
   });
 
+  final int channelIdx;
+  final int channelCount;
   final double sliderValue;
-  final double startValue;
-  final double endValue;
+  double startValue;
+  double endValue;
   final ProcessingUtil processingUtil;
   final Function(bool) isMicrophoneEnable;
   final Function(bool) onSampleChange;
@@ -154,7 +158,17 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                       .setStartValue(start);
                   double lowFreq = start; // Allow 0 value
                   double highFreq = end >= maxFreq ? -1 : end;
-                  widget.processingUtil.setBandFilter(lowFreq, highFreq);
+                  if (widget.channelIdx == -1) {
+                    for (int i = 0; i < widget.channelCount; i++) {
+                      widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                    }
+                  } else {
+                    widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                  }
+
+                  widget.startValue = start;
+                  print("startValue CUSTOMIZing: ${widget.startValue}");
+
                   setState(() {});
                 },
               ),
@@ -255,12 +269,20 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                           // 1. Update Provider
                           final provider = Provider.of<CustomRangeSliderProvider>(context, listen: false);
                           provider.setStartValue(start);
+                          widget.startValue = start;
                           provider.setEndValue(end);
+                          widget.endValue = end;
 
                           // 2. Logic for processingUtil - allow 0 value
                           double lowFreq = start; // Allow 0 value
                           double highFreq = end >= maxFreq ? -1 : end;
-                          widget.processingUtil.setBandFilter(lowFreq, highFreq);
+                          if (widget.channelIdx == -1) {
+                            for (int i = 0; i < widget.channelCount; i++) {
+                              widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                            }
+                          } else {
+                            widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                          }
                         });
                       },
                     )                    
@@ -302,7 +324,17 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                       .setEndValue(end);
                   double lowFreq = start; // Allow 0 value
                   double highFreq = end >= maxFreq ? -1 : end;
-                  widget.processingUtil.setBandFilter(lowFreq, highFreq);
+                  // widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                  if (widget.channelIdx == -1) {
+                    for (int i = 0; i < widget.channelCount; i++) {
+                      widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                    }
+                  } else {
+                    widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                  }
+                  widget.endValue = end;
+                  print("endValue CUSTOMIZing: ${widget.endValue}");
+
                   setState(() {});
                 },
               ),

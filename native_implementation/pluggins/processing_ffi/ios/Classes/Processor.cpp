@@ -127,7 +127,7 @@ namespace backyardbrains {
             }
         }
 
-        void Processor::setBandFilter(float lowCutOffFreq, float highCutOffFreq) {
+        void Processor::setBandFilter(int idx, float lowCutOffFreq, float highCutOffFreq) {
             lowPassFilteringEnabled = highCutOffFreq != -1 && highCutOffFreq != MAX_FILTER_CUT_OFF;
             highPassFilteringEnabled = lowCutOffFreq != -1 && lowCutOffFreq != MIN_FILTER_CUT_OFF;
 

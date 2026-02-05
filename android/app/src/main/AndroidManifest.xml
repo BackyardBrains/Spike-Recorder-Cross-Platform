@@ -32,7 +32,8 @@
    <application
         android:label="Spike Recorder"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:largeHeap="true">
         <activity
             android:directBootAware="true"
             android:name=".MainActivity"

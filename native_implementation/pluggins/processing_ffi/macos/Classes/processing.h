@@ -61,7 +61,7 @@ PROCESSING_API int32_t processing_set_bits_per_sample(int32_t bits_per_sample);
 PROCESSING_API int32_t processing_set_selected_channel(int32_t selected_channel);
 
 // Filter configuration
-PROCESSING_API int32_t processing_set_band_filter(float low_cut_off_freq, float high_cut_off_freq);
+PROCESSING_API int32_t processing_set_band_filter(int32_t channel_idx, float low_cut_off_freq, float high_cut_off_freq);
 PROCESSING_API int32_t processing_set_notch_filter(float center_freq);
 PROCESSING_API int32_t processing_set_channel_filter_enabled(int32_t channel, bool enabled);
 

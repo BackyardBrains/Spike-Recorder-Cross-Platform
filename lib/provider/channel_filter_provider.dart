@@ -37,7 +37,6 @@ class ChannelFilterProvider extends ChangeNotifier {
   }
 
   bool getSerialFilter(int index) {
-    print("getSerialFilter: $index | ${serialFilters.length}");
     if (index >= 0 && index < serialFilters.length) {
       return serialFilters[index];
     }

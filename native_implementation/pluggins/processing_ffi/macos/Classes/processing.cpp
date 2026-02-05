@@ -1626,7 +1626,7 @@ void processing_cleanup() {
     initialized = false;
 }
 
-int32_t processing_set_band_filter(float low_cut_off_freq, float high_cut_off_freq) {
+int32_t processing_set_band_filter(int channel_idx, float low_cut_off_freq, float high_cut_off_freq) {
     if (!initialized) {
         return -1;  // Not initialized
     }
@@ -1638,19 +1638,19 @@ int32_t processing_set_band_filter(float low_cut_off_freq, float high_cut_off_fr
         
         // Apply to all processors (same as in byb-lib.cpp)
         if (amModulationProcessor) {
-            amModulationProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+            amModulationProcessor->setBandFilter(channel_idx, low_cut_off_freq, high_cut_off_freq);
         }
         
         if (sampleStreamProcessor) {
-            sampleStreamProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+            sampleStreamProcessor->setBandFilter(channel_idx, low_cut_off_freq, high_cut_off_freq);
         }
         
         if (thresholdProcessor) {
-            thresholdProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+            thresholdProcessor->setBandFilter(channel_idx, low_cut_off_freq, high_cut_off_freq);
         }
         
         if (fftProcessor) {
-            fftProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+            fftProcessor->setBandFilter(channel_idx, low_cut_off_freq, high_cut_off_freq);
         }
 
         return 0;  // Success

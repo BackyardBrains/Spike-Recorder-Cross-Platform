@@ -1026,31 +1026,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                             children: [
                               _mutingSpeakers(),
                               SizedBox(height: 10),
-                              CustomSliderBarButton(
-                                processingUtil: processingUtil,
-                                isMicrophoneEnable: (bool isMicrophoneEnable) {
-                                  context
-                                      .read<DataStatusProvider>()
-                                      .setMicrophoneDataStatus(
-                                          isMicrophoneEnable);
-                                },
-                                onHighPassFilterSetup:
-                                    (FilterSetup filterSetup) {
-                                  // Keep this for backward compatibility if needed
-                                },
-                                onLowPassFilterSetup:
-                                    (FilterSetup filterSetup) {
-                                  // Keep this for backward compatibility if needed
-                                },
-                                onSampleChange: (bool isSampleDataOn) {
-                                  context
-                                      .read<DataStatusProvider>()
-                                      .setSampleDataStatus(isSampleDataOn);
-                                },
-                                startValue: startValue,
-                                endValue: endValue,
-                                sliderValue: _sliderValue,
-                              ),
+                              customSliderBarArray[customizeDetailChannelIdx],
                               const SizedBox(
                                 height: 10,
                               ),
@@ -2275,6 +2251,35 @@ class _GraphTemplateState extends State<GraphTemplate> {
     localPlugin.currentExpansionBoardString = "";
     visibleSignalsList = [1];
     visibleChannelCount = 1;
+    customSliderBarArray = [
+      CustomSliderBarButton(
+        channelIdx: 0,
+        channelCount: widget.channelCount,
+        processingUtil: processingUtil,
+        isMicrophoneEnable: (bool isMicrophoneEnable) {
+          context
+              .read<DataStatusProvider>()
+              .setMicrophoneDataStatus(
+                  isMicrophoneEnable);
+        },
+        onHighPassFilterSetup:
+            (FilterSetup filterSetup) {
+          // Keep this for backward compatibility if needed
+        },
+        onLowPassFilterSetup:
+            (FilterSetup filterSetup) {
+          // Keep this for backward compatibility if needed
+        },
+        onSampleChange: (bool isSampleDataOn) {
+          context
+              .read<DataStatusProvider>()
+              .setSampleDataStatus(isSampleDataOn);
+        },
+        startValue: startValue,
+        endValue: endValue,
+        sliderValue: _sliderValue,
+      ),
+    ];
 
     _isListeningToMicrophone = true;
     _listenToMicrophoneCompleter = Completer<void>();
@@ -2350,7 +2355,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       context.read<ChannelFilterProvider>().setAudioChannelCount(channelCount);
 
       // Set band filter
-      await processingUtil.setBandFilter(-1, -1);
+      await processingUtil.setBandFilter(0, -1, -1);
 
       print("listenToMicrophone5");
       microphoneUtil.micStream.addListener(micListener);
@@ -2954,6 +2959,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   SizedBox(width: 10),
                   ElevatedButton(
                     onPressed: () {
+                      
+                      double startValue = customSliderBarArray[idx].startValue;
+                      Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                          .setStartValue(startValue);
+                      print("startValue CUSTOMIZED: $startValue");
+                      double endValue = customSliderBarArray[idx].endValue;
+                      Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                          .setEndValue(endValue);
+                      print("endValue CUSTOMIZED: $startValue");
+
                       isDetailConfiguration = !isDetailConfiguration;
                       customizeDetailChannelIdx = idx;
                       configTitle = "Channel Settings";
@@ -3047,15 +3062,18 @@ class _GraphTemplateState extends State<GraphTemplate> {
     });
   }
 
-  int setupFilterValues(List<double> filterValues) {
+  int setupFilterValues(List<int> channelIndices, List<double> filterValues) {
     startValue = filterValues[0];
     endValue = filterValues[1];
     double type = filterValues[2];
+    
     Provider.of<CustomRangeSliderProvider>(context, listen: false)
         .setStartValue(startValue);
     Provider.of<CustomRangeSliderProvider>(context, listen: false)
         .setEndValue(endValue);
-    processingUtil.setBandFilter(startValue, endValue);
+    channelIndices.map((channelIdx) {
+      processingUtil.setBandFilter(channelIdx, startValue, endValue);
+    });
     streamScrubBuilderController.add(Random().nextInt(100000));
     if (selectedBoard?.uniqueName == "HUMANSB;") {
       switch (type) {
@@ -3138,6 +3156,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   int customizeDetailChannelIdx = -1;
   
   var isSpeakerChannelMuted = [false, false, false, false, false, false, false, false, false, false];
+  
+  List<CustomSliderBarButton> customSliderBarArray = [];
   // Int32List arrSampleCountWeb = Int32List(0);
   // Int16List arrSamplesWeb = Int16List(1);
 
@@ -4074,6 +4094,38 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     // var info = processingUtil.getInformation();
                     // print("info : $info");
                     isDeviceSelected = true;
+                    customSliderBarArray.clear();
+                    for (int idxChannel = 0; idxChannel < widget.channelCount; idxChannel++) {
+                      customSliderBarArray.add(
+                        CustomSliderBarButton(
+                          channelIdx: idxChannel,
+                          channelCount: widget.channelCount,
+                          processingUtil: processingUtil,
+                          isMicrophoneEnable: (bool isMicrophoneEnable) {
+                            context
+                                .read<DataStatusProvider>()
+                                .setMicrophoneDataStatus(
+                                    isMicrophoneEnable);
+                          },
+                          onHighPassFilterSetup:
+                              (FilterSetup filterSetup) {
+                            // Keep this for backward compatibility if needed
+                          },
+                          onLowPassFilterSetup:
+                              (FilterSetup filterSetup) {
+                            // Keep this for backward compatibility if needed
+                          },
+                          onSampleChange: (bool isSampleDataOn) {
+                            context
+                                .read<DataStatusProvider>()
+                                .setSampleDataStatus(isSampleDataOn);
+                          },
+                          startValue: startValue,
+                          endValue: endValue,
+                          sliderValue: _sliderValue,
+                        ),
+                      );
+                    }
                   });
                 }
               }
@@ -4859,6 +4911,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       foregroundColor: isSelected ? Colors.white : Colors.black,
     );
     // print("COMPARE: $serialUsageType -- $s == $isSelected");
+    List<int> channelIndices = List<int>.generate(widget.channelCount, (index) => index);
 
     switch (s) {
       case "ECG":
@@ -4871,7 +4924,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 serialUsageType = "ECG";
                 startValue = 1;
                 endValue = 100;
-                setupFilterValues([startValue, endValue, 0]);
+                setupFilterValues(channelIndices, [startValue, endValue, 0]);
               },
               child: Stack(
                 children: [
@@ -4921,7 +4974,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 serialUsageType = "EEG";
                 startValue = 0;
                 endValue = 50;
-                setupFilterValues([startValue, endValue, 1]);
+                setupFilterValues(channelIndices, [startValue, endValue, 1]);
               },
               child: Stack(
                 children: [
@@ -4968,7 +5021,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 serialUsageType = "EMG";
                 startValue = 70;
                 endValue = 2500;
-                setupFilterValues([startValue, endValue, 2]);
+                setupFilterValues(channelIndices, [startValue, endValue, 2]);
               },
               child: Stack(
                 children: [
@@ -5018,7 +5071,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 serialUsageType = "Plant";
                 startValue = 0;
                 endValue = 5;
-                setupFilterValues([startValue, endValue, 3]);
+                setupFilterValues(channelIndices, [startValue, endValue, 3]);
               },
               child: Stack(
                 children: [
@@ -5068,7 +5121,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 serialUsageType = "Neuron";
                 startValue = 70;
                 endValue = _sampleRate / 2;
-                setupFilterValues([startValue, endValue, 4]);
+                setupFilterValues(channelIndices, [startValue, endValue, 4]);
               },
               child: Stack(
                 children: [
@@ -5117,7 +5170,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
     bool isAudio = context.read<DataStatusProvider>().isMicrophoneData;
     var provider = context.read<ChannelFilterProvider>();
     bool currentFilterEnabled = isAudio ? provider.getAudioFilter(customizeDetailChannelIdx) : provider.getSerialFilter(customizeDetailChannelIdx);
-    print("currentFilterEnabled: $currentFilterEnabled | isAudio: $isAudio | customizeDetailChannelIdx: $customizeDetailChannelIdx");
     return Container(
       margin: EdgeInsets.only(top: 10),
       padding: EdgeInsets.all(10),

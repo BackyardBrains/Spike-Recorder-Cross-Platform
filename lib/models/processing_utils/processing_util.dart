@@ -83,7 +83,7 @@ abstract class ProcessingUtil {
 
   int prepareForFftDrawing(int windowCount, int windowSize, int targetWindowCount, double width, double height);
   // Set band filter
-  Future<int> setBandFilter(double lowCutOffFreq, double highCutOffFreq);
+  Future<int> setBandFilter(int channelIdx, double lowCutOffFreq, double highCutOffFreq);
 
   // Set notch filter
   Future<int> setNotchFilter(double centerFreq);

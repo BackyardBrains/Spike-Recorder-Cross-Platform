@@ -511,13 +511,13 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   @override
-  Future<int> setBandFilter(double lowCutOffFreq, double highCutOffFreq) async {
+  Future<int> setBandFilter(int channelIdx, double lowCutOffFreq, double highCutOffFreq) async {
     if (!_isInitialized) {
       await init();
     }
 
     print("LH: $lowCutOffFreq $highCutOffFreq");
-    return pb.processingBindings.setBandFilter(lowCutOffFreq, highCutOffFreq);
+    return pb.processingBindings.setBandFilter(channelIdx, lowCutOffFreq, highCutOffFreq);
   }
 
   @override

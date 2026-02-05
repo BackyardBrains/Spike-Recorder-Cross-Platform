@@ -26,31 +26,37 @@ rootProject.buildDir = '../build'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
-subprojects {
-    project.evaluationDependsOn(':app')
-}
+// Removed evaluationDependsOn which can cause circular dependencies and hangs
 
 // Fix for old plugins missing namespace (required by AGP 8+)
 // Also set Java 17 compatibility and Kotlin options for all plugins
+// Made more defensive to prevent hangs during configuration
 subprojects {
-    pluginManager.withPlugin('com.android.library') {
-        if (android.namespace == null) {
-            def manifest = file("${projectDir}/src/main/AndroidManifest.xml")
-            if (manifest.exists()) {
-                def packageName = new XmlParser().parse(manifest).@package
-                if (packageName) {
-                    android.namespace = packageName
+    afterEvaluate { project ->
+        pluginManager.withPlugin('com.android.library') {
+            try {
+                if (android.namespace == null) {
+                    def manifest = file("${projectDir}/src/main/AndroidManifest.xml")
+                    if (manifest.exists()) {
+                        def packageName = new XmlParser().parse(manifest).@package
+                        if (packageName) {
+                            android.namespace = packageName
+                        }
+                    }
                 }
-            }
-        }
-        android.compileOptions {
-            sourceCompatibility JavaVersion.VERSION_17
-            targetCompatibility JavaVersion.VERSION_17
-        }
-        // Configure Kotlin options if Kotlin plugin is applied
-        if (project.plugins.hasPlugin('org.jetbrains.kotlin.android')) {
-            android.kotlinOptions {
-                jvmTarget = '17'
+                android.compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_17
+                    targetCompatibility JavaVersion.VERSION_17
+                }
+                // Configure Kotlin options if Kotlin plugin is applied
+                if (project.plugins.hasPlugin('org.jetbrains.kotlin.android')) {
+                    android.kotlinOptions {
+                        jvmTarget = '17'
+                    }
+                }
+            } catch (Exception e) {
+                // Silently ignore configuration errors to prevent hangs
+                println "Warning: Could not configure ${project.name}: ${e.message}"
             }
         }
     }

@@ -36,9 +36,9 @@ typedef ProcessingSetSelectedChannelNative = Int32 Function(
 typedef ProcessingSetSelectedChannel = int Function(int selectedChannel);
 
 typedef ProcessingSetBandFilterNative = Int32 Function(
-    Float lowCutOffFreq, Float highCutOffFreq);
+    Int32 channelIdx, Float lowCutOffFreq, Float highCutOffFreq);
 typedef ProcessingSetBandFilter = int Function(
-    double lowCutOffFreq, double highCutOffFreq);
+    int channelIdx, double lowCutOffFreq, double highCutOffFreq);
 
 typedef ProcessingSetNotchFilterNative = Int32 Function(Float centerFreq);
 typedef ProcessingSetNotchFilter = int Function(double centerFreq);

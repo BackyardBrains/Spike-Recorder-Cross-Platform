@@ -183,7 +183,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   @override
-  Future<int> setBandFilter(double lowCutOffFreq, double highCutOffFreq) async {
+  Future<int> setBandFilter(int channelIdx, double lowCutOffFreq, double highCutOffFreq) async {
     js.context.callMethod("setBandFilterWeb", [lowCutOffFreq, highCutOffFreq]);
     return 0;
   }

@@ -73,7 +73,7 @@ dependencies:
   ffi: ^2.1.0
   just_audio: ^0.9.35
   # flutter_recorder: 1.1.2 NOT WORKING
-  record: 6.1.2
+  # record: 6.1.2 # WINDOWS ONLY
   audio_session: ^0.1.16
   # flutter_soloud: ^1.2.4
   fps_widget: ^1.0.1+2

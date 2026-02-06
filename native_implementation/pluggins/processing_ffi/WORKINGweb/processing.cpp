@@ -719,7 +719,7 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_microphone_stream(int16_t*
       try {
             // STEVE NEED JS WRAP
             int16_t** out_samples = new int16_t*[current_channel_count];
-            for (int cu = 0; cu < current_channel_count; cu++) {
+            for (int cu = 0; cu < current_channel_count; cu++) {  
                 out_samples[cu] = &_out_samples[cu * out_sample_counts[cu]];
                 // std::fill(arr[cu], arr[cu] + out_sample_counts[cu], 57);
                 // out_samples[cu][1] = -100;
@@ -749,8 +749,8 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_microphone_stream(int16_t*
             // Allocate array of pointers for each channel (like in byb-lib.cpp)
             int16_t** channel_samples = new int16_t*[current_channel_count];
             for (int i = 0; i < current_channel_count; i++) {
-                  channel_samples[i] = new int16_t[frame_count]{0};
-                  out_sample_counts[i] = frame_count;
+                channel_samples[i] = new int16_t[frame_count]{0};
+                out_sample_counts[i] = frame_count;
             }
             
             // Pass channel_samples to amModulationProcessor, not out_samples
@@ -766,31 +766,41 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_process_microphone_stream(int16_t*
                 int32_t* frame_counts = new int32_t[1];
                 frame_counts[0] = frame_count;
                 circularBuffer->addData(channel_samples, frame_counts);
-                delete[] frame_counts;                
+                delete[] frame_counts;
             }
+
+            /*
             // int16_t** samples = new int16_t*[current_channel_count];
             // for (int i = 0; i < current_channel_count; i++) {
             //     samples[i] = new int16_t[frame_count]{0};
             // }
 
             // circularBuffer->getRecentSamples(samples, 100);
+            */
            
             // Copy processed data from channel_samples to out_samples
             for (int i = 0; i < current_channel_count; i++) {
                 if (out_samples[i] != nullptr && channel_samples[i] != nullptr) {
+                    // for (short j = 0; j < frame_count; j++) {
+                    //     EM_ASM({
+                    //         console.log("---- Copy processed data from channel_samples to out_samples", $0, $1);
+                    //     }, i, j );
+                    //     out_samples[i][j] = channel_samples[i][j];
+                    // }
                     std::copy(channel_samples[i], channel_samples[i] + frame_count, out_samples[i]);
-                }                
+                }
             }
             
             // Clean up channel_samples to avoid memory leaks
             for (int i = 0; i < current_channel_count; i++) {
                 delete[] channel_samples[i];
             }
+            delete[] channel_samples;
             
             // Check if AM modulation state changed (for potential callbacks)
-            bool is_receiving_am_signal_after = amModulationProcessor->isReceivingAmSignal();
+            // bool is_receiving_am_signal_after = amModulationProcessor->isReceivingAmSignal();
 
-            // Set output sample counts for all channels
+            // // Set output sample counts for all channels
             for (int i = 0; i < current_channel_count; i++) {
                 out_sample_counts[i] = frame_count;
             }
@@ -1651,7 +1661,7 @@ EXTERNC FUNCTION_ATTRIBUTE void processing_cleanup() {
     initialized = false;
 }
 
-EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_band_filter(float low_cut_off_freq, float high_cut_off_freq) {
+EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_band_filter(int channel_idx, float low_cut_off_freq, float high_cut_off_freq) {
     if (!initialized) {
         return -1;  // Not initialized
     }
@@ -1663,19 +1673,19 @@ EXTERNC FUNCTION_ATTRIBUTE int32_t processing_set_band_filter(float low_cut_off_
         
         // Apply to all processors (same as in byb-lib.cpp)
         if (amModulationProcessor) {
-            amModulationProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+            amModulationProcessor->setBandFilter(channel_idx, low_cut_off_freq, high_cut_off_freq);
         }
         
         if (sampleStreamProcessor) {
-            sampleStreamProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+            sampleStreamProcessor->setBandFilter(channel_idx, low_cut_off_freq, high_cut_off_freq);
         }
         
         if (thresholdProcessor) {
-            thresholdProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+            thresholdProcessor->setBandFilter(channel_idx, low_cut_off_freq, high_cut_off_freq);
         }
         
         if (fftProcessor) {
-            fftProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+            fftProcessor->setBandFilter(channel_idx, low_cut_off_freq, high_cut_off_freq);
         }
         
         return 0;  // Success

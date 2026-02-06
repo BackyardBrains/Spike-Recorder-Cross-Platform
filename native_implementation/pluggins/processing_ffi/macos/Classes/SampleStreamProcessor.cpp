@@ -1,7 +1,6 @@
 //
 // Created by Tihomir Leka <tihomir at backyardbrains.com>
 //
-
 #include "SampleStreamProcessor.h"
 #include "SampleStreamUtils.h"
 #include <iostream>
@@ -242,8 +241,7 @@ namespace backyardbrains {
             std::string message(reinterpret_cast<const char *>(messageBytes), len);
             //__android_log_print(ANDROID_LOG_DEBUG, TAG, "ESCAPE SEQUENCE MESSAGE %s AT %d",message.c_str(),sampleIndex);
 
-            std::string logMessage =
-                    "ESCAPE SEQUENCE MESSAGE " + message + " AT " + std::to_string(sampleIndex);
+            std::string logMessage = "ESCAPE SEQUENCE MESSAGE " + message + " AT " + std::to_string(sampleIndex);
 
             if (backyardbrains::utils::SampleStreamUtils::isHardwareTypeMsg(message)) {
                 int type = backyardbrains::utils::SampleStreamUtils::getHardwareType(message);

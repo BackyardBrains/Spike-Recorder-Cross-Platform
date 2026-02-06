@@ -98,7 +98,8 @@
         "execution": "cpp",
         "print": "cpp",
         "stack": "cpp",
-        "codecvt": "cpp"
+        "codecvt": "cpp",
+        "valarray": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled",
     "cmake.sourceDirectory": "/Users/pulkitarora/Desktop/Flutter applications/spikerbox_flutter/linux",

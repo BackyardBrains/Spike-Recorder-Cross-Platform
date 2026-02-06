@@ -1,9 +1,3 @@
-#ifdef __EMSCRIPTEN__
-    #include <emscripten/bind.h>
-    using namespace emscripten;
-    #include <emscripten.h>
-    #include <wasm_simd128.h>
-#endif
 //
 // Created by Tihomir Leka <tihomir at backyardbrains.com>
 //
@@ -254,6 +248,7 @@ namespace backyardbrains {
 //            inDataPrevLength = length;
 
             bool avoidFilteringOfChannels = stopFilteringAfterChannelIndex >= 0;
+
             for (int i = 0; i < channelCount; i++) {
                 // apply additional filtering if necessary
                 // if (avoidFilteringOfChannels && i <= stopFilteringAfterChannelIndex) {

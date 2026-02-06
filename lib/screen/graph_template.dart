@@ -638,6 +638,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           if (isAudioListen) {
             provider.inputListener(event);
           }
+          // print("POST DISPLAY STREAM: $event | ${event.length}");
         });
       },
     );
@@ -2355,7 +2356,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       context.read<ChannelFilterProvider>().setAudioChannelCount(channelCount);
 
       // Set band filter
-      await processingUtil.setBandFilter(0, -1, -1);
+      await processingUtil.setBandFilter(-1, -1, -1);
 
       print("listenToMicrophone5");
       microphoneUtil.micStream.addListener(micListener);

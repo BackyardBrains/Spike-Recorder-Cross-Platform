@@ -16,6 +16,7 @@ function initializeModule() {
   } catch (e) { }
 
   workerChannel = new MessageChannel();
+  console.log("INITIALIZE MODULE");
   mWorker = new Worker("workerSimulation.js");
 
   mWorker.onmessage = function (event) {
@@ -225,9 +226,10 @@ function prepareDisplayMicrophoneDataWeb(drawSurfaceWidth, channelCount, display
 }
 
 function processMicrophoneDataWeb(microphoneDataBuffers, channelIdx, samplesLength, eventLabels, eventPositions) {
+  let microphoneBuffers = (microphoneDataBuffers).slice();
   mWorker.postMessage({
     "message": "INPUT_MICROPHONE_BUFFER",
-    "microphoneDataBuffers": microphoneDataBuffers,
+    "microphoneDataBuffers": microphoneBuffers,
     "channelIdx": channelIdx,
     "samplesLength": samplesLength,
     "drawSurfaceWidth": window.innerWidth,
@@ -241,9 +243,10 @@ function processMicrophoneDataWeb(microphoneDataBuffers, channelIdx, samplesLeng
   //   console.log(microphoneDataBuffer);
 }
 
-function setBandFilterWeb(lowFreq, highFreq) {
+function setBandFilterWeb(channelIdx, lowFreq, highFreq) {
   mWorker.postMessage({
     "message": "SET_BAND_FILTER",
+    "channelIdx": channelIdx,
     "lowFreq": lowFreq,
     "highFreq": highFreq,
   });

@@ -27,6 +27,7 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
   @override
   Future<void> init() async {
     try {
+      print("INITTIALLLIIIZZZEEE");
       if (mediaStream == null) {
         mediaStream = await html.window.navigator.mediaDevices?.getUserMedia({
           'audio': true,
@@ -40,7 +41,7 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
 
       }
 
-      // print("sampleRate: $sampleRate");
+      print("INIT sampleRate: $sampleRate");
       // micStream = ValueNotifier(Uint8List(0));
     } catch(err) {
       print("err mic");
@@ -68,7 +69,9 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
 
   void onDataReceived() {
     // var time = DateTime.now().millisecondsSinceEpoch;
+    // print("ON DATA RECEIVED MICROPHONE UTILS");
     if (_micDataBuffer == null) {
+      // print("MIC DATA BUFFER IS NULL");
       return;
     }
 

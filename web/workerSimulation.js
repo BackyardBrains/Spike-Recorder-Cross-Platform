@@ -383,6 +383,8 @@ self.onmessage = async function (eventFromMain) {
             Module._free(drawBufferFftPtr);
         break;
         case "DISPLAY_MICROPHONE_DATA":
+            // console.log("DISPLAY_MICROPHONE_DATA123");
+            // return;
             // _drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
             channelCount = eventFromMain.data.channelCount;
             _displayTimeMs = eventFromMain.data.displayTimeMs;
@@ -391,7 +393,13 @@ self.onmessage = async function (eventFromMain) {
             endPositionIdx = eventFromMain.data.endPositionIdx;
             eventLabels = JSON.parse(eventFromMain.data.eventLabels);
             eventPositions = JSON.parse(eventFromMain.data.eventPositions);
-
+            
+            outSignalPtr = undefined;
+            outSamplesPtr = undefined;
+            outSampleCountsDrawingPtr = undefined;
+            outEventIndicesPtr = undefined;
+            outEventCountPtr = undefined;
+            inEventIndicesPtr = undefined;
             
             outSignalPtr = Module._malloc(drawSurfaceWidth * 5 * totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
             outSignalPtrStart = outSignalPtr / Module.HEAP32.BYTES_PER_ELEMENT;
@@ -434,7 +442,7 @@ self.onmessage = async function (eventFromMain) {
                     // startPositionIdx = 0;
                     // console.log("CHECK THRESHOLDING::: ", startPositionIdx, "===", endPositionIdx, thresholdArrayLength);
                 }
-              
+
                 // console.log("AUDIO DRAWING: ", startPositionIdx, endPositionIdx, drawSurfaceWidth, totalChannel, " ---- ", outSampleCountsDrawingBuffer);
                 let resultDrawing = Module._processing_prepare_for_signal_drawing(
                     outSamplesPtr,           // Pointer<Pointer<Float>>
@@ -450,13 +458,12 @@ self.onmessage = async function (eventFromMain) {
                     endPositionIdx,  // int (toSample)
                     drawSurfaceWidth         // int
                 );
-
                 if (resultDrawing == 0) {
-                    if (inTotalEvents > 0) {
-                        outEventPositionBuffer.set(outEventIndicesBuffer.subarray(0, inTotalEvents));
-                    }
                     try{
-                        // console.log("outSampleCountsDrawingBuffer: " , channelCount, outSampleCountsDrawingBuffer.length, outSampleCountsDrawingBuffer);
+                        if (inTotalEvents > 0) {
+                            outEventPositionBuffer.set(outEventIndicesBuffer.subarray(0, inTotalEvents));
+                        }
+                            // console.log("outSampleCountsDrawingBuffer: " , channelCount, outSampleCountsDrawingBuffer.length, outSampleCountsDrawingBuffer);
                         for (let i = 0; i < channelCount; i++) {
                             const outSampleCount = outSampleCountsDrawingBuffer[i];
                             const slicedArray = outSamplesBuffer.subarray( i * outSampleCount, (i + 1) * outSampleCount).slice();
@@ -474,7 +481,7 @@ self.onmessage = async function (eventFromMain) {
                         };
                         postMessage(data);
                     }catch(err) {
-
+                        console.log("ERR MIMIC SHARED DRAWING BUFFERR", err);
                     }
     
                     // for (let idx = 0; idx < totalChannel; idx++) {
@@ -487,21 +494,27 @@ self.onmessage = async function (eventFromMain) {
                     // }
                 }
 
-                Module._free(outSignalPtr);
-                Module._free(outSamplesPtr);
-                Module._free(outSampleCountsDrawingPtr);
-                Module._free(outEventIndicesPtr);
-                Module._free(outEventCountPtr);
-                Module._free(inEventIndicesPtr);
             }catch(err){
-                console.log("err");
+                console.log("err123123");
                 console.log(err);
             } finally {
+                try {
+                    if (outSamplesPtr !== undefined) Module._free(outSignalPtr);
+                    if (outSamplesPtr !== undefined) Module._free(outSamplesPtr);
+                    if (outSampleCountsDrawingPtr !== undefined) Module._free(outSampleCountsDrawingPtr);
+                    if (outEventIndicesPtr !== undefined) Module._free(outEventIndicesPtr);
+                    if (outEventCountPtr !== undefined) Module._free(outEventCountPtr);
+                    if (inEventIndicesPtr !== undefined) Module._free(inEventIndicesPtr);
+                }catch(err123) {
+                    console.log("err123");
+                    console.log(err123)
+                }
+
             }            
         break;
         case "INPUT_MICROPHONE_BUFFER":
             // Prepare input data pointer
-            data = eventFromMain.data.microphoneDataBuffers;
+            data = eventFromMain.data.microphoneDataBuffers.slice();
             channelIdx = eventFromMain.data.channelIdx;
             inDataPtr = Module._malloc(data.length * Module.HEAPU8.BYTES_PER_ELEMENT);
             inDataPtrStart = inDataPtr / Module.HEAPU8.BYTES_PER_ELEMENT;
@@ -522,12 +535,22 @@ self.onmessage = async function (eventFromMain) {
             }
             inDataArr.set(data);
 
-            const micResult = Module._processing_process_microphone_stream(
-                inSamplesPtr,
-                outSampleCountsPtr,
-                inDataPtr,
-                data.length
-            );
+            try{
+                const micResult = Module._processing_process_microphone_stream(
+                    inSamplesPtr,
+                    outSampleCountsPtr,
+                    inDataPtr,
+                    data.length
+                );
+            }catch(err) {
+                console.log("PROCESS MICROPHONE STREAM ERROR: ", inSamplesBuffer, outSampleCountsBuffer, inDataArr, data,err);
+                Module._free(inSamplesPtr);
+                Module._free(inDataPtr);
+                Module._free(outSampleCountsPtr);
+    
+                return;
+
+            }
             
             let selectedChannel = 0;
 
@@ -626,8 +649,8 @@ self.onmessage = async function (eventFromMain) {
             Module._free(inSamplesPtr);
             Module._free(inDataPtr);
             Module._free(outSampleCountsPtr);
-            if (micResult >= 0) {
-            }
+            // if (micResult >= 0) {
+            // }
             // console.log("micResult: ", micResult);
         
 
@@ -641,11 +664,12 @@ self.onmessage = async function (eventFromMain) {
         break;
 
         case "SET_BAND_FILTER":
+            const bandChannelIdx = eventFromMain.data.channelIdx;
             const lowFreq = eventFromMain.data.lowFreq;
             const highFreq = eventFromMain.data.highFreq;
             console.log("lowFreq, highFreq");
             console.log(lowFreq, highFreq);
-            Module._processing_set_band_filter(lowFreq, highFreq);
+            Module._processing_set_band_filter(bandChannelIdx, lowFreq, highFreq);
         break;
         case "SET_NOTCH_FILTER":
             const centerFreq = eventFromMain.data.centerFreq;

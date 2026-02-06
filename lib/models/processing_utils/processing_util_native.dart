@@ -516,7 +516,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       await init();
     }
 
-    print("LH: $lowCutOffFreq $highCutOffFreq");
+    print("LH: $channelIdx --- $lowCutOffFreq $highCutOffFreq");
     return pb.processingBindings.setBandFilter(channelIdx, lowCutOffFreq, highCutOffFreq);
   }
 
@@ -801,6 +801,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       ProcessingUtil.drawingBuffers
           .add(Int16List(drawSurfaceWidth.toInt() * 5));
       ProcessingUtil.drawingBufferCounts.add(drawSurfaceWidth.toInt() * 5);
+      pb.processingBindings.setChannelFilterEnabled(i, 1);
     }
 
     // int res = ProcessingBindings.instance.setBitsPerSample(board.sampleResolution!);

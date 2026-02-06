@@ -158,13 +158,13 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                       .setStartValue(start);
                   double lowFreq = start; // Allow 0 value
                   double highFreq = end >= maxFreq ? -1 : end;
-                  if (widget.channelIdx == -1) {
-                    for (int i = 0; i < widget.channelCount; i++) {
-                      widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
-                    }
-                  } else {
-                    widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
-                  }
+                  // if (widget.channelIdx == -1) {
+                  //   for (int i = 0; i < widget.channelCount; i++) {
+                  //     widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                  //   }
+                  // } else {
+                  //   widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                  // }
 
                   widget.startValue = start;
                   print("startValue CUSTOMIZing: ${widget.startValue}");
@@ -275,12 +275,15 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
 
                           // 2. Logic for processingUtil - allow 0 value
                           double lowFreq = start; // Allow 0 value
-                          double highFreq = end >= maxFreq ? -1 : end;
+                          // double highFreq = end >= maxFreq ? -1 : end;
+                          double highFreq = end >= maxFreq ? maxFreq : end;
+                          print("widget.channelIdx: ${widget.channelIdx} | end : $end | maxFreq: $maxFreq");
                           if (widget.channelIdx == -1) {
                             for (int i = 0; i < widget.channelCount; i++) {
                               widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
                             }
                           } else {
+                            print("setBandFilter: ${widget.channelIdx}, lowFreq: $lowFreq, highFreq: $highFreq");
                             widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
                           }
                         });
@@ -325,13 +328,13 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   double lowFreq = start; // Allow 0 value
                   double highFreq = end >= maxFreq ? -1 : end;
                   // widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
-                  if (widget.channelIdx == -1) {
-                    for (int i = 0; i < widget.channelCount; i++) {
-                      widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
-                    }
-                  } else {
-                    widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
-                  }
+                  // if (widget.channelIdx == -1) {
+                  //   for (int i = 0; i < widget.channelCount; i++) {
+                  //     widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                  //   }
+                  // } else {
+                  //   widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                  // }
                   widget.endValue = end;
                   print("endValue CUSTOMIZing: ${widget.endValue}");
 

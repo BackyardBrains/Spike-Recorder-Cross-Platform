@@ -1617,7 +1617,7 @@ void processing_cleanup() {
     initialized = false;
 }
 
-int32_t processing_set_band_filter(float low_cut_off_freq, float high_cut_off_freq) {
+int32_t processing_set_band_filter(int channel_idx, float low_cut_off_freq, float high_cut_off_freq) {
     if (!initialized) {
         return -1;  // Not initialized
     }

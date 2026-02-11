@@ -33,6 +33,7 @@ class CustomSliderBarButton extends StatefulWidget {
     required this.isMicrophoneEnable,
     required this.channelIdx,
     required this.channelCount,
+    this.readOnly = false,
   });
 
   final int channelIdx;
@@ -40,6 +41,8 @@ class CustomSliderBarButton extends StatefulWidget {
   final double sliderValue;
   double startValue;
   double endValue;
+  bool readOnly;
+
   final ProcessingUtil processingUtil;
   final Function(bool) isMicrophoneEnable;
   final Function(bool) onSampleChange;
@@ -74,23 +77,56 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
     super.initState();
   }
 
+  // Convert linear frequency to custom log space where 0-1 has step size of 1
+  double _linearToCustomLogSpace(double freq, double minLog, double log1) {
+    if (freq == 0) {
+      return minLog; // 0 maps to minimum log position
+    } else if (freq <= 1) {
+      // For 0-1 range, snap to integer (0 or 1) and map accordingly
+      // Since step size is 1, we map to log1 (which is 0) for any value 0-1
+      // This creates a single step position for the entire 0-1 range
+      int snapped = freq.round().clamp(0, 1);
+      return snapped == 0 ? minLog : log1;
+    } else {
+      // Values > 1 use normal logarithmic mapping
+      return log(freq) / ln10;
+    }
+  }
+
+  // Convert custom log space back to linear frequency
+  double _customLogSpaceToLinear(double logVal, double minLog, double log1) {
+    // Use a threshold halfway between minLog and log1 to determine if we're closer to 0 or 1
+    double threshold = (minLog + log1) / 2;
+    
+    if (logVal <= threshold) {
+      return 0; // Closer to minLog, return 0
+    } else if (logVal <= log1) {
+      return 1; // Closer to log1, return 1 (single step for 0-1 range)
+    } else {
+      // Values > log1 use normal exponential conversion
+      return pow(10, logVal).toDouble();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     sliderValue = widget.sliderValue;
 
     // print("startValue: ${context.read<CustomRangeSliderProvider>().startValue}");
     // print("endValue: ${context.read<CustomRangeSliderProvider>().endValue}");
-    // print("Slider Value: ${sliderValue}");
+    print("BUILD Slider Value: ${sliderValue}");
 
     sampleRate = context.read<SampleRateProvider>().sampleRate.toDouble();
     maxFreq = sampleRate / 2;
-    start = context.read<CustomRangeSliderProvider>().startValue;
-    double endValue = context.read<CustomRangeSliderProvider>().endValue;
+    start = context.read<CustomRangeSliderProvider>().startValue[widget.channelIdx];
+    double endValue = context.read<CustomRangeSliderProvider>().endValue[widget.channelIdx];
     if (endValue == 0) {
       end = maxFreq;
     } else {
-      end = context.read<CustomRangeSliderProvider>().endValue;
+      end = context.read<CustomRangeSliderProvider>().endValue[widget.channelIdx];
     }
+
+    context.watch<CustomRangeSliderProvider>().addListener(refreshState);
 
     // print("start: $start, end: $end");
     // print("maxFreq: $maxFreq");
@@ -123,10 +159,11 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
     const double minFreqForLog = 0.1;
     double maxLog = log(maxFreq) / ln10;
     double minLog = log(minFreqForLog) / ln10; // Use 0.1Hz for log calculation
+    double log1 = log(1.0) / ln10; // log(1) = 0, this is the boundary for 0-1 range
     
-    // Convert linear to log space, handling 0 specially
-    double startLog = start == 0 ? minLog : log(start.clamp(minFreqForLog, maxFreq)) / ln10;
-    double endLog = end == 0 ? minLog : log(end.clamp(minFreqForLog, maxFreq)) / ln10;
+    // Convert linear to custom log space (0-1 is a single step)
+    double startLog = _linearToCustomLogSpace(start.clamp(0.0, maxFreq), minLog, log1);
+    double endLog = _linearToCustomLogSpace(end.clamp(0.0, maxFreq), minLog, log1);
     
     // Clamp log values to valid range
     startLog = startLog.clamp(minLog, maxLog);
@@ -148,30 +185,32 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
             mainAxisSize: MainAxisSize.max,
             // crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SetFrequencyWidget(
-                frequencyType: "Low",
-                frequencyValue: start.toInt(),
-                maxFrequency: maxFreq,
-                onFrequencyChanged: (value) {
-                  start = value.toDouble();
-                  Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                      .setStartValue(start);
-                  double lowFreq = start; // Allow 0 value
-                  double highFreq = end >= maxFreq ? -1 : end;
-                  // if (widget.channelIdx == -1) {
-                  //   for (int i = 0; i < widget.channelCount; i++) {
-                  //     widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
-                  //   }
-                  // } else {
-                  //   widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
-                  // }
+              if (!widget.readOnly) ... [
+                SetFrequencyWidget(
+                  frequencyType: "Low",
+                  frequencyValue: start.toInt(),
+                  maxFrequency: maxFreq,
+                  onFrequencyChanged: (value) {
+                    start = value.toDouble();
+                    Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                        .setStartValue(start, widget.channelIdx);
+                    double lowFreq = start; // Allow 0 value
+                    double highFreq = end >= maxFreq ? -1 : end;
+                    // if (widget.channelIdx == -1) {
+                    //   for (int i = 0; i < widget.channelCount; i++) {
+                    //     widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                    //   }
+                    // } else {
+                    //   widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                    // }
 
-                  widget.startValue = start;
-                  print("startValue CUSTOMIZing: ${widget.startValue}");
+                    widget.startValue = start;
+                    print("START VALUE startValue CUSTOMIZing: ${widget.startValue}");
 
-                  setState(() {});
-                },
-              ),
+                    setState(() {});
+                  },
+                ),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -192,102 +231,106 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                         // ),
                       ],
                     ),
-                    FlutterSlider(
-                      values: [startLog, endLog],
-                      rangeSlider: true,
-                      min: minLog, // Fixed minimum in log space
-                      max: maxLog, // Fixed maximum in log space
-                      step: FlutterSliderStep(step: 0.01),                      
+                    IgnorePointer(
+                      ignoring: widget.readOnly,
+                      child: FlutterSlider(
+                        values: [startLog, endLog],
+                        rangeSlider: true,
+                        min: minLog, // Fixed minimum in log space
+                        max: maxLog, // Fixed maximum in log space
+                        step: FlutterSliderStep(step: 0.01),                      
+                        
+                        // Styling to match the "ruler" image
+                        trackBar: FlutterSliderTrackBar(
+                          activeTrackBar: BoxDecoration(
+                            color: SoftwareColors.kButtonBackGroundColor,
+                            border: Border.all(color: Colors.grey.shade400, width: 0.5),
+                          ),
+                          inactiveTrackBar: BoxDecoration(
+                            color: Colors.grey.shade700,
+                            border: Border.all(color: Colors.grey.shade400, width: 0.5),
+                          ),
+                          activeTrackBarHeight: 20, // Match the thick bar in the image
+                          inactiveTrackBarHeight: 20,
+                        ),
                       
-                      // Styling to match the "ruler" image
-                      trackBar: FlutterSliderTrackBar(
-                        activeTrackBar: BoxDecoration(
-                          color: SoftwareColors.kButtonBackGroundColor,
-                          border: Border.all(color: Colors.grey.shade400, width: 0.5),
+                        // Rectangular grey handlers as seen in your reference
+                        handler: customThumb(),
+                        rightHandler: customThumb(),
+                      
+                        // The "Ruler" markings
+                        hatchMark: FlutterSliderHatchMark(
+                          displayLines: false, // We turn off default lines to use our own
+                          labels: _generateRulerItems(minLog, maxLog),
+                        ),             
+                      
+                        tooltip: FlutterSliderTooltip(
+                          alwaysShowTooltip: false,
+                          boxStyle: FlutterSliderTooltipBox(
+                            decoration: BoxDecoration(color: Colors.black),
+                          ),
+                          textStyle: TextStyle(color: Colors.white, fontSize: 12),
+                          format: (String value) {
+                            // Convert custom log space back to linear frequency for display
+                            double logVal = double.tryParse(value) ?? 0;
+                            const double minFreqForLog = 0.1;
+                            double minLog = log(minFreqForLog) / ln10;
+                            double log1 = log(1.0) / ln10;
+                            double freq = _customLogSpaceToLinear(logVal, minLog, log1);
+                            if (freq == 0) {
+                              return "0";
+                            }
+                            return freq >= 1000 ? "${(freq / 1000).toStringAsFixed(1)}k" : freq.toStringAsFixed(0);
+                          },
                         ),
-                        inactiveTrackBar: BoxDecoration(
-                          color: Colors.grey.shade700,
-                          border: Border.all(color: Colors.grey.shade400, width: 0.5),
-                        ),
-                        activeTrackBarHeight: 20, // Match the thick bar in the image
-                        inactiveTrackBarHeight: 20,
-                      ),
-
-                      // Rectangular grey handlers as seen in your reference
-                      handler: customThumb(),
-                      rightHandler: customThumb(),
-
-                      // The "Ruler" markings
-                      hatchMark: FlutterSliderHatchMark(
-                        displayLines: false, // We turn off default lines to use our own
-                        labels: _generateRulerItems(minLog, maxLog),
-                      ),             
-
-                      tooltip: FlutterSliderTooltip(
-                        alwaysShowTooltip: false,
-                        boxStyle: FlutterSliderTooltipBox(
-                          decoration: BoxDecoration(color: Colors.black),
-                        ),
-                        textStyle: TextStyle(color: Colors.white, fontSize: 12),
-                        format: (String value) {
-                          // Convert log value back to linear frequency for display
-                          double logVal = double.tryParse(value) ?? 0;
-                          const double minFreqForLog = 0.1;
-                          double minLog = log(minFreqForLog) / ln10;
-                          // If at minimum log position, return 0
-                          if (logVal <= minLog) {
-                            return "0";
-                          }
-                          double freq = pow(10, logVal).toDouble();
-                          return freq >= 1000 ? "${(freq / 1000).toStringAsFixed(1)}k" : freq.toStringAsFixed(0);
+                      
+                        onDragging: (handlerIndex, lowerValue, upperValue) {
+                          setState(() {
+                            // Convert from custom log space back to linear frequency space
+                            const double minFreqForLog = 0.1;
+                            double minLog = log(minFreqForLog) / ln10;
+                            double log1 = log(1.0) / ln10;
+                            
+                            // Use custom conversion function
+                            start = _customLogSpaceToLinear(lowerValue, minLog, log1);
+                            end = _customLogSpaceToLinear(upperValue, minLog, log1);
+                            
+                            // Snap values in 0-1 range to discrete steps (step size = 1)
+                            // This ensures 0-1 range has only integer values (0 or 1)
+                            if (start >= 0 && start <= 1) {
+                              start = start.round().clamp(0, 1).toDouble();
+                            }
+                            if (end >= 0 && end <= 1) {
+                              end = end.round().clamp(0, 1).toDouble();
+                            }
+                            
+                            // Clamp values to valid range (allow 0, max is maxFreq)
+                            start = start.clamp(0.0, maxFreq);
+                            end = end.clamp(0.0, maxFreq);
+                      
+                            // 1. Update Provider
+                            final provider = Provider.of<CustomRangeSliderProvider>(context, listen: false);
+                            provider.setStartValue(start, widget.channelIdx);
+                            widget.startValue = start;
+                            provider.setEndValue(end, widget.channelIdx);
+                            widget.endValue = end;
+                      
+                            // 2. Logic for processingUtil - allow 0 value
+                            double lowFreq = start; // Allow 0 value
+                            // double highFreq = end >= maxFreq ? -1 : end;
+                            double highFreq = end >= maxFreq ? maxFreq : end;
+                            print("widget.channelIdx: ${widget.channelIdx} | end : $end | maxFreq: $maxFreq");
+                            if (widget.channelIdx == -1) {
+                              for (int i = 0; i < widget.channelCount; i++) {
+                                widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                              }
+                            } else {
+                              print("setBandFilter: ${widget.channelIdx}, lowFreq: $lowFreq, highFreq: $highFreq");
+                              widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                            }
+                          });
                         },
                       ),
-
-                      onDragging: (handlerIndex, lowerValue, upperValue) {
-                        setState(() {
-                          // Convert from log space back to linear frequency space
-                          const double minFreqForLog = 0.1;
-                          double minLog = log(minFreqForLog) / ln10;
-                          
-                          // If at minimum log position, set to 0, otherwise convert from log
-                          if (lowerValue <= minLog) {
-                            start = 0;
-                          } else {
-                            start = pow(10, lowerValue).toDouble();
-                          }
-                          
-                          if (upperValue <= minLog) {
-                            end = 0;
-                          } else {
-                            end = pow(10, upperValue).toDouble();
-                          }
-                          
-                          // Clamp values to valid range (allow 0, max is maxFreq)
-                          start = start.clamp(0.0, maxFreq);
-                          end = end.clamp(0.0, maxFreq);
-
-                          // 1. Update Provider
-                          final provider = Provider.of<CustomRangeSliderProvider>(context, listen: false);
-                          provider.setStartValue(start);
-                          widget.startValue = start;
-                          provider.setEndValue(end);
-                          widget.endValue = end;
-
-                          // 2. Logic for processingUtil - allow 0 value
-                          double lowFreq = start; // Allow 0 value
-                          // double highFreq = end >= maxFreq ? -1 : end;
-                          double highFreq = end >= maxFreq ? maxFreq : end;
-                          print("widget.channelIdx: ${widget.channelIdx} | end : $end | maxFreq: $maxFreq");
-                          if (widget.channelIdx == -1) {
-                            for (int i = 0; i < widget.channelCount; i++) {
-                              widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
-                            }
-                          } else {
-                            print("setBandFilter: ${widget.channelIdx}, lowFreq: $lowFreq, highFreq: $highFreq");
-                            widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
-                          }
-                        });
-                      },
                     )                    
                     // RangeSlider(
                     //   inactiveColor: Colors.grey,
@@ -317,30 +360,33 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   ],
                 ),
               ),
-              SetFrequencyWidget(
-                frequencyType: "High",
-                frequencyValue: end.toInt(),
-                maxFrequency: maxFreq,
-                onFrequencyChanged: (value) {
-                  end = value.toDouble();
-                  Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                      .setEndValue(end);
-                  double lowFreq = start; // Allow 0 value
-                  double highFreq = end >= maxFreq ? -1 : end;
-                  // widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
-                  // if (widget.channelIdx == -1) {
-                  //   for (int i = 0; i < widget.channelCount; i++) {
-                  //     widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
-                  //   }
-                  // } else {
-                  //   widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
-                  // }
-                  widget.endValue = end;
-                  print("endValue CUSTOMIZing: ${widget.endValue}");
+              if (!widget.readOnly) ... [
+                SetFrequencyWidget(
+                  frequencyType: "High",
+                  frequencyValue: end.toInt(),
+                  maxFrequency: maxFreq,
+                  onFrequencyChanged: (value) {
+                    end = value.toDouble();
+                    Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                        .setEndValue(end, widget.channelIdx);
+                    double lowFreq = start; // Allow 0 value
+                    double highFreq = end >= maxFreq ? -1 : end;
+                    // widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                    // if (widget.channelIdx == -1) {
+                    //   for (int i = 0; i < widget.channelCount; i++) {
+                    //     widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                    //   }
+                    // } else {
+                    //   widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                    // }
+                    widget.endValue = end;
+                    print("endValue CUSTOMIZing: ${widget.endValue}");
 
-                  setState(() {});
-                },
-              ),
+                    setState(() {});
+                  },
+                ),
+              ],
+              
             ],
           ),
         ),
@@ -500,6 +546,13 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
         color: Colors.grey, // Your square box
       ),
     );
+  }
+
+  void refreshState() {
+    print("REFRESH STATE startValue: ${context.read<CustomRangeSliderProvider>().startValue}");
+    setState(() {
+      
+    });
   }
 }
 

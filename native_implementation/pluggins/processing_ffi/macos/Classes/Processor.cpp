@@ -129,6 +129,9 @@ namespace backyardbrains {
             // Processor::highCutOff = highCutOffFreq;
             platform_log_filtering("SET BAND FILTER \n");
             platform_log_filtering("LOW CUT OFF FREQ: %f, HIGH CUT OFF FREQ: %f \n", lowCutOffFreq, highCutOffFreq);
+            if (lowCutOffFreq == -1 || highCutOffFreq == -1) {
+                return;
+            }
             if (initialized) deleteFilters(channelCount, channelIdx);
             createFilters(Processor::sampleRate, channelCount, channelIdx, lowCutOffFreq, highCutOffFreq, centerFrequency);
         }

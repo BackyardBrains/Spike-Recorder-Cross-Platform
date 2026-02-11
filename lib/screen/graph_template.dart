@@ -33,6 +33,7 @@ import 'package:spikerbox_architecture/screen/setting_page.dart';
 import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
 import 'package:spikerbox_architecture/widget/darkdropdown_widget.dart';
 import 'package:spikerbox_architecture/widget/hump_custom_painter.dart';
+import 'package:tabbed_view/tabbed_view.dart';
 import 'package:window_manager/window_manager.dart';
 import '../provider/provider_export.dart';
 import '../widget/widget_export.dart';
@@ -65,6 +66,7 @@ class GraphTemplate extends StatefulWidget {
 
 class _GraphTemplateState extends State<GraphTemplate> {
   String serialUsageType = "";
+  List<String> filterUsageTypeChannels = [];
   List<double> bufferPos = [0, 0];
   var seekElectricalSeriesWebCompleter = Completer<Map<String, dynamic>>();
 
@@ -943,7 +945,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   int deviceType = -1;
 
-  String configTitle = "Configuration";
+  String configTitle = "Channels";
 
   @override
   Widget build(BuildContext widgetContext) {
@@ -978,9 +980,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           ElevatedButton(
                             onPressed: () {
                               if (configTitle == "Channel Settings") {
-                                configTitle = "Configuration";
+                                configTitle = "Channels";
                                 isDetailConfiguration = false;
                                 customizeDetailChannelIdx = -1;
+
+                                createTabBarConfiguration(widget.channelCount, Provider.of<ChannelFilterProvider>(context, listen: false));
                               } else {
                                 context
                                     .read<SoftwareConfigProvider>()
@@ -1025,305 +1029,80 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           ),
                           child: Column(
                             children: [
+                              Container(
+                                padding: EdgeInsets.only(top:20),
+                                decoration: BoxDecoration(
+                                  color: Color(0x28707070),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.max,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    buildSerialUsageTypeButton("EMG", customizeDetailChannelIdx),
+                                    buildSerialUsageTypeButton("ECG", customizeDetailChannelIdx),
+                                    buildSerialUsageTypeButton("Neuron", customizeDetailChannelIdx),
+                                    buildSerialUsageTypeButton("EEG", customizeDetailChannelIdx),
+                                    buildSerialUsageTypeButton("Plant", customizeDetailChannelIdx),
+                                    
+                                  ],
+                                ),
+                              ),
                               _mutingSpeakers(),
                               SizedBox(height: 10),
                               customSliderBarArray[customizeDetailChannelIdx],
                               const SizedBox(
                                 height: 10,
                               ),
-                              NotchPassFilterWidget(
-                                  sampleRateParam: _sampleRate.toDouble(),
-                                  onTapNotchFrequency:
-                                      (notchFilterSettings) async {
-                                    notchFilterSettings.filterConfiguration
-                                        .sampleRate = _sampleRate;
-                                    print(
-                                        "the notch filter setting is ${notchFilterSettings.toJson()}");
-                                    if (notchFilterSettings.isFilterOn) {
-                                      if (notchFilterSettings
-                                              .filterConfiguration
-                                              .cutOffFrequency ==
-                                          50) {
-                                        int temp = await processingUtil
-                                            .setNotchFilter(50);
-                                        print(
-                                            "processingUtil.setNotchFilter(50) $temp");
-                                      } else if (notchFilterSettings
-                                              .filterConfiguration
-                                              .cutOffFrequency ==
-                                          60) {
-                                        processingUtil.setNotchFilter(60);
-                                        print(
-                                            "processingUtil.setNotchFilter(60)");
-                                      } else {
-                                        processingUtil.setNotchFilter(-1);
-                                      }
-                                    }
-                
-                                    context
-                                        .read<DataStatusProvider>()
-                                        .setNotchPassFilterSetting(
-                                            notchFilterSettings);
-                                    // localPlugin.initNotchPassFilters(notchFilterSettings);
-                                  }),
-                              
+                              _channelColorSettings(customizeDetailChannelIdx),    
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: SoftwareColors.kButtonBackGroundColor,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: Text(
+                                  "RESTORE DEFAULTS",
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                                onPressed: () {
+                                  customSliderBarArray[customizeDetailChannelIdx].startValue = 0;
+                                  customSliderBarArray[customizeDetailChannelIdx].endValue = (_sampleRate / 2);
+                                  Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                                    .setStartValue(customSliderBarArray[customizeDetailChannelIdx].startValue, customizeDetailChannelIdx);
+                                  Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                                    .setEndValue(customSliderBarArray[customizeDetailChannelIdx].endValue, customizeDetailChannelIdx);
+                                  setState(() {});
+                                },
+                              ),                              
                             ]
                           ),
                         ),
                       ] else ... [
                         Expanded(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                // 1. Header Row
-                                // 2. Main Content Container
-                                // Replaced Expanded with Center + ConstrainedBox
-                                Center(
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: kIsWeb? 600 : Platform.isIOS || Platform.isAndroid ? 500 : 600,
-                                    ),
-                                    child: Column(
-                                      mainAxisSize:
-                                          MainAxisSize.min, // Vital for scrolling
-                                      children: [
-                                        SizedBox(height: 0),
-                                        _predefinedFilterSettings(),
-                                        // _mutingSpeakers(),
-
-                          
-                                        // 3. Settings Area
-                                        Container(
-                                          // padding: EdgeInsets.all(10),
-                                          decoration: BoxDecoration(
-                                            // color: Color(0xFF2e2e2e),
-                                            // borderRadius: BorderRadius.circular(16),
-                                          ),
-                                          child: Column(
-                                            mainAxisSize:
-                                                MainAxisSize.min, // Vital for scrolling
-                                            children: [
-                                              FilterProcessWidget(isMicrophoneEnable:
-                                                  (bool isMicrophoneEnable) {
-                                                context
-                                                    .read<DataStatusProvider>()
-                                                    .setMicrophoneDataStatus(
-                                                        isMicrophoneEnable);
-                                              }, onHighPassFilterSetup:
-                                                  (FilterSetup filterSetup) {
-                                                localPlugin
-                                                    .initHighPassFilters(filterSetup);
-                                              }, onLowPassFilterSetup:
-                                                  (FilterSetup filterSetup) {
-                                                localPlugin
-                                                    .initLowPassFilters(filterSetup);
-                                              }, onSampleChange: (bool isSampleDataOn) {
-                                                context
-                                                    .read<DataStatusProvider>()
-                                                    .setSampleDataStatus(isSampleDataOn);
-                                                // _toGenerateDummyData =
-                                                //     isSampleDataOn;
-                                              }),
-                                              _channelColorSettings(),
-                                              // _channelFilterSettings(),
-                                              // DropdownButtonFormField<int>(
-                                              //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                              //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                                              //   items: _dataBit
-                                              //       .map(
-                                              //         (e) => DropdownMenuItem(
-                                              //           value: e,
-                                              //           child: Text(
-                                              //             e.toString(),
-                                              //           ),
-                                              //         ),
-                                              //       )
-                                              //       .toList(),
-                                              //   onChanged: (int? bitDataSelect) {
-                                              //     context.read<ConstantProvider>().setBitData(bitDataSelect!);
-                                              //   },
-                                              //   value: context.read<ConstantProvider>().getBitData(),
-                                              // ),
-                                              // DropdownButtonFormField(
-                                              //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                              //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                                              //   items: _baudRate
-                                              //       .map(
-                                              //         (e) => DropdownMenuItem(
-                                              //           value: e,
-                                              //           child: Text(
-                                              //             e.toString(),
-                                              //           ),
-                                              //         ),
-                                              //       )
-                                              //       .toList(),
-                                              //   onChanged: (baudRateSelect) {
-                                              //     context.read<ConstantProvider>().setBaudRate(baudRateSelect!);
-                                              //   },
-                                              //   value: context.read<ConstantProvider>().getBaudRate(),
-                                              // ),
-                                              // DropdownButtonFormField(
-                                              //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                                              //   style: SoftwareTextStyle().kWtMediumTextStyle,
-                                              //   items: _channelCount
-                                              //       .map(
-                                              //         (e) => DropdownMenuItem(
-                                              //           value: e,
-                                              //           child: Text(
-                                              //             e.toString(),
-                                              //           ),
-                                              //         ),
-                                              //       )
-                                              //       .toList(),
-                                              //   onChanged: (int? channelCountSelect) {
-                                              //     context.read<ConstantProvider>().setChannelCount(channelCountSelect!);
-                                              //   },
-                                              //   value: context.read<ConstantProvider>().getChannelCount(),
-                                              // ),
-                                            ],
-                                          ),
-                                        ),
-                          
-                                        // 4. Ports Area
-                                        Consumer<PortScanProvider>(
-                                            builder: (context, portList, snapshot) {
-                                          return _PortsArea(
-                                            deviceName: _deviceName,
-                                            availablePorts: portList.availablePorts,
-                                            onTriggerDisconnect: onTriggerDisconnect,
-                                            onReceive: (String add) async {
-                                              // int baudRate = context
-                                              //     .read<ConstantProvider>()
-                                              //     .getBaudRate();
-                          
-                                              // await _serialUtil.openPortToListen(
-                                              //     add, baudRate);
-                          
-                                              // // ignore: use_build_context_synchronously
-                                              // context
-                                              //     .read<DataStatusProvider>()
-                                              //     .setMicrophoneDataStatus(false);
-                          
-                                              // // if (!mounted) return;
-                                              // // bool dummyDataStatus = context
-                                              // //     .read<DataStatusProvider>()
-                                              // //     .isSampleDataOn;
-                                              // // bool isAudioListen = context
-                                              // //     .read<DataStatusProvider>()
-                                              // //     .isMicrophoneData;
-                                              // // try {
-                                              // //   _serialUtil.dataStream?.listen((event) {
-                                              // //     if (!dummyDataStatus &&
-                                              // //         !isAudioListen) {
-                                              // //       _preEscapeSequenceBuffer
-                                              // //           .addBytes(event);
-                                              // //       if (isDeviceConnect) {
-                                              // //         _serialUtil.writeToPort(
-                                              // //             bytesMessage: UsbCommand
-                                              // //                 .hwTypeInquiry
-                                              // //                 .cmdAsBytes(),
-                                              // //             address: add);
-                          
-                                              // //         isDeviceConnect = false;
-                                              // //       }
-                                              // //       if (_isDataIdentified) {
-                                              // //         // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
-                                              // //         // stopwatch.reset();
-                                              // //       } else {
-                                              // //         Uint8List? firstFrameData =
-                                              // //             _frameDetect.addData(event);
-                          
-                                              // //         if (firstFrameData != null) {
-                                              // //           _preEscapeSequenceBuffer
-                                              // //               .addBytes(firstFrameData);
-                                              // //           _isDataIdentified = true;
-                                              // //         }
-                                              // //       }
-                                              // //     }
-                                              // //   });
-                                              // //   portName = add;
-                                              // // } catch (e) {
-                                              // //   print(
-                                              // //       "the error is $e from serial port");
-                                              // // }
-                                            },
-                                            onWrite: (String add) async {
-                                              serialWebButtonPressed();
-                                              // MessageValueSet? selectedCommand =
-                                              //     await showCommandPopUp(add);
-                                              // if (selectedCommand != null) {
-                                              //   _serialUtil.writeToPort(
-                                              //       bytesMessage:
-                                              //           selectedCommand.cmdAsBytes(),
-                                              //       address: add);
-                                              // }
-                                            },
-                                          );
-                                        }),
-                          
-                                        // 5. Footer Row
-                                        Container(
-                                          margin: const EdgeInsets.fromLTRB(0, 10, 0, 10),
-                                          padding:
-                                              const EdgeInsets.fromLTRB(5, 10, 10, 10),
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(16),
-                                            color: Color(0xFF2e2e2e),
-                                          ),
-                      
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.max,
-                                            children: [
-                                              // 1. The Custom Switch
-                                              Switch(
-                                                value: isDarkMode,
-                                                activeColor: Colors.white,
-                                                activeTrackColor: Color(
-                                                    0xFFFF7A5C), // The orange/coral color in your image
-                                                onChanged: (value) {
-                                                  setState(() {
-                                                    isDarkMode = value;
-                                                  });
-                                                },
-                                              ),
-                                              SizedBox(width: 8),
-                          
-                                              // 2. The Main Label
-                                              Text(
-                                                'Dark Mode',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14,
-                                                ),
-                                              ),
-                          
-                                              // 3. Spacing to push version info to the right
-                                              Spacer(),
-                          
-                                              // 4. App Version Info
-                                              Icon(Icons.info_outline,
-                                                  color: Colors.grey, size: 16),
-                                              SizedBox(width: 6),
-                                              Text(
-                                                'SpikeRecorder App ver. 2.0.5',
-                                                style: TextStyle(
-                                                  color: Colors.grey,
-                                                  fontSize: 14,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          child: Container(
+                            padding: EdgeInsets.fromLTRB(20, 0, 20, 20),
+                            child: TabbedViewTheme(
+                              data: channelTabTheme!,
+                              child: TabbedView(
+                                controller: _channelTabController!, 
+                                tabCloseInterceptor: (tabIndex, tabData) {
+                                  return false;
+                                },
+                                tabSelectInterceptor: (int channelIdx) {
+                                  serialUsageType = filterUsageTypeChannels[channelIdx];
+                                  setState(() {});
+                                  return true;
+                                },
+                              )),
                           ),
+                          // child: TabbedView(
+                          //   controller: _channelTabController!, 
+                          //   tabCloseInterceptor: (tabIndex, tabData) {
+                          //     return false;
+                          //   },
+                          // ),
                         ),
                       ],
 
@@ -2233,13 +2012,32 @@ class _GraphTemplateState extends State<GraphTemplate> {
   ];
 
   String eventThresholdTriggeredType = "Signal";
+  List<TabData> channelTabs = [];
 
+  Path _drawFolderTabPath(Size size) {
+    var path = Path();
+    double curveWidth = 15.0; // Adjust for more or less slant
+    
+    path.moveTo(0, size.height);
+    // Bottom-left to top-left curve
+    path.quadraticBezierTo(curveWidth / 2, size.height, curveWidth, 0);
+    path.lineTo(size.width - curveWidth, 0);
+    // Top-right to bottom-right curve
+    path.quadraticBezierTo(size.width - (curveWidth / 2), size.height, size.width, size.height);
+    path.close();
+    
+    return path;
+  }
+  
+    
   void listenToMicrophone(channelCount, provider) async {
     print("listenToMicrophone");
     stopCurrentPlaying();
     _deviceName.value = "";
 
+
     // Prevent multiple simultaneous calls
+    print("isListeningToMicrophone : $_isListeningToMicrophone --- $customSliderBarArray");
     if (_isListeningToMicrophone) {
       print(
           "listenToMicrophone already in progress, waiting for completion...");
@@ -2281,6 +2079,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
         sliderValue: _sliderValue,
       ),
     ];
+    print("isListeningToMicrophone222 : $_isListeningToMicrophone --- $customSliderBarArray");
+    filterUsageTypeChannels.clear();
+    filterUsageTypeChannels.add("EMG");
+    serialUsageType = "EMG";
+
+    createTabBarConfiguration(channelCount, provider);
 
     _isListeningToMicrophone = true;
     _listenToMicrophoneCompleter = Completer<void>();
@@ -2873,12 +2677,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   Widget _buildChannelColorDropdowns(
-      ChannelColorProvider provider, bool isAudio) {
+      ChannelColorProvider provider, bool isAudio, int curChannelIdx) {
     final colors = isAudio ? provider.audioColors : provider.serialColors;
     String title = isAudio ? 'Audio Channel Colors' : 'Serial Channel Colors';
 
     List<Widget> children = [];
     for (int idx = 0; idx < colors.length; idx++) {
+      if (idx != curChannelIdx) {
+        children.add(SizedBox.shrink());
+        continue;
+      } 
       children.add(
         // ...List.generate(colors.length, (idx) {
           // return 
@@ -2899,23 +2707,24 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 child: Row(
                 children: [
                   // Icon(IconData(0xe90e, fontFamily: "IcomoonIcons"), color: Colors.white),
-                  Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: Colors.orange,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(child: Text('${idx + 1}', style: TextStyle(color: Colors.white)))
-                  ),
+                  // Container(
+                  //   width: 20,
+                  //   height: 20,
+                  //   decoration: BoxDecoration(
+                  //     color: Colors.orange,
+                  //     shape: BoxShape.circle,
+                  //   ),
+                  //   child: Center(child: Text('${idx + 1}', style: TextStyle(color: Colors.white)))
+                  // ),
+                  // SizedBox(width: 10),
+                  Icon(Icons.palette_outlined, size: 20, color: Colors.white),
+                  // SvgPicture.asset(
+                  //   'assets/icons/config_board.svg',
+                  //   width: 20,
+                  //   height: 20,
+                  // ),              
                   SizedBox(width: 10),
-                  SvgPicture.asset(
-                    'assets/icons/config_board.svg',
-                    width: 20,
-                    height: 20,
-                  ),              
-                  SizedBox(width: 10),
-                  Text('SpikerBox Channel',
+                  Text('Channel Color',
                       style: SoftwareTextStyle().kWtMediumTextStyle),
                   const SizedBox(width: 8),
                   Container(
@@ -2958,45 +2767,45 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     ),
                   ),
                   SizedBox(width: 10),
-                  ElevatedButton(
-                    onPressed: () {
+                  // ElevatedButton(
+                  //   onPressed: () {
                       
-                      double startValue = customSliderBarArray[idx].startValue;
-                      Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                          .setStartValue(startValue);
-                      print("startValue CUSTOMIZED: $startValue");
-                      double endValue = customSliderBarArray[idx].endValue;
-                      Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                          .setEndValue(endValue);
-                      print("endValue CUSTOMIZED: $startValue");
+                  //     double startValue = customSliderBarArray[idx].startValue;
+                  //     Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                  //         .setStartValue(startValue);
+                  //     print("startValue CUSTOMIZED: $startValue");
+                  //     double endValue = customSliderBarArray[idx].endValue;
+                  //     Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                  //         .setEndValue(endValue);
+                  //     print("endValue CUSTOMIZED: $startValue");
 
-                      isDetailConfiguration = !isDetailConfiguration;
-                      customizeDetailChannelIdx = idx;
-                      configTitle = "Channel Settings";
+                  //     isDetailConfiguration = !isDetailConfiguration;
+                  //     customizeDetailChannelIdx = idx;
+                  //     configTitle = "Channel Settings";
 
-                      setState(() {});
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF333333), // Dark grey background
-                      foregroundColor: Colors.white,            // White text color
-                      elevation: 0,                            // Flat design as seen in image
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      shape: const StadiumBorder(),            // Creates the perfect "pill" shape
-                    ).copyWith(
-                      // Adding the hover border logic we discussed
-                      side: WidgetStateProperty.resolveWith<BorderSide>((states) {
-                        if (states.contains(WidgetState.hovered)) {
-                          return const BorderSide(color: Colors.blue, width: 1.5);
-                        }
-                        return BorderSide.none; 
-                      }),
-                    ), 
-                    child: const Text("Customize"),                    
-                  ),
-                  Spacer(),
-                  GestureDetector(
-                    child: Icon(IconData(0xe90a, fontFamily: "IcomoonIcons"), size: 20, color: Colors.grey)
-                  ),
+                  //     setState(() {});
+                  //   },
+                  //   style: ElevatedButton.styleFrom(
+                  //     backgroundColor: const Color(0xFF333333), // Dark grey background
+                  //     foregroundColor: Colors.white,            // White text color
+                  //     elevation: 0,                            // Flat design as seen in image
+                  //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  //     shape: const StadiumBorder(),            // Creates the perfect "pill" shape
+                  //   ).copyWith(
+                  //     // Adding the hover border logic we discussed
+                  //     side: WidgetStateProperty.resolveWith<BorderSide>((states) {
+                  //       if (states.contains(WidgetState.hovered)) {
+                  //         return const BorderSide(color: Colors.blue, width: 1.5);
+                  //       }
+                  //       return BorderSide.none; 
+                  //     }),
+                  //   ), 
+                  //   child: const Text("Customize"),                    
+                  // ),
+                  // Spacer(),
+                  // GestureDetector(
+                  //   child: Icon(IconData(0xe90a, fontFamily: "IcomoonIcons"), size: 20, color: Colors.grey)
+                  // ),
                 ],
               ),
             ),
@@ -3049,14 +2858,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
     );
   }
 
-  Widget _channelColorSettings() {
+  Widget _channelColorSettings(int curChannelIdx) {
     return Consumer2<ChannelColorProvider, DataStatusProvider>(
         builder: (context, prov, dataStatus, _) {
       bool isAudioListen = dataStatus.isMicrophoneData;
       if (isAudioListen && prov.audioColors.isNotEmpty) {
-        return _buildChannelColorDropdowns(prov, true);
+        return _buildChannelColorDropdowns(prov, true, curChannelIdx);
       } else if (!isAudioListen && prov.serialColors.isNotEmpty) {
-        return _buildChannelColorDropdowns(prov, false);
+        return _buildChannelColorDropdowns(prov, false, curChannelIdx);
       } else {
         return const SizedBox.shrink();
       }
@@ -3067,14 +2876,32 @@ class _GraphTemplateState extends State<GraphTemplate> {
     startValue = filterValues[0];
     endValue = filterValues[1];
     double type = filterValues[2];
+    List<String> filterTypes = [
+      "ECG",
+      "EEG",
+      "EMG",
+      "Plant",
+      "Neuron",
+    ];
     
-    Provider.of<CustomRangeSliderProvider>(context, listen: false)
-        .setStartValue(startValue);
-    Provider.of<CustomRangeSliderProvider>(context, listen: false)
-        .setEndValue(endValue);
-    channelIndices.map((channelIdx) {
-      processingUtil.setBandFilter(channelIdx, startValue, endValue);
-    });
+
+    print("START SETUP FILTER VALUES -- type: $type ||| $filterUsageTypeChannels ||--|| $channelIndices");
+    for (int channelIdx in channelIndices) {
+      print("channelIdx: $channelIdx");
+      if (channelIdx != -1) {
+        processingUtil.setBandFilter(channelIdx, startValue, endValue);
+        print("filterUsageTypeChannels ${filterTypes[type.floor()]} -- filterUsageTypeChannels: $filterUsageTypeChannels - ${filterTypes[type.floor()]}");
+        filterUsageTypeChannels[channelIdx] = filterTypes[type.floor()];
+        Provider.of<CustomRangeSliderProvider>(context, listen: false)
+            .setStartValue(startValue, channelIdx);
+        Provider.of<CustomRangeSliderProvider>(context, listen: false)
+            .setEndValue(endValue, channelIdx);
+
+        setState(() {});
+      }
+    }
+    
+    print("END SETUP FILTER VALUES -- type: $type ||| $filterUsageTypeChannels");
     streamScrubBuilderController.add(Random().nextInt(100000));
     if (selectedBoard?.uniqueName == "HUMANSB;") {
       switch (type) {
@@ -3106,25 +2933,23 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   //https://github.com/BackyardBrains/Spike-Recorder/blob/cdb9686947776ab522027b2078c844b009cb0a33/src/engine/RecordingManager.cpp#L795
-  Widget _predefinedFilterSettings() {
+  Widget _predefinedFilterSettings(int channelIdx) {
     // startValue: startValue,
     // endValue: endValue,
     // sliderValue: _sliderValue,
+    print("_predefinedFilterSettings -- filterUsageTypeChannels: $filterUsageTypeChannels");
     return Container(
       padding: EdgeInsets.fromLTRB(0, 10, 0, 0),
       decoration: BoxDecoration(
-        color: Color(0xFF2e2e2e),
+        color: Color(0x14D9D9D9),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          buildSerialUsageTypeButton("EMG"),
-          buildSerialUsageTypeButton("ECG"),
-          buildSerialUsageTypeButton("Neuron"),
-          buildSerialUsageTypeButton("EEG"),
-          buildSerialUsageTypeButton("Plant"),
-        ],
+        children: 
+          buildPredefinedFilter(channelIdx, filterUsageTypeChannels[channelIdx]),
+          // buildSerialUsageTypeButton(serialUsageTypeChannels[channelIdx]),
+        
       ),
     );
   }
@@ -3159,6 +2984,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
   var isSpeakerChannelMuted = [false, false, false, false, false, false, false, false, false, false];
   
   List<CustomSliderBarButton> customSliderBarArray = [];
+  
+  TabbedViewController? _channelTabController;
+  
+  TabbedViewThemeData? channelTabTheme;
   // Int32List arrSampleCountWeb = Int32List(0);
   // Int16List arrSamplesWeb = Int16List(1);
 
@@ -4069,11 +3898,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   print("devices :   $devices");
                   // HARDCODE
                   deviceType = listOfDevices.indexOf("$foundDevices;") + 1;
-                  print(
-                      "${GraphTemplate.selectedBoard} ${board.uniqueName} --- $foundDevices ::: ${board.uniqueName == foundDevices} $deviceType");
                   // (processingUtil as ProcessingUtilImpl).dispose();
                   // processingUtil = createProcessingUtil();
                   _sampleRate = int.parse(board.maxSampleRate!);
+                  print(
+                      "SAMPLE RAtE: $_sampleRate -----${GraphTemplate.selectedBoard} ${board.uniqueName} --- $foundDevices ::: ${board.uniqueName == foundDevices} $deviceType");
                   double drawSurfaceWidth = MediaQuery.of(context).size.width;
                   processingUtil.initializeSerial(board, drawSurfaceWidth);
                   ProcessingUtil.initializeDevice.value = 1;
@@ -4089,14 +3918,20 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       int.parse(board.maxNumberOfChannels!));
                   print("SERIAL BOARD CHANNEL COUNT : ${widget.channelCount}");
 
+                  filterUsageTypeChannels.clear();
+                  for (int idxChannel = 0; idxChannel < widget.channelCount; idxChannel++) {
+                    filterUsageTypeChannels.add("EMG");
+                  }
+
                   // createDisplaySerialDataIsolate();
                   // createProcessSerialDataIsolate();
                   Future.delayed(Duration(seconds: 2), () {
                     // var info = processingUtil.getInformation();
                     // print("info : $info");
+
                     isDeviceSelected = true;
                     customSliderBarArray.clear();
-                    for (int idxChannel = 0; idxChannel < widget.channelCount; idxChannel++) {
+                    for (int idxChannel = 0; idxChannel < deviceChannelCount; idxChannel++) {
                       customSliderBarArray.add(
                         CustomSliderBarButton(
                           channelIdx: idxChannel,
@@ -4127,6 +3962,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         ),
                       );
                     }
+                    createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
+
                   });
                 }
               }
@@ -4904,7 +4741,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         address: _availablePorts.last);
   }
 
-  buildSerialUsageTypeButton(String s) {
+  buildSerialUsageTypeButton(String s, int channelIdx) {
     bool isSelected = serialUsageType.contains(s);
     ButtonStyle style = ElevatedButton.styleFrom(
       // Toggle colors based on selection
@@ -4912,7 +4749,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       foregroundColor: isSelected ? Colors.white : Colors.black,
     );
     // print("COMPARE: $serialUsageType -- $s == $isSelected");
-    List<int> channelIndices = List<int>.generate(widget.channelCount, (index) => index);
+    List<int> channelIndices = List<int>.generate(widget.channelCount, (index) => index == channelIdx ? index : -1);
 
     switch (s) {
       case "ECG":
@@ -5597,6 +5434,465 @@ class _GraphTemplateState extends State<GraphTemplate> {
     });
 
   }
+  
+  getTabbedViewChildren(int idx) {
+    print("customSliderBarArray.length -1 >= idx : ${customSliderBarArray.length} >= $idx");
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // 1. Header Row
+          // 2. Main Content Container
+          // Replaced Expanded with Center + ConstrainedBox
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: kIsWeb? 600 : Platform.isIOS || Platform.isAndroid ? 500 : 600,
+              ),
+              child: Column(
+                mainAxisSize:
+                    MainAxisSize.min, // Vital for scrolling
+                children: [
+                  SizedBox(height: 0),
+                  _predefinedFilterSettings(idx),
+                  SizedBox(height: 10),
+                  // _mutingSpeakers(),
+                  // if (customSliderBarArray.length -1 >= idx) ... [
+                  if (1 == 1) ... [
+                    // Text("ABCDEFGHIJ --- $idx"),
+                    // customSliderBarArray[idx],
+                    CustomSliderBarButton(
+                      readOnly: true,
+                      sliderValue: customSliderBarArray[idx].sliderValue, startValue: customSliderBarArray[idx].startValue, endValue: customSliderBarArray[idx].endValue, processingUtil: processingUtil, 
+                      onHighPassFilterSetup: (FilterSetup filterSetup) {}, onLowPassFilterSetup: (FilterSetup filterSetup) {}, onSampleChange: (bool isSampleDataOn) {}, 
+                      isMicrophoneEnable: (bool isMicrophoneEnable) {
+                        context
+                            .read<DataStatusProvider>()
+                            .setMicrophoneDataStatus(
+                                isMicrophoneEnable);
+                      },
+                      channelIdx: customSliderBarArray[idx].channelIdx, channelCount: customSliderBarArray[idx].channelCount)
+                  ],
+    
+    
+                  // 3. Settings Area
+                  Container(
+                    // padding: EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      // color: Color(0xFF2e2e2e),
+                      // borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      mainAxisSize:
+                          MainAxisSize.min, // Vital for scrolling
+                      children: [
+                        FilterProcessWidget(isMicrophoneEnable:
+                            (bool isMicrophoneEnable) {
+                          context
+                              .read<DataStatusProvider>()
+                              .setMicrophoneDataStatus(
+                                  isMicrophoneEnable);
+                        }, onHighPassFilterSetup:
+                            (FilterSetup filterSetup) {
+                          localPlugin
+                              .initHighPassFilters(filterSetup);
+                        }, onLowPassFilterSetup:
+                            (FilterSetup filterSetup) {
+                          localPlugin
+                              .initLowPassFilters(filterSetup);
+                        }, onSampleChange: (bool isSampleDataOn) {
+                          context
+                              .read<DataStatusProvider>()
+                              .setSampleDataStatus(isSampleDataOn);
+                          // _toGenerateDummyData =
+                          //     isSampleDataOn;
+                        }),
+                        // _channelColorSettings(),
+                        // _channelFilterSettings(),
+                        // DropdownButtonFormField<int>(
+                        //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                        //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                        //   items: _dataBit
+                        //       .map(
+                        //         (e) => DropdownMenuItem(
+                        //           value: e,
+                        //           child: Text(
+                        //             e.toString(),
+                        //           ),
+                        //         ),
+                        //       )
+                        //       .toList(),
+                        //   onChanged: (int? bitDataSelect) {
+                        //     context.read<ConstantProvider>().setBitData(bitDataSelect!);
+                        //   },
+                        //   value: context.read<ConstantProvider>().getBitData(),
+                        // ),
+                        // DropdownButtonFormField(
+                        //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                        //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                        //   items: _baudRate
+                        //       .map(
+                        //         (e) => DropdownMenuItem(
+                        //           value: e,
+                        //           child: Text(
+                        //             e.toString(),
+                        //           ),
+                        //         ),
+                        //       )
+                        //       .toList(),
+                        //   onChanged: (baudRateSelect) {
+                        //     context.read<ConstantProvider>().setBaudRate(baudRateSelect!);
+                        //   },
+                        //   value: context.read<ConstantProvider>().getBaudRate(),
+                        // ),
+                        // DropdownButtonFormField(
+                        //   dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                        //   style: SoftwareTextStyle().kWtMediumTextStyle,
+                        //   items: _channelCount
+                        //       .map(
+                        //         (e) => DropdownMenuItem(
+                        //           value: e,
+                        //           child: Text(
+                        //             e.toString(),
+                        //           ),
+                        //         ),
+                        //       )
+                        //       .toList(),
+                        //   onChanged: (int? channelCountSelect) {
+                        //     context.read<ConstantProvider>().setChannelCount(channelCountSelect!);
+                        //   },
+                        //   value: context.read<ConstantProvider>().getChannelCount(),
+                        // ),
+                      ],
+                    ),
+                  ),
+                  // 3.1 Notch Pass Filter Widget
+                  NotchPassFilterWidget(
+                      sampleRateParam: _sampleRate.toDouble(),
+                      onTapNotchFrequency:
+                          (notchFilterSettings) async {
+                        notchFilterSettings.filterConfiguration
+                            .sampleRate = _sampleRate;
+                        print(
+                            "the notch filter setting is ${notchFilterSettings.toJson()}");
+                        if (notchFilterSettings.isFilterOn) {
+                          if (notchFilterSettings
+                                  .filterConfiguration
+                                  .cutOffFrequency ==
+                              50) {
+                            int temp = await processingUtil
+                                .setNotchFilter(50);
+                            print(
+                                "processingUtil.setNotchFilter(50) $temp");
+                          } else if (notchFilterSettings
+                                  .filterConfiguration
+                                  .cutOffFrequency ==
+                              60) {
+                            processingUtil.setNotchFilter(60);
+                            print(
+                                "processingUtil.setNotchFilter(60)");
+                          } else {
+                            processingUtil.setNotchFilter(-1);
+                          }
+                        }
+    
+                        context
+                            .read<DataStatusProvider>()
+                            .setNotchPassFilterSetting(
+                                notchFilterSettings);
+                        // localPlugin.initNotchPassFilters(notchFilterSettings);
+                      }),
+                  
+
+    
+                  // 4. Ports Area
+                  Consumer<PortScanProvider>(
+                      builder: (context, portList, snapshot) {
+                    return _PortsArea(
+                      deviceName: _deviceName,
+                      availablePorts: portList.availablePorts,
+                      onTriggerDisconnect: onTriggerDisconnect,
+                      onReceive: (String add) async {
+                        // int baudRate = context
+                        //     .read<ConstantProvider>()
+                        //     .getBaudRate();
+    
+                        // await _serialUtil.openPortToListen(
+                        //     add, baudRate);
+    
+                        // // ignore: use_build_context_synchronously
+                        // context
+                        //     .read<DataStatusProvider>()
+                        //     .setMicrophoneDataStatus(false);
+    
+                        // // if (!mounted) return;
+                        // // bool dummyDataStatus = context
+                        // //     .read<DataStatusProvider>()
+                        // //     .isSampleDataOn;
+                        // // bool isAudioListen = context
+                        // //     .read<DataStatusProvider>()
+                        // //     .isMicrophoneData;
+                        // // try {
+                        // //   _serialUtil.dataStream?.listen((event) {
+                        // //     if (!dummyDataStatus &&
+                        // //         !isAudioListen) {
+                        // //       _preEscapeSequenceBuffer
+                        // //           .addBytes(event);
+                        // //       if (isDeviceConnect) {
+                        // //         _serialUtil.writeToPort(
+                        // //             bytesMessage: UsbCommand
+                        // //                 .hwTypeInquiry
+                        // //                 .cmdAsBytes(),
+                        // //             address: add);
+    
+                        // //         isDeviceConnect = false;
+                        // //       }
+                        // //       if (_isDataIdentified) {
+                        // //         // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
+                        // //         // stopwatch.reset();
+                        // //       } else {
+                        // //         Uint8List? firstFrameData =
+                        // //             _frameDetect.addData(event);
+    
+                        // //         if (firstFrameData != null) {
+                        // //           _preEscapeSequenceBuffer
+                        // //               .addBytes(firstFrameData);
+                        // //           _isDataIdentified = true;
+                        // //         }
+                        // //       }
+                        // //     }
+                        // //   });
+                        // //   portName = add;
+                        // // } catch (e) {
+                        // //   print(
+                        // //       "the error is $e from serial port");
+                        // // }
+                      },
+                      onWrite: (String add) async {
+                        serialWebButtonPressed();
+                        // MessageValueSet? selectedCommand =
+                        //     await showCommandPopUp(add);
+                        // if (selectedCommand != null) {
+                        //   _serialUtil.writeToPort(
+                        //       bytesMessage:
+                        //           selectedCommand.cmdAsBytes(),
+                        //       address: add);
+                        // }
+                      },
+                    );
+                  }),
+    
+                  // 5. Footer Row
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(0, 10, 0, 10),
+                    padding:
+                        const EdgeInsets.fromLTRB(5, 10, 10, 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: Color(0xFF2e2e2e),
+                    ),
+                          
+                    child: Row(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        // 1. The Custom Switch
+                        Switch(
+                          value: isDarkMode,
+                          activeColor: Colors.white,
+                          activeTrackColor: Color(
+                              0xFFFF7A5C), // The orange/coral color in your image
+                          onChanged: (value) {
+                            setState(() {
+                              isDarkMode = value;
+                            });
+                          },
+                        ),
+                        SizedBox(width: 8),
+    
+                        // 2. The Main Label
+                        Text(
+                          'Dark Mode',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+    
+                        // 3. Spacing to push version info to the right
+                        Spacer(),
+    
+                        // 4. App Version Info
+                        Icon(Icons.info_outline,
+                            color: Colors.grey, size: 16),
+                        SizedBox(width: 6),
+                        Text(
+                          'SpikeRecorder App ver. 2.0.5',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void createTabBarConfiguration(channelCount, provider) {
+    print("CreateTabBarConfiguration : $channelCount");
+    channelTabTheme = TabbedViewThemeData.classic(borderColor: Color(0xFF222222));
+    // channelTabTheme?.tab.closeIcon = IconProvider.data(IconData(0x0000, fontFamily: "IcomoonIcons"));  
+    // channelTabTheme?.tab.hoverButtonColor = Colors.transparent; 
+    channelTabTheme?.contentArea.decoration = BoxDecoration(color: Color(0xFF222222));
+
+    // channelTabTheme?.tab.buttonPadding = EdgeInsets.zero;
+    TabStatusThemeData selectedStatusTheme = TabStatusThemeData(
+      decoration: BoxDecoration(borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)), color: Color(0xFF2e2e2e) ),
+      fontColor: Colors.white,
+      margin: EdgeInsets.only(left: 30, right: 10),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      paddingWithoutButton: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      innerBottomBorder: BorderSide.none,
+
+      // path: _drawFolderTabPath,
+      // color: Color(0xFF2D2D2D), // Dark grey from your image
+    );
+    TabStatusThemeData normalStatusTheme = TabStatusThemeData(
+      decoration: BoxDecoration(borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)), color: Color(0xFF181818) ),
+      fontColor: Colors.white,
+      margin: EdgeInsets.only(left: 30, right: 10),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      paddingWithoutButton: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+    );
+    // channelTabs = [
+    //   TabData(text: '   1   ', selectedStatusTheme: selectedStatusTheme, normalStatusTheme: normalStatusTheme, highlightedStatusTheme: normalStatusTheme, draggable: false, closable: false, 
+    //     content: ClipRRect(
+    //       borderRadius: BorderRadius.all(Radius.circular(16)),
+    //       clipBehavior: Clip.antiAlias,
+    //       child: Container(
+    //         color: Color(0xFF2e2e2e),
+    //         child: Center(child: getTabbedViewChildren(0)),
+    //       ),
+    //     )
+    //     // content: Container(color: Color(0xFF222222), child: Center(child: Text("123123123")))
+
+    //   ),
+    //   // TabData(text: '   2   ', selectedStatusTheme: selectedStatusTheme, normalStatusTheme: normalStatusTheme, highlightedStatusTheme: normalStatusTheme, draggable: false, closable: false, 
+    //   //   content: Container(color: Color(0xFF222222), child: Center(child: Text("123123123")))
+    //   // ),
+    // ];
+    channelTabs.clear();
+    for (int idx = 0; idx < channelCount; idx++) {
+      channelTabs.add(TabData(text: '   ${idx + 1}   ', selectedStatusTheme: selectedStatusTheme, normalStatusTheme: normalStatusTheme, highlightedStatusTheme: normalStatusTheme, draggable: false, closable: false, 
+        content: ClipRRect(
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+          clipBehavior: Clip.antiAlias,
+          child: Container(color: Color(0xFF2e2e2e), child: Center(child: getTabbedViewChildren(idx))),
+        )
+      ));
+    }
+    _channelTabController = TabbedViewController(channelTabs);        
+  }
+
+  Widget getIconFilterWidget(String serialType, bool isSelected) {
+    Widget iconWidget = SizedBox();
+    Color iconColor = Colors.transparent;
+    if (serialType == "EMG") {
+      iconColor = isSelected ? Color(0xFFffc600) : Color(0xFF585858);
+      iconWidget = SvgPicture.asset('assets/icons/config_emg_off.svg', width: 60, height: 60);
+    } else if (serialType == "ECG") {
+      iconColor = isSelected ? Color(0xFFff805f) : Color(0xFF585858);
+      iconWidget = SvgPicture.asset('assets/icons/config_ecg_off.svg', width: 60, height: 60);
+    } else if (serialType == "Neuron") {
+      iconColor = isSelected ? Color(0xFFd205a5) : Color(0xFF585858);
+      iconWidget = SvgPicture.asset('assets/icons/config_neuron_off.svg', width: 60, height: 60);
+    } else if (serialType == "EEG") {
+      iconColor = isSelected ? Color(0xFF0093ff) : Color(0xFF585858);
+      iconWidget = SvgPicture.asset('assets/icons/config_eeg_off.svg', width: 60, height: 60);
+    } else if (serialType == "PLANT") {
+      iconColor = isSelected ? Color(0xFF00aa50) : Color(0xFF585858);
+      iconWidget = SvgPicture.asset('assets/icons/config_plant_off.svg', width: 60, height: 60);
+    }
+    return Padding(
+      padding: const EdgeInsets.all(15.0), 
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: iconColor,
+              shape: BoxShape.circle,
+              border: Border.all(color: iconColor, width: 30),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            right: 10,
+            child: iconWidget,
+          ),
+        ],
+      )
+    );
+  }
+  
+  buildPredefinedFilter(int channelIdx, String serialType) {
+    // bool isSelected = serialUsageType.contains(serialType);
+    bool isSelected = true;
+    print("serialType: $serialType -- $serialUsageType ||| isSelected: $isSelected");
+    ButtonStyle style = ElevatedButton.styleFrom(
+      // Toggle colors based on selection
+      backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
+      foregroundColor: isSelected ? Colors.white : Colors.black,
+    );
+
+    return [
+      getIconFilterWidget(serialType, isSelected),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(serialType, style: TextStyle(fontSize: 16, color: Colors.white)),
+          Text("Heartbeats", style: TextStyle(fontSize: 12, color: Color(0xFF707070))),
+      
+        ],
+      ),
+      Spacer(),
+      Padding(
+        padding: const EdgeInsets.only(right:15.0),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: SoftwareColors.kButtonBackGroundColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onPressed: () {
+            isDetailConfiguration = !isDetailConfiguration;
+            customizeDetailChannelIdx = channelIdx;
+            configTitle = "Channel Settings";
+            print("Start channelIdx: $channelIdx --- ${customSliderBarArray[channelIdx].startValue}");
+            print("zzz customSliderBarArray : ${customSliderBarArray}");
+            print("End channelIdx: $channelIdx --- ${customSliderBarArray[channelIdx].endValue}");
+            Provider.of<CustomRangeSliderProvider>(context, listen: false)
+              .setStartValue(customSliderBarArray[customizeDetailChannelIdx].startValue, customizeDetailChannelIdx);
+            Provider.of<CustomRangeSliderProvider>(context, listen: false)
+              .setEndValue(customSliderBarArray[customizeDetailChannelIdx].endValue, customizeDetailChannelIdx);
+
+            setState(() {});
+            
+          }, 
+          child: Text("SETUP CHANNEL", style: TextStyle(color: Colors.white)),
+        ),
+      ),
+
+    ];
+  }
 }
 
 class NotchPassFilterWidget extends StatefulWidget {
@@ -6176,7 +6472,7 @@ class _PortsArea extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: SoftwareColors.kButtonBackGroundColor,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   child: Text(

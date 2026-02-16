@@ -175,7 +175,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
         Container(
           padding: EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Color(0xFF2e2e2e),
+            // color: Color(0xFF2e2e2e),
             borderRadius: BorderRadius.circular(16),
           ),
           // padding: const EdgeInsets.symmetric(horizontal: 0),
@@ -211,6 +211,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   },
                 ),
               ],
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -360,6 +361,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   ],
                 ),
               ),
+
               if (!widget.readOnly) ... [
                 SetFrequencyWidget(
                   frequencyType: "High",
@@ -390,6 +392,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
             ],
           ),
         ),
+        
       //   Row(
       //     children: [
       //       Expanded(

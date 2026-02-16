@@ -138,3 +138,6 @@ Flow layout for channels every 2 channels
 [Working] Zoom + and -
 Popup channel settings
 color selector
+
+
+flutter build web --no-tree-shake-icons

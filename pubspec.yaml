@@ -84,6 +84,11 @@ dependencies:
   dotted_line: 3.2.3
   dropdown_button2: 2.3.9
   tabbed_view: 1.22.1
+  # super_context_menu: 0.9.1
+  # stacked_trio_carousel: ^1.2.1
+  # card_slider: ^1.0.6
+  # https://pub.dev/packages/card_swiper
+  # banner_carousel: ^1.2.1
 
   window_manager: 0.3.6
   flutter_svg: 2.1.0
@@ -93,7 +98,7 @@ dependencies:
 
   firebase_crashlytics: 5.0.4  
   firebase_analytics: 12.0.4
-
+  carousel_slider: 5.1.2
 
   # inject_js: ^2.0.0
   # web_ffi: ^0.7.2

@@ -33,6 +33,7 @@ import '../constant/const_export.dart';
 import '../widget/widget_export.dart';
 
 class SpikerBoxUi extends StatefulWidget {
+  static double defaultStrokeWidth = 1;
   const SpikerBoxUi({
     super.key,
   });
@@ -1126,7 +1127,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
                   channelActive: 0,
                   gain: gainChannel[idx],
                   levelMedian: heightChart / 2,
-                  strokeWidth: 1,
+                  strokeWidth: SpikerBoxUi.defaultStrokeWidth,
                   eventMarkersNumber:
                       (DraggableGraph.eventMarkersLabels),
                   eventMarkersPosition: DraggableGraph

@@ -26,7 +26,7 @@
 		33CC10F32044A3C60003C045 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F22044A3C60003C045 /* Assets.xcassets */; };
 		33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F42044A3C60003C045 /* MainMenu.xib */; };
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
-		9335FF1E79BFF4F3EBB82FBE /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA5786BB42BECE2B6F2F4F3C /* Pods_Runner.framework */; };
+		C2995DBE147E436496114BEC /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8893EA9FE65C324208F84D40 /* Pods_Runner.framework */; };
 		C4DA7B2E8436E05015C7F5CD /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 40B7079217DB00672E261EF2 /* GoogleService-Info.plist */; };
 /* End PBXBuildFile section */
 
@@ -54,7 +54,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		1F37A4FB2232563AB2107B87 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
 		333000ED22D3DE5D00554162 /* Warnings.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Warnings.xcconfig; sourceTree = "<group>"; };
 		335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneratedPluginRegistrant.swift; sourceTree = "<group>"; };
 		33CC10ED2044A3C60003C045 /* spikerbox_architecture.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = spikerbox_architecture.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -69,12 +68,13 @@
 		33E51913231747F40026EE4D /* DebugProfile.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DebugProfile.entitlements; sourceTree = "<group>"; };
 		33E51914231749380026EE4D /* Release.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = Release.entitlements; sourceTree = "<group>"; };
 		33E5194F232828860026EE4D /* AppInfo.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppInfo.xcconfig; sourceTree = "<group>"; };
-		3BC9372A77E8B0FD0A6585A5 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		40B7079217DB00672E261EF2 /* GoogleService-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
-		53CE1C2989F0B89593907F8F /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
+		712D189FBA77A1475C90D5FD /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
+		72356A2105FBAFF06C406FAA /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		8073F5DA1DE91806759AD441 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
+		8893EA9FE65C324208F84D40 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
-		AA5786BB42BECE2B6F2F4F3C /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -82,13 +82,21 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9335FF1E79BFF4F3EBB82FBE /* Pods_Runner.framework in Frameworks */,
+				C2995DBE147E436496114BEC /* Pods_Runner.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		1F758E77CD72CC3108E8AE03 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8893EA9FE65C324208F84D40 /* Pods_Runner.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		33BA886A226E78AF003329D5 /* Configs */ = {
 			isa = PBXGroup;
 			children = (
@@ -107,8 +115,8 @@
 				33CEB47122A05771004F2AC0 /* Flutter */,
 				33CC10EE2044A3C60003C045 /* Products */,
 				6136DA4939FA57561B614C0D /* Pods */,
-				8BA38346EB56FACAF04AF99D /* Frameworks */,
 				40B7079217DB00672E261EF2 /* GoogleService-Info.plist */,
+				1F758E77CD72CC3108E8AE03 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -158,19 +166,11 @@
 		6136DA4939FA57561B614C0D /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				1F37A4FB2232563AB2107B87 /* Pods-Runner.debug.xcconfig */,
-				53CE1C2989F0B89593907F8F /* Pods-Runner.release.xcconfig */,
-				3BC9372A77E8B0FD0A6585A5 /* Pods-Runner.profile.xcconfig */,
+				712D189FBA77A1475C90D5FD /* Pods-Runner.debug.xcconfig */,
+				8073F5DA1DE91806759AD441 /* Pods-Runner.release.xcconfig */,
+				72356A2105FBAFF06C406FAA /* Pods-Runner.profile.xcconfig */,
 			);
 			path = Pods;
-			sourceTree = "<group>";
-		};
-		8BA38346EB56FACAF04AF99D /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				AA5786BB42BECE2B6F2F4F3C /* Pods_Runner.framework */,
-			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -180,14 +180,14 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 33CC10FB2044A3C60003C045 /* Build configuration list for PBXNativeTarget "Runner" */;
 			buildPhases = (
-				E774C687637C16CE401AA085 /* [CP] Check Pods Manifest.lock */,
+				8A66C827A7CF2226D2AB0CF0 /* [CP] Check Pods Manifest.lock */,
 				33CC10E92044A3C60003C045 /* Sources */,
 				33CC10EA2044A3C60003C045 /* Frameworks */,
 				33CC10EB2044A3C60003C045 /* Resources */,
 				33CC110E2044A8840003C045 /* Bundle Framework */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
-				B18C828FFB1370130979F945 /* [CP] Embed Pods Frameworks */,
 				1052704F80B46EBD66F284A3 /* FlutterFire: "flutterfire upload-crashlytics-symbols" */,
+				F2B17C4F50951D5E65780CF0 /* [CP] Embed Pods Frameworks */,
 				DB77176CEAC967711604652E /* Copy HDF5 Libraries */,
 			);
 			buildRules = (
@@ -315,42 +315,7 @@
 			shellPath = /bin/sh;
 			shellScript = "\"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh && touch Flutter/ephemeral/tripwire";
 		};
-		B18C828FFB1370130979F945 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		DB77176CEAC967711604652E /* Copy HDF5 Libraries */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Copy HDF5 Libraries";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# Path to app's Frameworks directory\nAPP_FRAMEWORKS=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Frameworks\"\nmkdir -p \"${APP_FRAMEWORKS}\"\n\n# Path to plugin's lib directory\nPLUGIN_LIB_DIR=\"${PROJECT_DIR}/../native_implementation/pluggins/nwbfile_plugin/macos/Classes/lib\"\n\n# Copy HDF5 dylibs to app bundle\nif [ -d \"${PLUGIN_LIB_DIR}\" ]; then\n  echo \"Copying HDF5 libraries to app bundle...\"\n  cp -f \"${PLUGIN_LIB_DIR}/libhdf5.310.dylib\" \"${APP_FRAMEWORKS}/\" 2>/dev/null || true\n  cp -f \"${PLUGIN_LIB_DIR}/libhdf5_cpp.310.dylib\" \"${APP_FRAMEWORKS}/\" 2>/dev/null || true\n  cp -f \"${PLUGIN_LIB_DIR}/libsz.2.dylib\" \"${APP_FRAMEWORKS}/\" 2>/dev/null || true\n  cp -f \"${PLUGIN_LIB_DIR}/libaec.0.dylib\" \"${APP_FRAMEWORKS}/\" 2>/dev/null || true\n  \n  # Fix install names in copied dylibs to use @rpath\n  for dylib in \"${APP_FRAMEWORKS}\"/libhdf5*.dylib \"${APP_FRAMEWORKS}\"/libsz*.dylib \"${APP_FRAMEWORKS}\"/libaec*.dylib; do\n    if [ -f \"${dylib}\" ]; then\n      dylib_name=$(basename \"${dylib}\")\n      install_name_tool -id \"@rpath/${dylib_name}\" \"${dylib}\" 2>/dev/null || true\n      \n      # Fix dependencies within dylibs\n      install_name_tool -change \"/opt/homebrew/opt/hdf5/lib/libhdf5.310.dylib\" \"@rpath/libhdf5.310.dylib\" \"${dylib}\" 2>/dev/null || true\n      install_name_tool -change \"/opt/homebrew/opt/libaec/lib/libsz.2.dylib\" \"@rpath/libsz.2.dylib\" \"${dylib}\" 2>/dev/null || true\n      install_name_tool -change \"/opt/homebrew/opt/libaec/lib/libaec.0.dylib\" \"@rpath/libaec.0.dylib\" \"${dylib}\" 2>/dev/null || true\n      \n      # Re-sign the dylib after modification (ad-hoc signature)\n      codesign --force --sign - \"${dylib}\" 2>/dev/null || true\n    fi\n  done\n  \n  # Fix nwbfile_plugin framework's library paths AFTER frameworks are embedded\n  FRAMEWORK_PATH=\"${APP_FRAMEWORKS}/nwbfile_plugin.framework/nwbfile_plugin\"\n  FRAMEWORK_DIR=\"${APP_FRAMEWORKS}/nwbfile_plugin.framework\"\n  if [ -f \"${FRAMEWORK_PATH}\" ]; then\n    echo \"Fixing nwbfile_plugin framework library paths...\"\n    \n    # Fix libhdf5.310.dylib path\n    OLD_HDF5_PATH=$(otool -L \"${FRAMEWORK_PATH}\" | grep \"/opt/homebrew.*libhdf5.310.dylib\" | awk '{print $1}' | head -1)\n    if [ -n \"${OLD_HDF5_PATH}\" ]; then\n      install_name_tool -change \"${OLD_HDF5_PATH}\" \"@rpath/libhdf5.310.dylib\" \"${FRAMEWORK_PATH}\" 2>/dev/null || true\n    fi\n    \n    # Fix libhdf5_cpp.310.dylib path\n    OLD_HDF5_CPP_PATH=$(otool -L \"${FRAMEWORK_PATH}\" | grep \"/opt/homebrew.*libhdf5_cpp\" | awk '{print $1}' | head -1)\n    if [ -n \"${OLD_HDF5_CPP_PATH}\" ]; then\n      install_name_tool -change \"${OLD_HDF5_CPP_PATH}\" \"@rpath/libhdf5_cpp.310.dylib\" \"${FRAMEWORK_PATH}\" 2>/dev/null || true\n    fi\n    \n    # Ensure rpath is set\n    install_name_tool -add_rpath \"@loader_path/../Frameworks\" \"${FRAMEWORK_PATH}\" 2>/dev/null || true\n    \n    # Re-sign the framework after modification\n    codesign --force --sign - \"${FRAMEWORK_PATH}\" 2>/dev/null || true\n    codesign --force --sign - \"${FRAMEWORK_DIR}\" 2>/dev/null || true\n  fi\n  \n  echo \"HDF5 libraries setup completed\"\nfi\n";
-		};
-		E774C687637C16CE401AA085 /* [CP] Check Pods Manifest.lock */ = {
+		8A66C827A7CF2226D2AB0CF0 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -370,6 +335,41 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		DB77176CEAC967711604652E /* Copy HDF5 Libraries */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Copy HDF5 Libraries";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Path to app's Frameworks directory\nAPP_FRAMEWORKS=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Frameworks\"\nmkdir -p \"${APP_FRAMEWORKS}\"\n\n# Path to plugin's lib directory\nPLUGIN_LIB_DIR=\"${PROJECT_DIR}/../native_implementation/pluggins/nwbfile_plugin/macos/Classes/lib\"\n\n# Copy HDF5 dylibs to app bundle\nif [ -d \"${PLUGIN_LIB_DIR}\" ]; then\n  echo \"Copying HDF5 libraries to app bundle...\"\n  cp -f \"${PLUGIN_LIB_DIR}/libhdf5.310.dylib\" \"${APP_FRAMEWORKS}/\" 2>/dev/null || true\n  cp -f \"${PLUGIN_LIB_DIR}/libhdf5_cpp.310.dylib\" \"${APP_FRAMEWORKS}/\" 2>/dev/null || true\n  cp -f \"${PLUGIN_LIB_DIR}/libsz.2.dylib\" \"${APP_FRAMEWORKS}/\" 2>/dev/null || true\n  cp -f \"${PLUGIN_LIB_DIR}/libaec.0.dylib\" \"${APP_FRAMEWORKS}/\" 2>/dev/null || true\n  \n  # Fix install names in copied dylibs to use @rpath\n  for dylib in \"${APP_FRAMEWORKS}\"/libhdf5*.dylib \"${APP_FRAMEWORKS}\"/libsz*.dylib \"${APP_FRAMEWORKS}\"/libaec*.dylib; do\n    if [ -f \"${dylib}\" ]; then\n      dylib_name=$(basename \"${dylib}\")\n      install_name_tool -id \"@rpath/${dylib_name}\" \"${dylib}\" 2>/dev/null || true\n      \n      # Fix dependencies within dylibs\n      install_name_tool -change \"/opt/homebrew/opt/hdf5/lib/libhdf5.310.dylib\" \"@rpath/libhdf5.310.dylib\" \"${dylib}\" 2>/dev/null || true\n      install_name_tool -change \"/opt/homebrew/opt/libaec/lib/libsz.2.dylib\" \"@rpath/libsz.2.dylib\" \"${dylib}\" 2>/dev/null || true\n      install_name_tool -change \"/opt/homebrew/opt/libaec/lib/libaec.0.dylib\" \"@rpath/libaec.0.dylib\" \"${dylib}\" 2>/dev/null || true\n      \n      # Re-sign the dylib after modification (ad-hoc signature)\n      codesign --force --sign - \"${dylib}\" 2>/dev/null || true\n    fi\n  done\n  \n  # Fix nwbfile_plugin framework's library paths AFTER frameworks are embedded\n  # Try multiple possible framework paths\n  FRAMEWORK_PATHS=(\n    \"${APP_FRAMEWORKS}/nwbfile_plugin.framework/nwbfile_plugin\"\n    \"${APP_FRAMEWORKS}/nwbfile_plugin.framework/Versions/A/nwbfile_plugin\"\n  )\n  \n  for FRAMEWORK_PATH in \"${FRAMEWORK_PATHS[@]}\"; do\n    if [ -f \"${FRAMEWORK_PATH}\" ]; then\n      echo \"Fixing nwbfile_plugin framework library paths at ${FRAMEWORK_PATH}...\"\n      FRAMEWORK_DIR=$(dirname \"${FRAMEWORK_PATH}\")\n      \n      # Remove code signature first to allow modification\n      codesign --remove-signature \"${FRAMEWORK_PATH}\" 2>/dev/null || true\n      \n      # Fix libhdf5.310.dylib path - try both exact path and pattern matching\n      OLD_HDF5_PATH=$(otool -L \"${FRAMEWORK_PATH}\" 2>/dev/null | grep -E \"/opt/homebrew.*libhdf5.310.dylib\" | awk '{print $1}' | head -1)\n      if [ -n \"${OLD_HDF5_PATH}\" ]; then\n        echo \"  Changing ${OLD_HDF5_PATH} to @rpath/libhdf5.310.dylib\"\n        install_name_tool -change \"${OLD_HDF5_PATH}\" \"@rpath/libhdf5.310.dylib\" \"${FRAMEWORK_PATH}\" || echo \"  ERROR: Failed to change libhdf5.310.dylib path\"\n      else\n        echo \"  WARNING: Could not find libhdf5.310.dylib path in framework\"\n      fi\n      \n      # Fix libhdf5_cpp.310.dylib path\n      OLD_HDF5_CPP_PATH=$(otool -L \"${FRAMEWORK_PATH}\" 2>/dev/null | grep -E \"/opt/homebrew.*libhdf5_cpp\" | awk '{print $1}' | head -1)\n      if [ -n \"${OLD_HDF5_CPP_PATH}\" ]; then\n        echo \"  Changing ${OLD_HDF5_CPP_PATH} to @rpath/libhdf5_cpp.310.dylib\"\n        install_name_tool -change \"${OLD_HDF5_CPP_PATH}\" \"@rpath/libhdf5_cpp.310.dylib\" \"${FRAMEWORK_PATH}\" || echo \"  ERROR: Failed to change libhdf5_cpp.310.dylib path\"\n      else\n        echo \"  WARNING: Could not find libhdf5_cpp.310.dylib path in framework\"\n      fi\n      \n      # Ensure rpath is set\n      install_name_tool -add_rpath \"@loader_path/../Frameworks\" \"${FRAMEWORK_PATH}\" 2>/dev/null || true\n      \n      # Re-sign the framework after modification (ad-hoc signature)\n      codesign --force --sign - \"${FRAMEWORK_PATH}\" 2>/dev/null || true\n      codesign --force --sign - \"${FRAMEWORK_DIR}\" 2>/dev/null || true\n      \n      # Verify the changes\n      echo \"  Verifying changes...\"\n      otool -L \"${FRAMEWORK_PATH}\" 2>/dev/null | grep -E \"libhdf5\" | head -2\n      \n      break\n    else\n      echo \"  WARNING: Framework not found at ${FRAMEWORK_PATH}\"\n    fi\n  done\n  \n  echo \"HDF5 libraries setup completed\"\nfi\n";
+		};
+		F2B17C4F50951D5E65780CF0 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */

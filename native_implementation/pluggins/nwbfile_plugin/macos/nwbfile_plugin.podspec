@@ -43,8 +43,16 @@ A new Flutter FFI plugin project.
     # BOOST2
     # 'HEADER_SEARCH_PATHS' => '$(inherited) $(POD_TARGET_SRCROOT)/Classes/src $(POD_TARGET_SRCROOT)/Classes/src/include $(PODS_ROOT)/boost'
     # 'HEADER_SEARCH_PATHS' => '$(inherited) $(POD_TARGET_SRCROOT)/Classes/src $(POD_TARGET_SRCROOT)/Classes/src/include $(PODS_ROOT)/boost'
-    'HEADER_SEARCH_PATHS' => '$(inherited) $(POD_TARGET_SRCROOT)/Classes $(POD_TARGET_SRCROOT)/Classes/src $(POD_TARGET_SRCROOT)/Classes/boost $(POD_TARGET_SRCROOT)/Classes/include $(POD_TARGET_SRCROOT)/Classes /opt/homebrew/opt/boost/include $(POD_TARGET_SRCROOT)/Classes/boost',
-    'LIBRARY_SEARCH_PATHS' => '$(inherited) /opt/homebrew/opt/boost/lib $(POD_TARGET_SRCROOT)/Classes/lib',
+    # 'HEADER_SEARCH_PATHS' => '$(inherited) $(POD_TARGET_SRCROOT)/Classes $(POD_TARGET_SRCROOT)/Classes/src $(POD_TARGET_SRCROOT)/Classes/boost $(POD_TARGET_SRCROOT)/Classes/include $(POD_TARGET_SRCROOT)/Classes /opt/homebrew/opt/boost/include $(POD_TARGET_SRCROOT)/Classes/boost',
+    # Use bundled Boost headers first (they have C++17 compatibility fix)
+    # Include path should point to directory containing 'boost' folder, not the 'boost' folder itself
+    # Add Homebrew Boost as fallback but with compatibility flag to avoid C++17 issues
+    # Note: Use PODS_TARGET_SRCROOT (plural) - same as iOS podspec
+    'HEADER_SEARCH_PATHS' => '$(inherited) $(PODS_TARGET_SRCROOT)/Classes $(PODS_TARGET_SRCROOT)/Classes/src $(PODS_TARGET_SRCROOT)/Classes/include /opt/homebrew/opt/boost/include',
+    # Force Homebrew Boost to use compatibility mode for C++17 (if it gets used)
+    'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) _HAS_AUTO_PTR_ETC=0',
+    # Put bundled lib directory first to prioritize bundled HDF5 over Homebrew
+    'LIBRARY_SEARCH_PATHS' => '$(inherited) $(PODS_TARGET_SRCROOT)/Classes/lib /opt/homebrew/opt/boost/lib',
     'OTHER_LDFLAGS' => '$(inherited) -Wl,-all_load'
   }
   # BOOST  

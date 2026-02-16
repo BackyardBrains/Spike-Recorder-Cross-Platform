@@ -26,9 +26,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    // await Firebase.initializeApp(
+    //   options: DefaultFirebaseOptions.currentPlatform,
+    // );
   } catch (e) {
     print('Firebase initialization error: $e');
     // Continue without Firebase on web if it fails
@@ -37,11 +37,11 @@ void main() async {
   // Pass all uncaught "fatal" errors from the framework to Crashlytics
   // Note: Crashlytics is not supported on web
   if (!kIsWeb) {
-    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-    PlatformDispatcher.instance.onError = (error, stack) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-      return true;
-    };
+    // FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+    // PlatformDispatcher.instance.onError = (error, stack) {
+    //   FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    //   return true;
+    // };
   }
   // Future.delayed(Duration(seconds: 7), () {
   //   throw Exception('Test Crash');

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 import 'package:another_xlider/another_xlider.dart';
 import 'package:another_xlider/models/handler.dart';
@@ -8,6 +9,7 @@ import 'package:another_xlider/models/tooltip/tooltip.dart';
 import 'package:another_xlider/models/tooltip/tooltip_box.dart';
 import 'package:another_xlider/models/trackbar.dart';
 import 'package:another_xlider/widgets/sized_box.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:native_add/model/model.dart';
 import 'package:provider/provider.dart';
@@ -72,6 +74,8 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
   double start = 0;
   double end = 0;
   double maxFreq = 0;
+  
+  bool isMobileDevice = false;
   @override
   void initState() {
     super.initState();
@@ -168,6 +172,12 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
     // Clamp log values to valid range
     startLog = startLog.clamp(minLog, maxLog);
     endLog = endLog.clamp(minLog, maxLog);
+    if (kIsWeb) {
+      isMobileDevice = false;
+    } else 
+    if (Platform.isIOS || Platform.isAndroid) {
+      isMobileDevice = true;
+    }
     
             
     return Column(
@@ -185,7 +195,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
             mainAxisSize: MainAxisSize.max,
             // crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (!widget.readOnly) ... [
+              if (!widget.readOnly && !isMobileDevice) ... [
                 SetFrequencyWidget(
                   frequencyType: "Low",
                   frequencyValue: start.toInt(),
@@ -362,7 +372,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                 ),
               ),
 
-              if (!widget.readOnly) ... [
+              if (!widget.readOnly && !isMobileDevice) ... [
                 SetFrequencyWidget(
                   frequencyType: "High",
                   frequencyValue: end.toInt(),
@@ -392,6 +402,69 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
             ],
           ),
         ),
+        if (isMobileDevice) ... [
+          Row(
+            children: [
+              Container(
+                margin: EdgeInsets.only(left:10, bottom: 10),
+                child: SetFrequencyWidget(
+                  frequencyType: "Low",
+                  frequencyValue: start.toInt(),
+                  maxFrequency: maxFreq,
+                  onFrequencyChanged: (value) {
+                    start = value.toDouble();
+                    Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                        .setStartValue(start, widget.channelIdx);
+                    double lowFreq = start; // Allow 0 value
+                    double highFreq = end >= maxFreq ? -1 : end;
+                    // if (widget.channelIdx == -1) {
+                    //   for (int i = 0; i < widget.channelCount; i++) {
+                    //     widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                    //   }
+                    // } else {
+                    //   widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                    // }
+                
+                    widget.startValue = start;
+                    print("START VALUE startValue CUSTOMIZing: ${widget.startValue}");
+                
+                    setState(() {});
+                  },
+                ),
+              ),
+              Spacer(),
+              Container(
+                margin: EdgeInsets.only(right:10, bottom: 10),
+                child: SetFrequencyWidget(
+                  frequencyType: "High",
+                  frequencyValue: end.toInt(),
+                  maxFrequency: maxFreq,
+                  onFrequencyChanged: (value) {
+                    end = value.toDouble();
+                    Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                        .setEndValue(end, widget.channelIdx);
+                    double lowFreq = start; // Allow 0 value
+                    double highFreq = end >= maxFreq ? -1 : end;
+                    // widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                    // if (widget.channelIdx == -1) {
+                    //   for (int i = 0; i < widget.channelCount; i++) {
+                    //     widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                    //   }
+                    // } else {
+                    //   widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                    // }
+                    widget.endValue = end;
+                    print("endValue CUSTOMIZing: ${widget.endValue}");
+                
+                    setState(() {});
+                  },
+                ),
+              ),
+
+
+            ],
+          ),
+        ]
         
       //   Row(
       //     children: [

@@ -1165,20 +1165,24 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                   top:0,
                                   left:0,
                                   right:0,
-                                  bottom:0,
-                                  child: TabbedViewTheme(
-                                  data: channelTabTheme!,
-                                  child: TabbedView(
-                                    controller: _channelTabController!, 
-                                    tabCloseInterceptor: (tabIndex, tabData) {
-                                      return false;
-                                    },
-                                    tabSelectInterceptor: (int channelIdx) {
-                                      serialUsageType = filterUsageTypeChannels[channelIdx];
-                                      setState(() {});
-                                      return true;
-                                    },
-                                  )),
+                                  // bottom:0,
+                                  child: SizedBox(
+                                    height: serialUsageType == "Custom" ? 340: 220,
+                                    child: TabbedViewTheme(
+                                      data: channelTabTheme!,
+                                      child: TabbedView(
+                                        controller: _channelTabController!, 
+                                        tabCloseInterceptor: (tabIndex, tabData) {
+                                          return false;
+                                        },
+                                        tabSelectInterceptor: (int channelIdx) {
+                                          serialUsageType = filterUsageTypeChannels[channelIdx];
+                                          setState(() {});
+                                          return true;
+                                        },
+                                      )
+                                    ),
+                                  ),
                                 ),
                                 Positioned(
                                   top:0,
@@ -1202,7 +1206,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               controller.open();
                                             }
                                           },
-                                          child: Icon(Icons.more_horiz, color: Colors.white),
+                                          child: Icon(Icons.more_horiz, color: Color(0xFF707070)),
                                         );
                                       },
                                       menuChildren: [
@@ -1270,8 +1274,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
                                 Positioned(
                                   bottom:0,
-                                  left: 20,
-                                  right: 20,
+                                  left: 0,
+                                  right: 0,
                                   child: Column(
                                     mainAxisSize: MainAxisSize.max,
                                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -1494,28 +1498,28 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                           mainAxisSize: MainAxisSize.max,
                                           children: [
                                             // 1. The Custom Switch
-                                            Switch(
-                                              value: isDarkMode,
-                                              activeColor: Colors.white,
-                                              activeTrackColor: Color(
-                                                  0xFFFF7A5C), // The orange/coral color in your image
-                                              onChanged: (value) {
-                                                setState(() {
-                                                  isDarkMode = value;
-                                                });
-                                              },
-                                            ),
-                                            SizedBox(width: 8),
+                                            // Switch(
+                                            //   value: isDarkMode,
+                                            //   activeColor: Colors.white,
+                                            //   activeTrackColor: Color(
+                                            //       0xFFFF7A5C), // The orange/coral color in your image
+                                            //   onChanged: (value) {
+                                            //     setState(() {
+                                            //       isDarkMode = value;
+                                            //     });
+                                            //   },
+                                            // ),
+                                            // SizedBox(width: 8),
                         
                                             // 2. The Main Label
-                                            Text(
-                                              'Dark Mode',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14,
-                                              ),
-                                            ),
+                                            // Text(
+                                            //   'Dark Mode',
+                                            //   style: TextStyle(
+                                            //     color: Colors.white,
+                                            //     fontWeight: FontWeight.bold,
+                                            //     fontSize: 14,
+                                            //   ),
+                                            // ),
                         
                                             // 3. Spacing to push version info to the right
                                             Spacer(),
@@ -3416,13 +3420,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (Platform.isAndroid || Platform.isIOS) {
         String usageType = arrFilterUsageTypeChannel[channelIdx];
         int pageIdx = predefinedFiltersChannel[channelIdx].indexOf(usageType);
-        print("-----Page Idx: $pageIdx");
 
         try{
           if (carouselSliderControllerChannel != null) {
-            print("carouselSliderControllerChannel -- $channelIdx");
-            print(carouselSliderControllerChannel[channelIdx]);
-            Future.delayed(Duration(milliseconds: 100), (){
+            Future.delayed(Duration(milliseconds: 50), (){
               carouselSliderControllerChannel[channelIdx].jumpToPage(pageIdx);
             });
           } else {
@@ -3462,7 +3463,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       margin: EdgeInsets.only(top:20),
       padding: EdgeInsets.fromLTRB(0, 10, 0, 0),
       decoration: BoxDecoration(
-        color: Color(0x14D9D9D9),
+        color: Color(0xFF2e2e2e),
         // borderRadius: BorderRadius.circular(16),
         borderRadius: serialUsageType == "Custom" ? 
           BorderRadius.only(
@@ -5281,24 +5282,26 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   buildSerialUsageTypeButton(String s, int channelIdx) {
     bool isSelected = serialUsageType.contains(s);
-    print("Serial usage type : $serialUsageType --VS-- $s == $isSelected");
+    // print("Serial usage type : $serialUsageType --VS-- $s == $isSelected");
     ButtonStyle style = ElevatedButton.styleFrom(
       // Toggle colors based on selection
       backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
       foregroundColor: isSelected ? Colors.white : Colors.black,
     );
-    print("COMPARE: $serialUsageType -- $s == $isSelected");
+    // print("COMPARE: $serialUsageType -- $s == $isSelected");
     List<int> channelIndices = List<int>.generate(widget.channelCount, (index) => index == channelIdx ? index : -1);
+    double sublabelFontSize = 10;
 
     switch (s) {
       case "ECG":
         Color? iconColor = isSelected ? Color(0xFFff805f) : Color(0xFF585858);
-        print("ICON COLOR: $iconColor");
+        print("ICON COLOR: $iconColor -- $isSelected");
         return Container(
           padding: EdgeInsets.fromLTRB(10, 10, 10, 10 ),
           margin: EdgeInsets.fromLTRB(10, 0, 10, 20 ),
           decoration: BoxDecoration(
-            color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+            // color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+            color: isSelected ? Color.fromARGB(255, 70, 70, 70) : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
           ),
           child:
@@ -5346,7 +5349,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               ),
               Text(
                 "Heartbeats",
-                style: TextStyle(color: Color(0xFF707070)),
+                style: TextStyle(color: Color(0xFF707070), fontSize: sublabelFontSize),
               ),
               getSelectedNotchWidget(isSelected, iconColor),
             ],
@@ -5383,13 +5386,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         border: Border.all(color: iconColor, width: 30),
                       ),
                     ),
-                    Positioned(
-                      top: 0,
-                      left: 70,
-                      child: SvgPicture.asset(
-                        'assets/icons/config_eeg_off.svg',
-                        width: 60,
-                        height: 60,
+                    Positioned.fill(
+                      child: Center(
+                        child: SvgPicture.asset(
+                          'assets/icons/config_eeg_off.svg',
+                          width: 60,
+                          height: 60,
+                        ),
                       ),
                     ),
                   ],
@@ -5404,7 +5407,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               ),
               Text(
                 "Brainwaves",
-                style: TextStyle(color: Color(0xFF707070)),
+                style: TextStyle(color: Color(0xFF707070), fontSize:sublabelFontSize),
               ),
               getSelectedNotchWidget(isSelected, iconColor),
             ],
@@ -5414,7 +5417,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       case "EMG":
         Color? iconColor = isSelected ? Color(0xFFffc600) : Color(0xFF585858);
         return Container(
-          padding: EdgeInsets.fromLTRB(10, 10, 10, 10 ),
+          padding: EdgeInsets.fromLTRB(0, 10, 0, 0 ),
           margin: EdgeInsets.fromLTRB(10, 0, 10, 20 ),
           decoration: BoxDecoration(
             color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
@@ -5464,7 +5467,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             ),
             Text(
               "Muscle signals",
-              style: TextStyle(fontSize: 12, color: Color(0xFF707070)),
+              style: TextStyle(fontSize: sublabelFontSize, color: Color(0xFF707070)),
             ),
             getSelectedNotchWidget(isSelected, iconColor),
           ],
@@ -5525,7 +5528,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               ),
               Text(
                 "Plant signals",
-                style: TextStyle(fontSize: 12, color: Color(0xFF707070)),
+                style: TextStyle(fontSize: sublabelFontSize, color: Color(0xFF707070)),
               ),
               getSelectedNotchWidget(isSelected, iconColor),
             ],
@@ -5585,7 +5588,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               ),
               Text(
                 "Neuron signals",
-                style: TextStyle(fontSize: 12, color: Color(0xFF707070)),
+                style: TextStyle(fontSize: sublabelFontSize, color: Color(0xFF707070)),
               ),
               getSelectedNotchWidget(isSelected, iconColor),
             ],
@@ -5645,7 +5648,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 Text(
                   "Set Range",
-                  style: TextStyle(fontSize: 12, color: Color(0xFF707070)),
+                  style: TextStyle(fontSize: sublabelFontSize, color: Color(0xFF707070)),
                 ),
                 getSelectedNotchWidget(isSelected, iconColor),
               ],
@@ -6116,7 +6119,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   if (serialUsageType == "Custom") ... [
                     // Text("ABCDEFGHIJ --- $idx"),
                     Container(
-                      color: Color(0x14D9D9D9),
+                      color: Color(0xFF2e2e2e),
                       padding: EdgeInsets.fromLTRB(10,0,10,0),
                       child: Divider(
                         thickness: 1,
@@ -6125,7 +6128,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     ),
                     Container(
                       decoration: BoxDecoration(
-                        color: Color(0x14D9D9D9),
+                        color: Color(0xFF2e2e2e),
                         borderRadius: BorderRadius.only(
                           bottomLeft: Radius.circular(16),
                           bottomRight: Radius.circular(16),
@@ -6147,7 +6150,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     //   },
                     //   channelIdx: customSliderBarArray[idx].channelIdx, channelCount: customSliderBarArray[idx].channelCount)
                   ] else ... [
-                    SizedBox(height: 125),
 
                   ],
     
@@ -6211,6 +6213,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         content: ClipRRect(
           borderRadius: BorderRadius.all(Radius.circular(16)),
           clipBehavior: Clip.antiAlias,
+          // child: Container(color: Color(0xFF2e2e2e), child: Center(child: getTabbedViewChildren(idx))),
           child: Container(color: Color(0xFF2e2e2e), child: Center(child: getTabbedViewChildren(idx))),
         )
       ));

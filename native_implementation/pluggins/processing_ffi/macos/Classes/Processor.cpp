@@ -21,7 +21,7 @@ namespace backyardbrains {
             Processor::sampleRate = sampleRate;
             Processor::channelCount = channelCount;
             Processor::bitsPerSample = bitsPerSample;
-            platform_log_filtering("CONSTRUCTOR \n");
+            // platform_log_filtering("CONSTRUCTOR \n");
 
             lowPassFilter = new LowPassFilterPtr[channelCount];
             highPassFilter = new HighPassFilterPtr[channelCount];
@@ -42,7 +42,7 @@ namespace backyardbrains {
         void Processor::setSampleRate(float sampleRate) {
             if (initialized) deleteFilters(channelCount, -1);
             Processor::sampleRate = sampleRate;
-            platform_log_filtering("SET SAMPLE RATE \n");
+            // platform_log_filtering("SET SAMPLE RATE \n");
 
             lowPassFilter = new LowPassFilterPtr[channelCount];
             highPassFilter = new HighPassFilterPtr[channelCount];
@@ -59,7 +59,7 @@ namespace backyardbrains {
         void Processor::setChannelCount(int channelCount) {
             if (initialized) deleteFilters(Processor::channelCount, -1);
             Processor::channelCount = channelCount;
-            platform_log_filtering("SET CHANNEL COUNT \n");
+            // platform_log_filtering("SET CHANNEL COUNT \n");
 
             lowPassFilter = new LowPassFilterPtr[channelCount];
             highPassFilter = new HighPassFilterPtr[channelCount];
@@ -76,7 +76,7 @@ namespace backyardbrains {
         void Processor::setBitsPerSample(int bitsPerSample) {
             if (initialized) deleteFilters(Processor::channelCount, -1);
             Processor::bitsPerSample = bitsPerSample;
-            platform_log_filtering("SET BITS PER SAMPLE \n");
+            // platform_log_filtering("SET BITS PER SAMPLE \n");
 
             lowPassFilter = new LowPassFilterPtr[channelCount];
             highPassFilter = new HighPassFilterPtr[channelCount];
@@ -99,7 +99,7 @@ namespace backyardbrains {
 
             if (initialized) deleteFilters(Processor::channelCount, -1);
             Processor::channelCount = channelCount;
-            platform_log_filtering("SET SAMPLE RATE AND CHANNEL COUNT \n");
+            // platform_log_filtering("SET SAMPLE RATE AND CHANNEL COUNT \n");
 
             lowPassFilter = new LowPassFilterPtr[channelCount];
             highPassFilter = new HighPassFilterPtr[channelCount];
@@ -127,8 +127,8 @@ namespace backyardbrains {
 
             // Processor::lowCutOff = lowCutOffFreq;
             // Processor::highCutOff = highCutOffFreq;
-            platform_log_filtering("SET BAND FILTER \n");
-            platform_log_filtering("LOW CUT OFF FREQ: %f, HIGH CUT OFF FREQ: %f \n", lowCutOffFreq, highCutOffFreq);
+            // platform_log_filtering("SET BAND FILTER \n");
+            // platform_log_filtering("LOW CUT OFF FREQ: %f, HIGH CUT OFF FREQ: %f \n", lowCutOffFreq, highCutOffFreq);
             if (lowCutOffFreq == -1 || highCutOffFreq == -1) {
                 return;
             }
@@ -138,7 +138,7 @@ namespace backyardbrains {
 
         void Processor::setNotchFilter(float centerFreq) {
             notchFilteringEnabled = centerFreq != -1 && centerFreq != MIN_FILTER_CUT_OFF;
-            platform_log_filtering("SET NOTCH FILTER \n");
+            // platform_log_filtering("SET NOTCH FILTER \n");
 
             Processor::centerFrequency = centerFreq;
             if (initialized) deleteFilters(channelCount, -1);
@@ -165,7 +165,7 @@ namespace backyardbrains {
 
             for (int idx = 0; idx < channelCount; idx++) {
                 if (channelIdx == -1) {    
-                    platform_log_filtering("CREATING ALL filters for channel %d  \n", channelIdx);
+                    // platform_log_filtering("CREATING ALL filters for channel %d  \n", channelIdx);
 
                     int i = idx;                 
                     // low pass filters
@@ -189,7 +189,7 @@ namespace backyardbrains {
                 }else {
                     int i = idx;
                     if (i == channelIdx) {
-                        platform_log_filtering("CREATING filters for channel %d  \n", channelIdx);
+                        // platform_log_filtering("CREATING filters for channel %d  \n", channelIdx);
                         // low pass filters
                         lowPassFilter[i] = new LowPassFilter();
                         lowPassFilter[i]->initWithSamplingRate(sampleRate);
@@ -215,7 +215,7 @@ namespace backyardbrains {
 
         void Processor::deleteFilters(int channelCount, int channelIdx) {
             if (channelIdx == -1) {
-                platform_log_filtering("Delete all filters \n");
+                // platform_log_filtering("Delete all filters \n");
                 for (int i = 0; i < channelCount; i++) {
                     delete lowPassFilter[i];
                     delete highPassFilter[i];
@@ -226,7 +226,7 @@ namespace backyardbrains {
                 delete[] notchFilter;
                 delete[] channelFilterEnabled;
             }else {
-                platform_log_filtering("Deleting filters for channel %d \n", channelIdx);
+                // platform_log_filtering("Deleting filters for channel %d \n", channelIdx);
                 delete lowPassFilter[channelIdx];
                 delete highPassFilter[channelIdx];
                 delete notchFilter[channelIdx];

@@ -1172,11 +1172,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       data: channelTabTheme!,
                                       child: TabbedView(
                                         controller: _channelTabController!, 
+                                        contentBuilder:(context, index) {
+                                          return ClipRRect(
+                                              borderRadius: BorderRadius.all(Radius.circular(16)),
+                                              clipBehavior: Clip.antiAlias,
+                                              child: Container(color: Color(0xFF2e2e2e), child: Center(child: getTabbedViewChildren(index))),
+                                          );
+                                        },
                                         tabCloseInterceptor: (tabIndex, tabData) {
                                           return false;
                                         },
                                         tabSelectInterceptor: (int channelIdx) {
-                                          serialUsageType = filterUsageTypeChannels[channelIdx];
+                                          // serialUsageType = filterUsageTypeChannels[channelIdx];
+                                          selectedTabIdx = channelIdx;
+                                          serialUsageType = arrFilterUsageTypeChannel[channelIdx];
+                                          print("arrFilterUsageTypeChannel: $arrFilterUsageTypeChannel --- $serialUsageType");
+                                          // createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
                                           setState(() {});
                                           return true;
                                         },
@@ -3334,9 +3345,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   int setupFilterValues(List<int> channelIndices, List<double> filterValues) {
+    print("setupFilterValues - START");
     startValue = filterValues[0];
     endValue = filterValues[1];
     double type = filterValues[2];
+    print("setupFilterValues - END");
     List<String> filterTypes = [
       "ECG",
       "EEG",
@@ -3396,6 +3409,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     if (isAudioListen) {
       createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
+    } else {
+      // createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
     }
     // if () {
     // }
@@ -3519,6 +3534,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   TabbedViewController? _channelTabController;
   
   TabbedViewThemeData? channelTabTheme;
+  
+  int selectedTabIdx = 0;
   // Int32List arrSampleCountWeb = Int32List(0);
   // Int16List arrSamplesWeb = Int16List(1);
 
@@ -4460,10 +4477,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   Future.delayed(Duration(seconds: 2), () {
                     // var info = processingUtil.getInformation();
                     // print("info : $info");
-                    if (selectedBoard?.uniqueName == "HUMANSB;") {
+                    if (GraphTemplate.selectedBoard?.uniqueName == "HUMANSB") {
+                      print("infozzz : ${GraphTemplate.selectedBoard?.uniqueName}");
                       predefinedFiltersChannel.clear();
                       for (int i = 0; i < deviceChannelCount; i++) {
                         predefinedFiltersChannel.add(["EMG", "ECG", "EEG", "Custom"]);
+                      }
+                      arrFilterUsageTypeChannel.clear();
+                      for (int i = 0; i < deviceChannelCount; i++) {
+                        arrFilterUsageTypeChannel.add("EMG");
                       }
                     }
 
@@ -4501,6 +4523,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       );
                     }
                     createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
+                    setState((){});
 
 
                   });
@@ -5295,7 +5318,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     switch (s) {
       case "ECG":
         Color? iconColor = isSelected ? Color(0xFFff805f) : Color(0xFF585858);
-        print("ICON COLOR: $iconColor -- $isSelected");
+        print("ECG ICON COLOR: $iconColor -- $isSelected || S : $s ++ SerialUsageType : $serialUsageType");
         return Container(
           padding: EdgeInsets.fromLTRB(10, 10, 10, 10 ),
           margin: EdgeInsets.fromLTRB(10, 0, 10, 20 ),
@@ -5309,7 +5332,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             children: [
               GestureDetector(
                 onTap: () {
-                  print("ECG");
+                  print("DETECTOR ECG");
                   serialUsageType = "ECG";
                   arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
                   startValue = 1;
@@ -5370,7 +5393,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             children: [
               GestureDetector(
                 onTap: () {
-                  print("EEG");
+                  print("DETECTOR EEG");
                   serialUsageType = "EEG";
                   arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
                   startValue = 0;
@@ -5416,9 +5439,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
       break;
       case "EMG":
         Color? iconColor = isSelected ? Color(0xFFffc600) : Color(0xFF585858);
+        print("EMG ICON COLOR: $iconColor -- $isSelected || S : $s ++ SerialUsageType : $serialUsageType");
         return Container(
-          padding: EdgeInsets.fromLTRB(0, 10, 0, 0 ),
-          margin: EdgeInsets.fromLTRB(10, 0, 10, 20 ),
+          padding: EdgeInsets.fromLTRB(10, 10, 10, 10 ),
+          margin: EdgeInsets.fromLTRB(10, 0, 10, 10 ),
           decoration: BoxDecoration(
             color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
@@ -5427,7 +5451,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           children: [
             GestureDetector(
               onTap: () {
-                print("EMG");
+                print("DETECTOR EMG");
                 serialUsageType = "EMG";
                 arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
                 startValue = 70;
@@ -5488,7 +5512,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             children: [
               GestureDetector(
                 onTap: () {
-                  print("Plant");
+                  print("DETECTOR Plant");
                   serialUsageType = "Plant";
                   arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
                   startValue = 0;
@@ -5548,7 +5572,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             children: [
               GestureDetector(
                 onTap: () {
-                  print("Neuron");
+                  print("DETECTOR Neuron");
                   serialUsageType = "Neuron";
                   arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
                   startValue = 70;
@@ -5608,12 +5632,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
               children: [
                 GestureDetector(
                   onTap: () {
-                    print("Custom");
+                    print("DETECTOR Custom");
                     serialUsageType = "Custom";
                     arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
                     startValue = 70;
                     endValue = _sampleRate / 2;
-                    setupFilterValues(channelIndices, [startValue, endValue, 4]);
+                    setupFilterValues(channelIndices, [startValue, endValue, 5]);
                   },
                   child: Stack(
                     children: [

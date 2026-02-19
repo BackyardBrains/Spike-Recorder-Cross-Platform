@@ -1431,7 +1431,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               Expanded(
                                                 child: Container(
                                                   height: 30,
-                                                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+                                                  padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
                                                   // child: Text("address", style: SoftwareTextStyle().kWtMediumTextStyle),
                                                   child: BybDropdown(kIsWeb: kIsWeb, availableItems: ["Thin", "Medium", "Wide"], onItemSelected: (String str) {
                                                     print("STR : $str");
@@ -1899,21 +1899,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                             .getVisibleChannelCount();
 
                                         if (kIsWeb) {
-                                          await GraphTemplate.nwbFileUtil
-                                              ?.recordNewFileLocation();
-                                          int counterTimerCancel = 0;
-                                          Timer.periodic(
-                                              Duration(seconds: 1),
-                                              (timer) async {
+                                          // await GraphTemplate.nwbFileUtil
+                                          //     ?.recordNewFileLocation();
+                                          // int counterTimerCancel = 0;
+                                          // Timer.periodic(
+                                          //     Duration(seconds: 1),
+                                          //     (timer) async {
                                             // counterTimerCancel++;
-                                            print(
-                                                "GraphTemplate.nwbFileUtil?.recordedNwbFilePath: ${GraphTemplate.nwbFileUtil?.recordedNwbFilePath}");
+                                            // print(
+                                            //     "GraphTemplate.nwbFileUtil?.recordedNwbFilePath: ${GraphTemplate.nwbFileUtil?.recordedNwbFilePath}");
                                             String strTemp = GraphTemplate
                                                     .nwbFileUtil
                                                     ?.recordedNwbFilePath ??
                                                 "";
-                                            if (strTemp.length! > 3) {
-                                              timer.cancel();
+                                            // if (strTemp.length! > 3) {
+                                            if (1==1) {
+                                              // timer.cancel();
                                               if (isAudioListen) {
                                                 recordedFilePath = await GraphTemplate
                                                     .nwbFileUtil
@@ -1970,14 +1971,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                                     .nwbFileUtil
                                                     ?.recordedNwbFilePath ==
                                                 "--") {
-                                              GraphTemplate.nwbFileUtil
-                                                  ?.recordedNwbFilePath = "";
-                                              print("NWB FILE PATH");
-                                              counterTimerCancel = 0;
-                                              isOpeningFile = false;
-                                              timer.cancel();
+                                              // GraphTemplate.nwbFileUtil
+                                              //     ?.recordedNwbFilePath = "";
+                                              // print("NWB FILE PATH");
+                                              // counterTimerCancel = 0;
+                                              // isOpeningFile = false;
+                                              // timer.cancel();
                                             }
-                                          });
+                                          // });
                                         } else {
                                           if (isAudioListen) {
                                             recordedFilePath =
@@ -3557,10 +3558,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void startOpeningFileWebCallbackPlayback(
       config, arrSampleCount, arrSamples, isStartOpeningFileWeb) async {
-    print(
-        "SECTION startOpeningFileWebCallbackPlayback : $config, $arrSampleCount, $isStartOpeningFileWeb");
     // [48000, 1, 885, 0, 1000000, 654337, 0, 0, 0, 0], [196301]
     // Validate config before accessing indices to prevent RangeError
+    currentLoadedFilePath = GraphTemplate.nwbFileUtil?.openedNwbFilePath ?? "";    
     if (config == null || config is! Int32List || config.length < 10) {
       print(
           "ERROR: Invalid config in startOpeningFileWebCallback: $config (type: ${config.runtimeType}, length: ${config is List ? config.length : 'N/A'})");
@@ -3575,8 +3575,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void startOpeningFileWebCallback(
       config, arrSampleCount, arrSamples, isStartOpeningFileWeb) async {
+    currentLoadedFilePath = GraphTemplate.nwbFileUtil?.openedNwbFilePath ?? "";    
     print(
-        "SECTION startOpeningFileWebCallback : $config, $arrSampleCount, $isStartOpeningFileWeb");
+        "SECTION startOpeningFileWebCallbackPlayback : $config, $arrSampleCount, $isStartOpeningFileWeb ===+++=== $currentLoadedFilePath");
     // Validate config before accessing indices to prevent RangeError
     if (config == null || config is! Int32List || config.length < 10) {
       print(
@@ -4682,16 +4683,20 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   void callbackPlayButton(bool isPlay) async {
-    // 1. UI settings
+    // 1. UI state (no provider notify yet on play path so rebuild cannot run during setup)
     print("setGraphResumePlay PLAYBACK PAUSE BUTTON");
-    Provider.of<GraphResumePlayProvider>(context, listen: false)
-        .setGraphResumePlay(isPlay);
-    print("setGraphResumePlay PLAYBACK PAUSE BUTTON 22");
     _toPauseGraph = isPlay;
-    print("setGraphResumePlay PLAYBACK PAUSE BUTTON 44");
+    print("setGraphResumePlay PLAYBACK PAUSE BUTTON 22");
     GraphTemplate.isPlayerPaused = !isPlay;
     print(
         "setGraphResumePlay GraphTemplate.isPlayerPaused | SAMPLE RATEZ: $_sampleRate");
+
+    // Notify UI only when pausing; when playing we notify after stream setup to avoid rebuild during setup (can trigger Platform access on web).
+    if (!isPlay) {
+      Provider.of<GraphResumePlayProvider>(context, listen: false)
+          .setGraphResumePlay(isPlay);
+    }
+    print("setGraphResumePlay PLAYBACK PAUSE BUTTON 44");
 
     // 2. SoLoud initialization
     if (soloud == null) {
@@ -4740,7 +4745,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // 3. SoLoud buffer stream setup
       print("widget.channelCount: ${widget.channelCount} ${_sampleRate}");
       for (int i = 0; i < widget.channelCount; i++) {
-        if (Platform.isAndroid || Platform.isMacOS) {
+        if (!kIsWeb && (Platform.isAndroid || Platform.isMacOS)) {
           loadedFileStreams.add(soloud!.setBufferStream(
             // maxBufferSizeBytes: 1024 * 1024 * 10,
             // {Size} = {Sample Rate} * {Bytes per Sample} * {MONO CHANNEL} * {Desired Seconds} * {100  constant}

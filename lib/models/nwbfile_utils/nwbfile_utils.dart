@@ -12,6 +12,7 @@ export "nwbfile_utils_native.dart"
 // The abstract interface all implementations must follow
 abstract class NWBFileUtil {
   String recordedNwbFilePath = "";
+  String openedNwbFilePath = "";
   
   // Callback for file opening completion (used by GraphTemplate)
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;

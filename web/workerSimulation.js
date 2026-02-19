@@ -1247,6 +1247,7 @@ self.onmessage = async function (eventFromMain) {
             isRecording = 0;
             let filePath = eventFromMain.data.filePath;
             osFilePath = filePath;
+            console.log("OS FILE PATH : $osFilePath");
 
             let nwbSampleRate = eventFromMain.data.sampleRate;
             let nwbChannelCount = eventFromMain.data.channelCount;
@@ -1262,9 +1263,10 @@ self.onmessage = async function (eventFromMain) {
             }
 
             console.log("CREATE nwbChannelCount: ", nwbChannelCount);
-            recordingFileHandle = eventFromMain.data.fileHandle;
+            // CHANGE OF WORKFLOW
+            // recordingFileHandle = eventFromMain.data.fileHandle;
+            // recordingFileWritable = await recordingFileHandle.createWritable();
             
-            recordingFileWritable = await recordingFileHandle.createWritable();
             let deviceInfoPointer = eventFromMain.data.deviceInfoPointer;
             let deviceManufacturerPointer = eventFromMain.data.deviceManufacturerPointer;
             // NwbModule._processing_init(filePath, nwbSampleRate, nwbChannelCount, deviceInfoPointer, deviceManufacturerPointer);
@@ -1342,7 +1344,6 @@ self.onmessage = async function (eventFromMain) {
                 NwbModule._free(samplesCtrPtr);
 
                 isRecording = -1;
-                makeFilePublicWeb(osFilePath);
 
             } else {
                 isRecording = isFinishRecording;
@@ -1368,7 +1369,15 @@ self.onmessage = async function (eventFromMain) {
             }
         break;
         case "MAKE_FILE_PUBLIC":
-            makeFilePublicWeb(eventFromMain.data.filePath);
+            // "fileHandle": fileHandle,
+            // "selectedChannel": selectedChannel,
+            // "channelCount": channelCount,
+            // "isFinishRecording": isFinishRecording,
+            // CHANGE OF WORKFLOW
+            recordingFileHandle = eventFromMain.data.fileHandle;
+            recordingFileWritable = await recordingFileHandle.createWritable();
+            makeFilePublicWeb(osFilePath);
+            console.log("OS FILE PATH : $osFilePath");
         break;
         case "PROCESS_SERIAL_DATA_WEB_RESULT":
             let sampleData = eventFromMain.data.data;

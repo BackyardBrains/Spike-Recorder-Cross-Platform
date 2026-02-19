@@ -11,6 +11,8 @@ class NwbFileUtilImpl implements NWBFileUtil {
 
   @override
   String recordedNwbFilePath = "";
+  @override
+  String openedNwbFilePath = "";
   
   @override
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
@@ -42,6 +44,10 @@ class NwbFileUtilImpl implements NWBFileUtil {
     }
   }
   
+  void setOpenedFileName(fileName){
+    openedNwbFilePath = fileName;
+  }
+  
   void onSeekNwbFileBufferWebCallbackPlayback(config, arrSampleCount, arrSamples, isStartOpeningFileWeb){
     // Store config for later use - validate it has at least 10 elements
     if (config != null && config is List && config.length >= 10) {
@@ -64,6 +70,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
     js.context['onNwbFileCreated'] = onNwbFileCreatedCallback;
     js.context['onSeekNwbFileBufferWebCallback'] = onSeekNwbFileBufferWebCallback;
     js.context['onSeekNwbFileBufferWebCallbackPlayback'] = onSeekNwbFileBufferWebCallbackPlayback;
+    js.context['setOpenedFileName'] = setOpenedFileName;
     //SEEK_NWB_FILE_BUFFER_WEB_CALLBACK
   }
 

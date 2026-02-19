@@ -10,7 +10,10 @@ import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
 
 class NwbFileUtilImpl implements NWBFileUtil {
   String recordedTime = "";
+  @override
   String recordedNwbFilePath = "";
+  @override
+  String openedNwbFilePath = "";
   
   @override
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;

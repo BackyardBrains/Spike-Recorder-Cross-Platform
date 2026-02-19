@@ -404,37 +404,37 @@ function prepareFftDrawing(drawBuffer, selectedChannelIdx, windowCount, windowSi
 
 async function recordNewNwbFile(path) {
   
-  const newDate = new Date();
-  const newFileName = "spike_recorder"+newDate.getFullYear()+"-"+newDate.getMonth()+"-"+newDate.getDate()+"_"+newDate.getHours()+"."+newDate.getMinutes()+"."+newDate.getSeconds();
-  const options = {
-    excludeAcceptAllOption:true,
-    suggestedName: newFileName,
-    types: [
-      {
-        description: 'Spike-Recorder',
-        accept: {
-          'application/octet-stream': ['.nwb'],
-        },
-      },
-    ],
-  };  
-  try{
-    fileHandle = null;
-    fileHandle = await window.showSaveFilePicker(options);
-    console.log("fileHandle: ", fileHandle);
-    if (fileHandle == null) {
-      window.onNwbFileCreated("--");
-      return "File not opened";
-    }
-  }catch(e){
-    console.log("error: ", e);
-    if (fileHandle == null) {
-      window.onNwbFileCreated("--");
-      return "File not opened";
-    }
-  }
+  // const newDate = new Date();
+  // const newFileName = "spike_recorder"+newDate.getFullYear()+"-"+newDate.getMonth()+"-"+newDate.getDate()+"_"+newDate.getHours()+"."+newDate.getMinutes()+"."+newDate.getSeconds();
+  // const options = {
+  //   excludeAcceptAllOption:true,
+  //   suggestedName: newFileName,
+  //   types: [
+  //     {
+  //       description: 'Spike-Recorder',
+  //       accept: {
+  //         'application/octet-stream': ['.nwb'],
+  //       },
+  //     },
+  //   ],
+  // };  
+  // try{
+  //   fileHandle = null;
+  //   fileHandle = await window.showSaveFilePicker(options);
+  //   console.log("fileHandle: ", fileHandle);
+  //   if (fileHandle == null) {
+  //     window.onNwbFileCreated("--");
+  //     return "File not opened";
+  //   }
+  // }catch(e){
+  //   console.log("error: ", e);
+  //   if (fileHandle == null) {
+  //     window.onNwbFileCreated("--");
+  //     return "File not opened";
+  //   }
+  // }
 
-  window.onNwbFileCreated(newFileName);
+  // window.onNwbFileCreated(newFileName);
   
   return newFileName;
 }
@@ -467,15 +467,68 @@ async function createNwbFile(filePath, sampleRate, channelCount, deviceInfoPoint
 }
 
 
-function addElectricalSeriesWeb(samples, samplesCount, selectedChannel, channelCount, isFinishRecording) {
-  mWorker.postMessage({
-    "message": "ADD_ELECTRICAL_SERIES",
-    "samples": samples,
-    "samplesCount": samplesCount,
-    "selectedChannel": selectedChannel,
-    "channelCount": channelCount,
-    "isFinishRecording": isFinishRecording,
-  });
+async function addElectricalSeriesWeb(samples, samplesCount, selectedChannel, channelCount, isFinishRecording) {
+  if (isFinishRecording == 1) {
+    mWorker.postMessage({
+      "message": "ADD_ELECTRICAL_SERIES",
+      "samples": samples,
+      "samplesCount": samplesCount,
+      "selectedChannel": selectedChannel,
+      "channelCount": channelCount,
+      "isFinishRecording": isFinishRecording,
+    });
+
+    const newDate = new Date();
+    const newFileName = "spike_recorder"+newDate.getFullYear()+"-"+newDate.getMonth()+"-"+newDate.getDate()+"_"+newDate.getHours()+"."+newDate.getMinutes()+"."+newDate.getSeconds();
+    const options = {
+      excludeAcceptAllOption:true,
+      suggestedName: newFileName,
+      types: [
+        {
+          description: 'Spike-Recorder',
+          accept: {
+            'application/octet-stream': ['.nwb'],
+          },
+        },
+      ],
+    };  
+    try{
+      fileHandle = null;
+      fileHandle = await window.showSaveFilePicker(options);
+      console.log("fileHandle: ", fileHandle);
+      if (fileHandle == null) {
+        window.onNwbFileCreated("--");
+        return "File not opened";
+      }
+    }catch(e){
+      console.log("error: ", e);
+      if (fileHandle == null) {
+        window.onNwbFileCreated("--");
+        return "File not opened";
+      }
+    }
+    mWorker.postMessage({
+      "message": "MAKE_FILE_PUBLIC",
+      "fileHandle": fileHandle,
+      "selectedChannel": selectedChannel,
+      "channelCount": channelCount,
+      "isFinishRecording": isFinishRecording,
+    });
+  
+    // window.onNwbFileCreated(newFileName);
+  
+  
+  } else {
+    mWorker.postMessage({
+      "message": "ADD_ELECTRICAL_SERIES",
+      "samples": samples,
+      "samplesCount": samplesCount,
+      "selectedChannel": selectedChannel,
+      "channelCount": channelCount,
+      "isFinishRecording": isFinishRecording,
+    });
+  
+  }
 }
 
 
@@ -521,6 +574,7 @@ async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, end
       if (fileSizeInBytes < 10) {
         return "File can't be opened"
       }
+      window.setOpenedFileName(fileHandle[0].name);
     }catch(e){
       console.log("error: ", e);
       return "File not opened";

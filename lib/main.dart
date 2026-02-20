@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
+// import 'package:firebase_core/firebase_core.dart';
+// import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+// import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,7 +11,7 @@ import 'package:spikerbox_architecture/provider/custom_slider_provider.dart';
 import 'package:spikerbox_architecture/provider/fft_status_provider.dart';
 import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
 import 'package:spikerbox_architecture/screen/page_route_screen.dart';
-import 'firebase_options.dart';
+// import 'firebase_options.dart';
 import 'provider/provider_export.dart';
 import 'screen/graph_template.dart';
 
@@ -72,7 +72,7 @@ void main() async {
 }
 
 class MyApp extends StatefulWidget {
-  static FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+  // static FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 
   const MyApp({super.key});
 

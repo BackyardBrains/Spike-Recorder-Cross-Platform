@@ -13,8 +13,9 @@
 #include "../io/ReadIO.hpp"
 #include "RecordingContainers.hpp"
 #include "base/TimeSeries.hpp"
-#include "file/ElectrodeTable.hpp"
+#include "file/ElectrodesTable.hpp"
 #include "hdmf/base/Container.hpp"
+#include "../spec/core.hpp"
 
 /*!
  * \namespace AQNWB::NWB
@@ -30,7 +31,7 @@ namespace AQNWB::NWB
 class NWBFile : public Container
 {
 public:
-  // Register the ElectrodeTable as a subclass of Container
+  // Register the ElectrodesTable as a subclass of Container
   REGISTER_SUBCLASS(NWBFile, "core")
 
   /**
@@ -101,10 +102,14 @@ public:
    *                        add to the table. This vector should contain all the
    *                        electrodes that are detected by the acquisition
    * system, not only those being actively recorded from.
+   * @param deviceDescription Optional device description (defaults to "description" if empty)
+   * @param deviceManufacturer Optional device manufacturer (defaults to "unknown" if empty)
    * @return Status The status of the object creation operation.
    */
   Status createElectrodesTable(
-      std::vector<Types::ChannelVector> recordingArrays);
+      std::vector<Types::ChannelVector> recordingArrays,
+      const std::string& deviceDescription = "description",
+      const std::string& deviceManufacturer = "unknown");
 
   /**
    * @brief Create ElectricalSeries objects to record data into.
@@ -164,47 +169,48 @@ public:
                                 RecordingContainers* recordingContainers,
                                 std::vector<SizeType>& containerIndexes);
 
-  DEFINE_REGISTERED_FIELD(readElectrodeTable,
-                          ElectrodeTable,
-                          ElectrodeTable::electrodeTablePath,
+  DEFINE_REGISTERED_FIELD(readElectrodesTable,
+                          ElectrodesTable,
+                          ElectrodesTable::electrodesTablePath,
                           "table with the extracellular electrodes")
 
-  DEFINE_FIELD(readNWBVersion,
-               AttributeField,
-               std::string,
-               "nwb_version",
-               File version string)
+  DEFINE_ATTRIBUTE_FIELD(readNWBVersion,
+                         std::string,
+                         "nwb_version",
+                         File version string)
 
-  DEFINE_FIELD(readFileCreateDate,
-               DatasetField,
-               std::any,
-               "file_create_date",
-               A record of the date the file was created and of subsequent
-                   modifications)
+  DEFINE_DATASET_FIELD(readFileCreateDate,
+                       recordFileCreateDate,
+                       std::string,
+                       "file_create_date",
+                       A record of the date the file was created and of
+                           subsequent modifications)
 
-  DEFINE_FIELD(readIdentifier,
-               DatasetField,
-               std::string,
-               "identifier",
-               A unique text identifier for the file)
+  DEFINE_DATASET_FIELD(readIdentifier,
+                      recordIdentifier,
+                      std::string,
+                      "identifier",
+                      A unique text identifier for the file)
 
-  DEFINE_FIELD(readSessionDescription,
-               DatasetField,
-               std::string,
-               "session_description",
-               A description of the experimental session and data in the file)
+  DEFINE_DATASET_FIELD(readSessionDescription,
+                       recordSessionDescription,
+                       std::string,
+                       "session_description",
+                       A description of the experimental session and data in the
+                           file)
 
-  DEFINE_FIELD(readSessionStartTime,
-               DatasetField,
-               std::any,
-               "session_start_time",
-               Date and time of the experiment or session start)
+  DEFINE_DATASET_FIELD(readSessionStartTime,
+                       recordSessionStartTime,
+                       std::string,
+                       "session_start_time",
+                       Date and time of the experiment or session start)
 
-  DEFINE_FIELD(readTimestampsReferenceTime,
-               DatasetField,
-               std::any,
-               "timestamps_reference_time",
-               Date and time corresponding to time zero of all timestamps)
+  DEFINE_DATASET_FIELD(readTimestampsReferenceTime,
+                       recordTimestampsReferenceTime,
+                       std::string,
+                       "timestamps_reference_time",
+                       Date and time corresponding to time zero of all
+                           timestamps)
 
 protected:
   /**
@@ -257,10 +263,12 @@ private:
 
   inline const static std::string m_acquisitionPath = "/acquisition";
 
+  inline const static std::string m_specificationsPath = "/specifications";
+
   /**
-   * @brief The ElectrodeTable for the file
+   * @brief The ElectrodesTable for the file
    */
-  std::unique_ptr<ElectrodeTable> m_electrodeTable;
+  std::unique_ptr<ElectrodesTable> m_electrodeTable;
 };
 
 }  // namespace AQNWB::NWB

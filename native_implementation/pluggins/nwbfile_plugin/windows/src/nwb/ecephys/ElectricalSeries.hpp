@@ -7,7 +7,7 @@
 #include "../../io/BaseIO.hpp"
 #include "../../io/ReadIO.hpp"
 #include "../base/TimeSeries.hpp"
-#include "../file/ElectrodeTable.hpp"
+#include "../file/ElectrodesTable.hpp"
 
 namespace AQNWB::NWB
 {
@@ -122,7 +122,7 @@ public:
 
   DEFINE_REFERENCED_REGISTERED_FIELD(
       readElectrodesTable,
-      ElectrodeTable,
+      ElectrodesTable,
       "electrodes/table",
       The electrodes table retrieved from the object referenced in the 
       `electrodes / table` attribute.)

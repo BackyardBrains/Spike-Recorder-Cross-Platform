@@ -1,7 +1,7 @@
 #include "ElectricalSeries.hpp"
 
 #include "../../Utils.hpp"
-#include "../file/ElectrodeTable.hpp"
+#include "../file/ElectrodesTable.hpp"
 
 using namespace AQNWB::NWB;
 
@@ -39,7 +39,7 @@ Status ElectricalSeries::initialize(const IO::ArrayDataSetConfig& dataConfig,
 
   // get the number of electrodes from the electrode table
   std::string idPath =
-      AQNWB::mergePaths(ElectrodeTable::electrodeTablePath, "id");
+      AQNWB::mergePaths(ElectrodesTable::electrodesTablePath, "id");
   std::vector<SizeType> elecTableDsetSize = m_io->getStorageObjectShape(idPath);
   SizeType numElectrodes = elecTableDsetSize[0];
 
@@ -95,7 +95,7 @@ Status ElectricalSeries::initialize(const IO::ArrayDataSetConfig& dataConfig,
   m_io->createAttribute("the electrodes that generated this electrical series",
                         electrodesPath,
                         "description");
-  m_io->createReferenceAttribute(ElectrodeTable::electrodeTablePath,
+  m_io->createReferenceAttribute(ElectrodesTable::electrodesTablePath,
                                  AQNWB::mergePaths(getPath(), "electrodes"),
                                  "table");
 

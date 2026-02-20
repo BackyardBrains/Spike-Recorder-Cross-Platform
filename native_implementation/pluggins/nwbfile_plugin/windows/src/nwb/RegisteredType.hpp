@@ -423,6 +423,83 @@ protected:
   }
 
 /**
+ * @brief Defines a lazy-loaded accessor function for reading attribute fields.
+ *
+ * This macro generates a function that returns a lazy-loaded wrapper for an
+ * attribute field.
+ *
+ * @param name The name of the function to generate.
+ * @param default_type The default type of the field.
+ * @param fieldPath The path to the field.
+ * @param description A detailed description of the field.
+ */
+#define DEFINE_ATTRIBUTE_FIELD(name, default_type, fieldPath, description) \
+  /** \
+   * @brief Returns a lazy-loaded wrapper for the ##name attribute field. \
+   * \
+   * @tparam VTYPE The type of the field (default: ##default_type) \
+   * @return A unique pointer to a ReadDataWrapper for the field \
+   * \
+   * description \
+   */ \
+  template<typename VTYPE = default_type> \
+  inline std::unique_ptr<IO::ReadDataWrapper<AttributeField, VTYPE>> \
+  name() const \
+  { \
+    return std::make_unique< \
+        IO::ReadDataWrapper<AttributeField, VTYPE>>( \
+        m_io, AQNWB::mergePaths(m_path, fieldPath)); \
+  }
+
+/**
+ * @brief Defines a lazy-loaded dataset field accessor function.
+ *
+ * This macro generates two functions:
+ * 1. A read function that returns a lazy-loaded wrapper for a dataset field
+ * 2. A write function that returns the dataset object directly
+ *
+ * @param readName The name of the read function to generate.
+ * @param writeName The name of the write function to generate.
+ * @param default_type The default type of the field.
+ * @param fieldPath The path to the field.
+ * @param description A detailed description of the field.
+ */
+#define DEFINE_DATASET_FIELD( \
+    readName, writeName, default_type, fieldPath, description) \
+  /** \
+   * @brief Returns a lazy-loaded wrapper for the ##readName dataset field. \
+   * \
+   * @tparam VTYPE The type of the field (default: ##default_type) \
+   * @return A unique pointer to a ReadDataWrapper for the field \
+   * \
+   * description \
+   */ \
+  template<typename VTYPE = default_type> \
+  inline std::unique_ptr< \
+      IO::ReadDataWrapper<DatasetField, VTYPE>> \
+  readName() const \
+  { \
+    return std::make_unique< \
+        IO::ReadDataWrapper<DatasetField, VTYPE>>( \
+        m_io, AQNWB::mergePaths(m_path, fieldPath)); \
+  } \
+  /** \
+   * @brief Returns the dataset object for the ##writeName field. \
+   * \
+   * @param reset If true, the dataset will be reset to the beginning \
+   * \
+   * @return A shared pointer to a BaseRecordingData for the dataset \
+   * \
+   * description \
+   */ \
+  inline std::shared_ptr<IO::BaseRecordingData> writeName(bool reset = \
+                                                                     false) \
+  { \
+    std::string fullPath = AQNWB::mergePaths(m_path, fieldPath); \
+    return m_io->getDataSet(fullPath); \
+  }
+
+/**
  * @brief Defines a lazy-loaded accessor function for reading fields that are
  * RegisteredTypes
  *

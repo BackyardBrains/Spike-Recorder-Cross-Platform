@@ -14,38 +14,49 @@ class NwbFileUtilImpl implements NWBFileUtil {
   String recordedNwbFilePath = "";
   @override
   String openedNwbFilePath = "";
-  
+
   @override
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
 
   @override
-  Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer, List<int> visibleChannelsList, int visibleChannelCount) async {
+  Future<String> processingInit(
+      int sampleRate,
+      int channelCount,
+      String deviceInfo,
+      String deviceManufacturer,
+      List<int> visibleChannelsList,
+      int visibleChannelCount) async {
     // final path = "${(await getApplicationDocumentsDirectory()).path}/${DateTime.now().millisecondsSinceEpoch}";
     // final path = (await getApplicationDocumentsDirectory()).path + "/example_recording2.nwb";
     recordedTime = DateTime.now().millisecondsSinceEpoch.toString();
-    String path = "${(await getApplicationDocumentsDirectory()).path}/spike_recorder$recordedTime.nwb";
+    String path =
+        "${(await getApplicationDocumentsDirectory()).path}\\spike_recorder$recordedTime.nwb";
     if (Platform.isMacOS) {
-      path = "${(await getDownloadsDirectory())?.path}/spike_recorder$recordedTime.nwb";
+      path =
+          "${(await getDownloadsDirectory())?.path}/spike_recorder$recordedTime.nwb";
       // String computerNamePath = (await getApplicationDocumentsDirectory()).path.split("/Library")[0];
       // path = "${computerNamePath}/spike_recorder$recordedTime.nwb";
-    } 
+    }
     print("NWB file path: $path");
     Pointer<Char> charPointer = path.toString().toNativeUtf8().cast<Char>();
     Pointer<Char> deviceInfoPointer = deviceInfo.toNativeUtf8().cast<Char>();
-    Pointer<Char> deviceManufacturerPointer = deviceManufacturer.toNativeUtf8().cast<Char>();
+    Pointer<Char> deviceManufacturerPointer =
+        deviceManufacturer.toNativeUtf8().cast<Char>();
 
-    int initResult = nwb.processingInit(charPointer, sampleRate, channelCount, deviceInfoPointer, deviceManufacturerPointer);
+    int initResult = nwb.processingInit(charPointer, sampleRate, channelCount,
+        deviceInfoPointer, deviceManufacturerPointer);
     if (initResult < 0) {
       print("❌ Failed to initialize NWB file, error code: $initResult");
       return Future.value("false");
     }
     return Future.value(path);
   }
+
   @override
   Future<String> makeFilePublicBuffer(Uint8List buffer) async {
     return "-";
   }
-  
+
   @override
   Future<String> makeFilePublic(String path) async {
     if (Platform.isAndroid) {
@@ -56,10 +67,10 @@ class NwbFileUtilImpl implements NWBFileUtil {
       }
       print("fileName: $fileName");
       File file = File(path);
-      
+
       String resultString = await FlutterFileSaver().writeFileAsBytes(
-          fileName: fileName,
-          bytes: file.readAsBytesSync(),
+        fileName: fileName,
+        bytes: file.readAsBytesSync(),
       );
       print("resultString");
       print(resultString);
@@ -67,48 +78,51 @@ class NwbFileUtilImpl implements NWBFileUtil {
     } else {
       return Future.value(path);
     }
-    
   }
 
   @override
-  Future<bool> addElectricalSeries(Int16List data, Int32List samplesCount, int selectedChannel,int channelCount, int isFinishRecording) {
+  Future<bool> addElectricalSeries(Int16List data, Int32List samplesCount,
+      int selectedChannel, int channelCount, int isFinishRecording) {
     // print("addElectricalSeries: $isFinishRecording SamplesCOUNT: $samplesCount DATA: $data");
     Pointer<Int16> dataPtr = calloc<Int16>(data.length);
     dataPtr.asTypedList(data.length).setAll(0, data);
     Pointer<Int32> samplesCountPtr = calloc<Int32>(samplesCount.length);
     samplesCountPtr.asTypedList(samplesCount.length).setAll(0, samplesCount);
-    nwb.nwbfile_add_electrical_series(dataPtr, samplesCountPtr, selectedChannel, channelCount, isFinishRecording);
+    nwb.nwbfile_add_electrical_series(dataPtr, samplesCountPtr, selectedChannel,
+        channelCount, isFinishRecording);
     return Future.value(true);
   }
-  
+
   @override
-  Future<bool> readElectricalSeries(Int16List outSamples, Int32List outSamplesCount, int selectedChannel, int channelCount) {
+  Future<bool> readElectricalSeries(Int16List outSamples,
+      Int32List outSamplesCount, int selectedChannel, int channelCount) {
     Pointer<Int16> outSamplesPtr = calloc<Int16>(outSamples.length);
     Pointer<Int32> outSamplesCountPtr = calloc<Int32>(outSamplesCount.length);
-    
+
     try {
       print("📖 Reading electrical series data...");
       print("   Channel: $selectedChannel");
       print("   Expected samples: ${outSamples.length}");
-      
-      int result = nwb.nwbfile_read_electrical_series(outSamplesPtr, outSamplesCountPtr, selectedChannel, channelCount);
-      
+
+      int result = nwb.nwbfile_read_electrical_series(
+          outSamplesPtr, outSamplesCountPtr, selectedChannel, channelCount);
+
       print("📊 Read result: $result");
-      
+
       if (result == 0) {
         // Success - copy data back from native memory
         int actualSampleCount = outSamplesCountPtr.value;
         print("📊 Actual samples read: $actualSampleCount");
-        
+
         // Copy the data back to the Dart list
         if (actualSampleCount > 0 && actualSampleCount <= outSamples.length) {
           for (int i = 0; i < actualSampleCount; i++) {
             outSamples[i] = outSamplesPtr[i];
           }
           outSamplesCount[0] = actualSampleCount;
-          
+
           print("✅ Successfully copied $actualSampleCount samples");
-          
+
           // Print first few samples for verification
           if (actualSampleCount > 0) {
             print("📈 First 5 samples:");
@@ -116,7 +130,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
               print("   Sample $i: ${outSamples[i]}");
             }
           }
-          
+
           return Future.value(true);
         } else {
           print("❌ Invalid sample count: $actualSampleCount");
@@ -133,10 +147,19 @@ class NwbFileUtilImpl implements NWBFileUtil {
   }
 
   @override
-  Future<bool> seekElectricalSeries(String filePath, Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) async {
+  Future<bool> seekElectricalSeries(
+      String filePath,
+      Int16List outSamples,
+      Int32List outSamplesCount,
+      Int32List outConfig,
+      int startTimeStamp,
+      int endTimeStamp,
+      int startChannel,
+      int endChannel) async {
     Pointer<Int16> outSamplesPtr = calloc<Int16>(outSamples.length);
     Pointer<Int32> outSamplesCountPtr = calloc<Int32>(outSamplesCount.length);
-    Pointer<Int32> outConfigPtr = calloc<Int32>(10); // Allocate for 5 config parameters
+    Pointer<Int32> outConfigPtr =
+        calloc<Int32>(10); // Allocate for 5 config parameters
 
     try {
       print("FILE PATH: $filePath");
@@ -150,11 +173,22 @@ class NwbFileUtilImpl implements NWBFileUtil {
       int numChannelsToRead = endChannel - startChannel + 1;
       print("🎯 Seeking electrical series data (Multi-Channel)...");
       print("   Time range: $startTimeStamp to $endTimeStamp");
-      print("   Channels: $startChannel to $endChannel ($numChannelsToRead channels)");
-      print("   Expected samples per channel: ${endTimeStamp - startTimeStamp}");
-      print("   Expected total data points: ${(endTimeStamp - startTimeStamp) * numChannelsToRead}");
+      print(
+          "   Channels: $startChannel to $endChannel ($numChannelsToRead channels)");
+      print(
+          "   Expected samples per channel: ${endTimeStamp - startTimeStamp}");
+      print(
+          "   Expected total data points: ${(endTimeStamp - startTimeStamp) * numChannelsToRead}");
 
-      int result = nwb.nwbfile_seek_electrical_series(charPointer, outSamplesPtr, outSamplesCountPtr, outConfigPtr, startTimeStamp, endTimeStamp, startChannel, endChannel);
+      int result = nwb.nwbfile_seek_electrical_series(
+          charPointer,
+          outSamplesPtr,
+          outSamplesCountPtr,
+          outConfigPtr,
+          startTimeStamp,
+          endTimeStamp,
+          startChannel,
+          endChannel);
       print("📊 Seek result: $result == $startChannel, $endChannel");
 
       if (endChannel == 1) {
@@ -163,11 +197,12 @@ class NwbFileUtilImpl implements NWBFileUtil {
 
       if (result == 0) {
         // Success - copy data back from native memory
-        int samplesPerChannel = outSamplesCountPtr.value; // Now represents samples per channel
+        int samplesPerChannel =
+            outSamplesCountPtr.value; // Now represents samples per channel
         int actualDataPoints = samplesPerChannel * numChannelsToRead;
         print("📊 Samples per channel: $samplesPerChannel");
         print("📊 Total data points: $actualDataPoints");
-        
+
         // Copy the data back to the Dart list (channel-major format)
         if (actualDataPoints > 0 && actualDataPoints <= outSamples.length) {
           // print("outSamplesCount.length: ${outSamplesCount} || actualDataPoints: $actualDataPoints");
@@ -180,14 +215,15 @@ class NwbFileUtilImpl implements NWBFileUtil {
           //   sumPositionIdx += actualDataPoints;
           // }
           // print("outSamplesCount.length FIN: ${outSamplesCount}");
-          
+
           // Copy configuration parameters
           // for (int i = 0; i < 5 && i < outConfig.length; i++) {
           //   outConfig[i] = outConfigPtr[i];
           // }
-          
-          print("✅ Successfully copied $actualDataPoints data points from seek operation");
-          
+
+          print(
+              "✅ Successfully copied $actualDataPoints data points from seek operation");
+
           // Print configuration parameters
           print("📋 Recording Configuration:");
           print("   Sample Rate: ${outConfig[0]} Hz");
@@ -195,7 +231,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
           print("   Group Name (ID): ${outConfig[2]}");
           print("   Group Index: ${outConfig[3]}");
           print("   BitVolts (µV): ${outConfig[4]}");
-          
+
           // Print first few samples for verification (channel-major format)
           if (samplesPerChannel > 0) {
             print("📈 First 5 samples from seek (channel-major format):");
@@ -210,7 +246,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
               print("   $sampleInfo");
             }
           }
-          
+
           return Future.value(true);
         } else {
           print("❌ Invalid data point count from seek: $actualDataPoints");
@@ -222,22 +258,22 @@ class NwbFileUtilImpl implements NWBFileUtil {
       }
     } finally {
       print("🔄 Freeing memory...");
-      
+
       // Copy data from native memory to Dart lists (channel-major format)
       int samplesPerChannel = outSamplesCountPtr.value;
       int numChannelsToRead = endChannel - startChannel + 1;
       int totalDataPoints = samplesPerChannel * numChannelsToRead;
-      
+
       // Set samples count for each channel
       for (int i = 0; i < outSamplesCount.length; i++) {
         outSamplesCount[i] = samplesPerChannel;
       }
-      
+
       // Copy the channel-major data
       for (int i = 0; i < totalDataPoints && i < outSamples.length; i++) {
         outSamples[i] = outSamplesPtr[i];
       }
-      
+
       // Copy configuration parameters
       outConfig.setAll(0, outConfigPtr.asTypedList(10));
 
@@ -247,27 +283,36 @@ class NwbFileUtilImpl implements NWBFileUtil {
       print("🔄 Freeing memory... Done");
     }
   }
-  
+
   @override
   Future<String> recordNewFileLocation() {
     return Future.value("");
     // throw UnimplementedError();
   }
+
   @override
-  Future<String> startOpeningFileWeb(String filePath, int startIdx, int endIdx, int startChannel, int endChannel) {
+  Future<String> startOpeningFileWeb(String filePath, int startIdx, int endIdx,
+      int startChannel, int endChannel) {
     return Future.value("");
-    
   }
-  
+
   @override
-  Future<bool> seekElectricalSeriesWeb(String filePath, Int16List outSamples, Int32List outSamplesCount, Int32List outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {
+  Future<bool> seekElectricalSeriesWeb(
+      String filePath,
+      Int16List outSamples,
+      Int32List outSamplesCount,
+      Int32List outConfig,
+      int startTimeStamp,
+      int endTimeStamp,
+      int startChannel,
+      int endChannel) {
     // TODO: implement seekElectricalSeriesWeb
     return Future.value(true);
   }
-  
-  @override
-  Function(dynamic p1, dynamic p2, dynamic p3, dynamic p4)? onStartOpeningFileWebCallbackPlayback;
 
+  @override
+  Function(dynamic p1, dynamic p2, dynamic p3, dynamic p4)?
+      onStartOpeningFileWebCallbackPlayback;
 }
 
 NWBFileUtil createNwbFileUtil() => NwbFileUtilImpl();

@@ -70,7 +70,7 @@ class GraphTemplate extends StatefulWidget {
 
 class _GraphTemplateState extends State<GraphTemplate> {
   int defaultDeviceChannelCount = 1;
-  List<List<String>> predefinedFiltersChannel =[];
+  List<List<String>> predefinedFiltersChannel = [];
   List<CarouselSliderController> carouselSliderControllerChannel = [];
   List<String> arrFilterUsageTypeChannel = [];
   String serialUsageType = "";
@@ -573,15 +573,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
             isMicrophoneEnable: (bool isMicrophoneEnable) {
               context
                   .read<DataStatusProvider>()
-                  .setMicrophoneDataStatus(
-                      isMicrophoneEnable);
+                  .setMicrophoneDataStatus(isMicrophoneEnable);
             },
-            onHighPassFilterSetup:
-                (FilterSetup filterSetup) {
+            onHighPassFilterSetup: (FilterSetup filterSetup) {
               // Keep this for backward compatibility if needed
             },
-            onLowPassFilterSetup:
-                (FilterSetup filterSetup) {
+            onLowPassFilterSetup: (FilterSetup filterSetup) {
               // Keep this for backward compatibility if needed
             },
             onSampleChange: (bool isSampleDataOn) {
@@ -595,8 +592,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
           ),
         );
       }
-      createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
-
+      createTabBarConfiguration(
+          deviceChannelCount, context.read<ChannelFilterProvider>());
     });
     GraphTemplate.processingUtil = processingUtil;
     GraphTemplate.nwbFileUtil = createNwbFileUtil();
@@ -665,19 +662,18 @@ class _GraphTemplateState extends State<GraphTemplate> {
               .read<ChannelFilterProvider>()
               .setSerialChannelCount(channelCount);
 
-
           ProcessingUtil.initializeDevice.value =
               (ProcessingUtil.initializeDevice.value * 10) +
                   2 +
                   Random().nextInt(10) +
                   channelCount;
 
-
-
           customSliderBarArray.clear();
           carouselSliderControllerChannel.clear();
           arrFilterUsageTypeChannel.clear();
-          for (int idxChannel = 0; idxChannel < deviceChannelCount; idxChannel++) {
+          for (int idxChannel = 0;
+              idxChannel < deviceChannelCount;
+              idxChannel++) {
             arrFilterUsageTypeChannel.add("EMG");
             carouselSliderControllerChannel.add(CarouselSliderController());
             customSliderBarArray.add(
@@ -688,15 +684,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 isMicrophoneEnable: (bool isMicrophoneEnable) {
                   context
                       .read<DataStatusProvider>()
-                      .setMicrophoneDataStatus(
-                          isMicrophoneEnable);
+                      .setMicrophoneDataStatus(isMicrophoneEnable);
                 },
-                onHighPassFilterSetup:
-                    (FilterSetup filterSetup) {
+                onHighPassFilterSetup: (FilterSetup filterSetup) {
                   // Keep this for backward compatibility if needed
                 },
-                onLowPassFilterSetup:
-                    (FilterSetup filterSetup) {
+                onLowPassFilterSetup: (FilterSetup filterSetup) {
                   // Keep this for backward compatibility if needed
                 },
                 onSampleChange: (bool isSampleDataOn) {
@@ -710,8 +703,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               ),
             );
           }
-          createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
-
+          createTabBarConfiguration(
+              deviceChannelCount, context.read<ChannelFilterProvider>());
         });
         localPlugin.postFilterStream?.listen((serialData) {
           bool isAudioListen =
@@ -1042,14 +1035,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     String openedFilePath = "";
     if (currentLoadedFilePath.isNotEmpty) {
-      openedFilePath = currentLoadedFilePath.split("/").last;
+      if (kIsWeb) {
+        openedFilePath = currentLoadedFilePath.split("/").last;
+      } else {
+        if (Platform.isWindows) {
+          openedFilePath = currentLoadedFilePath.split("\\").last;
+        } else {
+          openedFilePath = currentLoadedFilePath.split("/").last;
+        }
+      }
     }
 
     IconData drawerIconData = CupertinoIcons.chevron_up;
     if (isDrawerOpened) {
       drawerIconData = CupertinoIcons.chevron_down;
     }
-    
+
     return Scaffold(
       backgroundColor: SoftwareColors.kBackGroundColor,
       body: StreamBuilder<int>(
@@ -1057,196 +1058,210 @@ class _GraphTemplateState extends State<GraphTemplate> {
           builder: (context, snapshot) {
             // print("streamScrubBuilder: ${snapshot.data} -- $startValue, $endValue");
             return _AdaptiveArea(
-                recordingNotifier: recordingNotifier,
-                notifier: scrubNotifier,
-                child1: const _GraphArea(),
-                child3: Container(
-                  decoration: BoxDecoration(
-                    color: Color(0xFF222222),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.max,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(0, 10, 0, 10),
-                        child: Row(children: [
-                          ElevatedButton(
-                            onPressed: () {
-                              if (configTitle == "Channel Settings") {
-                                configTitle = "Channels";
-                                isDetailConfiguration = false;
-                                customizeDetailChannelIdx = 0;
+              recordingNotifier: recordingNotifier,
+              notifier: scrubNotifier,
+              child1: const _GraphArea(),
+              child3: Container(
+                decoration: BoxDecoration(
+                  color: Color(0xFF222222),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.max,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(0, 10, 0, 10),
+                      child: Row(children: [
+                        ElevatedButton(
+                          onPressed: () {
+                            if (configTitle == "Channel Settings") {
+                              configTitle = "Channels";
+                              isDetailConfiguration = false;
+                              customizeDetailChannelIdx = 0;
 
-                                createTabBarConfiguration(widget.channelCount, Provider.of<ChannelFilterProvider>(context, listen: false));
-                              } else {
-                                context
-                                    .read<SoftwareConfigProvider>()
-                                    .settingStatus(false);
+                              createTabBarConfiguration(
+                                  widget.channelCount,
+                                  Provider.of<ChannelFilterProvider>(context,
+                                      listen: false));
+                            } else {
+                              context
+                                  .read<SoftwareConfigProvider>()
+                                  .settingStatus(false);
+                            }
+                            setState(() {});
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2C2C2C),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: const CircleBorder(),
+                            padding: EdgeInsets
+                                .zero, // Clear padding to center the icon perfectly
+                          ).copyWith(
+                            side: WidgetStateProperty.resolveWith<BorderSide>(
+                                (states) {
+                              if (states.contains(WidgetState.hovered)) {
+                                return const BorderSide(
+                                    color: Colors.blue, width: 1.5);
                               }
-                              setState(() {});
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2C2C2C),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: const CircleBorder(),
-                              padding: EdgeInsets.zero, // Clear padding to center the icon perfectly
-                            ).copyWith(
-                              side: WidgetStateProperty.resolveWith<BorderSide>((states) {
-                                if (states.contains(WidgetState.hovered)) {
-                                  return const BorderSide(color: Colors.blue, width: 1.5);
-                                }
-                                return const BorderSide(color: Colors.transparent);
-                              }),
-                            ),
-                            child: const Icon(Icons.chevron_left, size: 24),
+                              return const BorderSide(
+                                  color: Colors.transparent);
+                            }),
                           ),
-                          SizedBox(
-                            width: 10,
+                          child: const Icon(Icons.chevron_left, size: 24),
+                        ),
+                        SizedBox(
+                          width: 10,
+                        ),
+                        Text(
+                          configTitle,
+                          style: TextStyle(
+                              fontSize: 24,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ]),
+                    ),
+                    if (isDetailConfiguration) ...[
+                      Container(
+                        margin: EdgeInsets.fromLTRB(10, 0, 10, 0),
+                        decoration: BoxDecoration(
+                          color: Color(0xFF222222),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(children: [
+                          _mutingSpeakers(),
+                          SizedBox(height: 10),
+                          // customSliderBarArray[customizeDetailChannelIdx],
+                          const SizedBox(
+                            height: 10,
                           ),
-                          Text(
-                            configTitle,
-                            style: TextStyle(
-                                fontSize: 24,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold),
-                          ),
+                          _channelColorSettings(customizeDetailChannelIdx),
+                          // ElevatedButton(
+                          //   style: ElevatedButton.styleFrom(
+                          //     backgroundColor: SoftwareColors.kButtonBackGroundColor,
+                          //     shape: RoundedRectangleBorder(
+                          //       borderRadius: BorderRadius.circular(12),
+                          //     ),
+                          //   ),
+                          //   child: Text(
+                          //     "SAVE CHANGES",
+                          //     style: TextStyle(color: Colors.white),
+                          //   ),
+                          //   onPressed: () {
+                          //     // customSliderBarArray[customizeDetailChannelIdx].startValue = 0;
+                          //     // customSliderBarArray[customizeDetailChannelIdx].endValue = (_sampleRate / 2);
+                          //     // Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                          //     //   .setStartValue(customSliderBarArray[customizeDetailChannelIdx].startValue, customizeDetailChannelIdx);
+                          //     // Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                          //     //   .setEndValue(customSliderBarArray[customizeDetailChannelIdx].endValue, customizeDetailChannelIdx);
+                          //     // setState(() {});
+                          //   },
+                          // ),
                         ]),
                       ),
-                      if (isDetailConfiguration) ... [
-                        Container(
-                          margin: EdgeInsets.fromLTRB(10, 0, 10, 0),
-                          decoration: BoxDecoration(
-                            color: Color(0xFF222222),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            children: [
-                              _mutingSpeakers(),
-                              SizedBox(height: 10),
-                              // customSliderBarArray[customizeDetailChannelIdx],
-                              const SizedBox(
-                                height: 10,
-                              ),
-                              _channelColorSettings(customizeDetailChannelIdx),    
-                              // ElevatedButton(
-                              //   style: ElevatedButton.styleFrom(
-                              //     backgroundColor: SoftwareColors.kButtonBackGroundColor,
-                              //     shape: RoundedRectangleBorder(
-                              //       borderRadius: BorderRadius.circular(12),
-                              //     ),
-                              //   ),
-                              //   child: Text(
-                              //     "SAVE CHANGES",
-                              //     style: TextStyle(color: Colors.white),
-                              //   ),
-                              //   onPressed: () {
-                              //     // customSliderBarArray[customizeDetailChannelIdx].startValue = 0;
-                              //     // customSliderBarArray[customizeDetailChannelIdx].endValue = (_sampleRate / 2);
-                              //     // Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                              //     //   .setStartValue(customSliderBarArray[customizeDetailChannelIdx].startValue, customizeDetailChannelIdx);
-                              //     // Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                              //     //   .setEndValue(customSliderBarArray[customizeDetailChannelIdx].endValue, customizeDetailChannelIdx);
-                              //     // setState(() {});
-                              //   },
-                              // ),                              
-                            ]
-                          ),
-                        ),
-                      ] else ... [
-                        Expanded(
-                          child: Container(
-                            padding: EdgeInsets.fromLTRB(20, 0, 20, 20),
-                            child: Stack(
-                              children:[
-                                Positioned(
-                                  top:0,
-                                  left:0,
-                                  right:0,
-                                  // bottom:0,
-                                  child: SizedBox(
-                                    height: serialUsageType == "Custom" ? 340: 220,
-                                    child: TabbedViewTheme(
-                                      data: channelTabTheme!,
-                                      child: TabbedView(
-                                        controller: _channelTabController!, 
-                                        contentBuilder:(context, index) {
-                                          return ClipRRect(
-                                              borderRadius: BorderRadius.all(Radius.circular(16)),
-                                              clipBehavior: Clip.antiAlias,
-                                              child: Container(color: Color(0xFF2e2e2e), child: Center(child: getTabbedViewChildren(index))),
-                                          );
-                                        },
-                                        tabCloseInterceptor: (tabIndex, tabData) {
-                                          return false;
-                                        },
-                                        tabSelectInterceptor: (int channelIdx) {
-                                          // serialUsageType = filterUsageTypeChannels[channelIdx];
-                                          selectedTabIdx = channelIdx;
-                                          serialUsageType = arrFilterUsageTypeChannel[channelIdx];
-                                          print("arrFilterUsageTypeChannel: $arrFilterUsageTypeChannel --- $serialUsageType");
-                                          // createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
-                                          setState(() {});
-                                          return true;
-                                        },
-                                      )
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  top:0,
-                                  right:0,
-                                  child: MenuTheme(
-                                    data: MenuThemeData(
-                                      style: MenuStyle(
-                                        backgroundColor: WidgetStateProperty.all(Color(0xFF222222)),
-                                        shape: WidgetStateProperty.all(
-                                          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                        ),
-                                      ),
-                                    ),
-                                    child: MenuAnchor(
-                                      builder: (context, controller, child) {
-                                        return GestureDetector(
-                                          onTap: () {
-                                            if (controller.isOpen) {
-                                              controller.close();
-                                            } else {
-                                              controller.open();
-                                            }
-                                          },
-                                          child: Icon(Icons.more_horiz, color: Color(0xFF707070)),
+                    ] else ...[
+                      Expanded(
+                        child: Container(
+                          padding: EdgeInsets.fromLTRB(20, 0, 20, 20),
+                          child: Stack(children: [
+                            Positioned(
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              // bottom:0,
+                              child: SizedBox(
+                                height: serialUsageType == "Custom" ? 340 : 220,
+                                child: TabbedViewTheme(
+                                    data: channelTabTheme!,
+                                    child: TabbedView(
+                                      controller: _channelTabController!,
+                                      contentBuilder: (context, index) {
+                                        return ClipRRect(
+                                          borderRadius: BorderRadius.all(
+                                              Radius.circular(16)),
+                                          clipBehavior: Clip.antiAlias,
+                                          child: Container(
+                                              color: Color(0xFF2e2e2e),
+                                              child: Center(
+                                                  child: getTabbedViewChildren(
+                                                      index))),
                                         );
                                       },
-                                      menuChildren: [
-                                        MenuItemButton(
-                                          onPressed: () {
-                                            isDetailConfiguration = true;
-                                            configTitle = "Channel Settings";
-                                            context
-                                                .read<SoftwareConfigProvider>()
-                                                .settingStatus(true);
+                                      tabCloseInterceptor: (tabIndex, tabData) {
+                                        return false;
+                                      },
+                                      tabSelectInterceptor: (int channelIdx) {
+                                        // serialUsageType = filterUsageTypeChannels[channelIdx];
+                                        selectedTabIdx = channelIdx;
+                                        serialUsageType =
+                                            arrFilterUsageTypeChannel[
+                                                channelIdx];
+                                        print(
+                                            "arrFilterUsageTypeChannel: $arrFilterUsageTypeChannel --- $serialUsageType");
+                                        // createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
+                                        setState(() {});
+                                        return true;
+                                      },
+                                    )),
+                              ),
+                            ),
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              child: MenuTheme(
+                                  data: MenuThemeData(
+                                    style: MenuStyle(
+                                      backgroundColor: WidgetStateProperty.all(
+                                          Color(0xFF222222)),
+                                      shape: WidgetStateProperty.all(
+                                        RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12)),
+                                      ),
+                                    ),
+                                  ),
+                                  child: MenuAnchor(
+                                    builder: (context, controller, child) {
+                                      return GestureDetector(
+                                        onTap: () {
+                                          if (controller.isOpen) {
+                                            controller.close();
+                                          } else {
+                                            controller.open();
+                                          }
+                                        },
+                                        child: Icon(Icons.more_horiz,
+                                            color: Color(0xFF707070)),
+                                      );
+                                    },
+                                    menuChildren: [
+                                      MenuItemButton(
+                                        onPressed: () {
+                                          isDetailConfiguration = true;
+                                          configTitle = "Channel Settings";
+                                          context
+                                              .read<SoftwareConfigProvider>()
+                                              .settingStatus(true);
 
-                                            setState(() {});
-
-                                          },
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.settings_outlined, color: Colors.white),
-                                              SizedBox(width: 10),
-                                              Text("Channel Settings")
-                                            ]
-                                          ),
-                                          style: ButtonStyle(
-
-                                            foregroundColor: WidgetStateProperty.all(Colors.white), // Text & Icon color
-                                            // textStyle: WidgetStateProperty.all(
-                                            //   const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                            // ),
-                                          ),                                          
+                                          setState(() {});
+                                        },
+                                        child: Row(children: [
+                                          Icon(Icons.settings_outlined,
+                                              color: Colors.white),
+                                          SizedBox(width: 10),
+                                          Text("Channel Settings")
+                                        ]),
+                                        style: ButtonStyle(
+                                          foregroundColor:
+                                              WidgetStateProperty.all(Colors
+                                                  .white), // Text & Icon color
+                                          // textStyle: WidgetStateProperty.all(
+                                          //   const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                          // ),
                                         ),
+                                      ),
 /*                                        
                                         MenuItemButton(
                                           onPressed: () => print('Action 2'),
@@ -1276,791 +1291,785 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                           ),
                                         ),
 */
-
-                                      ],
-                                    )
-
-                                  ),
-                                ),
-
-                                Positioned(
-                                  bottom:0,
-                                  left: 0,
-                                  right: 0,
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.max,
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    children: [
-                                      SizedBox(
-                                        width: 50,
-                                        height:30,
-                                        child:GestureDetector(
-                                          onTap: (){
-                                            isDrawerOpened = !isDrawerOpened;
-                                            setState((){});
-                                          },
-                                          child: Container(
+                                    ],
+                                  )),
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              child: Column(
+                                  mainAxisSize: MainAxisSize.max,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 50,
+                                      height: 30,
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          isDrawerOpened = !isDrawerOpened;
+                                          setState(() {});
+                                        },
+                                        child: Container(
                                             decoration: BoxDecoration(
                                               color: Color(0x14D9D9D9),
                                               borderRadius: BorderRadius.only(
                                                 topLeft: Radius.circular(16),
                                                 bottomLeft: Radius.circular(0),
-                                                topRight: Radius.circular(16), // Keeps the right side flat
+                                                topRight: Radius.circular(
+                                                    16), // Keeps the right side flat
                                                 bottomRight: Radius.circular(0),
                                               ),
                                             ),
-                                            // color: Color(0xFF2e2e2e), 
+                                            // color: Color(0xFF2e2e2e),
                                             child: Center(
-                                              child: Icon(drawerIconData, color: Colors.white)
-                                            )
+                                                child: Icon(drawerIconData,
+                                                    color: Colors.white))),
+                                      ),
+                                    ),
+
+                                    // Container(
+                                    //   // padding: EdgeInsets.all(10),
+                                    //   decoration: BoxDecoration(
+                                    //     // color: Color(0xFF2e2e2e),
+                                    //     // borderRadius: BorderRadius.circular(16),
+                                    //   ),
+                                    //   child: Column(
+                                    //     mainAxisSize:
+                                    //         MainAxisSize.min, // Vital for scrolling
+                                    //     children: [
+                                    //       FilterProcessWidget(isMicrophoneEnable:
+                                    //           (bool isMicrophoneEnable) {
+                                    //         context
+                                    //             .read<DataStatusProvider>()
+                                    //             .setMicrophoneDataStatus(
+                                    //                 isMicrophoneEnable);
+                                    //       }, onHighPassFilterSetup:
+                                    //           (FilterSetup filterSetup) {
+                                    //         localPlugin
+                                    //             .initHighPassFilters(filterSetup);
+                                    //       }, onLowPassFilterSetup:
+                                    //           (FilterSetup filterSetup) {
+                                    //         localPlugin
+                                    //             .initLowPassFilters(filterSetup);
+                                    //       }, onSampleChange: (bool isSampleDataOn) {
+                                    //         context
+                                    //             .read<DataStatusProvider>()
+                                    //             .setSampleDataStatus(isSampleDataOn);
+                                    //         // _toGenerateDummyData =
+                                    //         //     isSampleDataOn;
+                                    //       }),
+                                    //     ],
+                                    //   ),
+                                    // ),
+                                    if (isDrawerOpened) ...[
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color: Color(0x14D9D9D9),
+                                          borderRadius: BorderRadius.only(
+                                            topLeft: Radius.circular(16),
+                                            bottomLeft: Radius.circular(0),
+                                            topRight: Radius.circular(
+                                                16), // Keeps the right side flat
+                                            bottomRight: Radius.circular(0),
                                           ),
                                         ),
-                                      ),
-                                      
-                                                                            
-                                      // Container(
-                                      //   // padding: EdgeInsets.all(10),
-                                      //   decoration: BoxDecoration(
-                                      //     // color: Color(0xFF2e2e2e),
-                                      //     // borderRadius: BorderRadius.circular(16),
-                                      //   ),
-                                      //   child: Column(
-                                      //     mainAxisSize:
-                                      //         MainAxisSize.min, // Vital for scrolling
-                                      //     children: [
-                                      //       FilterProcessWidget(isMicrophoneEnable:
-                                      //           (bool isMicrophoneEnable) {
-                                      //         context
-                                      //             .read<DataStatusProvider>()
-                                      //             .setMicrophoneDataStatus(
-                                      //                 isMicrophoneEnable);
-                                      //       }, onHighPassFilterSetup:
-                                      //           (FilterSetup filterSetup) {
-                                      //         localPlugin
-                                      //             .initHighPassFilters(filterSetup);
-                                      //       }, onLowPassFilterSetup:
-                                      //           (FilterSetup filterSetup) {
-                                      //         localPlugin
-                                      //             .initLowPassFilters(filterSetup);
-                                      //       }, onSampleChange: (bool isSampleDataOn) {
-                                      //         context
-                                      //             .read<DataStatusProvider>()
-                                      //             .setSampleDataStatus(isSampleDataOn);
-                                      //         // _toGenerateDummyData =
-                                      //         //     isSampleDataOn;
-                                      //       }),
-                                      //     ],
-                                      //   ),
-                                      // ),
-                                      if (isDrawerOpened)... [
-
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            color: Color(0x14D9D9D9),
-                                            borderRadius: BorderRadius.only(
-                                              topLeft: Radius.circular(16),
-                                              bottomLeft: Radius.circular(0),
-                                              topRight: Radius.circular(16), // Keeps the right side flat
-                                              bottomRight: Radius.circular(0),
-                                            ),
-                                          ),
-                                          child: NotchPassFilterWidget(
-                                            sampleRateParam: _sampleRate.toDouble(),
+                                        child: NotchPassFilterWidget(
+                                            sampleRateParam:
+                                                _sampleRate.toDouble(),
                                             onTapNotchFrequency:
                                                 (notchFilterSettings) async {
-                                              notchFilterSettings.filterConfiguration
+                                              notchFilterSettings
+                                                  .filterConfiguration
                                                   .sampleRate = _sampleRate;
                                               print(
                                                   "the notch filter setting is ${notchFilterSettings.toJson()}");
-                                              if (notchFilterSettings.isFilterOn) {
+                                              if (notchFilterSettings
+                                                  .isFilterOn) {
                                                 if (notchFilterSettings
                                                         .filterConfiguration
                                                         .cutOffFrequency ==
                                                     50) {
-                                                  int temp = await processingUtil
-                                                      .setNotchFilter(50);
+                                                  int temp =
+                                                      await processingUtil
+                                                          .setNotchFilter(50);
                                                   print(
                                                       "processingUtil.setNotchFilter(50) $temp");
                                                 } else if (notchFilterSettings
                                                         .filterConfiguration
                                                         .cutOffFrequency ==
                                                     60) {
-                                                  processingUtil.setNotchFilter(60);
+                                                  processingUtil
+                                                      .setNotchFilter(60);
                                                   print(
                                                       "processingUtil.setNotchFilter(60)");
                                                 } else {
-                                                  processingUtil.setNotchFilter(-1);
+                                                  processingUtil
+                                                      .setNotchFilter(-1);
                                                 }
                                               }
-                          
+
                                               context
                                                   .read<DataStatusProvider>()
                                                   .setNotchPassFilterSetting(
                                                       notchFilterSettings);
                                               // localPlugin.initNotchPassFilters(notchFilterSettings);
                                             }),
-                                        
-                                        ),
-                                        Divider(
-                                          height:1,
-                                          thickness: 1,
-                                          color: Color(0x70707070),
-                                        ),
-
-
-                                        Container(
+                                      ),
+                                      Divider(
+                                        height: 1,
+                                        thickness: 1,
+                                        color: Color(0x70707070),
+                                      ),
+                                      Container(
                                           decoration: BoxDecoration(
                                             color: Color(0x14D9D9D9),
                                             borderRadius: BorderRadius.only(
                                               topLeft: Radius.circular(0),
                                               bottomLeft: Radius.circular(0),
-                                              topRight: Radius.circular(0), // Keeps the right side flat
+                                              topRight: Radius.circular(
+                                                  0), // Keeps the right side flat
                                               bottomRight: Radius.circular(0),
                                             ),
                                           ),
                                           child: Row(
-                                            mainAxisSize: MainAxisSize.max,
-                                            children:[
-                                              Padding(
-                                                padding: EdgeInsets.fromLTRB(10,10,0, 10),
-                                                child: Icon(CupertinoIcons.speedometer, color: Colors.white),
-                                              ),
-                                              SizedBox(width:10),
-                                              Text("Channel width", style: TextStyle(color: Colors.white)),
-                                              SizedBox(width:10),
-                                              Expanded(
-                                                child: Container(
-                                                  height: 30,
-                                                  padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
-                                                  // child: Text("address", style: SoftwareTextStyle().kWtMediumTextStyle),
-                                                  child: BybDropdown(kIsWeb: kIsWeb, availableItems: ["Thin", "Medium", "Wide"], onItemSelected: (String str) {
-                                                    print("STR : $str");
-                                                    if (str.toLowerCase() == "thin") {
-                                                      SpikerBoxUi.defaultStrokeWidth = 0.5;
-                                                    } else 
-                                                    if (str.toLowerCase() == "medium") {
-                                                      SpikerBoxUi.defaultStrokeWidth = 1;
-                                                    } else 
-                                                    if (str.toLowerCase() == "wide") {
-                                                      SpikerBoxUi.defaultStrokeWidth = 2;
-                                                    }
-
-
-                                                  }, valueListenable: _graphLineWidth),
+                                              mainAxisSize: MainAxisSize.max,
+                                              children: [
+                                                Padding(
+                                                  padding: EdgeInsets.fromLTRB(
+                                                      10, 10, 0, 10),
+                                                  child: Icon(
+                                                      CupertinoIcons
+                                                          .speedometer,
+                                                      color: Colors.white),
                                                 ),
-                                              ),
-                                            ]
-                                          )
-                                        ),
-                                        
-                                        Divider(
-                                          height:1,
-                                          thickness: 1,
-                                          color: Color(0x70707070),
-                                        ),
-
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            color: Color(0x14D9D9D9),
-                                            borderRadius: BorderRadius.only(
-                                              topLeft: Radius.circular(0),
-                                              bottomLeft: Radius.circular(0),
-                                              topRight: Radius.circular(0), // Keeps the right side flat
-                                              bottomRight: Radius.circular(0),
-                                            ),
-                                          ),
-
-                                          child: Consumer<PortScanProvider>(
-                                              builder: (context, portList, snapshot) {
-                                            return _PortsArea(
-                                              deviceName: _deviceName,
-                                              availablePorts: portList.availablePorts,
-                                              onTriggerDisconnect: onTriggerDisconnect,
-                                              onReceive: (String add) async {
-
-                                              },
-                                              onWrite: (String add) async {
-                                                serialWebButtonPressed();
-                                              },
-                                            );
-                                          }),
-                                        ),
-                                      ],
-    
-                                      // 5. Footer Row
+                                                SizedBox(width: 10),
+                                                Text("Channel width",
+                                                    style: TextStyle(
+                                                        color: Colors.white)),
+                                                SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Container(
+                                                    height: 30,
+                                                    padding: const EdgeInsets
+                                                        .fromLTRB(0, 0, 10, 0),
+                                                    // child: Text("address", style: SoftwareTextStyle().kWtMediumTextStyle),
+                                                    child: BybDropdown(
+                                                        kIsWeb: kIsWeb,
+                                                        availableItems: [
+                                                          "Thin",
+                                                          "Medium",
+                                                          "Wide"
+                                                        ],
+                                                        onItemSelected:
+                                                            (String str) {
+                                                          print("STR : $str");
+                                                          if (str.toLowerCase() ==
+                                                              "thin") {
+                                                            SpikerBoxUi
+                                                                    .defaultStrokeWidth =
+                                                                0.5;
+                                                          } else if (str
+                                                                  .toLowerCase() ==
+                                                              "medium") {
+                                                            SpikerBoxUi
+                                                                .defaultStrokeWidth = 1;
+                                                          } else if (str
+                                                                  .toLowerCase() ==
+                                                              "wide") {
+                                                            SpikerBoxUi
+                                                                .defaultStrokeWidth = 2;
+                                                          }
+                                                        },
+                                                        valueListenable:
+                                                            _graphLineWidth),
+                                                  ),
+                                                ),
+                                              ])),
+                                      Divider(
+                                        height: 1,
+                                        thickness: 1,
+                                        color: Color(0x70707070),
+                                      ),
                                       Container(
-                                        margin: const EdgeInsets.fromLTRB(0, 0, 0, 10),
-                                        padding:
-                                            const EdgeInsets.fromLTRB(5, 10, 10, 10),
                                         decoration: BoxDecoration(
-                                          // borderRadius: BorderRadius.circular(16),
-                                          // color: Color(0xFF2e2e2e),
                                           color: Color(0x14D9D9D9),
                                           borderRadius: BorderRadius.only(
-                                            topLeft: isDrawerOpened? Radius.circular(0) : Radius.circular(16),
-                                            bottomLeft: Radius.circular(16),
-                                            topRight: isDrawerOpened? Radius.circular(0) : Radius.circular(16),
-                                            bottomRight: Radius.circular(16),
+                                            topLeft: Radius.circular(0),
+                                            bottomLeft: Radius.circular(0),
+                                            topRight: Radius.circular(
+                                                0), // Keeps the right side flat
+                                            bottomRight: Radius.circular(0),
                                           ),
-
                                         ),
-                                              
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.max,
-                                          children: [
-                                            // 1. The Custom Switch
-                                            // Switch(
-                                            //   value: isDarkMode,
-                                            //   activeColor: Colors.white,
-                                            //   activeTrackColor: Color(
-                                            //       0xFFFF7A5C), // The orange/coral color in your image
-                                            //   onChanged: (value) {
-                                            //     setState(() {
-                                            //       isDarkMode = value;
-                                            //     });
-                                            //   },
-                                            // ),
-                                            // SizedBox(width: 8),
-                        
-                                            // 2. The Main Label
-                                            // Text(
-                                            //   'Dark Mode',
-                                            //   style: TextStyle(
-                                            //     color: Colors.white,
-                                            //     fontWeight: FontWeight.bold,
-                                            //     fontSize: 14,
-                                            //   ),
-                                            // ),
-                        
-                                            // 3. Spacing to push version info to the right
-                                            Spacer(),
-                        
-                                            // 4. App Version Info
-                                            Icon(Icons.info_outline,
-                                                color: Colors.grey, size: 16),
-                                            SizedBox(width: 6),
-                                            Text(
-                                              'SpikeRecorder App ver. 2.0.5',
-                                              style: TextStyle(
-                                                color: Colors.grey,
-                                                fontSize: 14,
-                                              ),
+                                        child: Consumer<PortScanProvider>(
+                                            builder:
+                                                (context, portList, snapshot) {
+                                          return _PortsArea(
+                                            deviceName: _deviceName,
+                                            availablePorts:
+                                                portList.availablePorts,
+                                            onTriggerDisconnect:
+                                                onTriggerDisconnect,
+                                            onReceive: (String add) async {},
+                                            onWrite: (String add) async {
+                                              serialWebButtonPressed();
+                                            },
+                                          );
+                                        }),
+                                      ),
+                                    ],
+
+                                    // 5. Footer Row
+                                    Container(
+                                      margin: const EdgeInsets.fromLTRB(
+                                          0, 0, 0, 10),
+                                      padding: const EdgeInsets.fromLTRB(
+                                          5, 10, 10, 10),
+                                      decoration: BoxDecoration(
+                                        // borderRadius: BorderRadius.circular(16),
+                                        // color: Color(0xFF2e2e2e),
+                                        color: Color(0x14D9D9D9),
+                                        borderRadius: BorderRadius.only(
+                                          topLeft: isDrawerOpened
+                                              ? Radius.circular(0)
+                                              : Radius.circular(16),
+                                          bottomLeft: Radius.circular(16),
+                                          topRight: isDrawerOpened
+                                              ? Radius.circular(0)
+                                              : Radius.circular(16),
+                                          bottomRight: Radius.circular(16),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.max,
+                                        children: [
+                                          // 1. The Custom Switch
+                                          // Switch(
+                                          //   value: isDarkMode,
+                                          //   activeColor: Colors.white,
+                                          //   activeTrackColor: Color(
+                                          //       0xFFFF7A5C), // The orange/coral color in your image
+                                          //   onChanged: (value) {
+                                          //     setState(() {
+                                          //       isDarkMode = value;
+                                          //     });
+                                          //   },
+                                          // ),
+                                          // SizedBox(width: 8),
+
+                                          // 2. The Main Label
+                                          // Text(
+                                          //   'Dark Mode',
+                                          //   style: TextStyle(
+                                          //     color: Colors.white,
+                                          //     fontWeight: FontWeight.bold,
+                                          //     fontSize: 14,
+                                          //   ),
+                                          // ),
+
+                                          // 3. Spacing to push version info to the right
+                                          Spacer(),
+
+                                          // 4. App Version Info
+                                          Icon(Icons.info_outline,
+                                              color: Colors.grey, size: 16),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'SpikeRecorder App ver. 2.0.5',
+                                            style: TextStyle(
+                                              color: Colors.grey,
+                                              fontSize: 14,
                                             ),
-                                          ],
-                                        ),
+                                          ),
+                                        ],
                                       ),
+                                    ),
+                                  ]),
 
-                                    ]
-                                  ),
-
-
-
-
-                                  ////////asdasd
-                                ),
-                              ]
+                              ////////asdasd
                             ),
-                          ),
-                          // child: TabbedView(
-                          //   controller: _channelTabController!, 
-                          //   tabCloseInterceptor: (tabIndex, tabData) {
-                          //     return false;
-                          //   },
-                          // ),
+                          ]),
                         ),
-                      ],
-
-                      ],
-                  ),
+                        // child: TabbedView(
+                        //   controller: _channelTabController!,
+                        //   tabCloseInterceptor: (tabIndex, tabData) {
+                        //     return false;
+                        //   },
+                        // ),
+                      ),
+                    ],
+                  ],
                 ),
-                child4: !kIsWeb && Platform.isAndroid && isThresholdingButton
-                    ? Positioned(
-                        left: 10,
-                        top: 80,
-                        child: Row(
-                          children: generateThresholdSlider(false),
-                        ),
-                      )
-                    : SizedBox(),
-                child2: Positioned(
-                  left: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 15),
-                    width: MediaQuery.of(context).size.width,
-                    height: MediaQuery.of(context).size.height,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.start,
-                              children: [
-                                isRecording == 1
-                                    ? SizedBox()
-                                    : SpikerBoxButton(
-                                        onTapButton: () async {
-                                          context
-                                              .read<SoftwareConfigProvider>()
-                                              .settingStatus(true);
-                                        },
-                                        // iconData: Icons.settings),
-                                        iconData: const IconData(0xe90a,
-                                            fontFamily: "IcomoonIcons")),
-                                const SizedBox(
-                                  width: 10,
-                                ),
-
-                                serialWebButton(),
-                                // SpikerBoxButton(
-                                //     onTapButton: () async {}, iconData: Icons.graphic_eq),
-                                // const SizedBox(
-                                //   width: 10,
-                                // ),
-                                isRecording == 1
-                                    ? SizedBox()
-                                    : SpikerBoxButton(
-                                        onTapButton: () {
-                                          isThresholdingButton =
-                                              !isThresholdingButton;
-                                          if (isThresholdingButton) {
-                                            processingUtil.initThreshold(
-                                                deviceChannelCount,
-                                                _sampleRate,
-                                                MediaQuery.of(context)
-                                                    .size
-                                                    .width);
-                                            print(
-                                                "initThreshold : ${_sampleRate}, $deviceChannelCount ===");
-                                            processingUtil
-                                                .setAveragedSampleCount(1);
-                                            processingUtil.setThreshold(525);
-                                            processingUtil
-                                                .setIsThresholding(true);
-                                          } else {
-                                            processingUtil
-                                                .setIsThresholding(false);
-                                          }
-
-                                          context
-                                              .read<ThresholdStatusProvider>()
-                                              .setThresholdStatus(
-                                                  isThresholdingButton);
-                                          context
-                                              .read<ThresholdStatusProvider>()
-                                              .setThresholdChannel(0);
-
-                                          setState(() {});
-                                        },
-                                        iconColor: isThresholdingButton
-                                            ? Colors.yellow
-                                            : Colors.white,
-                                        // iconData: Icons.graphic_eq_outlined,
-                                        iconData: const IconData(0xe90b,
-                                            fontFamily: "IcomoonIcons"),
-                                      ),
-                                const SizedBox(
-                                  width: 20,
-                                ),
-                                if (isThresholdingButton) ...{
-                                  ...generateThresholdSlider(true),
-
-                                  // Container(
-                                  //   width:50,
-                                  //   height:30,
-                                  //   child: TextField(
-                                  //     controller: thresholdValueController,
-                                  //   )
-                                  // )
-                                },
-
-                                // if (!isThresholdingButton) ... {
-                                //   SpikerBoxButton(
-                                //     onTapButton: () {
-                                //       isFftButton = !isFftButton;
-                                //       if (isFftButton) {
-                                //         context.read<FftStatusProvider>().setFftVisibility(true);
-                                //       } else {
-                                //         context.read<FftStatusProvider>().setFftVisibility(false);
-                                //       }
-
-                                //       setState((){});
-                                //     },
-                                //     iconColor: isFftButton? Colors.yellow : Colors.black,
-                                //     iconData: Icons.abc,
-                                //   ),
-                                // },
-                                const SizedBox(
-                                  width: 10,
-                                ),
-                                // if (!forceSerialDisconnect) ... {
-                                //   SpikerBoxButton(onTapButton: () {
-                                //     forceSerialDisconnect = !forceSerialDisconnect;
-                                //   }, iconData: Icons.usb),
-                                // },
-                                StreamBuilder<List<ComDataWithBoard>>(
-                                    stream: deviceListStream,
-                                    builder: (context, snapshot) {
-                                      // print("snapshot.hasData: ${snapshot.hasData}");
-                                      if (snapshot.hasData) {
-                                        print(
-                                            "snapshot.data: ${snapshot.data}");
-                                        listOfBoard = snapshot.data!;
-                                        if (listOfBoard?.length == 0) {
-                                          return SpikerBoxButton(
-                                              onTapButton: () async {
-                                                forceSerialDisconnect = true;
-                                                initMessageIdentifier();
-
-                                                await Future.delayed(Duration(
-                                                    milliseconds: 1000));
-
-                                                int baudRate = context
-                                                    .read<ConstantProvider>()
-                                                    .getBaudRate();
-                                                await _serialUtil
-                                                    .getAvailablePorts(baudRate,
-                                                        serialErrorCallback);
-                                                allDevices.clear();
-
-                                                List<String> filteredPorts;
-                                                if (kIsWeb) {
-                                                  filteredPorts = _serialUtil
-                                                      .availablePorts;
-                                                } else if (Platform.isMacOS) {
-                                                  filteredPorts = _serialUtil
-                                                      .availablePorts
-                                                      .where((port) =>
-                                                          port.contains(
-                                                              'usbmodem') ||
-                                                          port.contains(
-                                                              'usbserial'))
-                                                      .toList();
-                                                } else {
-                                                  filteredPorts = _serialUtil
-                                                      .availablePorts;
-                                                }
-
-                                                bool isComMatch = areListsEqual(
-                                                    _availablePorts,
-                                                    filteredPorts);
-
-                                                _availablePorts = filteredPorts;
-
-                                                context
-                                                    .read<DataStatusProvider>()
-                                                    .setMicrophoneDataStatus(
-                                                        _availablePorts
-                                                            .isEmpty);
-                                                print(
-                                                    "isDeviceConnect : $isDeviceConnect -- ${_availablePorts.isEmpty} -- ${context.read<DataStatusProvider>().isMicrophoneData} -- forceSerialDisconnect: $forceSerialDisconnect ${listOfBoard?.length} isComMatch: $isComMatch");
-
-                                                // if (!isComMatch) {
-                                                Provider.of<PortScanProvider>(
-                                                        context,
-                                                        listen: false)
-                                                    .setPortScanList(
-                                                        _availablePorts);
-                                                Provider.of<ConstantProvider>(
-                                                        context,
-                                                        listen: false)
-                                                    .setBaudRate(baudRate);
-                                                allDevices = context
-                                                    .read<SerialDataProvider>()
-                                                    .getAllPortDetail;
-                                                if (isDeviceConnect) {
-                                                  isSerialDeviceFound = true;
-                                                  await portListOnConnect();
-                                                }
-                                                // }
-                                                forceSerialDisconnect = false;
-                                              },
-                                              iconData: Icons.usb);
-                                        }
-
-                                        return SizedBox(
-                                          height: 50,
-                                          child: ListView.builder(
-                                              padding: EdgeInsets.zero,
-                                              scrollDirection: Axis.horizontal,
-                                              shrinkWrap: true,
-                                              itemCount: listOfBoard?.length,
-                                              itemBuilder: (context, index) {
-                                                return SpikerBoxButton(
-                                                    onTapButton: () {
-                                                      print("DISCONNECT USB");
-                                                      forceSerialDisconnect =
-                                                          !forceSerialDisconnect;
-                                                      _serialUtil.closePort();
-                                                      Future.delayed(
-                                                          Duration(
-                                                              milliseconds:
-                                                                  1500), () {
-                                                        if (context.mounted) {
-                                                          _availablePorts
-                                                              .clear();
-                                                          context
-                                                              .read<
-                                                                  DataStatusProvider>()
-                                                              .setMicrophoneDataStatus(
-                                                                  _availablePorts
-                                                                      .isEmpty);
-                                                          final provider = Provider
-                                                              .of<GraphDataProvider>(
-                                                                  context,
-                                                                  listen:
-                                                                      false);
-                                                          listenToMicrophone(
-                                                              1, provider);
-                                                        }
-                                                        // final provider = Provider.of<GraphDataProvider>(context, listen: false);
-                                                      });
-                                                    },
-                                                    iconData: Icons.usb);
-                                              }),
-                                        );
-                                      } else {
-                                        return Container();
-                                      }
-                                    })
-                              ],
-                            ),
-                            Row(
-                              children: [
-
-                                if (isRecording != 1) ...{
-                                  SpikerBoxButton(
-                                    onTapButton: () async {
-                                      if (kIsWeb) {
-                                        // print("START OPENING FILE WEB");
-                                        startOpeningFileWeb("", 0, 1);
-                                        // startOpeningFile(result.files.single.path!);
-                                      } else {
-                                        FilePickerResult? result =
-                                            await FilePicker.platform
-                                                .pickFiles();
-                                        if (result != null) {
-                                          startOpeningFile(
-                                              result.files.single.path!);
-                                        }
-                                      }
-                                      // }, iconData: Icons.menu)
-                                    },
-                                    iconData: const IconData(0xe909,
-                                        fontFamily: "IcomoonIcons"),
-                                  )
-                                },
-                              ],
-                            )
-                          ],
-                        ),
-                        // Text("isOpeningFile: $isOpeningFile && isRecording: $isRecording"),
-                        if (isOpeningFile)...[
-                          BottomButtons(
-                            pauseButton: (bool isPlay) async {
-                              if (!isOpeningFile) {
-                                Provider.of<GraphResumePlayProvider>(
-                                        context,
-                                        listen: false)
-                                    .setGraphResumePlay(isPlay);
-                                _toPauseGraph = isPlay;
-                                GraphTemplate.isPlayerPaused = !isPlay;
-                                _pendingPlayback = false;
-                                setState(() {});
-                              } else {
-                                callbackPlayButton(isPlay);
-                              }
-                            },
-                          ),
-                        ],
-                        if (!isOpeningFile) ...[
-                          Center(
-                            child: SpikerBoxButton(
-                                    onTapButton: () async {
-                                      print(
-                                          "STATUS RECORDING: $isRecording");
-                                      if (isRecording == 0) {
-                                        print(
-                                            "!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
-
-                                        bool isAudioListen = context
-                                            .read<DataStatusProvider>()
-                                            .isMicrophoneData;
-                                        visibleSignalsList = context
-                                            .read<ChannelColorProvider>()
-                                            .getVisibleChannel();
-                                        visibleChannelCount = context
-                                            .read<ChannelColorProvider>()
-                                            .getVisibleChannelCount();
-
-                                        if (kIsWeb) {
-                                          // await GraphTemplate.nwbFileUtil
-                                          //     ?.recordNewFileLocation();
-                                          // int counterTimerCancel = 0;
-                                          // Timer.periodic(
-                                          //     Duration(seconds: 1),
-                                          //     (timer) async {
-                                            // counterTimerCancel++;
-                                            // print(
-                                            //     "GraphTemplate.nwbFileUtil?.recordedNwbFilePath: ${GraphTemplate.nwbFileUtil?.recordedNwbFilePath}");
-                                            String strTemp = GraphTemplate
-                                                    .nwbFileUtil
-                                                    ?.recordedNwbFilePath ??
-                                                "";
-                                            // if (strTemp.length! > 3) {
-                                            if (1==1) {
-                                              // timer.cancel();
-                                              if (isAudioListen) {
-                                                recordedFilePath = await GraphTemplate
-                                                    .nwbFileUtil
-                                                    ?.processingInit(
-                                                        _sampleRate,
-                                                        widget.channelCount,
-                                                        "Audio|||",
-                                                        "SpikeRecorder Systems",
-                                                        visibleSignalsList,
-                                                        visibleChannelCount);
-                                              } else {
-                                                recordedFilePath = await GraphTemplate
-                                                    .nwbFileUtil
-                                                    ?.processingInit(
-                                                        _sampleRate,
-                                                        widget.channelCount,
-                                                        "SpikeRecorder Device|||",
-                                                        "SpikeRecorder Systems",
-                                                        visibleSignalsList,
-                                                        visibleChannelCount);
-                                              }
-                                              bool isPlay = true;
-                                              Provider.of<GraphResumePlayProvider>(
-                                                      context,
-                                                      listen: false)
-                                                  .setGraphResumePlay(
-                                                      isPlay);
-                                              _toPauseGraph = isPlay;
-                                              GraphTemplate.isPlayerPaused =
-                                                  !isPlay;
-                                              _pendingPlayback = false;
-
-                                              Future.delayed(
-                                                  Duration(
-                                                      milliseconds: 1000),
-                                                  () {
-                                                isRecording = 1;
-                                                context
-                                                    .read<
-                                                        ChannelColorProvider>()
-                                                    .setIsRecording(1);
-
-                                                recordingStartTime = DateTime
-                                                        .now()
-                                                    .millisecondsSinceEpoch;
-
-                                                recordingNotifier.value = [
-                                                  recordingStartTime,
-                                                  recordingStartTime
-                                                ];
-                                                setState(() {});
-                                              });
-                                            } else if (GraphTemplate
-                                                    .nwbFileUtil
-                                                    ?.recordedNwbFilePath ==
-                                                "--") {
-                                              // GraphTemplate.nwbFileUtil
-                                              //     ?.recordedNwbFilePath = "";
-                                              // print("NWB FILE PATH");
-                                              // counterTimerCancel = 0;
-                                              // isOpeningFile = false;
-                                              // timer.cancel();
-                                            }
-                                          // });
-                                        } else {
-                                          if (isAudioListen) {
-                                            recordedFilePath =
-                                                await GraphTemplate
-                                                    .nwbFileUtil
-                                                    ?.processingInit(
-                                                        _sampleRate,
-                                                        widget.channelCount,
-                                                        "Audio|||",
-                                                        "SpikeRecorder Systems",
-                                                        visibleSignalsList,
-                                                        visibleChannelCount);
-                                          } else {
-                                            recordedFilePath = await GraphTemplate
-                                                .nwbFileUtil
-                                                ?.processingInit(
-                                                    _sampleRate,
-                                                    widget.channelCount,
-                                                    "SpikeRecorder Device|||",
-                                                    "SpikeRecorder Systems",
-                                                    visibleSignalsList,
-                                                    visibleChannelCount);
-                                          }
-                                          Future.delayed(
-                                              Duration(milliseconds: 1000),
-                                              () {
-                                            isRecording = 1;
-                                            context
-                                                .read<
-                                                    ChannelColorProvider>()
-                                                .setIsRecording(1);
-                                            recordingStartTime =
-                                                DateTime.now()
-                                                    .millisecondsSinceEpoch;
-
-                                            recordingNotifier.value = [
-                                              recordingStartTime,
-                                              recordingStartTime
-                                            ];
-                                            setState(() {});
-                                          });
-                                        }
-                                        // isRecording = 1;
-                                      } else {
-                                        resetRecordingState(widgetContext);
-
-                                        setState(() {});
-                                      }
-                                    },
-                                    iconData: Icons.fiber_manual_record,
-                                    iconColor: isRecording == 1
-                                        ? Colors.red
-                                        : Colors.white,
-                            ),
-                          ),
-                        ],
-                        // isRecording != 0
-                        //     ? SizedBox()
-                        //     : !isOpeningFile ? SizedBox() : 
-                      ],
-                    ),
-                  ),
-                ),
-                childOverlay: !isOpeningFile ? SizedBox() : Positioned(
-                  top: 0,
-                  left: 0,
-                  child: SizedBox(
-                    width: MediaQuery.of(context).size.width,
-                    child: Center(
-                      child: Container(
-                        margin: EdgeInsets.only(top: 25),
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          borderRadius: BorderRadius.circular(16)
-                        ),
-                        child: Text(openedFilePath, style: TextStyle(color: Colors.white))
+              ),
+              child4: !kIsWeb && Platform.isAndroid && isThresholdingButton
+                  ? Positioned(
+                      left: 10,
+                      top: 80,
+                      child: Row(
+                        children: generateThresholdSlider(false),
                       ),
                     )
+                  : SizedBox(),
+              child2: Positioned(
+                left: 0,
+                top: 0,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.height,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              isRecording == 1
+                                  ? SizedBox()
+                                  : SpikerBoxButton(
+                                      onTapButton: () async {
+                                        context
+                                            .read<SoftwareConfigProvider>()
+                                            .settingStatus(true);
+                                      },
+                                      // iconData: Icons.settings),
+                                      iconData: const IconData(0xe90a,
+                                          fontFamily: "IcomoonIcons")),
+                              const SizedBox(
+                                width: 10,
+                              ),
+
+                              serialWebButton(),
+                              // SpikerBoxButton(
+                              //     onTapButton: () async {}, iconData: Icons.graphic_eq),
+                              // const SizedBox(
+                              //   width: 10,
+                              // ),
+                              isRecording == 1
+                                  ? SizedBox()
+                                  : SpikerBoxButton(
+                                      onTapButton: () {
+                                        isThresholdingButton =
+                                            !isThresholdingButton;
+                                        if (isThresholdingButton) {
+                                          processingUtil.initThreshold(
+                                              deviceChannelCount,
+                                              _sampleRate,
+                                              MediaQuery.of(context)
+                                                  .size
+                                                  .width);
+                                          print(
+                                              "initThreshold : ${_sampleRate}, $deviceChannelCount ===");
+                                          processingUtil
+                                              .setAveragedSampleCount(1);
+                                          processingUtil.setThreshold(525);
+                                          processingUtil
+                                              .setIsThresholding(true);
+                                        } else {
+                                          processingUtil
+                                              .setIsThresholding(false);
+                                        }
+
+                                        context
+                                            .read<ThresholdStatusProvider>()
+                                            .setThresholdStatus(
+                                                isThresholdingButton);
+                                        context
+                                            .read<ThresholdStatusProvider>()
+                                            .setThresholdChannel(0);
+
+                                        setState(() {});
+                                      },
+                                      iconColor: isThresholdingButton
+                                          ? Colors.yellow
+                                          : Colors.white,
+                                      // iconData: Icons.graphic_eq_outlined,
+                                      iconData: const IconData(0xe90b,
+                                          fontFamily: "IcomoonIcons"),
+                                    ),
+                              const SizedBox(
+                                width: 20,
+                              ),
+                              if (isThresholdingButton) ...{
+                                ...generateThresholdSlider(true),
+
+                                // Container(
+                                //   width:50,
+                                //   height:30,
+                                //   child: TextField(
+                                //     controller: thresholdValueController,
+                                //   )
+                                // )
+                              },
+
+                              // if (!isThresholdingButton) ... {
+                              //   SpikerBoxButton(
+                              //     onTapButton: () {
+                              //       isFftButton = !isFftButton;
+                              //       if (isFftButton) {
+                              //         context.read<FftStatusProvider>().setFftVisibility(true);
+                              //       } else {
+                              //         context.read<FftStatusProvider>().setFftVisibility(false);
+                              //       }
+
+                              //       setState((){});
+                              //     },
+                              //     iconColor: isFftButton? Colors.yellow : Colors.black,
+                              //     iconData: Icons.abc,
+                              //   ),
+                              // },
+                              const SizedBox(
+                                width: 10,
+                              ),
+                              // if (!forceSerialDisconnect) ... {
+                              //   SpikerBoxButton(onTapButton: () {
+                              //     forceSerialDisconnect = !forceSerialDisconnect;
+                              //   }, iconData: Icons.usb),
+                              // },
+                              StreamBuilder<List<ComDataWithBoard>>(
+                                  stream: deviceListStream,
+                                  builder: (context, snapshot) {
+                                    // print("snapshot.hasData: ${snapshot.hasData}");
+                                    if (snapshot.hasData) {
+                                      print("snapshot.data: ${snapshot.data}");
+                                      listOfBoard = snapshot.data!;
+                                      if (listOfBoard?.length == 0) {
+                                        return SpikerBoxButton(
+                                            onTapButton: () async {
+                                              forceSerialDisconnect = true;
+                                              initMessageIdentifier();
+
+                                              await Future.delayed(
+                                                  Duration(milliseconds: 1000));
+
+                                              int baudRate = context
+                                                  .read<ConstantProvider>()
+                                                  .getBaudRate();
+                                              await _serialUtil
+                                                  .getAvailablePorts(baudRate,
+                                                      serialErrorCallback);
+                                              allDevices.clear();
+
+                                              List<String> filteredPorts;
+                                              if (kIsWeb) {
+                                                filteredPorts =
+                                                    _serialUtil.availablePorts;
+                                              } else if (Platform.isMacOS) {
+                                                filteredPorts = _serialUtil
+                                                    .availablePorts
+                                                    .where((port) =>
+                                                        port.contains(
+                                                            'usbmodem') ||
+                                                        port.contains(
+                                                            'usbserial'))
+                                                    .toList();
+                                              } else {
+                                                filteredPorts =
+                                                    _serialUtil.availablePorts;
+                                              }
+
+                                              bool isComMatch = areListsEqual(
+                                                  _availablePorts,
+                                                  filteredPorts);
+
+                                              _availablePorts = filteredPorts;
+
+                                              context
+                                                  .read<DataStatusProvider>()
+                                                  .setMicrophoneDataStatus(
+                                                      _availablePorts.isEmpty);
+                                              print(
+                                                  "isDeviceConnect : $isDeviceConnect -- ${_availablePorts.isEmpty} -- ${context.read<DataStatusProvider>().isMicrophoneData} -- forceSerialDisconnect: $forceSerialDisconnect ${listOfBoard?.length} isComMatch: $isComMatch");
+
+                                              // if (!isComMatch) {
+                                              Provider.of<PortScanProvider>(
+                                                      context,
+                                                      listen: false)
+                                                  .setPortScanList(
+                                                      _availablePorts);
+                                              Provider.of<ConstantProvider>(
+                                                      context,
+                                                      listen: false)
+                                                  .setBaudRate(baudRate);
+                                              allDevices = context
+                                                  .read<SerialDataProvider>()
+                                                  .getAllPortDetail;
+                                              if (isDeviceConnect) {
+                                                isSerialDeviceFound = true;
+                                                await portListOnConnect();
+                                              }
+                                              // }
+                                              forceSerialDisconnect = false;
+                                            },
+                                            iconData: Icons.usb);
+                                      }
+
+                                      return SizedBox(
+                                        height: 50,
+                                        child: ListView.builder(
+                                            padding: EdgeInsets.zero,
+                                            scrollDirection: Axis.horizontal,
+                                            shrinkWrap: true,
+                                            itemCount: listOfBoard?.length,
+                                            itemBuilder: (context, index) {
+                                              return SpikerBoxButton(
+                                                  onTapButton: () {
+                                                    print("DISCONNECT USB");
+                                                    forceSerialDisconnect =
+                                                        !forceSerialDisconnect;
+                                                    _serialUtil.closePort();
+                                                    Future.delayed(
+                                                        Duration(
+                                                            milliseconds: 1500),
+                                                        () {
+                                                      if (context.mounted) {
+                                                        _availablePorts.clear();
+                                                        context
+                                                            .read<
+                                                                DataStatusProvider>()
+                                                            .setMicrophoneDataStatus(
+                                                                _availablePorts
+                                                                    .isEmpty);
+                                                        final provider = Provider
+                                                            .of<GraphDataProvider>(
+                                                                context,
+                                                                listen: false);
+                                                        listenToMicrophone(
+                                                            1, provider);
+                                                      }
+                                                      // final provider = Provider.of<GraphDataProvider>(context, listen: false);
+                                                    });
+                                                  },
+                                                  iconData: Icons.usb);
+                                            }),
+                                      );
+                                    } else {
+                                      return Container();
+                                    }
+                                  })
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              if (isRecording != 1) ...{
+                                SpikerBoxButton(
+                                  onTapButton: () async {
+                                    if (kIsWeb) {
+                                      // print("START OPENING FILE WEB");
+                                      startOpeningFileWeb("", 0, 1);
+                                      // startOpeningFile(result.files.single.path!);
+                                    } else {
+                                      FilePickerResult? result =
+                                          await FilePicker.platform.pickFiles();
+                                      if (result != null) {
+                                        startOpeningFile(
+                                            result.files.single.path!);
+                                      }
+                                    }
+                                    // }, iconData: Icons.menu)
+                                  },
+                                  iconData: const IconData(0xe909,
+                                      fontFamily: "IcomoonIcons"),
+                                )
+                              },
+                            ],
+                          )
+                        ],
+                      ),
+                      // Text("isOpeningFile: $isOpeningFile && isRecording: $isRecording"),
+                      if (isOpeningFile) ...[
+                        BottomButtons(
+                          pauseButton: (bool isPlay) async {
+                            if (!isOpeningFile) {
+                              Provider.of<GraphResumePlayProvider>(context,
+                                      listen: false)
+                                  .setGraphResumePlay(isPlay);
+                              _toPauseGraph = isPlay;
+                              GraphTemplate.isPlayerPaused = !isPlay;
+                              _pendingPlayback = false;
+                              setState(() {});
+                            } else {
+                              callbackPlayButton(isPlay);
+                            }
+                          },
+                        ),
+                      ],
+                      if (!isOpeningFile) ...[
+                        Center(
+                          child: SpikerBoxButton(
+                            onTapButton: () async {
+                              print("STATUS RECORDING: $isRecording");
+                              if (isRecording == 0) {
+                                print(
+                                    "!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
+
+                                bool isAudioListen = context
+                                    .read<DataStatusProvider>()
+                                    .isMicrophoneData;
+                                visibleSignalsList = context
+                                    .read<ChannelColorProvider>()
+                                    .getVisibleChannel();
+                                visibleChannelCount = context
+                                    .read<ChannelColorProvider>()
+                                    .getVisibleChannelCount();
+
+                                if (kIsWeb) {
+                                  // await GraphTemplate.nwbFileUtil
+                                  //     ?.recordNewFileLocation();
+                                  // int counterTimerCancel = 0;
+                                  // Timer.periodic(
+                                  //     Duration(seconds: 1),
+                                  //     (timer) async {
+                                  // counterTimerCancel++;
+                                  // print(
+                                  //     "GraphTemplate.nwbFileUtil?.recordedNwbFilePath: ${GraphTemplate.nwbFileUtil?.recordedNwbFilePath}");
+                                  String strTemp = GraphTemplate
+                                          .nwbFileUtil?.recordedNwbFilePath ??
+                                      "";
+                                  // if (strTemp.length! > 3) {
+                                  if (1 == 1) {
+                                    // timer.cancel();
+                                    if (isAudioListen) {
+                                      recordedFilePath = await GraphTemplate
+                                          .nwbFileUtil
+                                          ?.processingInit(
+                                              _sampleRate,
+                                              widget.channelCount,
+                                              "Audio|||",
+                                              "SpikeRecorder Systems",
+                                              visibleSignalsList,
+                                              visibleChannelCount);
+                                    } else {
+                                      recordedFilePath = await GraphTemplate
+                                          .nwbFileUtil
+                                          ?.processingInit(
+                                              _sampleRate,
+                                              widget.channelCount,
+                                              "SpikeRecorder Device|||",
+                                              "SpikeRecorder Systems",
+                                              visibleSignalsList,
+                                              visibleChannelCount);
+                                    }
+                                    bool isPlay = true;
+                                    Provider.of<GraphResumePlayProvider>(
+                                            context,
+                                            listen: false)
+                                        .setGraphResumePlay(isPlay);
+                                    _toPauseGraph = isPlay;
+                                    GraphTemplate.isPlayerPaused = !isPlay;
+                                    _pendingPlayback = false;
+
+                                    Future.delayed(Duration(milliseconds: 1000),
+                                        () {
+                                      isRecording = 1;
+                                      context
+                                          .read<ChannelColorProvider>()
+                                          .setIsRecording(1);
+
+                                      recordingStartTime =
+                                          DateTime.now().millisecondsSinceEpoch;
+
+                                      recordingNotifier.value = [
+                                        recordingStartTime,
+                                        recordingStartTime
+                                      ];
+                                      setState(() {});
+                                    });
+                                  } else if (GraphTemplate
+                                          .nwbFileUtil?.recordedNwbFilePath ==
+                                      "--") {
+                                    // GraphTemplate.nwbFileUtil
+                                    //     ?.recordedNwbFilePath = "";
+                                    // print("NWB FILE PATH");
+                                    // counterTimerCancel = 0;
+                                    // isOpeningFile = false;
+                                    // timer.cancel();
+                                  }
+                                  // });
+                                } else {
+                                  if (isAudioListen) {
+                                    recordedFilePath = await GraphTemplate
+                                        .nwbFileUtil
+                                        ?.processingInit(
+                                            _sampleRate,
+                                            widget.channelCount,
+                                            "Audio|||",
+                                            "SpikeRecorder Systems",
+                                            visibleSignalsList,
+                                            visibleChannelCount);
+                                  } else {
+                                    recordedFilePath = await GraphTemplate
+                                        .nwbFileUtil
+                                        ?.processingInit(
+                                            _sampleRate,
+                                            widget.channelCount,
+                                            "SpikeRecorder Device|||",
+                                            "SpikeRecorder Systems",
+                                            visibleSignalsList,
+                                            visibleChannelCount);
+                                  }
+                                  Future.delayed(Duration(milliseconds: 1000),
+                                      () {
+                                    isRecording = 1;
+                                    context
+                                        .read<ChannelColorProvider>()
+                                        .setIsRecording(1);
+                                    recordingStartTime =
+                                        DateTime.now().millisecondsSinceEpoch;
+
+                                    recordingNotifier.value = [
+                                      recordingStartTime,
+                                      recordingStartTime
+                                    ];
+                                    setState(() {});
+                                  });
+                                }
+                                // isRecording = 1;
+                              } else {
+                                resetRecordingState(widgetContext);
+
+                                setState(() {});
+                              }
+                            },
+                            iconData: Icons.fiber_manual_record,
+                            iconColor:
+                                isRecording == 1 ? Colors.red : Colors.white,
+                          ),
+                        ),
+                      ],
+                      // isRecording != 0
+                      //     ? SizedBox()
+                      //     : !isOpeningFile ? SizedBox() :
+                    ],
                   ),
                 ),
-              );
+              ),
+              childOverlay: !isOpeningFile
+                  ? SizedBox()
+                  : Positioned(
+                      top: 0,
+                      left: 0,
+                      child: SizedBox(
+                          width: MediaQuery.of(context).size.width,
+                          child: Center(
+                            child: Container(
+                                margin: EdgeInsets.only(top: 25),
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 4),
+                                decoration: BoxDecoration(
+                                    color: Colors.black,
+                                    borderRadius: BorderRadius.circular(16)),
+                                child: Text(openedFilePath,
+                                    style: TextStyle(color: Colors.white))),
+                          )),
+                    ),
+            );
           }),
       floatingActionButton: null,
     );
@@ -2482,28 +2491,31 @@ class _GraphTemplateState extends State<GraphTemplate> {
   Path _drawFolderTabPath(Size size) {
     var path = Path();
     double curveWidth = 15.0; // Adjust for more or less slant
-    
+
     path.moveTo(0, size.height);
     // Bottom-left to top-left curve
     path.quadraticBezierTo(curveWidth / 2, size.height, curveWidth, 0);
     path.lineTo(size.width - curveWidth, 0);
     // Top-right to bottom-right curve
-    path.quadraticBezierTo(size.width - (curveWidth / 2), size.height, size.width, size.height);
+    path.quadraticBezierTo(
+        size.width - (curveWidth / 2), size.height, size.width, size.height);
     path.close();
-    
+
     return path;
   }
-  
-    
+
   void listenToMicrophone(channelCount, provider) async {
     print("listenToMicrophone");
     stopCurrentPlaying();
     _deviceName.value = "";
-    predefinedFiltersChannel = [["EMG", "ECG", "EEG", "Custom"]];
+    predefinedFiltersChannel = [
+      ["EMG", "ECG", "EEG", "Custom"]
+    ];
     defaultDeviceChannelCount = 1;
 
     // Prevent multiple simultaneous calls
-    print("isListeningToMicrophone : $_isListeningToMicrophone --- $customSliderBarArray");
+    print(
+        "isListeningToMicrophone : $_isListeningToMicrophone --- $customSliderBarArray");
     if (_isListeningToMicrophone) {
       print(
           "listenToMicrophone already in progress, waiting for completion...");
@@ -2526,15 +2538,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
         isMicrophoneEnable: (bool isMicrophoneEnable) {
           context
               .read<DataStatusProvider>()
-              .setMicrophoneDataStatus(
-                  isMicrophoneEnable);
+              .setMicrophoneDataStatus(isMicrophoneEnable);
         },
-        onHighPassFilterSetup:
-            (FilterSetup filterSetup) {
+        onHighPassFilterSetup: (FilterSetup filterSetup) {
           // Keep this for backward compatibility if needed
         },
-        onLowPassFilterSetup:
-            (FilterSetup filterSetup) {
+        onLowPassFilterSetup: (FilterSetup filterSetup) {
           // Keep this for backward compatibility if needed
         },
         onSampleChange: (bool isSampleDataOn) {
@@ -2547,7 +2556,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
         sliderValue: _sliderValue,
       ),
     ];
-    print("isListeningToMicrophone222 : $_isListeningToMicrophone --- $customSliderBarArray");
+    print(
+        "isListeningToMicrophone222 : $_isListeningToMicrophone --- $customSliderBarArray");
     filterUsageTypeChannels.clear();
     filterUsageTypeChannels.add("EMG");
     arrFilterUsageTypeChannel.clear();
@@ -2678,6 +2688,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   Int32List loadedConfig = Int32List(10);
   List<Int16List> loadedArrSamples = [];
   Int32List loadedArrChannelCount = Int32List(1);
+  bool _isStreamEnded = false; // Flag to track if streams are ended
 
   double startSeekSampleIdx = 0;
   double endSeekSampleIdx = 0;
@@ -3159,134 +3170,135 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (idx != curChannelIdx) {
         children.add(SizedBox.shrink());
         continue;
-      } 
+      }
       children.add(
-        // ...List.generate(colors.length, (idx) {
-          // return 
+          // ...List.generate(colors.length, (idx) {
+          // return
           Material(
-            color: Colors.transparent,
-            
-            child: InkWell(
-              onTap: () {},
-              hoverColor: Color(0xFF4c4c4c),
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {},
+          hoverColor: Color(0xFF4c4c4c),
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            margin: EdgeInsets.fromLTRB(1, 1, 1, 1),
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Color(0xFF2e2e2e),
               borderRadius: BorderRadius.circular(16),
-              child: Container(
-                margin: EdgeInsets.fromLTRB(1, 1, 1, 1),
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Color(0xFF2e2e2e),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                children: [
-                  // Icon(IconData(0xe90e, fontFamily: "IcomoonIcons"), color: Colors.white),
-                  // Container(
-                  //   width: 20,
-                  //   height: 20,
-                  //   decoration: BoxDecoration(
-                  //     color: Colors.orange,
-                  //     shape: BoxShape.circle,
-                  //   ),
-                  //   child: Center(child: Text('${idx + 1}', style: TextStyle(color: Colors.white)))
-                  // ),
-                  // SizedBox(width: 10),
-                  Icon(Icons.palette_outlined, size: 20, color: Colors.white),
-                  // SvgPicture.asset(
-                  //   'assets/icons/config_board.svg',
-                  //   width: 20,
-                  //   height: 20,
-                  // ),              
-                  SizedBox(width: 10),
-                  Text('Channel Color',
-                      style: SoftwareTextStyle().kWtMediumTextStyle),
-                  const SizedBox(width: 8),
-                  Container(
-                    height: 30,
-                    margin: EdgeInsets.fromLTRB(0, 5, 0, 5),
-                    padding: EdgeInsets.fromLTRB(3, 2, 3, 2),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.blueGrey),
-                      borderRadius: BorderRadius.circular(5),
-                    ),                    
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<Color>(
-                        padding: EdgeInsets.fromLTRB(0, 0, 0, 0),
-                        icon: Icon(IconData(0xe90e, fontFamily: "IcomoonIcons"), size: 20, color: Colors.grey),
-                        value: colors[idx],
-                        dropdownColor: SoftwareColors.kDropDownBackGroundColor,
-                        items: availableColors
-                            .map((c) => DropdownMenuItem(
-                                  value: c,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(16),
-                                      color: c,
-                                      border: Border.all(color: c, width: 1),
-                                    ),
-                                    width: 40, height: 20, 
+            ),
+            child: Row(
+              children: [
+                // Icon(IconData(0xe90e, fontFamily: "IcomoonIcons"), color: Colors.white),
+                // Container(
+                //   width: 20,
+                //   height: 20,
+                //   decoration: BoxDecoration(
+                //     color: Colors.orange,
+                //     shape: BoxShape.circle,
+                //   ),
+                //   child: Center(child: Text('${idx + 1}', style: TextStyle(color: Colors.white)))
+                // ),
+                // SizedBox(width: 10),
+                Icon(Icons.palette_outlined, size: 20, color: Colors.white),
+                // SvgPicture.asset(
+                //   'assets/icons/config_board.svg',
+                //   width: 20,
+                //   height: 20,
+                // ),
+                SizedBox(width: 10),
+                Text('Channel Color',
+                    style: SoftwareTextStyle().kWtMediumTextStyle),
+                const SizedBox(width: 8),
+                Container(
+                  height: 30,
+                  margin: EdgeInsets.fromLTRB(0, 5, 0, 5),
+                  padding: EdgeInsets.fromLTRB(3, 2, 3, 2),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.blueGrey),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<Color>(
+                      padding: EdgeInsets.fromLTRB(0, 0, 0, 0),
+                      icon: Icon(IconData(0xe90e, fontFamily: "IcomoonIcons"),
+                          size: 20, color: Colors.grey),
+                      value: colors[idx],
+                      dropdownColor: SoftwareColors.kDropDownBackGroundColor,
+                      items: availableColors
+                          .map((c) => DropdownMenuItem(
+                                value: c,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    color: c,
+                                    border: Border.all(color: c, width: 1),
                                   ),
-                                ))
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            if (isAudio) {
-                              provider.setAudioColor(idx, val);
-                            } else {
-                              provider.setSerialColor(idx, val);
-                            }
+                                  width: 40,
+                                  height: 20,
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          if (isAudio) {
+                            provider.setAudioColor(idx, val);
+                          } else {
+                            provider.setSerialColor(idx, val);
                           }
-                        },
-                      ),
+                        }
+                      },
                     ),
                   ),
-                  SizedBox(width: 10),
-                  // ElevatedButton(
-                  //   onPressed: () {
-                      
-                  //     double startValue = customSliderBarArray[idx].startValue;
-                  //     Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                  //         .setStartValue(startValue);
-                  //     print("startValue CUSTOMIZED: $startValue");
-                  //     double endValue = customSliderBarArray[idx].endValue;
-                  //     Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                  //         .setEndValue(endValue);
-                  //     print("endValue CUSTOMIZED: $startValue");
+                ),
+                SizedBox(width: 10),
+                // ElevatedButton(
+                //   onPressed: () {
 
-                  //     isDetailConfiguration = !isDetailConfiguration;
-                  //     customizeDetailChannelIdx = idx;
-                  //     configTitle = "Channel Settings";
+                //     double startValue = customSliderBarArray[idx].startValue;
+                //     Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                //         .setStartValue(startValue);
+                //     print("startValue CUSTOMIZED: $startValue");
+                //     double endValue = customSliderBarArray[idx].endValue;
+                //     Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                //         .setEndValue(endValue);
+                //     print("endValue CUSTOMIZED: $startValue");
 
-                  //     setState(() {});
-                  //   },
-                  //   style: ElevatedButton.styleFrom(
-                  //     backgroundColor: const Color(0xFF333333), // Dark grey background
-                  //     foregroundColor: Colors.white,            // White text color
-                  //     elevation: 0,                            // Flat design as seen in image
-                  //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  //     shape: const StadiumBorder(),            // Creates the perfect "pill" shape
-                  //   ).copyWith(
-                  //     // Adding the hover border logic we discussed
-                  //     side: WidgetStateProperty.resolveWith<BorderSide>((states) {
-                  //       if (states.contains(WidgetState.hovered)) {
-                  //         return const BorderSide(color: Colors.blue, width: 1.5);
-                  //       }
-                  //       return BorderSide.none; 
-                  //     }),
-                  //   ), 
-                  //   child: const Text("Customize"),                    
-                  // ),
-                  // Spacer(),
-                  // GestureDetector(
-                  //   child: Icon(IconData(0xe90a, fontFamily: "IcomoonIcons"), size: 20, color: Colors.grey)
-                  // ),
-                ],
-              ),
+                //     isDetailConfiguration = !isDetailConfiguration;
+                //     customizeDetailChannelIdx = idx;
+                //     configTitle = "Channel Settings";
+
+                //     setState(() {});
+                //   },
+                //   style: ElevatedButton.styleFrom(
+                //     backgroundColor: const Color(0xFF333333), // Dark grey background
+                //     foregroundColor: Colors.white,            // White text color
+                //     elevation: 0,                            // Flat design as seen in image
+                //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                //     shape: const StadiumBorder(),            // Creates the perfect "pill" shape
+                //   ).copyWith(
+                //     // Adding the hover border logic we discussed
+                //     side: WidgetStateProperty.resolveWith<BorderSide>((states) {
+                //       if (states.contains(WidgetState.hovered)) {
+                //         return const BorderSide(color: Colors.blue, width: 1.5);
+                //       }
+                //       return BorderSide.none;
+                //     }),
+                //   ),
+                //   child: const Text("Customize"),
+                // ),
+                // Spacer(),
+                // GestureDetector(
+                //   child: Icon(IconData(0xe90a, fontFamily: "IcomoonIcons"), size: 20, color: Colors.grey)
+                // ),
+              ],
             ),
           ),
-          )
-        // }),
+        ),
+      )
+          // }),
 
-      );
+          );
       children.add(SizedBox(height: 5));
     }
     return Column(
@@ -3359,16 +3371,18 @@ class _GraphTemplateState extends State<GraphTemplate> {
       "Neuron",
       "Custom",
     ];
-    
 
-    print("START SETUP FILTER VALUES -- type: $type ||| $filterUsageTypeChannels ||--|| $channelIndices");
+    print(
+        "START SETUP FILTER VALUES -- type: $type ||| $filterUsageTypeChannels ||--|| $channelIndices");
     for (int channelIdx in channelIndices) {
       print("channelIdx: $channelIdx");
       if (channelIdx != -1) {
         processingUtil.setBandFilter(channelIdx, startValue, endValue);
-        print("filterUsageTypeChannels ${filterTypes[type.floor()]} -- filterUsageTypeChannels: $filterUsageTypeChannels - ${filterTypes[type.floor()]}");
+        print(
+            "filterUsageTypeChannels ${filterTypes[type.floor()]} -- filterUsageTypeChannels: $filterUsageTypeChannels - ${filterTypes[type.floor()]}");
         filterUsageTypeChannels[channelIdx] = filterTypes[type.floor()];
-        print("AFTER filterUsageTypeChannels ${filterTypes[type.floor()]} -- filterUsageTypeChannels: $filterUsageTypeChannels - ${filterTypes[type.floor()]}");
+        print(
+            "AFTER filterUsageTypeChannels ${filterTypes[type.floor()]} -- filterUsageTypeChannels: $filterUsageTypeChannels - ${filterTypes[type.floor()]}");
         Provider.of<CustomRangeSliderProvider>(context, listen: false)
             .setStartValue(startValue, channelIdx);
         Provider.of<CustomRangeSliderProvider>(context, listen: false)
@@ -3377,8 +3391,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
         setState(() {});
       }
     }
-    
-    print("END SETUP FILTER VALUES -- type: $type ||| $filterUsageTypeChannels");
+
+    print(
+        "END SETUP FILTER VALUES -- type: $type ||| $filterUsageTypeChannels");
     streamScrubBuilderController.add(Random().nextInt(100000));
     if (selectedBoard?.uniqueName == "HUMANSB;") {
       switch (type) {
@@ -3403,13 +3418,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
           setSerialGain(false);
           break;
         case 5: // CUSTOM
-        break;
+          break;
       }
     }
-    
+
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     if (isAudioListen) {
-      createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
+      createTabBarConfiguration(
+          deviceChannelCount, context.read<ChannelFilterProvider>());
     } else {
       // createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
     }
@@ -3423,36 +3439,41 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // startValue: startValue,
     // endValue: endValue,
     // sliderValue: _sliderValue,
-    print("_predefinedFilterSettings -- filterUsageTypeChannels: $filterUsageTypeChannels");
+    print(
+        "_predefinedFilterSettings -- filterUsageTypeChannels: $filterUsageTypeChannels");
     Widget predefinedFilterWidget = SizedBox();
-    List<Widget> listPredefinedFilter = buildPredefinedFilter(channelIdx, filterUsageTypeChannels[channelIdx]);
+    List<Widget> listPredefinedFilter =
+        buildPredefinedFilter(channelIdx, filterUsageTypeChannels[channelIdx]);
 
     if (kIsWeb) {
       predefinedFilterWidget = Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: buildPredefinedFilter(channelIdx, filterUsageTypeChannels[channelIdx]),
+        children: buildPredefinedFilter(
+            channelIdx, filterUsageTypeChannels[channelIdx]),
       );
     } else {
       if (Platform.isAndroid || Platform.isIOS) {
         String usageType = arrFilterUsageTypeChannel[channelIdx];
         int pageIdx = predefinedFiltersChannel[channelIdx].indexOf(usageType);
 
-        try{
+        try {
           if (carouselSliderControllerChannel != null) {
-            Future.delayed(Duration(milliseconds: 50), (){
+            Future.delayed(Duration(milliseconds: 50), () {
               carouselSliderControllerChannel[channelIdx].jumpToPage(pageIdx);
             });
           } else {
             print("carouselSliderControllerChannel NULLL");
           }
-        }catch(err) {
+        } catch (err) {
           print("err carousel slider");
           print(err);
         }
         predefinedFilterWidget = CarouselSlider(
-          options: CarouselOptions(height: 150.0, viewportFraction: 0.35,),
+          options: CarouselOptions(
+            height: 150.0,
+            viewportFraction: 0.35,
+          ),
           carouselController: carouselSliderControllerChannel[channelIdx],
-          
           items: listPredefinedFilter.map((widget) {
             int i = listPredefinedFilter.indexOf(widget);
             return Builder(
@@ -3469,33 +3490,30 @@ class _GraphTemplateState extends State<GraphTemplate> {
       } else {
         predefinedFilterWidget = Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: buildPredefinedFilter(channelIdx, filterUsageTypeChannels[channelIdx]),
+          children: buildPredefinedFilter(
+              channelIdx, filterUsageTypeChannels[channelIdx]),
         );
-
       }
-
     }
     return Container(
-      margin: EdgeInsets.only(top:20),
+      margin: EdgeInsets.only(top: 20),
       padding: EdgeInsets.fromLTRB(0, 10, 0, 0),
       decoration: BoxDecoration(
         color: Color(0xFF2e2e2e),
         // borderRadius: BorderRadius.circular(16),
-        borderRadius: serialUsageType == "Custom" ? 
-          BorderRadius.only(
-            topLeft: Radius.circular(16),
-            bottomLeft: Radius.circular(0),
-            topRight: Radius.circular(16), // Keeps the right side flat
-            bottomRight: Radius.circular(0),
-          )        
-          :
-          BorderRadius.only(
-            topLeft: Radius.circular(16),
-            bottomLeft: Radius.circular(16),
-            topRight: Radius.circular(16), // Keeps the right side flat
-            bottomRight: Radius.circular(16),
-          ),
-
+        borderRadius: serialUsageType == "Custom"
+            ? BorderRadius.only(
+                topLeft: Radius.circular(16),
+                bottomLeft: Radius.circular(0),
+                topRight: Radius.circular(16), // Keeps the right side flat
+                bottomRight: Radius.circular(0),
+              )
+            : BorderRadius.only(
+                topLeft: Radius.circular(16),
+                bottomLeft: Radius.circular(16),
+                topRight: Radius.circular(16), // Keeps the right side flat
+                bottomRight: Radius.circular(16),
+              ),
       ),
       child: predefinedFilterWidget,
     );
@@ -3524,18 +3542,29 @@ class _GraphTemplateState extends State<GraphTemplate> {
   int visibleChannelCount = 1;
 
   bool isDarkMode = true;
-  
+
   bool isDetailConfiguration = false;
   int customizeDetailChannelIdx = 0;
-  
-  var isSpeakerChannelMuted = [false, false, false, false, false, false, false, false, false, false];
-  
+
+  var isSpeakerChannelMuted = [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+  ];
+
   List<CustomSliderBarButton> customSliderBarArray = [];
-  
+
   TabbedViewController? _channelTabController;
-  
+
   TabbedViewThemeData? channelTabTheme;
-  
+
   int selectedTabIdx = 0;
   // Int32List arrSampleCountWeb = Int32List(0);
   // Int16List arrSamplesWeb = Int16List(1);
@@ -3560,7 +3589,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       config, arrSampleCount, arrSamples, isStartOpeningFileWeb) async {
     // [48000, 1, 885, 0, 1000000, 654337, 0, 0, 0, 0], [196301]
     // Validate config before accessing indices to prevent RangeError
-    currentLoadedFilePath = GraphTemplate.nwbFileUtil?.openedNwbFilePath ?? "";    
+    currentLoadedFilePath = GraphTemplate.nwbFileUtil?.openedNwbFilePath ?? "";
     if (config == null || config is! Int32List || config.length < 10) {
       print(
           "ERROR: Invalid config in startOpeningFileWebCallback: $config (type: ${config.runtimeType}, length: ${config is List ? config.length : 'N/A'})");
@@ -3575,7 +3604,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void startOpeningFileWebCallback(
       config, arrSampleCount, arrSamples, isStartOpeningFileWeb) async {
-    currentLoadedFilePath = GraphTemplate.nwbFileUtil?.openedNwbFilePath ?? "";    
+    currentLoadedFilePath = GraphTemplate.nwbFileUtil?.openedNwbFilePath ?? "";
     print(
         "SECTION startOpeningFileWebCallbackPlayback : $config, $arrSampleCount, $isStartOpeningFileWeb ===+++=== $currentLoadedFilePath");
     // Validate config before accessing indices to prevent RangeError
@@ -3636,7 +3665,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
       context
           .read<ChannelFilterProvider>()
           .setSerialChannelCount(widget.channelCount);
-
 
       periodicSerialDataSubscription();
       microphoneUtil.micStream.removeListener(micListener);
@@ -4154,9 +4182,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void periodicSerialDataSubscription() {
     periodicTimerSerial?.cancel();
     // HARDCODE
-      // bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
-      // serialNativeDataSubscription(Uint8List(0), isAudioListen);
-      // return;
+    // bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+    // serialNativeDataSubscription(Uint8List(0), isAudioListen);
+    // return;
 
     periodicTimerSerial =
         Timer.periodic(Duration(milliseconds: timeMs), (timer) {
@@ -4443,7 +4471,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               for (Board board in connectedBoards) {
                 if (board.uniqueName == foundDevices) {
                   GraphTemplate.selectedBoard = board;
-                  _deviceName.value = GraphTemplate.selectedBoard?.userFriendlyFullName;
+                  _deviceName.value =
+                      GraphTemplate.selectedBoard?.userFriendlyFullName;
                   print("devices :   $devices");
                   // HARDCODE
                   deviceType = listOfDevices.indexOf("$foundDevices;") + 1;
@@ -4469,7 +4498,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   print("SERIAL BOARD CHANNEL COUNT : ${widget.channelCount}");
 
                   filterUsageTypeChannels.clear();
-                  for (int idxChannel = 0; idxChannel < widget.channelCount; idxChannel++) {
+                  for (int idxChannel = 0;
+                      idxChannel < widget.channelCount;
+                      idxChannel++) {
                     filterUsageTypeChannels.add("EMG");
                   }
 
@@ -4479,10 +4510,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     // var info = processingUtil.getInformation();
                     // print("info : $info");
                     if (GraphTemplate.selectedBoard?.uniqueName == "HUMANSB") {
-                      print("infozzz : ${GraphTemplate.selectedBoard?.uniqueName}");
+                      print(
+                          "infozzz : ${GraphTemplate.selectedBoard?.uniqueName}");
                       predefinedFiltersChannel.clear();
                       for (int i = 0; i < deviceChannelCount; i++) {
-                        predefinedFiltersChannel.add(["EMG", "ECG", "EEG", "Custom"]);
+                        predefinedFiltersChannel
+                            .add(["EMG", "ECG", "EEG", "Custom"]);
                       }
                       arrFilterUsageTypeChannel.clear();
                       for (int i = 0; i < deviceChannelCount; i++) {
@@ -4492,7 +4525,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
                     isDeviceSelected = true;
                     customSliderBarArray.clear();
-                    for (int idxChannel = 0; idxChannel < deviceChannelCount; idxChannel++) {
+                    for (int idxChannel = 0;
+                        idxChannel < deviceChannelCount;
+                        idxChannel++) {
                       customSliderBarArray.add(
                         CustomSliderBarButton(
                           channelIdx: idxChannel,
@@ -4501,15 +4536,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           isMicrophoneEnable: (bool isMicrophoneEnable) {
                             context
                                 .read<DataStatusProvider>()
-                                .setMicrophoneDataStatus(
-                                    isMicrophoneEnable);
+                                .setMicrophoneDataStatus(isMicrophoneEnable);
                           },
-                          onHighPassFilterSetup:
-                              (FilterSetup filterSetup) {
+                          onHighPassFilterSetup: (FilterSetup filterSetup) {
                             // Keep this for backward compatibility if needed
                           },
-                          onLowPassFilterSetup:
-                              (FilterSetup filterSetup) {
+                          onLowPassFilterSetup: (FilterSetup filterSetup) {
                             // Keep this for backward compatibility if needed
                           },
                           onSampleChange: (bool isSampleDataOn) {
@@ -4523,10 +4555,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         ),
                       );
                     }
-                    createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
-                    setState((){});
-
-
+                    createTabBarConfiguration(deviceChannelCount,
+                        context.read<ChannelFilterProvider>());
+                    setState(() {});
                   });
                 }
               }
@@ -4546,6 +4577,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void _startPlaybackTimer() {
     print("START PLAYBACK TIMER");
+    _isStreamEnded = false; // Reset flag when starting playback
     timerPlaybackLoadedFile?.cancel();
     timerPlaybackLoadedStartIndex = 0;
     timerPlaybackLoadedEndIndex = 0;
@@ -4578,14 +4610,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 timerPlaybackLoadedStartIndex.floor(),
                 timerPlaybackLoadedEndIndex.floor());
             sublistArray.add(sublistSamples);
-            if (isSpeakerChannelMuted[i]) {
-              soloud!.addAudioDataStream(
-                  loadedFileStreams[i]!, (Int16List(sublistSamples.length)).buffer.asUint8List());
-
-            } else {
-              soloud!.addAudioDataStream(
-                  loadedFileStreams[i]!, sublistSamples.buffer.asUint8List());
-
+            if (!_isStreamEnded && loadedFileStreams[i] != null) {
+              try {
+                if (isSpeakerChannelMuted[i]) {
+                  soloud!.addAudioDataStream(loadedFileStreams[i]!,
+                      (Int16List(sublistSamples.length)).buffer.asUint8List());
+                } else {
+                  soloud!.addAudioDataStream(loadedFileStreams[i]!,
+                      sublistSamples.buffer.asUint8List());
+                }
+              } catch (e) {
+                // Stream may have been ended, stop trying to add data
+                print("Error adding audio data to stream (may be ended): $e");
+                _isStreamEnded = true;
+                timerPlaybackLoadedFile?.cancel();
+                return;
+              }
             }
           }
           timerPlaybackLoadedStartIndex =
@@ -4712,7 +4752,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
     print("IS PLAY $isPlay");
     if (!isPlay) {
       // print("STOP SOUND | ${widget.channelCount} | ::: ${soloud?.getStreamTimeConsumed(loadedFileStreams[0]!)}");
+      // Mark streams as ended before cancelling timer to prevent race conditions
+      _isStreamEnded = true;
       timerPlaybackLoadedFile?.cancel();
+
+      // Wait a brief moment to ensure any pending timer callbacks complete
+      await Future.delayed(Duration(milliseconds: 100));
 
       if (soloud != null) {
         // double maxSamplesTime = loadedMaxSamples / _sampleRate * 1000;
@@ -4729,8 +4774,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
             "STOP SOUND | ${widget.channelCount} | ${(soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!.inMilliseconds} | ::: $sampleConsumed ::: $timerPlaybackLoadedStartIndex");
       }
       for (int i = 0; i < widget.channelCount; i++) {
-        soloud?.setDataIsEnded(loadedFileStreams[i]!);
-        soloud?.stop(loadedSoundHandles[i]!);
+        try {
+          print(
+              "STOP SOUND -- $i --| ${widget.channelCount} | ${(soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!.inMilliseconds} | :::");
+          soloud?.setDataIsEnded(loadedFileStreams[i]!);
+          soloud?.stop(loadedSoundHandles[i]!);
+        } catch (e) {
+          print("Error ending stream: $e");
+        }
       }
       GraphTemplate.isLoadingFile = 2;
       // startPlaybackSeekSampleIdx += timerPlaybackLoadedStartIndex;
@@ -4740,12 +4791,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
       setState(() {});
     } else {
       loadedFileStreams.clear();
+      _isStreamEnded = false; // Reset flag when creating new streams
 
       // print("ADDED FILE STREAMS : $_sampleRate || $startPlaybackSeekSampleIdx ||| $percentage || SCRUB: ${scrubNotifier.value}");
       // 3. SoLoud buffer stream setup
       print("widget.channelCount: ${widget.channelCount} ${_sampleRate}");
       for (int i = 0; i < widget.channelCount; i++) {
-        if (!kIsWeb && (Platform.isAndroid || Platform.isMacOS)) {
+        if (!kIsWeb &&
+            (Platform.isAndroid || Platform.isMacOS || Platform.isWindows)) {
           loadedFileStreams.add(soloud!.setBufferStream(
             // maxBufferSizeBytes: 1024 * 1024 * 10,
             // {Size} = {Sample Rate} * {Bytes per Sample} * {MONO CHANNEL} * {Desired Seconds} * {100  constant}
@@ -5026,16 +5079,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
         // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
         loadedArrChannelCount[i] = initialSampleCount.floor();
         combinedIdx += initialSampleCount.floor();
-        if (isSpeakerChannelMuted[i]) {
-          soloud!.addAudioDataStream(
-              loadedFileStreams[i]!, (Int16List(loadedArrSamples[i].length)).buffer.asUint8List());
-
-        } else {
-          soloud!.addAudioDataStream(
-              loadedFileStreams[i]!, loadedArrSamples[i].buffer.asUint8List());
-
+        if (!_isStreamEnded && loadedFileStreams[i] != null) {
+          try {
+            if (isSpeakerChannelMuted[i]) {
+              soloud!.addAudioDataStream(loadedFileStreams[i]!,
+                  (Int16List(loadedArrSamples[i].length)).buffer.asUint8List());
+            } else {
+              soloud!.addAudioDataStream(loadedFileStreams[i]!,
+                  loadedArrSamples[i].buffer.asUint8List());
+            }
+          } catch (e) {
+            // Stream may have been ended, stop trying to add data
+            print("Error adding audio data to stream (may be ended): $e");
+            _isStreamEnded = true;
+          }
         }
-
       }
 
       print("ADDED DATA STREAM Channel Count: ${widget.channelCount}");
@@ -5140,6 +5198,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void stopCurrentPlaying() {
     try {
+      _isStreamEnded = true; // Mark streams as ended
       if (soloud != null) {
         print("listenToMicrophone soloud != null ");
         for (int i = 0; i < loadedSoundHandles.length; i++) {
@@ -5242,10 +5301,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 behavior: SnackBarBehavior.floating,
                 backgroundColor: Colors.transparent,
                 content: getSavedRecordingBanner(publicPath),
-                width: MediaQuery.of(widgetContext).size.width / 3, // Fixed width helps it look like a dialog/toast
+                width: MediaQuery.of(widgetContext).size.width /
+                    3, // Fixed width helps it look like a dialog/toast
                 margin: EdgeInsets.only(
-                  bottom: MediaQuery.of(widgetContext).size.height / 2 - 30, // Adjust -25 based on approximate SnackBar height
-                ),                
+                  bottom: MediaQuery.of(widgetContext).size.height / 2 -
+                      30, // Adjust -25 based on approximate SnackBar height
+                ),
                 duration: Duration(seconds: 7),
               ));
             } else {
@@ -5256,8 +5317,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 backgroundColor: Colors.transparent,
                 content: getSavedRecordingBanner(recordedFilePath),
                 margin: EdgeInsets.only(
-                  bottom: MediaQuery.of(widgetContext).size.height / 2 - 30, // Adjust -25 based on approximate SnackBar height
-                ),                
+                  bottom: MediaQuery.of(widgetContext).size.height / 2 -
+                      30, // Adjust -25 based on approximate SnackBar height
+                ),
                 duration: Duration(seconds: 7),
               ));
             }
@@ -5317,323 +5379,331 @@ class _GraphTemplateState extends State<GraphTemplate> {
       foregroundColor: isSelected ? Colors.white : Colors.black,
     );
     // print("COMPARE: $serialUsageType -- $s == $isSelected");
-    List<int> channelIndices = List<int>.generate(widget.channelCount, (index) => index == channelIdx ? index : -1);
+    List<int> channelIndices = List<int>.generate(
+        widget.channelCount, (index) => index == channelIdx ? index : -1);
     double sublabelFontSize = 10;
 
     switch (s) {
       case "ECG":
         Color? iconColor = isSelected ? Color(0xFFff805f) : Color(0xFF585858);
-        print("ECG ICON COLOR: $iconColor -- $isSelected || S : $s ++ SerialUsageType : $serialUsageType");
+        print(
+            "ECG ICON COLOR: $iconColor -- $isSelected || S : $s ++ SerialUsageType : $serialUsageType");
         return Container(
-          padding: EdgeInsets.fromLTRB(10, 10, 10, 10 ),
-          margin: EdgeInsets.fromLTRB(10, 0, 10, 20 ),
-          decoration: BoxDecoration(
-            // color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
-            color: isSelected ? Color.fromARGB(255, 70, 70, 70) : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child:
-          Column(
-            children: [
-              GestureDetector(
-                onTap: () {
-                  print("DETECTOR ECG");
-                  serialUsageType = "ECG";
-                  arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
-                  startValue = 1;
-                  endValue = 100;
-                  setupFilterValues(channelIndices, [startValue, endValue, 0]);
-                },
-                child: Stack(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: iconColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: iconColor, width: 30),
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: Center(
-                        child: SvgPicture.asset(
-                          'assets/icons/config_ecg_off.svg',
-                          width: 60,
-                          height: 60,
+            padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+            margin: EdgeInsets.fromLTRB(10, 0, 10, 20),
+            decoration: BoxDecoration(
+              // color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+              color: isSelected
+                  ? Color.fromARGB(255, 70, 70, 70)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    print("DETECTOR ECG");
+                    serialUsageType = "ECG";
+                    arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
+                    startValue = 1;
+                    endValue = 100;
+                    setupFilterValues(
+                        channelIndices, [startValue, endValue, 0]);
+                  },
+                  child: Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: iconColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: iconColor, width: 30),
                         ),
                       ),
-                    ),
-                  ],
+                      Positioned.fill(
+                        child: Center(
+                          child: SvgPicture.asset(
+                            'assets/icons/config_ecg_off.svg',
+                            width: 60,
+                            height: 60,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              SizedBox(
-                height: 5,
-              ),
-              Text(
-                "ECG",
-                style: TextStyle(fontSize: 14, color: Colors.white),
-              ),
-              SizedBox(
-                height: 3,
-              ),
-              Text(
-                "Heartbeats",
-                style: TextStyle(color: Color(0xFF707070), fontSize: sublabelFontSize),
-              ),
-              getSelectedNotchWidget(isSelected, iconColor),
-            ],
-          )
-        );
-      break;
+                SizedBox(
+                  height: 5,
+                ),
+                Text(
+                  "ECG",
+                  style: TextStyle(fontSize: 14, color: Colors.white),
+                ),
+                SizedBox(
+                  height: 3,
+                ),
+                Text(
+                  "Heartbeats",
+                  style: TextStyle(
+                      color: Color(0xFF707070), fontSize: sublabelFontSize),
+                ),
+                getSelectedNotchWidget(isSelected, iconColor),
+              ],
+            ));
+        break;
       case "EEG":
         Color? iconColor = isSelected ? Color(0xFF0093ff) : Color(0xFF585858);
         return Container(
-          padding: EdgeInsets.fromLTRB(10, 10, 10, 10 ),
-          margin: EdgeInsets.fromLTRB(10, 0, 10, 20 ),
-          decoration: BoxDecoration(
-            color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child:
-          Column(
-            children: [
-              GestureDetector(
-                onTap: () {
-                  print("DETECTOR EEG");
-                  serialUsageType = "EEG";
-                  arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
-                  startValue = 0;
-                  endValue = 50;
-                  setupFilterValues(channelIndices, [startValue, endValue, 1]);
-                },
-                child: Stack(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: iconColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: iconColor, width: 30),
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: Center(
-                        child: SvgPicture.asset(
-                          'assets/icons/config_eeg_off.svg',
-                          width: 60,
-                          height: 60,
+            padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+            margin: EdgeInsets.fromLTRB(10, 0, 10, 20),
+            decoration: BoxDecoration(
+              color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    print("DETECTOR EEG");
+                    serialUsageType = "EEG";
+                    arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
+                    startValue = 0;
+                    endValue = 50;
+                    setupFilterValues(
+                        channelIndices, [startValue, endValue, 1]);
+                  },
+                  child: Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: iconColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: iconColor, width: 30),
                         ),
                       ),
-                    ),
-                  ],
+                      Positioned.fill(
+                        child: Center(
+                          child: SvgPicture.asset(
+                            'assets/icons/config_eeg_off.svg',
+                            width: 60,
+                            height: 60,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              SizedBox(
-                height: 5,
-              ),
-              Text("EEG", style: TextStyle(fontSize: 14, color: Colors.white)),
-              SizedBox(
-                height: 3,
-              ),
-              Text(
-                "Brainwaves",
-                style: TextStyle(color: Color(0xFF707070), fontSize:sublabelFontSize),
-              ),
-              getSelectedNotchWidget(isSelected, iconColor),
-            ],
-          )
-        );
-      break;
+                SizedBox(
+                  height: 5,
+                ),
+                Text("EEG",
+                    style: TextStyle(fontSize: 14, color: Colors.white)),
+                SizedBox(
+                  height: 3,
+                ),
+                Text(
+                  "Brainwaves",
+                  style: TextStyle(
+                      color: Color(0xFF707070), fontSize: sublabelFontSize),
+                ),
+                getSelectedNotchWidget(isSelected, iconColor),
+              ],
+            ));
+        break;
       case "EMG":
         Color? iconColor = isSelected ? Color(0xFFffc600) : Color(0xFF585858);
-        print("EMG ICON COLOR: $iconColor -- $isSelected || S : $s ++ SerialUsageType : $serialUsageType");
+        print(
+            "EMG ICON COLOR: $iconColor -- $isSelected || S : $s ++ SerialUsageType : $serialUsageType");
         return Container(
-          padding: EdgeInsets.fromLTRB(10, 10, 10, 10 ),
-          margin: EdgeInsets.fromLTRB(10, 0, 10, 10 ),
-          decoration: BoxDecoration(
-            color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child:Column(
-          children: [
-            GestureDetector(
-              onTap: () {
-                print("DETECTOR EMG");
-                serialUsageType = "EMG";
-                arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
-                startValue = 70;
-                endValue = 2500;
-                setupFilterValues(channelIndices, [startValue, endValue, 2]);
-              },
-              child: Stack(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: iconColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: iconColor, width: 30),
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'assets/icons/config_emg_off.svg',
-                        width: 60,
-                        height: 60,
+            padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+            margin: EdgeInsets.fromLTRB(10, 0, 10, 10),
+            decoration: BoxDecoration(
+              color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    print("DETECTOR EMG");
+                    serialUsageType = "EMG";
+                    arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
+                    startValue = 70;
+                    endValue = 2500;
+                    setupFilterValues(
+                        channelIndices, [startValue, endValue, 2]);
+                  },
+                  child: Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: iconColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: iconColor, width: 30),
+                        ),
                       ),
-                    ),
+                      Positioned.fill(
+                        child: Center(
+                          child: SvgPicture.asset(
+                            'assets/icons/config_emg_off.svg',
+                            width: 60,
+                            height: 60,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            SizedBox(
-              height: 5,
-            ),
-            Text(
-              "EMG",
-              style: TextStyle(fontSize: 16, color: Colors.white),
-            ),
-            SizedBox(
-              height: 3,
-            ),
-            Text(
-              "Muscle signals",
-              style: TextStyle(fontSize: sublabelFontSize, color: Color(0xFF707070)),
-            ),
-            getSelectedNotchWidget(isSelected, iconColor),
-          ],
-          )
-        );
-      break;
+                ),
+                SizedBox(
+                  height: 5,
+                ),
+                Text(
+                  "EMG",
+                  style: TextStyle(fontSize: 16, color: Colors.white),
+                ),
+                SizedBox(
+                  height: 3,
+                ),
+                Text(
+                  "Muscle signals",
+                  style: TextStyle(
+                      fontSize: sublabelFontSize, color: Color(0xFF707070)),
+                ),
+                getSelectedNotchWidget(isSelected, iconColor),
+              ],
+            ));
+        break;
       case "Plant":
         Color? iconColor = isSelected ? Color(0xFF00aa50) : Color(0xFF585858);
         return Container(
-          padding: EdgeInsets.fromLTRB(10, 10, 10, 10 ),
-          margin: EdgeInsets.fromLTRB(10, 0, 10, 20 ),
-          decoration: BoxDecoration(
-            color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child:
-          Column(
-            children: [
-              GestureDetector(
-                onTap: () {
-                  print("DETECTOR Plant");
-                  serialUsageType = "Plant";
-                  arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
-                  startValue = 0;
-                  endValue = 5;
-                  setupFilterValues(channelIndices, [startValue, endValue, 3]);
-                },
-                child: Stack(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: iconColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: iconColor, width: 30),
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: Center(
-                        child: SvgPicture.asset(
-                          'assets/icons/config_plant_off.svg',
-                          width: 60,
-                          height: 60,
+            padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+            margin: EdgeInsets.fromLTRB(10, 0, 10, 20),
+            decoration: BoxDecoration(
+              color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    print("DETECTOR Plant");
+                    serialUsageType = "Plant";
+                    arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
+                    startValue = 0;
+                    endValue = 5;
+                    setupFilterValues(
+                        channelIndices, [startValue, endValue, 3]);
+                  },
+                  child: Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: iconColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: iconColor, width: 30),
                         ),
                       ),
-                    ),
-                  ],
+                      Positioned.fill(
+                        child: Center(
+                          child: SvgPicture.asset(
+                            'assets/icons/config_plant_off.svg',
+                            width: 60,
+                            height: 60,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              SizedBox(
-                height: 5,
-              ),
-              Text(
-                "Plant",
-                style: TextStyle(fontSize: 16, color: Colors.white),
-              ),
-              SizedBox(
-                height: 3,
-              ),
-              Text(
-                "Plant signals",
-                style: TextStyle(fontSize: sublabelFontSize, color: Color(0xFF707070)),
-              ),
-              getSelectedNotchWidget(isSelected, iconColor),
-            ],
-          )
-        );
-      break;
+                SizedBox(
+                  height: 5,
+                ),
+                Text(
+                  "Plant",
+                  style: TextStyle(fontSize: 16, color: Colors.white),
+                ),
+                SizedBox(
+                  height: 3,
+                ),
+                Text(
+                  "Plant signals",
+                  style: TextStyle(
+                      fontSize: sublabelFontSize, color: Color(0xFF707070)),
+                ),
+                getSelectedNotchWidget(isSelected, iconColor),
+              ],
+            ));
+        break;
       case "Neuron":
         Color? iconColor = isSelected ? Color(0xFFd205a5) : Color(0xFF585858);
         return Container(
-          padding: EdgeInsets.fromLTRB(10, 10, 10, 10 ),
-          margin: EdgeInsets.fromLTRB(10, 0, 10, 20 ),
-          decoration: BoxDecoration(
-            color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            children: [
-              GestureDetector(
-                onTap: () {
-                  print("DETECTOR Neuron");
-                  serialUsageType = "Neuron";
-                  arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
-                  startValue = 70;
-                  endValue = _sampleRate / 2;
-                  setupFilterValues(channelIndices, [startValue, endValue, 4]);
-                },
-                child: Stack(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: iconColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: iconColor, width: 30),
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: Center(
-                        child: SvgPicture.asset(
-                          'assets/icons/config_neuron_off.svg',
-                          width: 60,
-                          height: 60,
+            padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+            margin: EdgeInsets.fromLTRB(10, 0, 10, 20),
+            decoration: BoxDecoration(
+              color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    print("DETECTOR Neuron");
+                    serialUsageType = "Neuron";
+                    arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
+                    startValue = 70;
+                    endValue = _sampleRate / 2;
+                    setupFilterValues(
+                        channelIndices, [startValue, endValue, 4]);
+                  },
+                  child: Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: iconColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: iconColor, width: 30),
                         ),
                       ),
-                    ),
-                  ],
+                      Positioned.fill(
+                        child: Center(
+                          child: SvgPicture.asset(
+                            'assets/icons/config_neuron_off.svg',
+                            width: 60,
+                            height: 60,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              SizedBox(
-                height: 5,
-              ),
-              Text(
-                "Neuron",
-                style: TextStyle(fontSize: 16, color: Colors.white),
-              ),
-              SizedBox(
-                height: 3,
-              ),
-              Text(
-                "Neuron signals",
-                style: TextStyle(fontSize: sublabelFontSize, color: Color(0xFF707070)),
-              ),
-              getSelectedNotchWidget(isSelected, iconColor),
-            ],
-          )
-        );
-      break;
+                SizedBox(
+                  height: 5,
+                ),
+                Text(
+                  "Neuron",
+                  style: TextStyle(fontSize: 16, color: Colors.white),
+                ),
+                SizedBox(
+                  height: 3,
+                ),
+                Text(
+                  "Neuron signals",
+                  style: TextStyle(
+                      fontSize: sublabelFontSize, color: Color(0xFF707070)),
+                ),
+                getSelectedNotchWidget(isSelected, iconColor),
+              ],
+            ));
+        break;
       case "Custom":
         Color? iconColor = isSelected ? Color(0xFFdbdbdb) : Color(0xFF707070);
         return Container(
-          padding: EdgeInsets.fromLTRB(10, 10, 10, 10 ),
-          margin: EdgeInsets.fromLTRB(10, 0, 10, 20 ),
-          decoration: BoxDecoration(
-            color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
+            padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+            margin: EdgeInsets.fromLTRB(10, 0, 10, 20),
+            decoration: BoxDecoration(
+              color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
               children: [
                 GestureDetector(
                   onTap: () {
@@ -5642,7 +5712,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     arrFilterUsageTypeChannel[channelIdx] = serialUsageType;
                     startValue = 70;
                     endValue = _sampleRate / 2;
-                    setupFilterValues(channelIndices, [startValue, endValue, 5]);
+                    setupFilterValues(
+                        channelIndices, [startValue, endValue, 5]);
                   },
                   child: Stack(
                     children: [
@@ -5677,12 +5748,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 Text(
                   "Set Range",
-                  style: TextStyle(fontSize: sublabelFontSize, color: Color(0xFF707070)),
+                  style: TextStyle(
+                      fontSize: sublabelFontSize, color: Color(0xFF707070)),
                 ),
                 getSelectedNotchWidget(isSelected, iconColor),
               ],
-            )
-        );
+            ));
       default:
         return Container();
     }
@@ -5691,7 +5762,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
   _mutingSpeakers() {
     bool isAudio = context.read<DataStatusProvider>().isMicrophoneData;
     var provider = context.read<ChannelFilterProvider>();
-    bool currentFilterEnabled = isAudio ? provider.getAudioFilter(customizeDetailChannelIdx) : provider.getSerialFilter(customizeDetailChannelIdx);
+    bool currentFilterEnabled = isAudio
+        ? provider.getAudioFilter(customizeDetailChannelIdx)
+        : provider.getSerialFilter(customizeDetailChannelIdx);
     return Container(
       margin: EdgeInsets.only(top: 10),
       padding: EdgeInsets.all(10),
@@ -5702,31 +5775,31 @@ class _GraphTemplateState extends State<GraphTemplate> {
       child: Row(
         children: [
           Checkbox(
-            value: isSpeakerChannelMuted[customizeDetailChannelIdx], 
-            onChanged: (flag) {
-              if (flag != null) {
-                isSpeakerChannelMuted[customizeDetailChannelIdx] = flag;
-              }
-              setState(() {});
-            }
-          ),
+              value: isSpeakerChannelMuted[customizeDetailChannelIdx],
+              onChanged: (flag) {
+                if (flag != null) {
+                  isSpeakerChannelMuted[customizeDetailChannelIdx] = flag;
+                }
+                setState(() {});
+              }),
           SizedBox(width: 5),
           Icon(CupertinoIcons.speaker_2, color: Colors.white),
           SizedBox(width: 5),
           Text("Mute Speakers", style: TextStyle(color: Colors.white)),
           Spacer(),
-          Checkbox(value: currentFilterEnabled, onChanged: (flag) async{
-            int idx = customizeDetailChannelIdx;
-            if (isAudio) {
-              provider.setAudioFilter(idx, !currentFilterEnabled);
-            } else {
-              provider.setSerialFilter(idx, !currentFilterEnabled);
-              print("setSerialFilter: $idx | ${!currentFilterEnabled}");
-            }
-            await processingUtil.setChannelFilterEnabled(idx, isAudio);
-            setState(() {});
-
-          }),
+          Checkbox(
+              value: currentFilterEnabled,
+              onChanged: (flag) async {
+                int idx = customizeDetailChannelIdx;
+                if (isAudio) {
+                  provider.setAudioFilter(idx, !currentFilterEnabled);
+                } else {
+                  provider.setSerialFilter(idx, !currentFilterEnabled);
+                  print("setSerialFilter: $idx | ${!currentFilterEnabled}");
+                }
+                await processingUtil.setChannelFilterEnabled(idx, isAudio);
+                setState(() {});
+              }),
           SizedBox(width: 5),
           Icon(Icons.filter_alt_outlined, color: Colors.white),
           Text("Channel Filter", style: TextStyle(color: Colors.white)),
@@ -5814,7 +5887,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       ),
     );
   }
-  
+
   void serialWebButtonPressed() async {
     if (_isSerialWebButtonEnabled) {
       _isSerialWebButtonEnabled = false;
@@ -5831,11 +5904,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
     _isSerialWebButtonEnabled = true;
     try {
-      int baudRate =
-          context.read<ConstantProvider>().getBaudRate();
+      int baudRate = context.read<ConstantProvider>().getBaudRate();
       print("getAvailablePorts: $baudRate");
-      List<String> availablePorts = await _serialUtil
-          .getAvailablePortsWeb(baudRate, serialErrorCallback);
+      List<String> availablePorts =
+          await _serialUtil.getAvailablePortsWeb(baudRate, serialErrorCallback);
       if (availablePorts.isEmpty) {
         _isSerialWebButtonEnabled = false;
         return;
@@ -5858,17 +5930,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (!mounted) return;
       Provider.of<PortScanProvider>(context, listen: false)
           .setPortScanList(_availablePorts);
-      context
-          .read<DataStatusProvider>()
-          .setMicrophoneDataStatus(false);
+      context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
 
       if (!mounted) return;
-      bool dummyDataStatus =
-          context.read<DataStatusProvider>().isSampleDataOn;
-      bool isAudioListen =
-          context.read<DataStatusProvider>().isMicrophoneData;
-      final provider =
-          Provider.of<GraphDataProvider>(context, listen: false);
+      bool dummyDataStatus = context.read<DataStatusProvider>().isSampleDataOn;
+      bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+      final provider = Provider.of<GraphDataProvider>(context, listen: false);
       print(
           "_serialUtil.dataStream $isAudioListen $dummyDataStatus | $_isDataIdentified $isDeviceSelected");
       isDeviceConnect = true;
@@ -5876,44 +5943,37 @@ class _GraphTemplateState extends State<GraphTemplate> {
       _isDataIdentified = false;
       streamScrubBuilderController.add(Random().nextInt(100000));
 
-      serialDataSubscription =
-          _serialUtil.dataStream?.listen((event) async {
+      serialDataSubscription = _serialUtil.dataStream?.listen((event) async {
         if (isOpeningFile) {
           return;
         }
         if (!dummyDataStatus && !isAudioListen) {
           arr = [processingUtil.thresholdingArraylength];
 
-          int drawSurfaceWidth =
-              MediaQuery.of(context).size.width.toInt();
+          int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
           if (isDeviceConnect) {
             _serialUtil.writeToPort(
-                bytesMessage:
-                    UsbCommand.hwTypeInquiry.cmdAsBytes(),
+                bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
                 address: _availablePorts.last);
             isDeviceConnect = false;
           }
           if (_isDataIdentified) {
             if (!GraphTemplate.isPlayerPaused) {
               processingUtil
-                  .processSerialData(event, displayTimeMs.toInt(),
-                      deviceType, drawSurfaceWidth, provider)
+                  .processSerialData(event, displayTimeMs.toInt(), deviceType,
+                      drawSurfaceWidth, provider)
                   .then((samples) {
                 totalSampleCount += samples[0].length;
                 if (totalSampleCount > sampleCountToDisplay) {
                   totalSampleCount = 0;
                   if (isThresholdingButton) {
-                    double displayTimeDivision =
-                        (displayTimeMs / 10000);
-                    double gap =
-                        (arr[0] * (1 - displayTimeDivision));
+                    double displayTimeDivision = (displayTimeMs / 10000);
+                    double gap = (arr[0] * (1 - displayTimeDivision));
                     int maxSamples =
-                        (ProcessingUtil.MAX_DISPLAY_SECONDS *
-                                _sampleRate)
+                        (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
                             .floor();
                     int toSample = maxSamples - (gap / 2).floor();
-                    int fromSample =
-                        toSample - arr[0] + (gap).floor();
+                    int fromSample = toSample - arr[0] + (gap).floor();
                     DraggableGraph.startPositionIdx = fromSample;
                     DraggableGraph.endPositionIdx = toSample;
 
@@ -5926,12 +5986,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         toSample);
                   } else {
                     int maxSamples =
-                        (ProcessingUtil.MAX_DISPLAY_SECONDS *
-                                _sampleRate)
+                        (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
                             .floor();
                     int maxDisplaySamples =
-                        (displayTimeMs * 0.001 * _sampleRate)
-                            .floor();
+                        (displayTimeMs * 0.001 * _sampleRate).floor();
                     DraggableGraph.startPositionIdx =
                         maxSamples - maxDisplaySamples;
                     DraggableGraph.endPositionIdx = maxSamples;
@@ -5961,27 +6019,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   totalSampleCount = 0;
 
                   int maxSamples =
-                      (ProcessingUtil.MAX_DISPLAY_SECONDS *
-                              _sampleRate)
+                      (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
                           .floor();
-                  int toSample =
-                      (maxSamples + bufferPaddingLeft).toInt();
+                  int toSample = (maxSamples + bufferPaddingLeft).toInt();
                   toSample = min(maxSamples, toSample);
-                  int fromSample = (toSample -
-                          displayTimeMs * 0.001 * _sampleRate)
-                      .toInt();
+                  int fromSample =
+                      (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
                   DraggableGraph.startPositionIdx = fromSample;
                   DraggableGraph.endPositionIdx = toSample;
 
                   // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
                   if (isThresholdingButton) {
-                    double displayTimeDivision =
-                        (displayTimeMs / 10000);
-                    double gap =
-                        (arr[0] * (1 - displayTimeDivision));
+                    double displayTimeDivision = (displayTimeMs / 10000);
+                    double gap = (arr[0] * (1 - displayTimeDivision));
                     toSample = maxSamples - (gap / 2).floor();
-                    fromSample =
-                        toSample - arr[0] + (gap).floor();
+                    fromSample = toSample - arr[0] + (gap).floor();
                     processingUtil.processDisplaySerialData(
                         displayTimeMs.toInt(),
                         deviceType,
@@ -6013,31 +6065,26 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 Uint8List commandBytes =
                     Uint8List.fromList(utf8.encode("board:;"));
                 _serialUtil.writeToPort(
-                    bytesMessage: commandBytes,
-                    address: _availablePorts.last);
+                    bytesMessage: commandBytes, address: _availablePorts.last);
               });
               // STEVE
               // processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((sampleCount) {
               //   totalSampleCount += sampleCount;
               processingUtil
-                  .processSerialData(event, displayTimeMs.toInt(),
-                      deviceType, drawSurfaceWidth, provider)
+                  .processSerialData(event, displayTimeMs.toInt(), deviceType,
+                      drawSurfaceWidth, provider)
                   .then((samples) {
                 totalSampleCount += samples[0].length;
                 if (totalSampleCount > sampleCountToDisplay) {
                   totalSampleCount = 0;
                   if (isThresholdingButton) {
-                    double displayTimeDivision =
-                        (displayTimeMs / 10000);
-                    double gap =
-                        (arr[0] * (1 - displayTimeDivision));
+                    double displayTimeDivision = (displayTimeMs / 10000);
+                    double gap = (arr[0] * (1 - displayTimeDivision));
                     int maxSamples =
-                        (ProcessingUtil.MAX_DISPLAY_SECONDS *
-                                _sampleRate)
+                        (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
                             .floor();
                     int toSample = maxSamples - (gap / 2).floor();
-                    int fromSample =
-                        toSample - arr[0] + (gap).floor();
+                    int fromSample = toSample - arr[0] + (gap).floor();
                     DraggableGraph.startPositionIdx = fromSample;
                     DraggableGraph.endPositionIdx = toSample;
                     processingUtil.processDisplaySerialData(
@@ -6049,12 +6096,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         toSample);
                   } else {
                     int maxSamples =
-                        (ProcessingUtil.MAX_DISPLAY_SECONDS *
-                                _sampleRate)
+                        (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
                             .floor();
                     int maxDisplaySamples =
-                        (displayTimeMs * 0.001 * _sampleRate)
-                            .floor();
+                        (displayTimeMs * 0.001 * _sampleRate).floor();
                     DraggableGraph.startPositionIdx =
                         maxSamples - maxDisplaySamples;
                     DraggableGraph.endPositionIdx = maxSamples;
@@ -6083,8 +6128,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           isDeviceConnect = false;
           isDeviceSelected = false;
           _isDataIdentified = false;
-          streamScrubBuilderController
-              .add(Random().nextInt(100000));
+          streamScrubBuilderController.add(Random().nextInt(100000));
           listenToMicrophone(1, provider);
         });
         // }
@@ -6093,16 +6137,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
     } catch (e) {
       Debugging.printing("Opening port failed:\n$e");
     }
-    setState(() {});    
+    setState(() {});
   }
 
   onTriggerDisconnect(String p1) {
-    // if (p1 == "") { 
+    // if (p1 == "") {
     //   return;
     // }
 
-    final provider =
-        Provider.of<GraphDataProvider>(context, listen: false);
+    final provider = Provider.of<GraphDataProvider>(context, listen: false);
 
     forceSerialDisconnect = true;
     print("SERIAL PORT ERROR -- DISCONNECTED");
@@ -6113,16 +6156,19 @@ class _GraphTemplateState extends State<GraphTemplate> {
       isDeviceConnect = false;
       isDeviceSelected = false;
       _isDataIdentified = false;
-      streamScrubBuilderController
-          .add(Random().nextInt(100000));
+      streamScrubBuilderController.add(Random().nextInt(100000));
       listenToMicrophone(1, provider);
     });
-
   }
-  
+
   getTabbedViewChildren(int idx) {
-    print("customSliderBarArray.length -1 >= idx : ${customSliderBarArray.length} >= $idx");
-    double? maxBoxWidth = kIsWeb? 600 : Platform.isIOS || Platform.isAndroid ? 500 : 600;
+    print(
+        "customSliderBarArray.length -1 >= idx : ${customSliderBarArray.length} >= $idx");
+    double? maxBoxWidth = kIsWeb
+        ? 600
+        : Platform.isIOS || Platform.isAndroid
+            ? 500
+            : 600;
     return Container(
       padding: EdgeInsets.fromLTRB(20, 0, 20, 0),
       child: Column(
@@ -6137,72 +6183,72 @@ class _GraphTemplateState extends State<GraphTemplate> {
             //   constraints: BoxConstraints(
             //     maxWidth: maxBoxWidth,
             //   ),
-              child: Column(
-                mainAxisSize:
-                    MainAxisSize.max, // Vital for scrolling
-                children: [
-                  SizedBox(height: 0),
-                  _predefinedFilterSettings(idx),
-                  // _mutingSpeakers(),
-                  // if (customSliderBarArray.length -1 >= idx) ... [
-                  if (serialUsageType == "Custom") ... [
-                    // Text("ABCDEFGHIJ --- $idx"),
-                    Container(
+            child: Column(
+              mainAxisSize: MainAxisSize.max, // Vital for scrolling
+              children: [
+                SizedBox(height: 0),
+                _predefinedFilterSettings(idx),
+                // _mutingSpeakers(),
+                // if (customSliderBarArray.length -1 >= idx) ... [
+                if (serialUsageType == "Custom") ...[
+                  // Text("ABCDEFGHIJ --- $idx"),
+                  Container(
+                    color: Color(0xFF2e2e2e),
+                    padding: EdgeInsets.fromLTRB(10, 0, 10, 0),
+                    child: Divider(
+                      thickness: 1,
+                      color: Color(0x28707070),
+                    ),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
                       color: Color(0xFF2e2e2e),
-                      padding: EdgeInsets.fromLTRB(10,0,10,0),
-                      child: Divider(
-                        thickness: 1,
-                        color: Color(0x28707070),
+                      borderRadius: BorderRadius.only(
+                        bottomLeft: Radius.circular(16),
+                        bottomRight: Radius.circular(16),
                       ),
                     ),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Color(0xFF2e2e2e),
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(16),
-                          bottomRight: Radius.circular(16),
-                        ),
-                      ),
-                      // width: maxBoxWidth,
-                      child: customSliderBarArray[idx],
-                    ),
-                    
-                    // CustomSliderBarButton(
-                    //   readOnly: true,
-                    //   sliderValue: customSliderBarArray[idx].sliderValue, startValue: customSliderBarArray[idx].startValue, endValue: customSliderBarArray[idx].endValue, processingUtil: processingUtil, 
-                    //   onHighPassFilterSetup: (FilterSetup filterSetup) {}, onLowPassFilterSetup: (FilterSetup filterSetup) {}, onSampleChange: (bool isSampleDataOn) {}, 
-                    //   isMicrophoneEnable: (bool isMicrophoneEnable) {
-                    //     context
-                    //         .read<DataStatusProvider>()
-                    //         .setMicrophoneDataStatus(
-                    //             isMicrophoneEnable);
-                    //   },
-                    //   channelIdx: customSliderBarArray[idx].channelIdx, channelCount: customSliderBarArray[idx].channelCount)
-                  ] else ... [
+                    // width: maxBoxWidth,
+                    child: customSliderBarArray[idx],
+                  ),
 
-                  ],
-    
-    
-
-                ],
-              ),
+                  // CustomSliderBarButton(
+                  //   readOnly: true,
+                  //   sliderValue: customSliderBarArray[idx].sliderValue, startValue: customSliderBarArray[idx].startValue, endValue: customSliderBarArray[idx].endValue, processingUtil: processingUtil,
+                  //   onHighPassFilterSetup: (FilterSetup filterSetup) {}, onLowPassFilterSetup: (FilterSetup filterSetup) {}, onSampleChange: (bool isSampleDataOn) {},
+                  //   isMicrophoneEnable: (bool isMicrophoneEnable) {
+                  //     context
+                  //         .read<DataStatusProvider>()
+                  //         .setMicrophoneDataStatus(
+                  //             isMicrophoneEnable);
+                  //   },
+                  //   channelIdx: customSliderBarArray[idx].channelIdx, channelCount: customSliderBarArray[idx].channelCount)
+                ] else
+                  ...[],
+              ],
+            ),
             // ),
           ),
         ],
       ),
     );
   }
-  
+
   void createTabBarConfiguration(channelCount, provider) {
     print("CreateTabBarConfiguration : $channelCount");
-    channelTabTheme = TabbedViewThemeData.classic(borderColor: Color(0xFF222222));
-    // channelTabTheme?.tab.closeIcon = IconProvider.data(IconData(0x0000, fontFamily: "IcomoonIcons"));  
-    // channelTabTheme?.tab.hoverButtonColor = Colors.transparent; 
-    channelTabTheme?.contentArea.decoration = BoxDecoration(color: Color(0xFF222222));
+    channelTabTheme =
+        TabbedViewThemeData.classic(borderColor: Color(0xFF222222));
+    // channelTabTheme?.tab.closeIcon = IconProvider.data(IconData(0x0000, fontFamily: "IcomoonIcons"));
+    // channelTabTheme?.tab.hoverButtonColor = Colors.transparent;
+    channelTabTheme?.contentArea.decoration =
+        BoxDecoration(color: Color(0xFF222222));
 
     // channelTabTheme?.tab.buttonPadding = EdgeInsets.zero;
     TabStatusThemeData selectedStatusTheme = TabStatusThemeData(
-      decoration: BoxDecoration(borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)), color: Color(0xFF2e2e2e) ),
+      decoration: BoxDecoration(
+          borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+          color: Color(0xFF2e2e2e)),
       fontColor: Colors.white,
       margin: EdgeInsets.only(left: 30, right: 10),
       padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -6213,14 +6259,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // color: Color(0xFF2D2D2D), // Dark grey from your image
     );
     TabStatusThemeData normalStatusTheme = TabStatusThemeData(
-      decoration: BoxDecoration(borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)), color: Color(0xFF181818) ),
+      decoration: BoxDecoration(
+          borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+          color: Color(0xFF181818)),
       fontColor: Colors.white,
       margin: EdgeInsets.only(left: 30, right: 10),
       padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       paddingWithoutButton: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
     );
     // channelTabs = [
-    //   TabData(text: '   1   ', selectedStatusTheme: selectedStatusTheme, normalStatusTheme: normalStatusTheme, highlightedStatusTheme: normalStatusTheme, draggable: false, closable: false, 
+    //   TabData(text: '   1   ', selectedStatusTheme: selectedStatusTheme, normalStatusTheme: normalStatusTheme, highlightedStatusTheme: normalStatusTheme, draggable: false, closable: false,
     //     content: ClipRRect(
     //       borderRadius: BorderRadius.all(Radius.circular(16)),
     //       clipBehavior: Clip.antiAlias,
@@ -6232,22 +6281,29 @@ class _GraphTemplateState extends State<GraphTemplate> {
     //     // content: Container(color: Color(0xFF222222), child: Center(child: Text("123123123")))
 
     //   ),
-    //   // TabData(text: '   2   ', selectedStatusTheme: selectedStatusTheme, normalStatusTheme: normalStatusTheme, highlightedStatusTheme: normalStatusTheme, draggable: false, closable: false, 
+    //   // TabData(text: '   2   ', selectedStatusTheme: selectedStatusTheme, normalStatusTheme: normalStatusTheme, highlightedStatusTheme: normalStatusTheme, draggable: false, closable: false,
     //   //   content: Container(color: Color(0xFF222222), child: Center(child: Text("123123123")))
     //   // ),
     // ];
     channelTabs.clear();
     for (int idx = 0; idx < channelCount; idx++) {
-      channelTabs.add(TabData(text: '   ${idx + 1}   ', selectedStatusTheme: selectedStatusTheme, normalStatusTheme: normalStatusTheme, highlightedStatusTheme: normalStatusTheme, draggable: false, closable: false, 
-        content: ClipRRect(
-          borderRadius: BorderRadius.all(Radius.circular(16)),
-          clipBehavior: Clip.antiAlias,
-          // child: Container(color: Color(0xFF2e2e2e), child: Center(child: getTabbedViewChildren(idx))),
-          child: Container(color: Color(0xFF2e2e2e), child: Center(child: getTabbedViewChildren(idx))),
-        )
-      ));
+      channelTabs.add(TabData(
+          text: '   ${idx + 1}   ',
+          selectedStatusTheme: selectedStatusTheme,
+          normalStatusTheme: normalStatusTheme,
+          highlightedStatusTheme: normalStatusTheme,
+          draggable: false,
+          closable: false,
+          content: ClipRRect(
+            borderRadius: BorderRadius.all(Radius.circular(16)),
+            clipBehavior: Clip.antiAlias,
+            // child: Container(color: Color(0xFF2e2e2e), child: Center(child: getTabbedViewChildren(idx))),
+            child: Container(
+                color: Color(0xFF2e2e2e),
+                child: Center(child: getTabbedViewChildren(idx))),
+          )));
     }
-    _channelTabController = TabbedViewController(channelTabs);        
+    _channelTabController = TabbedViewController(channelTabs);
   }
 
   Widget getIconFilterWidget(String serialType, bool isSelected) {
@@ -6255,44 +6311,49 @@ class _GraphTemplateState extends State<GraphTemplate> {
     Color iconColor = Colors.transparent;
     if (serialType == "EMG") {
       iconColor = isSelected ? Color(0xFFffc600) : Color(0xFF585858);
-      iconWidget = SvgPicture.asset('assets/icons/config_emg_off.svg', width: 60, height: 60);
+      iconWidget = SvgPicture.asset('assets/icons/config_emg_off.svg',
+          width: 60, height: 60);
     } else if (serialType.toUpperCase() == "ECG") {
       iconColor = isSelected ? Color(0xFFff805f) : Color(0xFF585858);
-      iconWidget = SvgPicture.asset('assets/icons/config_ecg_off.svg', width: 60, height: 60);
+      iconWidget = SvgPicture.asset('assets/icons/config_ecg_off.svg',
+          width: 60, height: 60);
     } else if (serialType.toUpperCase() == "Neuron") {
       iconColor = isSelected ? Color(0xFFd205a5) : Color(0xFF585858);
-      iconWidget = SvgPicture.asset('assets/icons/config_neuron_off.svg', width: 60, height: 60);
+      iconWidget = SvgPicture.asset('assets/icons/config_neuron_off.svg',
+          width: 60, height: 60);
     } else if (serialType.toUpperCase() == "EEG") {
       iconColor = isSelected ? Color(0xFF0093ff) : Color(0xFF585858);
-      iconWidget = SvgPicture.asset('assets/icons/config_eeg_off.svg', width: 60, height: 60);
+      iconWidget = SvgPicture.asset('assets/icons/config_eeg_off.svg',
+          width: 60, height: 60);
     } else if (serialType.toUpperCase() == "PLANT") {
       iconColor = isSelected ? Color(0xFF00aa50) : Color(0xFF585858);
-      iconWidget = SvgPicture.asset('assets/icons/config_plant_off.svg', width: 60, height: 60);
+      iconWidget = SvgPicture.asset('assets/icons/config_plant_off.svg',
+          width: 60, height: 60);
     } else if (serialType.toUpperCase() == "CUSTOM") {
       iconColor = isSelected ? Color(0xFFDBDBDB) : Color(0xFF707070);
-      iconWidget = SvgPicture.asset('assets/icons/config_plant_off.svg', width: 60, height: 60);
+      iconWidget = SvgPicture.asset('assets/icons/config_plant_off.svg',
+          width: 60, height: 60);
     }
     return Padding(
-      padding: const EdgeInsets.all(15.0), 
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: iconColor,
-              shape: BoxShape.circle,
-              border: Border.all(color: iconColor, width: 30),
+        padding: const EdgeInsets.all(15.0),
+        child: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: iconColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: iconColor, width: 30),
+              ),
             ),
-          ),
-          Positioned(
-            top: 0,
-            right: 10,
-            child: iconWidget,
-          ),
-        ],
-      )
-    );
+            Positioned(
+              top: 0,
+              right: 10,
+              child: iconWidget,
+            ),
+          ],
+        ));
   }
-  
+
   // buildPredefinedFilter(int channelIdx, String serialType) {
   //   // bool isSelected = serialUsageType.contains(serialType);
   //   bool isSelected = true;
@@ -6310,7 +6371,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   //       children: [
   //         Text(serialType, style: TextStyle(fontSize: 16, color: Colors.white)),
   //         Text("Heartbeats", style: TextStyle(fontSize: 12, color: Color(0xFF707070))),
-      
+
   //       ],
   //     ),
   //     Spacer(),
@@ -6336,8 +6397,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   //             .setEndValue(customSliderBarArray[customizeDetailChannelIdx].endValue, customizeDetailChannelIdx);
 
   //           setState(() {});
-            
-  //         }, 
+
+  //         },
   //         child: Text("SETUP CHANNEL", style: TextStyle(color: Colors.white)),
   //       ),
   //     ),
@@ -6616,10 +6677,10 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
                           child: Center(
                             child: Container(
                               decoration: BoxDecoration(
-                                color: Colors.black,
-                                borderRadius: BorderRadius.circular(16)
-                              ),
-                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                  color: Colors.black,
+                                  borderRadius: BorderRadius.circular(16)),
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 4),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -6627,9 +6688,8 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
                                     width: 16,
                                     height: 16,
                                     decoration: BoxDecoration(
-                                      color: Colors.red,
-                                      borderRadius: BorderRadius.circular(8)
-                                    ),
+                                        color: Colors.red,
+                                        borderRadius: BorderRadius.circular(8)),
                                   ),
                                   SizedBox(width: 8),
                                   Text(
@@ -6873,13 +6933,13 @@ class _GraphAreaState extends State<_GraphArea> {
 }
 
 class _PortsArea extends StatelessWidget {
-  const _PortsArea(
-      {required this.deviceName,
-      required this.availablePorts,
-      required this.onReceive,
-      required this.onWrite,
-      required this.onTriggerDisconnect,
-      });
+  const _PortsArea({
+    required this.deviceName,
+    required this.availablePorts,
+    required this.onReceive,
+    required this.onWrite,
+    required this.onTriggerDisconnect,
+  });
 
   final ValueNotifier<String?> deviceName;
   final List<String> availablePorts;
@@ -6910,7 +6970,7 @@ class _PortsArea extends StatelessWidget {
                   'assets/icons/config_board.svg',
                   width: 20,
                   height: 20,
-                ),              
+                ),
                 // child: Icon(
                 //   const IconData(0xe90e, fontFamily: "IcomoonIcons"),
                 //   color: Colors.white,
@@ -6928,7 +6988,11 @@ class _PortsArea extends StatelessWidget {
                   height: 40,
                   padding: const EdgeInsets.fromLTRB(0, 10, 0, 0),
                   // child: Text("address", style: SoftwareTextStyle().kWtMediumTextStyle),
-                  child: DarkDropdown(kIsWeb: kIsWeb, availablePorts: availablePorts, onPortSelected: onPortSelected, valueListenable: deviceName),
+                  child: DarkDropdown(
+                      kIsWeb: kIsWeb,
+                      availablePorts: availablePorts,
+                      onPortSelected: onPortSelected,
+                      valueListenable: deviceName),
                 ),
               ),
               // Flexible(
@@ -6944,24 +7008,27 @@ class _PortsArea extends StatelessWidget {
               //   ),
               // ),
 
-              kIsWeb? Container() : Container(
-                padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: SoftwareColors.kButtonBackGroundColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              kIsWeb
+                  ? Container()
+                  : Container(
+                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              SoftwareColors.kButtonBackGroundColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          "DISCONNECT",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        onPressed: () {
+                          onTriggerDisconnect(deviceName.value ?? "");
+                        },
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    "DISCONNECT",
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  onPressed: () {
-                    onTriggerDisconnect(deviceName.value ?? "");
-                  },
-                ),
-              ),
             ],
           ),
           // ValueListenableBuilder<String?>(
@@ -7011,7 +7078,7 @@ class _PortsArea extends StatelessWidget {
     //         1, provider);
     //   }
     //   // final provider = Provider.of<GraphDataProvider>(context, listen: false);
-    // });    
+    // });
   }
 }
 

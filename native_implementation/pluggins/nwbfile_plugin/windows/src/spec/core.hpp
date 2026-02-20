@@ -7,6 +7,8 @@
 namespace AQNWB::SPEC::CORE
 {
 
+const std::string namespaceName = "core";
+
 const std::string version = "2.7.0";
 
 constexpr std::string_view nwb_base = R"delimiter(

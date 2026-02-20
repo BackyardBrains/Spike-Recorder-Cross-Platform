@@ -16,6 +16,7 @@
 #include "ecephys/ElectricalSeries.hpp"
 #include "ecephys/SpikeEventSeries.hpp"
 #include "file/ElectrodeGroup.hpp"
+#include "file/ElectrodesTable.hpp"
 #include "misc/AnnotationSeries.hpp"
 #include "../spec/core.hpp"
 #include "../spec/hdmf_common.hpp"
@@ -53,7 +54,7 @@ Status NWBFile::initialize(const std::string& identifierText,
   if (!m_io->isOpen()) {
     return Status::Failure;
   }
-  std::string currentTime = AQNWB::getCurrentTime();
+  std::string currentTime = getCurrentTime();
   // use the current time if sessionStartTime is empty
   std::string useSessionStartTime =
       (!sessionStartTime.empty()) ? sessionStartTime : currentTime;
@@ -62,12 +63,12 @@ Status NWBFile::initialize(const std::string& identifierText,
       ? timestampsReferenceTime
       : currentTime;
   // check that sessionStartTime and timestampsReferenceTime are ISO8601
-  if (!AQNWB::isISO8601Date(useSessionStartTime)) {
+  if (!isISO8601Date(useSessionStartTime)) {
     std::cerr << "NWBFile::initialize sessionStartTime not in ISO8601 format: "
               << useSessionStartTime << std::endl;
     return Status::Failure;
   }
-  if (!AQNWB::isISO8601Date(useTimestampsReferenceTime)) {
+  if (!isISO8601Date(useTimestampsReferenceTime)) {
     std::cerr
         << "NWBFile::initialize timestampsReferenceTime not in ISO8601 format: "
         << useTimestampsReferenceTime << std::endl;
@@ -133,9 +134,13 @@ Status NWBFile::createFileStructure(const std::string& identifierText,
   if (!m_io->canModifyObjects()) {
     return Status::Failure;
   }
+
+  // Create the namespace, neurodata_type, and nwb_version attributes
   m_io->createCommonNWBAttributes(
       m_path, this->getNamespace(), this->getTypeName());
   m_io->createAttribute(AQNWB::SPEC::CORE::version, "/", "nwb_version");
+
+  // Create the top-level group structure of the NWB file
   m_io->createGroup("/acquisition");
   m_io->createGroup("/analysis");
   m_io->createGroup("/processing");
@@ -145,10 +150,11 @@ Status NWBFile::createFileStructure(const std::string& identifierText,
   m_io->createGroup("/general");
   m_io->createGroup("/general/devices");
   m_io->createGroup("/general/extracellular_ephys");
-
   if (dataCollection != "") {
     m_io->createStringDataSet("/general/data_collection", dataCollection);
   }
+
+  // Setup the specifications cache in the file
   m_io->createGroup("/specifications");
   m_io->createReferenceAttribute("/specifications", "/", ".specloc");
   cacheSpecifications(
@@ -159,6 +165,8 @@ Status NWBFile::createFileStructure(const std::string& identifierText,
   cacheSpecifications("hdmf-experimental",
                       AQNWB::SPEC::HDMF_EXPERIMENTAL::version,
                       AQNWB::SPEC::HDMF_EXPERIMENTAL::specVariables);
+
+  // Create additional required datasets
   std::vector<std::string> timeVec = {sessionStartTime};
   m_io->createStringDataSet("/file_create_date", timeVec);
   m_io->createStringDataSet("/session_description", description);
@@ -170,10 +178,12 @@ Status NWBFile::createFileStructure(const std::string& identifierText,
 }
 
 Status NWBFile::createElectrodesTable(
-    std::vector<Types::ChannelVector> recordingArrays)
+    std::vector<Types::ChannelVector> recordingArrays,
+    const std::string& deviceDescription,
+    const std::string& deviceManufacturer)
 {
-  std::unique_ptr<NWB::ElectrodeTable> electrodeTable =
-      std::make_unique<NWB::ElectrodeTable>(m_io);
+  std::unique_ptr<NWB::ElectrodesTable> electrodeTable =
+      std::make_unique<NWB::ElectrodesTable>(m_io);
   electrodeTable->initialize();
   for (const auto& channelVector : recordingArrays) {
     electrodeTable->addElectrodes(channelVector);
@@ -192,10 +202,14 @@ Status NWBFile::createElectrodesTable(
     // if it does not
     if (!m_io->objectExists(devicePath)) {
       NWB::Device device = NWB::Device(devicePath, m_io);
-      device.initialize("description", "unknown");
+      // Use provided device description and manufacturer, or defaults if empty
+      std::string desc = deviceDescription.empty() ? "description" : deviceDescription;
+      std::string manuf = deviceManufacturer.empty() ? "unknown" : deviceManufacturer;
+      device.initialize(desc, manuf);
 
       NWB::ElectrodeGroup elecGroup = NWB::ElectrodeGroup(electrodePath, m_io);
-      elecGroup.initialize("description", "unknown", device);
+      // Use device description for electrode group description, "unknown" for location
+      elecGroup.initialize(desc, manuf, device);
     }
   }
 
@@ -223,7 +237,7 @@ Status NWBFile::createElectricalSeries(
 
   // Setup electrode table if it was not yet created
   bool electrodeTableCreated =
-      m_io->objectExists(ElectrodeTable::electrodeTablePath);
+      m_io->objectExists(ElectrodesTable::electrodesTablePath);
   if (!electrodeTableCreated) {
     std::cerr << "NWBFile::createElectricalSeries requires an electrodes table "
                  "to be present"
@@ -276,7 +290,7 @@ Status NWBFile::createSpikeEventSeries(
 
   // Setup electrode table if it was not yet created
   bool electrodeTableCreated =
-      m_io->objectExists(ElectrodeTable::electrodeTablePath);
+      m_io->objectExists(ElectrodesTable::electrodesTablePath);
   if (!electrodeTableCreated) {
     std::cerr << "NWBFile::createElectricalSeries requires an electrodes table "
                  "to be present"

@@ -84,7 +84,42 @@ class _BybDropdownState extends State<BybDropdown> {
               width: 1,
             ),
           ),
-          child: Text("Choose the serial port device", style: TextStyle(color: Colors.white)),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: selectedValue,
+              hint: const Text(
+                "NO ITEMS",
+                style: TextStyle(
+                  color: Colors.white38, // Muted text color
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              dropdownColor: const Color(0xFF2C2C2C),
+              // 2. Customizing the arrow icons to match your image
+              icon: const Icon(
+                Icons.unfold_more, // This gives the up/down arrow look
+                color: Colors.white70,
+                size: 20,
+              ),
+              isExpanded: true, // Takes up full container width
+              items: dropdownItems,
+              // items: widget.availablePorts
+              //     .map((String value) {
+              //   return DropdownMenuItem<String>(
+              //     value: value,
+              //     child: Text(value, style: const TextStyle(color: Colors.white)),
+              //   );
+              // }).toList(),
+              onChanged: (newValue) {
+                setState(() {
+                  selectedValue = newValue;
+                  widget.onItemSelected(selectedValue ?? "");
+                });
+              },
+            ),
+          ),
         ),
       );
     }

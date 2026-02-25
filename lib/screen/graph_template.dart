@@ -86,11 +86,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
     "PLANTSS;",
     "MUSCLESS;",
     "HEARTSS;",
-    "HBLEOSB;",
-    "HUMANSB;",
     "MSBPCDC;",
-    "NSBPCDC;",
     "NRNSBPRO;",
+    "HUMANSB;", // 5
+    "MSBPCDC;",
     "HHIBOX;"
   ];
   List<String> _availablePorts = [];
@@ -1468,7 +1467,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                                               "thin") {
                                                             SpikerBoxUi
                                                                     .defaultStrokeWidth =
-                                                                0.5;
+                                                                0.75;
                                                           } else if (str
                                                                   .toLowerCase() ==
                                                               "medium") {
@@ -1480,6 +1479,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                                             SpikerBoxUi
                                                                 .defaultStrokeWidth = 2;
                                                           }
+                                                          _graphLineWidth.value = str;
                                                         },
                                                         valueListenable:
                                                             _graphLineWidth),
@@ -1513,7 +1513,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                                 onTriggerDisconnect,
                                             onReceive: (String add) async {},
                                             onWrite: (String add) async {
-                                              serialWebButtonPressed();
+                                              // serialWebButtonPressed();
                                             },
                                           );
                                         }),
@@ -1576,7 +1576,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.0.5',
+                                            'SpikeRecorder App ver. 2.0.6',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -3393,9 +3393,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
 
     print(
-        "END SETUP FILTER VALUES -- type: $type ||| $filterUsageTypeChannels");
+        "END SETUP FILTER VALUES -- type: $type ||| $filterUsageTypeChannels ____ DEVICE : ${selectedBoard?.uniqueName}");
     streamScrubBuilderController.add(Random().nextInt(100000));
-    if (selectedBoard?.uniqueName == "HUMANSB;") {
+    if (GraphTemplate.selectedBoard?.uniqueName == "HUMANSB") {
       switch (type) {
         case 0: // ECG
           setSerialHpf(false);
@@ -4473,9 +4473,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   GraphTemplate.selectedBoard = board;
                   _deviceName.value =
                       GraphTemplate.selectedBoard?.userFriendlyFullName;
-                  print("devices :   $devices");
                   // HARDCODE
-                  deviceType = listOfDevices.indexOf("$foundDevices;") + 1;
+                  deviceType = listOfDevices.indexOf("$foundDevices;");
+                  print("DEVICE devices :   $devices = VALUE: ${_deviceName.value} ==== device Type: $deviceType");
                   // (processingUtil as ProcessingUtilImpl).dispose();
                   // processingUtil = createProcessingUtil();
                   _sampleRate = int.parse(board.maxSampleRate!);
@@ -5361,10 +5361,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void setSerialGain(bool active) {
     String sstm;
     if (active) {
-      sstm = "gainon:2;gainon:1;\n";
+      sstm = "gainon:1;gainon:2;";
     } else {
-      sstm = "gainoff:2;gainoff:1;\n";
+      sstm = "gainoff:1;gainoff:2;";
     }
+    print("SSTM : $sstm");
     _serialUtil.writeToPort(
         bytesMessage: Uint8List.fromList(utf8.encode(sstm)),
         address: _availablePorts.last);
@@ -5386,8 +5387,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     switch (s) {
       case "ECG":
         Color? iconColor = isSelected ? Color(0xFFff805f) : Color(0xFF585858);
-        print(
-            "ECG ICON COLOR: $iconColor -- $isSelected || S : $s ++ SerialUsageType : $serialUsageType");
+        // print(
+        //     "ECG ICON COLOR: $iconColor -- $isSelected || S : $s ++ SerialUsageType : $serialUsageType");
         return Container(
             padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
             margin: EdgeInsets.fromLTRB(10, 0, 10, 20),
@@ -5511,8 +5512,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
         break;
       case "EMG":
         Color? iconColor = isSelected ? Color(0xFFffc600) : Color(0xFF585858);
-        print(
-            "EMG ICON COLOR: $iconColor -- $isSelected || S : $s ++ SerialUsageType : $serialUsageType");
+        // print(
+        //     "EMG ICON COLOR: $iconColor -- $isSelected || S : $s ++ SerialUsageType : $serialUsageType");
         return Container(
             padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
             margin: EdgeInsets.fromLTRB(10, 0, 10, 10),
@@ -6408,7 +6409,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   buildPredefinedFilter(int channelIdx, String serialType) {
     List<String> predefinedFilters = predefinedFiltersChannel[channelIdx];
-    print("predefinedFiltersChannel: $predefinedFilters");
+    // print("predefinedFiltersChannel: $predefinedFilters");
     List<Widget> widgets = [];
     if (predefinedFilters.length >= 0) {
       predefinedFilters = ["EMG", "ECG", "EEG", "Custom"];
@@ -6949,6 +6950,8 @@ class _PortsArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print("PORTS AREA");
+    // deviceName.value = Random().nextInt(1000000).toString();
     return Container(
       // margin: const EdgeInsets.fromLTRB(0, 10, 0, 0),
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
@@ -7010,25 +7013,25 @@ class _PortsArea extends StatelessWidget {
 
               kIsWeb
                   ? Container()
-                  : Container(
-                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              SoftwareColors.kButtonBackGroundColor,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          "DISCONNECT",
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        onPressed: () {
-                          onTriggerDisconnect(deviceName.value ?? "");
-                        },
-                      ),
-                    ),
+                  : Container(width:10,),
+                    //   padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                    //   child: ElevatedButton(
+                    //     style: ElevatedButton.styleFrom(
+                    //       backgroundColor:
+                    //           SoftwareColors.kButtonBackGroundColor,
+                    //       shape: RoundedRectangleBorder(
+                    //         borderRadius: BorderRadius.circular(12),
+                    //       ),
+                    //     ),
+                    //     child: Text(
+                    //       "DISCONNECT",
+                    //       style: TextStyle(color: Colors.white),
+                    //     ),
+                    //     onPressed: () {
+                    //       onTriggerDisconnect(deviceName.value ?? "");
+                    //     },
+                    //   ),
+                    // ),
             ],
           ),
           // ValueListenableBuilder<String?>(

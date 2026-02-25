@@ -20,7 +20,10 @@ class _DarkDropdownState extends State<DarkDropdown> {
   void initState() {
     super.initState();
     widget.valueListenable.removeListener(deviceListener);
+    String? temp = widget.valueListenable.value;
+    widget.valueListenable.value = "";
     widget.valueListenable.addListener(deviceListener);
+    widget.valueListenable.value = temp;
   }
 
   @override
@@ -30,7 +33,7 @@ class _DarkDropdownState extends State<DarkDropdown> {
   }
 
   void deviceListener() {
-    print("deviceListener: ${widget.valueListenable.value}");
+    print("DARK deviceListener: ${widget.valueListenable.value}");
     if (mounted) {
       setState(() {
         dropdownItems.clear();
@@ -41,7 +44,7 @@ class _DarkDropdownState extends State<DarkDropdown> {
           dropdownItems.add(DropdownMenuItem<String>(value: widget.valueListenable.value, child: Text(widget.valueListenable.value ?? "", style: const TextStyle(color: Colors.white))));
           selectedValue = widget.valueListenable.value;          
         }
-        print("dropdownItemsListener: $dropdownItems");
+        // print("DEVICE dropdownItemsListener: $dropdownItems");
       });
     }
   }
@@ -84,8 +87,8 @@ class _DarkDropdownState extends State<DarkDropdown> {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: selectedValue,
-          hint: const Text(
-            "NO DETECTED PORTS",
+          hint: Text(
+            "NO DETECTED PORTS ${selectedValue ?? ""}",
             style: TextStyle(
               color: Colors.white38, // Muted text color
               fontWeight: FontWeight.bold,

@@ -278,115 +278,230 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
       final drawSurfaceWidth = MediaQuery.of(context).size.width;
 
       widthOfScreen = MediaQuery.of(context).size.width;
-      
-      return Align(
-        alignment: const Alignment(0.8, 0.6),
-        child: SizedBox(
-          height: 50,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ValueListenableBuilder<double>(
-                valueListenable: lineWidthScaleNotifier, 
-                builder: (context, value, child) {
-                  print("Value: $value");
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          graphDataProvider.notifyZoomEvent(10);
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Color(0xFF707070)),
-                            color: Color(0xFFdbdbdb),
-                          ),
-                          child: Icon(Icons.remove, color: Color(0xFF707070), size: 16,)
-                        )
-                      ),
-                      SizedBox(width: 4),
+      if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+        return Positioned(
+          top: 10,
+          left: 0,
+          right: 0,
+          child: SizedBox(
+            height: 50,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                ValueListenableBuilder<double>(
+                  valueListenable: lineWidthScaleNotifier, 
+                  builder: (context, value, child) {
+                    print("Value: $value");
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            graphDataProvider.notifyZoomEvent(10);
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Color(0xFF707070)),
+                              color: Color(0xFFdbdbdb),
+                            ),
+                            child: Icon(Icons.remove, color: Color(0xFF707070), size: 16,)
+                          )
+                        ),
+                        SizedBox(width: 4),
 
-                      Container(
-                        height: 3,
-                        width: value,
-                        color: Colors.white,
-                      ),
-                      SizedBox(width: 4),
-                      GestureDetector(
-                        onTap: () {
-                          graphDataProvider.notifyZoomEvent(-10);
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Color(0xFF707070)),
-                            color: Color(0xFFdbdbdb),
-                          ),
-                          child: Icon(Icons.add, color: Color(0xFF707070), size: 16,)
-                        )
-                      ),
+                        Container(
+                          height: 3,
+                          width: value,
+                          color: Colors.white,
+                        ),
+                        SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () {
+                            graphDataProvider.notifyZoomEvent(-10);
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Color(0xFF707070)),
+                              color: Color(0xFFdbdbdb),
+                            ),
+                            child: Icon(Icons.add, color: Color(0xFF707070), size: 16,)
+                          )
+                        ),
 
-                    ],
-                  );
-                }
-              ),
-              StreamBuilder<double>(
-                stream: graphDataProvider.displayTimeStream,
-                initialData: 10000.0,
-                builder: (context, snapshot) {
-                  print("Stream builder: Display Time: ${snapshot.data}");
-                  if (snapshot.data != null && snapshot.data!.toDouble() == 10000.0) {
-                    TimeCalculateWidget.displayTimeMsLabel = 2000;
-                    double samplesPerMs = sampleRate / 1000;
-                    double samplesPerEnvelopePixel = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRate / drawSurfaceWidth;
-                    double lineWidthInSecond = ProcessingUtil.MAX_DISPLAY_SECONDS / 5;
-                    double samplesPerLineWidth = lineWidthInSecond * 1000 * samplesPerMs;
-                    double pixelsPerLineWidth = samplesPerLineWidth / samplesPerEnvelopePixel; // 800/ 5 = 160
-
-                    widthOfScale = pixelsPerLineWidth;
-                    TimeCalculateWidget.widthOfScale = pixelsPerLineWidth;
-                    Future.delayed(Duration(milliseconds: 100), () {
-                      lineWidthScaleNotifier.value = widthOfScale;
-                    });
-                    TimeCalculateWidget.prevDisplayTimeMsLabel = TimeCalculateWidget.displayTimeMsLabel;
-                    TimeCalculateWidget.prevWidthOfScale = TimeCalculateWidget.widthOfScale;
-
-                    return Text(
-                      "2s",
-                      style: SoftwareTextStyle().kWtMediumTextStyle,
+                      ],
                     );
-                  } else {
-                    String textLabel = calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth);
-                    return Text(
-                      textLabel,
-                      style: SoftwareTextStyle().kWtMediumTextStyle,
-                    );
-                    // return FutureBuilder(
-                    //   future: calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth), 
-                    //   builder: (context, futureSnapshot) {
-                    //     if (futureSnapshot.data == null) {
-                    //       return Text(
-                    //         "2s",
-                    //         style: SoftwareTextStyle().kWtMediumTextStyle,
-                    //       );
-                    //     }
-                        
-                    //     return Text(
-                    //       futureSnapshot.data as String,
-                    //       style: SoftwareTextStyle().kWtMediumTextStyle,
-                    //     );
-                    //   }
-                    // );
                   }
-                },
-              ),
-            ],
+                ),
+                StreamBuilder<double>(
+                  stream: graphDataProvider.displayTimeStream,
+                  initialData: 10000.0,
+                  builder: (context, snapshot) {
+                    print("Stream builder: Display Time: ${snapshot.data}");
+                    if (snapshot.data != null && snapshot.data!.toDouble() == 10000.0) {
+                      TimeCalculateWidget.displayTimeMsLabel = 2000;
+                      double samplesPerMs = sampleRate / 1000;
+                      double samplesPerEnvelopePixel = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRate / drawSurfaceWidth;
+                      double lineWidthInSecond = ProcessingUtil.MAX_DISPLAY_SECONDS / 5;
+                      double samplesPerLineWidth = lineWidthInSecond * 1000 * samplesPerMs;
+                      double pixelsPerLineWidth = samplesPerLineWidth / samplesPerEnvelopePixel; // 800/ 5 = 160
+
+                      widthOfScale = pixelsPerLineWidth;
+                      TimeCalculateWidget.widthOfScale = pixelsPerLineWidth;
+                      Future.delayed(Duration(milliseconds: 100), () {
+                        lineWidthScaleNotifier.value = widthOfScale;
+                      });
+                      TimeCalculateWidget.prevDisplayTimeMsLabel = TimeCalculateWidget.displayTimeMsLabel;
+                      TimeCalculateWidget.prevWidthOfScale = TimeCalculateWidget.widthOfScale;
+
+                      return Text(
+                        "2s",
+                        style: SoftwareTextStyle().kWtMediumTextStyle,
+                      );
+                    } else {
+                      String textLabel = calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth);
+                      return Text(
+                        textLabel,
+                        style: SoftwareTextStyle().kWtMediumTextStyle,
+                      );
+                      // return FutureBuilder(
+                      //   future: calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth), 
+                      //   builder: (context, futureSnapshot) {
+                      //     if (futureSnapshot.data == null) {
+                      //       return Text(
+                      //         "2s",
+                      //         style: SoftwareTextStyle().kWtMediumTextStyle,
+                      //       );
+                      //     }
+                          
+                      //     return Text(
+                      //       futureSnapshot.data as String,
+                      //       style: SoftwareTextStyle().kWtMediumTextStyle,
+                      //     );
+                      //   }
+                      // );
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
-      );
+        );
+
+      } else {
+        return Align(
+          alignment: const Alignment(0.8, 0.6),
+          child: SizedBox(
+            height: 50,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                ValueListenableBuilder<double>(
+                  valueListenable: lineWidthScaleNotifier, 
+                  builder: (context, value, child) {
+                    print("Value: $value");
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            graphDataProvider.notifyZoomEvent(10);
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Color(0xFF707070)),
+                              color: Color(0xFFdbdbdb),
+                            ),
+                            child: Icon(Icons.remove, color: Color(0xFF707070), size: 16,)
+                          )
+                        ),
+                        SizedBox(width: 4),
+
+                        Container(
+                          height: 3,
+                          width: value,
+                          color: Colors.white,
+                        ),
+                        SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () {
+                            graphDataProvider.notifyZoomEvent(-10);
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Color(0xFF707070)),
+                              color: Color(0xFFdbdbdb),
+                            ),
+                            child: Icon(Icons.add, color: Color(0xFF707070), size: 16,)
+                          )
+                        ),
+
+                      ],
+                    );
+                  }
+                ),
+                StreamBuilder<double>(
+                  stream: graphDataProvider.displayTimeStream,
+                  initialData: 10000.0,
+                  builder: (context, snapshot) {
+                    print("Stream builder: Display Time: ${snapshot.data}");
+                    if (snapshot.data != null && snapshot.data!.toDouble() == 10000.0) {
+                      TimeCalculateWidget.displayTimeMsLabel = 2000;
+                      double samplesPerMs = sampleRate / 1000;
+                      double samplesPerEnvelopePixel = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRate / drawSurfaceWidth;
+                      double lineWidthInSecond = ProcessingUtil.MAX_DISPLAY_SECONDS / 5;
+                      double samplesPerLineWidth = lineWidthInSecond * 1000 * samplesPerMs;
+                      double pixelsPerLineWidth = samplesPerLineWidth / samplesPerEnvelopePixel; // 800/ 5 = 160
+
+                      widthOfScale = pixelsPerLineWidth;
+                      TimeCalculateWidget.widthOfScale = pixelsPerLineWidth;
+                      Future.delayed(Duration(milliseconds: 100), () {
+                        lineWidthScaleNotifier.value = widthOfScale;
+                      });
+                      TimeCalculateWidget.prevDisplayTimeMsLabel = TimeCalculateWidget.displayTimeMsLabel;
+                      TimeCalculateWidget.prevWidthOfScale = TimeCalculateWidget.widthOfScale;
+
+                      return Text(
+                        "2s",
+                        style: SoftwareTextStyle().kWtMediumTextStyle,
+                      );
+                    } else {
+                      String textLabel = calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth);
+                      return Text(
+                        textLabel,
+                        style: SoftwareTextStyle().kWtMediumTextStyle,
+                      );
+                      // return FutureBuilder(
+                      //   future: calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth), 
+                      //   builder: (context, futureSnapshot) {
+                      //     if (futureSnapshot.data == null) {
+                      //       return Text(
+                      //         "2s",
+                      //         style: SoftwareTextStyle().kWtMediumTextStyle,
+                      //       );
+                      //     }
+                          
+                      //     return Text(
+                      //       futureSnapshot.data as String,
+                      //       style: SoftwareTextStyle().kWtMediumTextStyle,
+                      //     );
+                      //   }
+                      // );
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+
+      }
+      
     });
   }
 }

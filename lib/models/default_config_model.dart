@@ -66,7 +66,7 @@ class Config {
 }
 
 class Board {
-  final String? uniqueName;
+   String? uniqueName;
   final String? userFriendlyFullName;
   final String? userFriendlyShortName;
   final String? hardwareComProtocolType;

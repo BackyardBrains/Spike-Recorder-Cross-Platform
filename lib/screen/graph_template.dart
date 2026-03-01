@@ -1576,7 +1576,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.0.6',
+                                            'SpikeRecorder App ver. 2.0.7',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -3440,7 +3440,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // endValue: endValue,
     // sliderValue: _sliderValue,
     print(
-        "_predefinedFilterSettings -- filterUsageTypeChannels: $filterUsageTypeChannels");
+        "_predefinedFilterSettings -- filterUsageTypeChannels: $filterUsageTypeChannels -- arrFilterUsageTypeChannel: ${arrFilterUsageTypeChannel[channelIdx]}");
     Widget predefinedFilterWidget = SizedBox();
     List<Widget> listPredefinedFilter =
         buildPredefinedFilter(channelIdx, filterUsageTypeChannels[channelIdx]);
@@ -4471,6 +4471,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               for (Board board in connectedBoards) {
                 if (board.uniqueName == foundDevices) {
                   GraphTemplate.selectedBoard = board;
+                  // GraphTemplate.selectedBoard?.uniqueName = "NRNSBPRO";
+
                   _deviceName.value =
                       GraphTemplate.selectedBoard?.userFriendlyFullName;
                   // HARDCODE
@@ -4521,6 +4523,32 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       for (int i = 0; i < deviceChannelCount; i++) {
                         arrFilterUsageTypeChannel.add("EMG");
                       }
+                      serialUsageType = "EMG";
+                    } else 
+                    if (GraphTemplate.selectedBoard?.uniqueName == "NRNSBPRO"){
+                      predefinedFiltersChannel.clear();
+                      for (int i = 0; i < deviceChannelCount; i++) {
+                        predefinedFiltersChannel
+                            .add(["Neuron", "Custom"]);
+                      }
+                      arrFilterUsageTypeChannel.clear();
+                      for (int i = 0; i < deviceChannelCount; i++) {
+                        arrFilterUsageTypeChannel.add("Neuron");
+                      }
+                      serialUsageType = "Neuron";
+                    } else 
+                    if (GraphTemplate.selectedBoard?.uniqueName == "PLANTSS"){
+                      predefinedFiltersChannel.clear();
+                      for (int i = 0; i < deviceChannelCount; i++) {
+                        predefinedFiltersChannel
+                            .add(["Plant", "Custom"]);
+                      }
+                      arrFilterUsageTypeChannel.clear();
+                      for (int i = 0; i < deviceChannelCount; i++) {
+                        arrFilterUsageTypeChannel.add("Plant");
+                      }
+
+                      serialUsageType = "Plant";
                     }
 
                     isDeviceSelected = true;
@@ -5373,7 +5401,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   buildSerialUsageTypeButton(String s, int channelIdx) {
     bool isSelected = serialUsageType.contains(s);
-    // print("Serial usage type : $serialUsageType --VS-- $s == $isSelected");
+    print("Serial usage type : $serialUsageType --VS-- $s == $isSelected");
     ButtonStyle style = ElevatedButton.styleFrom(
       // Toggle colors based on selection
       backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
@@ -5635,6 +5663,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             ));
         break;
       case "Neuron":
+        print("NEURON DATA");
         Color? iconColor = isSelected ? Color(0xFFd205a5) : Color(0xFF585858);
         return Container(
             padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
@@ -6412,7 +6441,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // print("predefinedFiltersChannel: $predefinedFilters");
     List<Widget> widgets = [];
     if (predefinedFilters.length >= 0) {
-      predefinedFilters = ["EMG", "ECG", "EEG", "Custom"];
+      // predefinedFilters = ["EMG", "ECG", "EEG", "Custom"];
       for (String filter in predefinedFilters) {
         widgets.add(buildSerialUsageTypeButton(filter, channelIdx));
       }

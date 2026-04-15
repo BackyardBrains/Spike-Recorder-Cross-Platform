@@ -26,7 +26,24 @@ async function getMicSampleRate() {
     if (mediaStream) {
         const audioTrack = mediaStream.getAudioTracks()[0];
         const trackSettings = audioTrack.getSettings();
-        return trackSettings.sampleRate;
+        console.log("MEDIA STREAM SAMPLE RATE: ${trackSettings.sampleRate}");
+        if (trackSettings.sampleRate !== undefined) return trackSettings.sampleRate;
+        else {
+            const tempContext = new (window.AudioContext || window.webkitAudioContext)();
+            const rate = tempContext.sampleRate;        
+            await tempContext.close();
+            console.log("MEDIA CONTEXT: ${rate}");
+            return rate;
+    
+        }
+
+    } else {
+        console.log("MEDIA CONTEXT: ${rate}");
+        const tempContext = new (window.AudioContext || window.webkitAudioContext)();
+        const rate = tempContext.sampleRate;        
+        console.log("MEDIA CONTEXT: ${rate}", rate);
+        await tempContext.close();
+        return rate;
     }
     return null;
 }
@@ -153,18 +170,30 @@ async function startListeningToMicrophone(sampleRate) {
         });
 
         // Get the settings of the audio track
-        const audioTrack = mediaStream.getAudioTracks()[0];
-        const trackSettings = audioTrack.getSettings();
-
-        // Log the sample rate to the console
-        console.log("Microphone sample rate: ", trackSettings.sampleRate);
+        if (mediaStream !== undefined) {
+            console.log("MEDIA STREAM zzz2: ${mediaStream}", mediaStream.getAudioTracks()[0]);
+            const audioTrack = mediaStream.getAudioTracks()[0];
+            const trackSettings = audioTrack.getSettings();
+            console.log("MEDIA SETTINGS zzz1: ${mediaStream}", trackSettings.sampleRate);
+    
+            // Log the sample rate to the console
+            if (trackSettings.sampleRate !== undefined) {
+                console.log("Microphone sample rate: ", trackSettings.sampleRate);
+                _sampleRate = trackSettings.sampleRate;
+            } else {
+                console.log("MEDIA SAMPLE RATE: ${mediaStream} 000");
+                _sampleRate = await getMicSampleRate();
+                console.log("MEDIA SAMPLE RATE: ${mediaStream}", _sampleRate);
+            }
+        } else {
+            _sampleRate = await getMicSampleRate();
+        }
 
         // Create media stream source
         mediaStreamSource = audioContext.createMediaStreamSource(mediaStream);
 
         // Connect source to our processor and then to the context's destination
         mediaStreamSource.connect(audioProcessorNode).connect(audioContext.destination);
-        _sampleRate = trackSettings.sampleRate;
         
         console.log("Microphone listening started successfully");
     } catch (error) {

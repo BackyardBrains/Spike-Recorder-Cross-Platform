@@ -283,7 +283,9 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
           top: 10,
           left: 0,
           right: 0,
-          child: SizedBox(
+          child: Container(
+            margin: kIsWeb ? const EdgeInsets.fromLTRB(0, 7, 0, 0) : 
+                        Platform.isAndroid || Platform.isIOS? const EdgeInsets.fromLTRB(0, 20, 0, 0) : const EdgeInsets.fromLTRB(0, 7, 0, 0) ,
             height: 50,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,

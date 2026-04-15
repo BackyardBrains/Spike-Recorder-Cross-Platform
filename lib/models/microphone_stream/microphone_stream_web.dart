@@ -35,10 +35,24 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
         if (mediaStream != null) {
           html.MediaStreamTrack audioTrack = mediaStream.getAudioTracks()[0];
           Map<dynamic, dynamic> trackSettings = audioTrack.getSettings();
-          sampleRate = trackSettings["sampleRate"];
+          if (trackSettings["sampleRate"] != null) {
+            sampleRate = trackSettings["sampleRate"];
+          } else {
+            final audioContextClass = js.context['AudioContext'] ?? js.context['webkitAudioContext'];
+            final tempContext = js.JsObject(audioContextClass);
+            final rate = tempContext['sampleRate'] as num;
+            print("MEDIA CONTEXT 2233: $rate");
+            tempContext.callMethod('close', []);
+            sampleRate = rate.toDouble();
+          }
         }
       } else {
-
+        final audioContextClass = js.context['AudioContext'] ?? js.context['webkitAudioContext'];
+        final tempContext = js.JsObject(audioContextClass);
+        final rate = tempContext['sampleRate'] as num;
+        print("MEDIA CONTEXT: $rate");
+        tempContext.callMethod('close', []);
+        sampleRate = rate.toDouble();
       }
 
       print("INIT sampleRate: $sampleRate");

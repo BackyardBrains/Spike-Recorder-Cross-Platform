@@ -58,7 +58,7 @@ PROCESSING_API int32_t processing_set_bits_per_sample(int32_t bits_per_sample);
 PROCESSING_API int32_t processing_set_selected_channel(int32_t selected_channel);
 
 // Filter configuration
-PROCESSING_API int32_t processing_set_band_filter(float low_cut_off_freq, float high_cut_off_freq);
+PROCESSING_API int32_t processing_set_band_filter(int32_t channel_idx, float low_cut_off_freq, float high_cut_off_freq);
 PROCESSING_API int32_t processing_set_notch_filter(float center_freq);
 PROCESSING_API int32_t processing_set_channel_filter_enabled(int32_t channel, bool enabled);
 
@@ -196,6 +196,11 @@ PROCESSING_API int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw
 
 // Serial data processing result
 PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* samplesCountRaw, int channelCount);
+
+// Dart native port integration
+PROCESSING_API int32_t processing_register_dart_port(int64_t port);
+PROCESSING_API void processing_unregister_dart_port();
+PROCESSING_API intptr_t InitDartApiDL(void* data);
                                      
 #ifdef __cplusplus
 }

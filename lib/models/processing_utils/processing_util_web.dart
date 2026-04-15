@@ -27,6 +27,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   int _sampleRate = 44100;
   bool isAllocated = false;
+  @override
+  int defaultChannelCountNoExpansionBoard = -1;
+  @override
+  int defaultSampleRateNoExpansionBoard = -1;
+
 
   @override
   Future<bool> init() async {

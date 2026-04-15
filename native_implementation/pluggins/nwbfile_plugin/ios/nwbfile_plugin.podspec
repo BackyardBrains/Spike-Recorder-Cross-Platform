@@ -19,6 +19,7 @@ A new Flutter FFI plugin project.
   # paths, so Classes contains a forwarder C file that relatively imports
   # `../src/*` and then this podspec's `source_files` path is set to `Classes/`.
   s.source_files = 'Classes/src/**/*.{h,m,mm,c,cpp}'
+  s.exclude_files = 'Classes/src/io/hdf5/HDF5IO_stub.cpp'
   
   # Exclude boost headers from public headers to avoid conflicts
   s.public_header_files = 'Classes/src/**/*.{h,hpp}'

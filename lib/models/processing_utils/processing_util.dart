@@ -130,6 +130,9 @@ abstract class ProcessingUtil {
   void setupDartCallbacks();
   void cleanupDartCallbacks();
 
+  int defaultChannelCountNoExpansionBoard = -1;
+  int defaultSampleRateNoExpansionBoard = -1;
+
   StreamController<int> postChannelCountController = StreamController<int>();
   Stream<int>? postChannelCountStream;
   

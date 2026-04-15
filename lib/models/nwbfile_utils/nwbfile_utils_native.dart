@@ -31,20 +31,26 @@ class NwbFileUtilImpl implements NWBFileUtil {
     recordedTime = DateTime.now().millisecondsSinceEpoch.toString();
     String path =
         "${(await getApplicationDocumentsDirectory()).path}\\spike_recorder$recordedTime.nwb";
+    if (Platform.isIOS) {
+      path =
+          "${(await getApplicationDocumentsDirectory()).path}/spike_recorder$recordedTime.nwb";
+    } else
     if (Platform.isMacOS) {
       path =
           "${(await getDownloadsDirectory())?.path}/spike_recorder$recordedTime.nwb";
       // String computerNamePath = (await getApplicationDocumentsDirectory()).path.split("/Library")[0];
       // path = "${computerNamePath}/spike_recorder$recordedTime.nwb";
     }
-    print("NWB file path: $path");
+    print("NWB file path: $path ---- $sampleRate");
     Pointer<Char> charPointer = path.toString().toNativeUtf8().cast<Char>();
     Pointer<Char> deviceInfoPointer = deviceInfo.toNativeUtf8().cast<Char>();
     Pointer<Char> deviceManufacturerPointer =
         deviceManufacturer.toNativeUtf8().cast<Char>();
 
+    print("Dart processing init start");
     int initResult = nwb.processingInit(charPointer, sampleRate, channelCount,
         deviceInfoPointer, deviceManufacturerPointer);
+    print("Dart processing init END");
     if (initResult < 0) {
       print("❌ Failed to initialize NWB file, error code: $initResult");
       return Future.value("false");

@@ -49,5 +49,9 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Microphone access required</string>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 </dict>
 </plist>

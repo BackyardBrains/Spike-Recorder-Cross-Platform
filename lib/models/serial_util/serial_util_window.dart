@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_libserialport/flutter_libserialport.dart';
 import 'serial_util_check.dart';
+import 'dart:convert';
+
 
 class SerialUtilWindow implements SerialUtil {
   @override
@@ -35,7 +37,7 @@ class SerialUtilWindow implements SerialUtil {
   void writeToPort({required Uint8List bytesMessage, String? address}) {
     if (port?.name == address) {
       try {
-        print("writing to port: ${bytesMessage}");
+        print("writing to port: ${utf8.decode(bytesMessage)}");
         final intsize = port?.write(bytesMessage);
         print("command is sent. Length: $intsize, cmd: ${intsize}");
       } catch (err, _) {

@@ -35,7 +35,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
   bool _isInitialized = false;
   int _sampleRate = 44100;
   int _channelCount = 1;
+  @override
   int defaultChannelCountNoExpansionBoard = -1;
+  @override
   int defaultSampleRateNoExpansionBoard = -1;
   String currentExpansionBoardString = "";
   int currentDrawSurfaceWidth = 0;
@@ -70,6 +72,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
     _sampleRate = config[0].toInt();
     channelCount = config[1].toInt();
     _channelCount = config[1].toInt();
+    defaultChannelCountNoExpansionBoard = channelCount;
+    defaultSampleRateNoExpansionBoard = sampleRate;
     ProcessingUtil.medianChannelValueAdjuster =
         List.generate(channelCount, (_) => 0);
 
@@ -167,9 +171,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
         print(
             "setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
         for (var expBoard in GraphTemplate.selectedBoard!.expansionBoards!) {
-          print("setExpansionBoardTypeDart3 ${expBoardType.toString()}");
+          print("setExpansionBoardTypeDart3 ==${expBoardType.toString()}");
           if (expBoard.boardType == expBoardType.toString()) {
-            print("setExpansionBoardTypeDart4");
+            print("setExpansionBoardTypeDart4 || $currentExpansionBoardString == ${expBoardType.toString()}");
             if (currentExpansionBoardString == "" && expBoardType == 0) {
               return;
             } else if (currentExpansionBoardString != expBoardType.toString()) {
@@ -191,7 +195,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
                             GraphTemplate.selectedBoard!.maxNumberOfChannels!) +
                         int.parse(expBoard.maxNumberOfChannels!);
                     print(
-                        "SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                        "expBoardType =1 | SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
                     postChannelCountController.add(boardChannels);
                     initializeSerial(GraphTemplate.selectedBoard!,
                         currentDrawSurfaceWidth.toDouble(),
@@ -205,7 +209,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
                           GraphTemplate.selectedBoard!.maxNumberOfChannels!) +
                       int.parse(expBoard.maxNumberOfChannels!);
                   print(
-                      "SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                      "Initialize SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
                   postChannelCountController.add(boardChannels);
                   initializeSerial(GraphTemplate.selectedBoard!,
                       currentDrawSurfaceWidth.toDouble(),
@@ -226,13 +230,20 @@ class ProcessingUtilImpl implements ProcessingUtil {
             print(
                 "setExpansionBoardTypeDart3.5 : $currentExpansionBoardString");
             if (currentExpansionBoardString.isNotEmpty) {
+              print(
+                  "DEFAULT CHANNEL.5 : $defaultChannelCountNoExpansionBoard || ${expBoard.maxNumberOfChannels}");
               currentExpansionBoardString = "";
               postChannelCountController
                   .add(defaultChannelCountNoExpansionBoard);
-              initializeSerial(GraphTemplate.selectedBoard!,
-                  currentDrawSurfaceWidth.toDouble(),
-                  expansionBoardChannelCount:
-                      int.parse(expBoard.maxNumberOfChannels!));
+              if (expBoard.maxNumberOfChannels! == defaultChannelCountNoExpansionBoard) {
+                initializeSerial(GraphTemplate.selectedBoard!,
+                    currentDrawSurfaceWidth.toDouble(),
+                    expansionBoardChannelCount: 0);
+              } else {
+                initializeSerial(GraphTemplate.selectedBoard!,
+                    currentDrawSurfaceWidth.toDouble(),
+                    expansionBoardChannelCount: 0);
+              }
 
               // js.context.callMethod("initializeSerialWeb", [defaultSampleRateNoExpansionBoard, defaultChannelCountNoExpansionBoard, -1] );
               defaultChannelCountNoExpansionBoard = -1;
@@ -248,6 +259,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   @override
   Future<bool> init() async {
     if (_isInitialized) return true;
+    
     setupDartCallbacks();
     // Initialize C++ processing
     ProcessingUtil.medianChannelValueAdjuster =
@@ -267,6 +279,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
       print('Failed to set sample rate11: $sampleRateResult');
       return false;
     }
+    print("Default Channel Count No Expansion Board: $defaultChannelCountNoExpansionBoard");
+    print("Default Sample Rate No Expansion Board: $defaultSampleRateNoExpansionBoard");
 
 /*
 		// Create receive port for main isolate to receive messages from processing isolate

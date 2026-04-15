@@ -30,6 +30,8 @@ class MessageIdentifier {
     for (int i = 0; i < newPacket.length; i++) {
       switch (messageState) {
         case MessageState.noSequence:
+          // print("NO SEQUENCE _messageBuffer Device : ");
+          // print(newPacket);
           if (newPacket[i] == startSequence.first) {
             _startSequenceFoundIndex = 0;
             messageState = MessageState.inStartSequence;
@@ -39,6 +41,9 @@ class MessageIdentifier {
           break;
 
         case MessageState.inStartSequence:
+          // print("IN START SEQUENCE _messageBuffer Device : ");
+          // print(newPacket);
+
           if (newPacket[i] == startSequence[_startSequenceFoundIndex + 1]) {
             if (_startSequenceFoundIndex == startSequence.length - 2) {
               messageState = MessageState.inMessage;
@@ -63,8 +68,8 @@ class MessageIdentifier {
 
           // Keep on adding messages / end sequence bytes to _messageBuffer
           _messageBuffer.add(newPacket[i]);
-          // print("_messageBuffer Device : ");
-          // print(_messageBuffer);
+          print("IN MESSAGE _messageBuffer Device : ");
+          print(_messageBuffer);
 
           // When endSequence is found then remove the endSequence from _messageBuffer
           // and send the _messageBuffer

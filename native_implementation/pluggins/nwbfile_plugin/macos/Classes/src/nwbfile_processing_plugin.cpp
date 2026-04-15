@@ -131,8 +131,9 @@ FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int 
     try {
         H5::Exception::dontPrint();
         std::cout << "AQNWB Recording Workflow Example" << std::endl;
+        std::cout << "SampleRate : " << sampleRate << std::endl;
         std::cout << "================================" << std::endl;
-    
+
         // 1) Create the I/O object
         // /Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents
         // /Users/macbook/Library/Containers/com.example.nwbapplication/Data/Downloads/
@@ -1724,7 +1725,6 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
     std::cout << "   Group Name (ID): " << outConfig[2] << std::endl;
     std::cout << "   Group Index: " << outConfig[3] << std::endl;
     std::cout << "   BitVolts (µV): " << outConfig[4] << std::endl;
-    
     std::cout << "✅ Seek operation completed successfully!" << std::endl;
     return 0;
 }

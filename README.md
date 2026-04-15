@@ -142,3 +142,17 @@ color selector
 
 flutter build web --no-tree-shake-icons
 flutter build macos --no-tree-shake-icons
+
+
+NeuronSpikerBox 
+#Serial stream data
+#Serial playback file
+
+
+
+message identifier : 
+brew install --cask ftdi-vcp-driver
+
+
+
+https://devanlai.github.io/webdfu/dfu-util/

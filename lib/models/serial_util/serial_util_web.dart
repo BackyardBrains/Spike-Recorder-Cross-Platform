@@ -26,18 +26,20 @@ class SerialUtilWeb implements SerialUtil {
 
   @override
   Future<void> connectToPort() async {
-    _port = await window.navigator.serial.requestPort();
+    print("connectToPort 1000: $_port");
 
     try {
+      _port = await window.navigator.serial.requestPort();
       await _port?.open(
         baudRate: _baudRate,
         bufferSize: 8192,
       );
+      portInfo = _port?.getInfo();
+      openPortToListen(" ", _baudRate);
     } catch (e) {
       print("Port opening failed: $e");
+      throw Exception("Serial connections require Chrome, or Edge");
     }
-    portInfo = _port?.getInfo();
-    openPortToListen(" ", _baudRate);
   }
 
   @override
@@ -137,7 +139,11 @@ class SerialUtilWeb implements SerialUtil {
   Future<void> getAvailablePorts(int baudRate, Function callback) async {
     audioCallback = callback;
     _baudRate = baudRate;
-    await connectToPort();
+    try{
+      await connectToPort();
+    }catch(err) {
+      throw Exception("Serial connections require Chrome, or Edge");
+    }
 
     availablePorts = [_port!.getInfo().usbProductId!.toString()];
     print("getttavailablePorts: $availablePorts");
@@ -148,11 +154,18 @@ class SerialUtilWeb implements SerialUtil {
     audioCallback = callback;
     _baudRate = baudRate;
     try{
-      await connectToPort();
+      print("connectToPort: $baudRate");
+      try{
+        await connectToPort();
+      }catch(err) {
+        throw Exception("Serial connections require Chrome, or Edge");
+      }
       availablePorts = [_port!.getInfo().usbProductId!.toString()];
+      print("availablePorts: $availablePorts");
       return availablePorts;
     }catch(err) {
       print("error in getAvailablePortsWeb: $err");
+      throw Exception("Serial connections require Chrome, or Edge");
       return [];
     }
 

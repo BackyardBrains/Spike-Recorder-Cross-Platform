@@ -180,71 +180,152 @@ class LocalPluginWeb implements LocalPlugin {
   void setExpansionBoardTypeDart(expBoardType) {
     // print("setExpansionBoardTypeDart");
     // print(GraphTemplate.selectedBoard);
-    // if (GraphTemplate.selectedBoard != null) {
-    //   print("setExpansionBoardTypeDart1");
-    //   if (GraphTemplate.selectedBoard!.expansionBoards != null) {
-    //     print("setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
-    //     for (var expBoard in GraphTemplate.selectedBoard!.expansionBoards!) {
-    //       print("setExpansionBoardTypeDart3 ${expBoardType.toString()}");
-    //       if (expBoard.boardType == expBoardType.toString()) {
-    //         print("setExpansionBoardTypeDart4");
-    //         if (currentExpansionBoardString == "" && expBoardType == 0) {
-    //           return;
-    //         } else
-    //         if (currentExpansionBoardString != expBoardType.toString()) {
-    //           currentExpansionBoardString = expBoardType.toString();
-    //           // ProcessingBindings.instance.setSampleRate();
-    //           if (expBoard.maxSampleRate != null) {
-    //             print("setExpansionBoardTypeDart5");
-    //             int boardChannels = -1;
-    //             if (GraphTemplate.selectedBoard!.uniqueName == "HUMANSB") {
-    //               if (expBoardType == 1) {
-    //                 int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
-    //                 boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!);
-    //                 print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
-    //                 postChannelCountController.add(boardChannels);
-    //                 js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+    if (GraphTemplate.selectedBoard != null) {
+      print("zzz setExpansionBoardTypeDart1");
+      if (GraphTemplate.selectedBoard!.expansionBoards != null) {
+        print("setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
+        for (var expBoard in GraphTemplate.selectedBoard!.expansionBoards!) {
+          print("setExpansionBoardTypeDart3 ==${expBoardType.toString()}");
+          if (expBoard.boardType == expBoardType.toString()) {
+            print("setExpansionBoardTypeDart4 || $currentExpansionBoardString == ${expBoardType.toString()}");
+            if (currentExpansionBoardString == "" && expBoardType == 0) {
+              return;
+            } else if (currentExpansionBoardString != expBoardType.toString()) {
+              currentExpansionBoardString = expBoardType.toString();
+              if (expBoard.maxSampleRate != null) {
+                print("setExpansionBoardTypeDart5");
+                int boardChannels = -1;
+                if (GraphTemplate.selectedBoard!.uniqueName == "HUMANSB") {
+                  if (expBoardType == 1) {
+                    int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+                    boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!);
+                    print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                    postChannelCountController.add(boardChannels);
+                    // initializeSerial(GraphTemplate.selectedBoard!, currentDrawSurfaceWidth.toDouble(), expansionBoardChannelCount: int.parse(expBoard.maxNumberOfChannels!) );
+                    js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+                  } else {
+                    int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+                    boardChannels = int.parse(
+                            GraphTemplate.selectedBoard!.maxNumberOfChannels!) +
+                        int.parse(expBoard.maxNumberOfChannels!);
+                    print(
+                        "expBoardType =1 | SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                    postChannelCountController.add(boardChannels);
+                    // initializeSerial(GraphTemplate.selectedBoard!,
+                    //     currentDrawSurfaceWidth.toDouble(),
+                    //     expansionBoardChannelCount:
+                    //         int.parse(expBoard.maxNumberOfChannels!));
+                    js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+                  }
+                } else {
+                  int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+                  boardChannels = int.parse(
+                          GraphTemplate.selectedBoard!.maxNumberOfChannels!) +
+                      int.parse(expBoard.maxNumberOfChannels!);
+                  print(
+                      "Initialize SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+                  postChannelCountController.add(boardChannels);
+                  // initializeSerial(GraphTemplate.selectedBoard!,
+                  //     currentDrawSurfaceWidth.toDouble(),
+                  //     expansionBoardChannelCount:
+                  //         int.parse(expBoard.maxNumberOfChannels!));
+                  js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+                }
 
-    //               } else {
-    //                 int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
-    //                 boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
-    //                 print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
-    //                 postChannelCountController.add(boardChannels);
-    //                 js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+                // if (expBoard.boardType == "4") {
+                //   ProcessingUtil.medianChannelValueAdjuster = List.generate(boardChannels, (_) => 0);
+                //   ProcessingUtil.medianChannelValueAdjuster[3] = -4096;
+                // }else {
+                //   ProcessingUtil.medianChannelValueAdjuster = List.generate(boardChannels, (_) => 0);
+                // }
+              }
+            }
+          } else if (expBoardType == 0) {
+            print(
+                "setExpansionBoardTypeDart3.5 : $currentExpansionBoardString");
+            if (currentExpansionBoardString.isNotEmpty) {
+              print(
+                  "DEFAULT CHANNEL.5 : $defaultChannelCountNoExpansionBoard || ${expBoard.maxNumberOfChannels}");
+              currentExpansionBoardString = "";
+              postChannelCountController
+                  .add(defaultChannelCountNoExpansionBoard);
+              // if (expBoard.maxNumberOfChannels! == defaultChannelCountNoExpansionBoard) {
+              //   initializeSerial(GraphTemplate.selectedBoard!,
+              //       currentDrawSurfaceWidth.toDouble(),
+              //       expansionBoardChannelCount: 0);
+              // } else {
+              //   initializeSerial(GraphTemplate.selectedBoard!,
+              //       currentDrawSurfaceWidth.toDouble(),
+              //       expansionBoardChannelCount: 0);
+              // }
 
-    //               }
-    //             } else {
+              js.context.callMethod("initializeSerialWeb", [defaultSampleRateNoExpansionBoard, defaultChannelCountNoExpansionBoard, -1] );
+              defaultChannelCountNoExpansionBoard = -1;
+              defaultSampleRateNoExpansionBoard = -1;
+            }
+          }
+        }        
+        // for (var expBoard in GraphTemplate.selectedBoard!.expansionBoards!) {
+        //   print("setExpansionBoardTypeDart3 ${expBoardType.toString()}");
+        //   if (expBoard.boardType == expBoardType.toString()) {
+        //     print("setExpansionBoardTypeDart4");
+        //     if (currentExpansionBoardString == "" && expBoardType == 0) {
+        //       return;
+        //     } else
+        //     if (currentExpansionBoardString != expBoardType.toString()) {
+        //       currentExpansionBoardString = expBoardType.toString();
+        //       // ProcessingBindings.instance.setSampleRate();
+        //       if (expBoard.maxSampleRate != null) {
+        //         print("setExpansionBoardTypeDart5");
+        //         int boardChannels = -1;
+        //         if (GraphTemplate.selectedBoard!.uniqueName == "HUMANSB") {
+        //           if (expBoardType == 1) {
+        //             int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+        //             boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!);
+        //             print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+        //             postChannelCountController.add(boardChannels);
+        //             js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
 
-    //               int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
-    //               boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
-    //               print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
-    //               postChannelCountController.add(boardChannels);
-    //               js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
-    //             }
+        //           } else {
+        //             int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+        //             boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
+        //             print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+        //             postChannelCountController.add(boardChannels);
+        //             js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+
+        //           }
+        //         } else {
+
+        //           int expBoardSampleRate = int.parse(expBoard.maxSampleRate!);
+        //           boardChannels = int.parse(GraphTemplate.selectedBoard!.maxNumberOfChannels!) + int.parse(expBoard.maxNumberOfChannels!);
+        //           print("SelectedBoard CHannel: ${GraphTemplate.selectedBoard!.maxNumberOfChannels!} --- maxNumberOfChannels: ${expBoard.maxNumberOfChannels!}");
+        //           postChannelCountController.add(boardChannels);
+        //           js.context.callMethod("initializeSerialWeb", [expBoardSampleRate, boardChannels, -1] );
+        //         }
 
 
-    //             if (expBoard.boardType == "4") {
-    //               ProcessingUtil.medianChannelValueAdjuster = List.generate(boardChannels, (_) => 0);
-    //               ProcessingUtil.medianChannelValueAdjuster[3] = -4096;
-    //             }else {
-    //               ProcessingUtil.medianChannelValueAdjuster = List.generate(boardChannels, (_) => 0);
-    //             }
-    //           }
-    //         }
-    //       } else 
-    //       if (expBoardType == 0) {
-    //         print("setExpansionBoardTypeDart3.5 : $currentExpansionBoardString");
-    //         if (currentExpansionBoardString.isNotEmpty) {
-    //           currentExpansionBoardString = "";
-    //           postChannelCountController.add(defaultChannelCountNoExpansionBoard);
-    //           js.context.callMethod("initializeSerialWeb", [defaultSampleRateNoExpansionBoard, defaultChannelCountNoExpansionBoard, -1] );
-    //           defaultChannelCountNoExpansionBoard = -1;
-    //           defaultSampleRateNoExpansionBoard = -1;              
-    //         }
-    //       }
-    //     }
-    //   }
-    // }
+        //         if (expBoard.boardType == "4") {
+        //           ProcessingUtil.medianChannelValueAdjuster = List.generate(boardChannels, (_) => 0);
+        //           ProcessingUtil.medianChannelValueAdjuster[3] = -4096;
+        //         }else {
+        //           ProcessingUtil.medianChannelValueAdjuster = List.generate(boardChannels, (_) => 0);
+        //         }
+        //       }
+        //     }
+        //   } else 
+        //   if (expBoardType == 0) {
+        //     print("setExpansionBoardTypeDart3.5 : $currentExpansionBoardString");
+        //     if (currentExpansionBoardString.isNotEmpty) {
+        //       currentExpansionBoardString = "";
+        //       postChannelCountController.add(defaultChannelCountNoExpansionBoard);
+        //       js.context.callMethod("initializeSerialWeb", [defaultSampleRateNoExpansionBoard, defaultChannelCountNoExpansionBoard, -1] );
+        //       defaultChannelCountNoExpansionBoard = -1;
+        //       defaultSampleRateNoExpansionBoard = -1;              
+        //     }
+        //   }
+        // }
+      }
+    }
   }
 
   void onPostDisplay(channelData, channelCounts) {

@@ -24,20 +24,20 @@ class SetUpFunctionality {
         "https://firebasestorage.googleapis.com/v0/b/webspikerecorder.appspot.com/o/default_config.json?alt=media&token=8b0f5e9c-110a-455d-99e9-9fbc0a875f99";
     print("getDeviceCatalog");
     var config = localData;
-    try {
-      final response = (await https.get(Uri.parse(url)));
-      if (response.statusCode == 200) {
-        print("found https");
-        config = response.body;
-      } else {
-        print("error https");
-        config = localData;
-      }
-    } catch (err) {
-      config = localData;
-      print("err getting device catalog");
-      print(err);
-    }
+    // try {
+    //   final response = (await https.get(Uri.parse(url)));
+    //   if (response.statusCode == 200) {
+    //     print("found https");
+    //     config = response.body;
+    //   } else {
+    //     print("error https");
+    //     config = localData;
+    //   }
+    // } catch (err) {
+    //   config = localData;
+    //   print("err getting device catalog");
+    //   print(err);
+    // }
 
     return config;
   }

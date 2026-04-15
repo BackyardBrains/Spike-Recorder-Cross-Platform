@@ -18,7 +18,7 @@ A new Flutter FFI plugin project.
   # paths, so Classes contains a forwarder C file that relatively imports
   # `../src/*` so that the C sources can be shared among all target platforms.
   s.source           = { :path => '.' }
-  s.source_files = ['Classes/**/*.{h,cpp}', '../src/**/*.{h,cpp,c}']
+  s.source_files = ['Classes/**/*.{h,cpp}', 'Classes/dart_api_dl.c']
   s.dependency 'Flutter'
   s.platform = :ios, '12.0'
 
@@ -28,7 +28,14 @@ A new Flutter FFI plugin project.
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386',
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',
     'CLANG_CXX_LIBRARY' => 'libc++',
-    'HEADER_SEARCH_PATHS' => '$(PODS_TARGET_SRCROOT)/../src/includes',
+    # 'HEADER_SEARCH_PATHS' => '$(PODS_TARGET_SRCROOT)/../src/includes',
+    'HEADER_SEARCH_PATHS' => [
+      '$(inherited)',
+      # '$(PODS_TARGET_SRCROOT)/../src',
+      # '$(PODS_TARGET_SRCROOT)/../src/internal',
+      '$(PODS_TARGET_SRCROOT)/Classes',
+      '$(PODS_TARGET_SRCROOT)/Classes/internal'
+    ].join(' '),    
     'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) DART_SHARED_LIB=1',
     'OTHER_CFLAGS' => '$(inherited) -fvisibility=default',
     'OTHER_CPLUSPLUSFLAGS' => '$(inherited) -fvisibility=default'

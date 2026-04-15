@@ -99,7 +99,16 @@ const String _libName = 'nwbfile_plugin';
 
 /// The dynamic library in which the symbols for [NwbfilePluginBindings] can be found.
 final DynamicLibrary _dylib = () {
-  if (Platform.isMacOS || Platform.isIOS) {
+  if (Platform.isIOS) {
+    print("Dynamic Library init process()");
+    try{
+      return DynamicLibrary.process();
+    }catch(err) {
+      print("Dynamic Library process error: $err");
+      return DynamicLibrary.open('$_libName.framework/$_libName');
+    }
+  }
+  if (Platform.isMacOS) {
     print("Dynamic Library init $_libName.framework/$_libName");
     return DynamicLibrary.open('$_libName.framework/$_libName');
   }

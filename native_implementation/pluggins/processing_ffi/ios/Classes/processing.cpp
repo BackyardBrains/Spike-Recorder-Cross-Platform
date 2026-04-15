@@ -5,20 +5,13 @@
 #include <cstring>
 #include <algorithm>
 #include <string>
-#ifdef __ANDROID__
-#include <android/log.h>
-#endif
-
+#include "dart_api_dl.h"
 
 #define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
 void platform_log_processing(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-#ifdef __ANDROID__
-    __android_log_vprint(ANDROID_LOG_VERBOSE, "ndk", fmt, args);
-#else
     vprintf(fmt, args);
-#endif
     va_end(args);
 }
 
@@ -92,12 +85,13 @@ static IsiAnalysis* isiAnalysis = nullptr;
 static AverageSpikeAnalysis* averageSpikeAnalysis = nullptr;
 static CrossCorrelationAnalysis* crossCorrelationAnalysis = nullptr;
 
-static int max_fft_windows_count = 1;
+static int processing_max_fft_windows_count = 1;
 static constexpr float FFT_PROCESSING_TIME = 10.0f;
 static constexpr float FFT_SAMPLE_RATE = 128; // 2^7
 static constexpr int FFT_WINDOW_TIME_LENGTH = 4; // 2^2
 static constexpr int FFT_WINDOW_OVERLAP_PERCENT = 99;
 
+static Dart_Port_DL dart_port = 0;
 
 #ifdef _WIN32
 // Windows implementation of gettimeofday
@@ -155,7 +149,7 @@ class CircularBuffer {
                   this->buffer = new int16_t*[channelCount];
                   this->headIndex = new int32_t[channelCount];
                   this->tailIndex = new int32_t[channelCount];
-
+                  
                   for (int i = 0; i < channelCount; i++) {
                         this->buffer[i] = new int16_t[bufferSize];
                         
@@ -235,8 +229,7 @@ class CircularBuffer {
                   if (sampleCount <= 0) {
                         return;
                   }
-
-                            
+                  
                   // Prepare the data (either from the actual position or wrapping around)
                   for (int chan = 0; chan < channelCount; chan++) {
                         if (outputBuffer[chan] == nullptr) {
@@ -429,7 +422,6 @@ public:
       }
     }   
 
-
 private:
 
 };
@@ -501,10 +493,13 @@ static void cleanup_processors() {
 }
 
 // Implementation of the public API
-PROCESSING_API int32_t processing_init() {
+int32_t processing_init() {
     if (initialized) {
         return 0;
     }
+    // send_message_to_dart("onExpansionBoardTypeDetection", 4);
+    platform_log_processing("\nPROCESS onExpansionBoardTypeDetection\n");
+
     log_debug("Processing init");
     try {
         // Initialize default settings
@@ -538,7 +533,7 @@ PROCESSING_API int32_t processing_init() {
 }
 
 int32_t* outInfo;
-PROCESSING_API int32_t processing_get_information(int32_t* _outInfo) {
+int32_t processing_get_information(int32_t* _outInfo) {
     outInfo = _outInfo;
     outInfo[0] = current_sample_rate;
     outInfo[1] = current_channel_count;
@@ -547,7 +542,7 @@ PROCESSING_API int32_t processing_get_information(int32_t* _outInfo) {
     return 0;
 }
 
-PROCESSING_API int32_t processing_set_sample_rate(int32_t sample_rate) {
+int32_t processing_set_sample_rate(int32_t sample_rate) {
     if (!initialized) {
         return -1;
     }
@@ -567,7 +562,7 @@ PROCESSING_API int32_t processing_set_sample_rate(int32_t sample_rate) {
         fftProcessor->setSampleRate(sample_rate);
 
 
-        max_fft_windows_count = (int) ((FFT_PROCESSING_TIME * FFT_SAMPLE_RATE) / FFT_WINDOW_SAMPLE_DIFF_COUNT);
+        processing_max_fft_windows_count = (int) ((FFT_PROCESSING_TIME * FFT_SAMPLE_RATE) / FFT_WINDOW_SAMPLE_DIFF_COUNT);
 
         // Re-setup the circular buffer when sample rate changes
         if (circularBuffer != nullptr) {
@@ -581,7 +576,7 @@ PROCESSING_API int32_t processing_set_sample_rate(int32_t sample_rate) {
     }
 }
 
-PROCESSING_API int32_t processing_set_channel_count(int32_t channel_count) {
+int32_t processing_set_channel_count(int32_t channel_count) {
     if (!initialized) {
         return -1;
     }
@@ -602,14 +597,14 @@ PROCESSING_API int32_t processing_set_channel_count(int32_t channel_count) {
             circularBuffer->setup(current_sample_rate, current_channel_count);
             circularBufferThreshold->setup(current_sample_rate, current_channel_count);
         }
-        
+
         return 0;
     } catch (...) {
         return -3;
     }
 }
 
-PROCESSING_API int32_t processing_set_bits_per_sample(int32_t bits_per_sample) {
+int32_t processing_set_bits_per_sample(int32_t bits_per_sample) {
     if (!initialized) {
         return -1;
     }
@@ -628,7 +623,7 @@ PROCESSING_API int32_t processing_set_bits_per_sample(int32_t bits_per_sample) {
     }
 }
 
-PROCESSING_API int32_t processing_set_selected_channel(int32_t selected_channel) {
+int32_t processing_set_selected_channel(int32_t selected_channel) {
     if (!initialized) {
         return -1;
     }
@@ -646,7 +641,7 @@ PROCESSING_API int32_t processing_set_selected_channel(int32_t selected_channel)
     }
 }
 
-PROCESSING_API int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sample_counts,
+int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sample_counts,
                                        const uint8_t* in_data, int32_t length,
                                        int32_t hardware_type) {
     if (!initialized || !out_samples || !out_sample_counts || !in_data || length <= 0) {
@@ -689,9 +684,16 @@ PROCESSING_API int32_t processing_process_sample_stream(int16_t** out_samples, i
     }
 }
 
-PROCESSING_API int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out_sample_counts,
+int32_t processing_process_microphone_stream(int16_t** out_samples, int32_t* out_sample_counts,
                                            const uint8_t* in_data, int32_t length) {
       if (!initialized || !out_samples || !out_sample_counts || !in_data || length <= 0) {
+        // platform_log_processing("PROCESS MICROPHONE STREAM ERROR\n");
+        // platform_log_processing( std::to_string(initialized).c_str());
+        // platform_log_processing("out_samples: %p\n", out_samples);
+        // platform_log_processing("out_sample_counts: %p\n", out_sample_counts);
+        // platform_log_processing("in_data: %p\n", in_data);
+        // platform_log_processing("length: %d\n", length);
+        // platform_log_processing("\n");
             return -1;
       }
       
@@ -736,11 +738,6 @@ PROCESSING_API int32_t processing_process_microphone_stream(int16_t** out_sample
                   sample_count,
                   frame_count
             );
-            // platform_log_processing("\n length 0 0\n");
-            // platform_log_processing(std::to_string(length).c_str());
-            // platform_log_processing("\n sample_count 0 0\n");
-            // platform_log_processing(std::to_string(sample_count).c_str());
-
             // Add processed data to circular buffer
             if (circularBuffer != nullptr) {
                 int32_t* frame_counts = new int32_t[1];
@@ -828,7 +825,7 @@ PROCESSING_API int32_t processing_process_microphone_stream(int16_t** out_sample
 //     }
 // }
 
-PROCESSING_API int32_t processing_process_playback_stream(int16_t** out_samples, int32_t* out_sample_counts,
+int32_t processing_process_playback_stream(int16_t** out_samples, int32_t* out_sample_counts,
                                          const uint8_t* in_data, int32_t length,
                                          const int32_t* event_indices, const char** event_names,
                                          int32_t event_count, int64_t start, int64_t end,
@@ -855,7 +852,7 @@ PROCESSING_API int32_t processing_process_playback_stream(int16_t** out_samples,
     }
 }
 
-PROCESSING_API float processing_rms(const int16_t* data, int32_t length) {
+float processing_rms(const int16_t* data, int32_t length) {
     if (!initialized || !data || length <= 0) {
         return 0.0f;
     }
@@ -867,7 +864,7 @@ PROCESSING_API float processing_rms(const int16_t* data, int32_t length) {
     }
 }
 
-PROCESSING_API int32_t processing_normalize_signal(float* out_data, const int16_t* in_data, int32_t length,
+int32_t processing_normalize_signal(float* out_data, const int16_t* in_data, int32_t length,
                                   float in_min, float in_max, float out_min, float out_max) {
     if (!initialized || !out_data || !in_data || length <= 0) {
         return -1;
@@ -890,7 +887,7 @@ PROCESSING_API int32_t processing_normalize_signal(float* out_data, const int16_
     }
 }
 
-PROCESSING_API int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
+int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
                              int32_t* out_window_size, int32_t* out_frequency_counter, 
                              const int16_t** in_samples,
                              const int32_t* in_sample_counts) {
@@ -902,7 +899,7 @@ PROCESSING_API int32_t processing_process_fft(float** out_fft, int32_t* out_wind
         // int frequencyCounter = 0;
         fftProcessor->process(
             out_fft,
-            PROCESSING_MAX_FFT_WINDOWS_COUNT,  // Maximum window count
+            processing_max_fft_windows_count,  // Maximum window count
             out_window_count[current_selected_channel],
             // out_window_size[current_selected_channel],
             out_frequency_counter[current_selected_channel],
@@ -925,13 +922,13 @@ PROCESSING_API int32_t processing_process_fft(float** out_fft, int32_t* out_wind
     }
 }
 
-PROCESSING_API void processing_reset_fft_normalization() {
+void processing_reset_fft_normalization() {
     if (initialized && fftProcessor) {
         fftProcessor->resetNormalization();
     }
 }
 
-PROCESSING_API int32_t processing_is_audio_stream_am_modulated() {
+int32_t processing_is_audio_stream_am_modulated() {
     if (!initialized) {
         return 0;
     }
@@ -943,11 +940,11 @@ PROCESSING_API int32_t processing_is_audio_stream_am_modulated() {
     }
 }
 
-PROCESSING_API int32_t processing_get_averaged_sample_count() {
+int32_t processing_get_averaged_sample_count() {
     return averaging_sample_count;
 }
 
-PROCESSING_API void processing_set_averaged_sample_count(int32_t count) {
+void processing_set_averaged_sample_count(int32_t count) {
     if (count > 0) {
         averaging_sample_count = count;
         if (thresholdProcessor) {
@@ -956,49 +953,49 @@ PROCESSING_API void processing_set_averaged_sample_count(int32_t count) {
     }
 }
 
-PROCESSING_API int32_t processing_get_averaging_trigger_type() {
+int32_t processing_get_averaging_trigger_type() {
     return thresholdProcessor ? thresholdProcessor->getTriggerType() : 0;
 }
 
-PROCESSING_API void processing_set_averaging_trigger_type(int32_t type) {
+void processing_set_averaging_trigger_type(int32_t type) {
     if (thresholdProcessor) {
         thresholdProcessor->setTriggerType(type);
     }
 }
 
-PROCESSING_API void processing_set_threshold(float threshold) {
+void processing_set_threshold(float threshold) {
     current_threshold = threshold;
     if (thresholdProcessor) {
         thresholdProcessor->setThreshold(threshold);
     }
 }
 
-PROCESSING_API void processing_reset_threshold() {
+void processing_reset_threshold() {
     current_threshold = 0.0f;
     if (thresholdProcessor) {
         thresholdProcessor->setThreshold(0.0f);
     }
 }
 
-PROCESSING_API void processing_resume_threshold() {
+void processing_resume_threshold() {
     threshold_paused = false;
     if (thresholdProcessor) {
         thresholdProcessor->setPaused(false);
     }
 }
 
-PROCESSING_API void processing_pause_threshold() {
+void processing_pause_threshold() {
     threshold_paused = true;
     if (thresholdProcessor) {
         thresholdProcessor->setPaused(true);
     }
 }
 
-PROCESSING_API void processing_set_is_thresholding(bool isThresholding) {
+void processing_set_is_thresholding(bool isThresholding) {
     isProcessThresholding = isThresholding;    
 }
 
-PROCESSING_API int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_counts,
+int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_counts,
                                     int16_t** in_samples,  int32_t* in_sample_counts,
                                     const int32_t* in_event_indices, const int32_t* in_event_labels, int32_t in_event_count,
                                    bool average_samples) {
@@ -1074,14 +1071,14 @@ PROCESSING_API int32_t processing_process_threshold(int16_t** out_samples, int32
 
 }
 
-PROCESSING_API void processing_set_bpm_processing(bool process_bpm) {
+void processing_set_bpm_processing(bool process_bpm) {
     bpm_processing_enabled = process_bpm;
     if (thresholdProcessor) {
         thresholdProcessor->setBpmProcessing(process_bpm);
     }
 }
 
-PROCESSING_API int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* out_sample_counts,
+int32_t processing_prepare_for_signal_drawing(int16_t** out_samples, int32_t* out_sample_counts,
                                            float* out_event_indices, int32_t* out_event_count,
                                            const int32_t* in_event_indices, int32_t in_event_count,
                                            int32_t from_sample, int32_t to_sample,
@@ -1101,13 +1098,11 @@ PROCESSING_API int32_t processing_prepare_for_signal_drawing(int16_t** out_sampl
         
         // Calculate sample count
         // int32_t sample_count = to_sample - from_sample + 1;
-        int32_t sample_count = current_sample_rate * MAX_NUMBER_OF_SECONDS;
-        // getDataForDrawing uses inclusive range: sampleCount = toSample - fromSample + 1
-        // So we need to allocate sample_count + 1 elements to avoid buffer overflow
-        // For the hardcoded 441000 case, we need 441001 elements
-        int32_t max_requested_samples = std::max(sample_count, 441000);
-        int32_t temp_buffer_size = max_requested_samples + 1;
-        int32_t sample_out_count= draw_surface_width * 5;//experimentally found
+            int32_t sample_count = current_sample_rate * MAX_NUMBER_OF_SECONDS;
+            // getDataForDrawing uses inclusive range: sampleCount = toSample - fromSample + 1
+            // So we need to allocate sample_count + 1 elements to avoid buffer overflow
+            int32_t temp_buffer_size = sample_count + 1;
+            int32_t sample_out_count= draw_surface_width * 5;//experimentally found
         
         // Create temporary buffers with null checks to prevent OOM crashes
         auto** temp_samples = new (std::nothrow) int16_t*[channel_count];
@@ -1138,6 +1133,7 @@ PROCESSING_API int32_t processing_prepare_for_signal_drawing(int16_t** out_sampl
                 return -4; // Memory allocation failed
             }
         }
+
         // Retrieve data from the circular buffer
         // Check if circular buffer is valid before accessing it
         // This prevents crash when USB device is disconnected
@@ -1155,15 +1151,7 @@ PROCESSING_API int32_t processing_prepare_for_signal_drawing(int16_t** out_sampl
             circularBufferThreshold->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
         } else
         if (circularBuffer != nullptr) {
-            // circularBuffer->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
-            circularBuffer->getDataForDrawing(temp_samples, 0, 441000);
-            // platform_log_processing("GET BUFFER DATA\n");
-            // std::string str = std::to_string(temp_samples[0][441000-1]);
-            // str += std::to_string(temp_samples[0][441000-2]);
-            // str += std::to_string(temp_samples[0][441000-3]);
-            // str += std::to_string(temp_samples[0][441000-4]);
-            // platform_log_processing(str.c_str());
-            
+            circularBuffer->getDataForDrawing(temp_samples, 0, current_sample_rate * MAX_NUMBER_OF_SECONDS);
             //log_debug("Circular: from_sample=%d, to_sample=%d", from_sample, to_sample);
         } else {
             // Clean up and return error if no circular buffer is available
@@ -1186,13 +1174,15 @@ PROCESSING_API int32_t processing_prepare_for_signal_drawing(int16_t** out_sampl
             startIndex = from_sample;
             endIndex = to_sample;
         }
-        // platform_log_processing("First\n");
-        // platform_log_processing(std::to_string(startIndex).c_str());
-        // platform_log_processing("\n");
-        // platform_log_processing("End\n");
-        // platform_log_processing(std::to_string(endIndex).c_str());
-        // platform_log_processing("\n");
+        // platform_log("First\n");
+        // platform_log(std::to_string(endIndex).c_str());
+        // platform_log("\n");
         
+        // platform_log_processing("\n StartIndex 0\n");
+        // platform_log_processing(std::to_string(startIndex).c_str());
+        // platform_log_processing("\n EndIndex 0\n");
+        // platform_log_processing(std::to_string(endIndex).c_str());
+        // platform_log_processing("=========== \n");
 
 
         backyardbrains::utils::DrawingUtils::prepareSignalForDrawing(
@@ -1249,7 +1239,7 @@ PROCESSING_API int32_t processing_prepare_for_signal_drawing(int16_t** out_sampl
     }
 }
 
-PROCESSING_API int32_t processing_prepare_fft_for_drawing(float* out_vertices, int16_t* out_indices,
+int32_t processing_prepare_fft_for_drawing(float* out_vertices, int16_t* out_indices,
                                          float* out_colors, int32_t* out_vertex_count,
                                          int32_t* out_index_count, int32_t* out_color_count,
                                          float** fft_data, int32_t window_count,
@@ -1272,7 +1262,7 @@ PROCESSING_API int32_t processing_prepare_fft_for_drawing(float* out_vertices, i
         float** in_fft_data = new float*[target_window_count];
         int index = 0;
         for (int i = 0; i < target_window_count; ++i) {
-            index = max_fft_windows_count - target_window_count + i;
+            index = processing_max_fft_windows_count - target_window_count + i;
             auto tmpSamples = fft_data[index];
             // windowSize = env->GetArrayLength(tmpSamples);
             in_fft_data[i] = new float[window_size]{0};
@@ -1335,7 +1325,7 @@ PROCESSING_API int32_t processing_prepare_fft_for_drawing(float* out_vertices, i
     }
 }
 
-PROCESSING_API int32_t processing_prepare_spikes_for_drawing(float* out_vertices, float* out_colors,
+int32_t processing_prepare_spikes_for_drawing(float* out_vertices, float* out_colors,
                                             int32_t* out_vertex_count, int32_t* out_color_count,
                                             const float* in_spike_vertices,
                                             const int32_t* in_spike_indices,
@@ -1386,7 +1376,7 @@ PROCESSING_API int32_t processing_prepare_spikes_for_drawing(float* out_vertices
     }
 }
 
-PROCESSING_API int32_t processing_parse_events(const char* file_path, float sample_rate,
+int32_t processing_parse_events(const char* file_path, float sample_rate,
                               int32_t* event_indices, char** event_names) {
     if (!initialized || !file_path || !event_indices || !event_names) {
         return -1;
@@ -1418,7 +1408,7 @@ PROCESSING_API int32_t processing_parse_events(const char* file_path, float samp
     }
 }
 
-PROCESSING_API int32_t processing_check_events(const char* file_path, char** event_names) {
+int32_t processing_check_events(const char* file_path, char** event_names) {
     if (!initialized || !file_path || !event_names) {
         return -1;
     }
@@ -1446,7 +1436,7 @@ PROCESSING_API int32_t processing_check_events(const char* file_path, char** eve
     }
 }
 
-PROCESSING_API void processing_event_triggered_average_analysis(const char* file_path,
+void processing_event_triggered_average_analysis(const char* file_path,
                                                const char* events_file_path,
                                                const char** events,
                                                int32_t event_count,
@@ -1538,7 +1528,7 @@ int32_t** processing_find_spikes(const char* file_path,
     }
 }
 
-PROCESSING_API void processing_autocorrelation_analysis(float** spike_trains,
+void processing_autocorrelation_analysis(float** spike_trains,
                                        int32_t spike_train_count,
                                        int32_t* spike_counts,
                                        int32_t** analysis,
@@ -1557,7 +1547,7 @@ PROCESSING_API void processing_autocorrelation_analysis(float** spike_trains,
     }
 }
 
-PROCESSING_API void processing_isi_analysis(float** spike_trains,
+void processing_isi_analysis(float** spike_trains,
                            int32_t spike_train_count,
                            int32_t* spike_counts,
                            int32_t** analysis,
@@ -1576,7 +1566,7 @@ PROCESSING_API void processing_isi_analysis(float** spike_trains,
     }
 }
 
-PROCESSING_API void processing_cross_correlation_analysis(float** spike_trains,
+void processing_cross_correlation_analysis(float** spike_trains,
                                          int32_t spike_train_count,
                                          int32_t* spike_counts,
                                          int32_t** analysis,
@@ -1596,7 +1586,7 @@ PROCESSING_API void processing_cross_correlation_analysis(float** spike_trains,
     }
 }
 
-PROCESSING_API void processing_average_spike_analysis(const char* file_path,
+void processing_average_spike_analysis(const char* file_path,
                                      int32_t** spike_trains,
                                      int32_t spike_train_count,
                                      int32_t* spike_counts,
@@ -1622,7 +1612,7 @@ PROCESSING_API void processing_average_spike_analysis(const char* file_path,
     }
 }
 
-PROCESSING_API void processing_cleanup() {
+void processing_cleanup() {
     cleanup_processors();
     
     // Clean up the circular buffer
@@ -1636,7 +1626,7 @@ PROCESSING_API void processing_cleanup() {
     initialized = false;
 }
 
-PROCESSING_API int32_t processing_set_band_filter(float low_cut_off_freq, float high_cut_off_freq) {
+int32_t processing_set_band_filter(int channel_idx, float low_cut_off_freq, float high_cut_off_freq) {
     if (!initialized) {
         return -1;  // Not initialized
     }
@@ -1648,19 +1638,19 @@ PROCESSING_API int32_t processing_set_band_filter(float low_cut_off_freq, float 
         
         // Apply to all processors (same as in byb-lib.cpp)
         if (amModulationProcessor) {
-            amModulationProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+            amModulationProcessor->setBandFilter(channel_idx, low_cut_off_freq, high_cut_off_freq);
         }
         
         if (sampleStreamProcessor) {
-            sampleStreamProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+            sampleStreamProcessor->setBandFilter(channel_idx, low_cut_off_freq, high_cut_off_freq);
         }
         
         if (thresholdProcessor) {
-            thresholdProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+            thresholdProcessor->setBandFilter(channel_idx, low_cut_off_freq, high_cut_off_freq);
         }
         
         if (fftProcessor) {
-            fftProcessor->setBandFilter(low_cut_off_freq, high_cut_off_freq);
+            fftProcessor->setBandFilter(channel_idx, low_cut_off_freq, high_cut_off_freq);
         }
 
         return 0;  // Success
@@ -1671,7 +1661,7 @@ PROCESSING_API int32_t processing_set_band_filter(float low_cut_off_freq, float 
 
 
 
-PROCESSING_API int32_t processing_set_notch_filter(float center_freq) {
+int32_t processing_set_notch_filter(float center_freq) {
     if (!initialized) {
         return -1;  // Not initialized
     }
@@ -1703,7 +1693,7 @@ PROCESSING_API int32_t processing_set_notch_filter(float center_freq) {
     }
 }
 
-PROCESSING_API int32_t processing_set_channel_filter_enabled(int32_t channel, bool enabled) {
+int32_t processing_set_channel_filter_enabled(int32_t channel, bool enabled) {
     if (!initialized) {
         return -1;
     }
@@ -1727,7 +1717,7 @@ PROCESSING_API int32_t processing_set_channel_filter_enabled(int32_t channel, bo
     }
 }
 
-PROCESSING_API int32_t processing_map(float* out_data, const float* in_data, int32_t length,
+int32_t processing_map(float* out_data, const float* in_data, int32_t length,
                       float in_min, float in_max, float out_min, float out_max) {
     if (!initialized || !out_data || !in_data || length <= 0) {
         return -1;
@@ -1761,3 +1751,84 @@ PROCESSING_API int32_t processing_map(float* out_data, const float* in_data, int
 //     std::cerr << "C++: Dart callback not set." << std::endl;
 //   }
 // }
+
+
+PROCESSING_API int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw, int* samplesCountRaw, int selectedChannel, int channelCount) {
+    if (!initialized || !circularBuffer) {
+        return -1;
+    }
+
+    short** inSamples = new short*[channelCount];
+    for (int i = 0; i < channelCount; i++) {
+        inSamples[i] = new short[samplesCountRaw[i]];
+        std::copy(inSamplesRaw + i * samplesCountRaw[i], inSamplesRaw + (i + 1) * samplesCountRaw[i], inSamples[i]);
+    }
+
+    int32_t result = 0;
+    try {
+        circularBuffer->setup(current_sample_rate, current_channel_count);
+        circularBuffer->addData(inSamples, samplesCountRaw);
+    } catch (...) {
+        result = -3;
+    }
+
+    // Clean up allocated memory
+    for (int i = 0; i < channelCount; i++) {
+        delete[] inSamples[i];
+    }
+    delete[] inSamples;
+
+    return result;
+}
+
+
+
+PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* samplesCountRaw, int channelCount) {
+    if (!initialized || !circularBuffer) {
+        return -1;
+    }
+
+    short** inSamples = new short*[channelCount];
+    for (int i = 0; i < channelCount; i++) {
+        inSamples[i] = new short[samplesCountRaw[i]];
+        std::copy(inSamplesRaw + i * samplesCountRaw[i], inSamplesRaw + (i + 1) * samplesCountRaw[i], inSamples[i]);
+    }
+    // platform_log_processing("Channel 1 Length - %d | Channel 2 Length %d\n", samplesCountRaw[0], samplesCountRaw[1]);
+    // platform_log_processing("Channel 1 Value - %d | Channel 2 Value %d\n", inSamples[0][0], inSamples[1][0]);
+    
+    int32_t result = 0;
+    try {
+        circularBuffer->addData(inSamples, samplesCountRaw);
+    } catch (...) {
+        result = -3;
+    }
+
+    // Clean up allocated memory
+    for (int i = 0; i < channelCount; i++) {
+        delete[] inSamples[i];
+    }
+    delete[] inSamples;
+
+    return result;
+}
+
+// // Register Dart port for receiving messages from C++
+PROCESSING_API int32_t processing_register_dart_port(int64_t port) {
+    platform_log_processing("Dart port registering: %lld\n", (long long)port);    
+    if (port == 0) {
+        platform_log_processing("Error: Invalid Dart port (port cannot be 0)\n");
+        return -1;
+    }
+    dart_port = static_cast<Dart_Port_DL>(port);
+    return 0;
+}
+
+// // Unregister Dart port
+PROCESSING_API void processing_unregister_dart_port() {
+    dart_port = 0;
+    platform_log_processing("Dart port unregistered\n");
+}
+
+PROCESSING_API intptr_t InitDartApiDL(void* data) {
+    return Dart_InitializeApiDL(data);
+}

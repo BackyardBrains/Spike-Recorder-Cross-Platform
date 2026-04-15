@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart';
 class ConstantProvider extends ChangeNotifier {
   int _bitData = 10;
   int _channelCount = 1;
-  int _baudRate = 222222;
+  // int _baudRate = 222222;
+  int _baudRate = 500000;
 
   int getBitData() {
     return _bitData;

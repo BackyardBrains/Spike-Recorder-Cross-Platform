@@ -37,6 +37,13 @@ class SerialUtilWeb implements SerialUtil {
       portInfo = _port?.getInfo();
       openPortToListen(" ", _baudRate);
     } catch (e) {
+      print(
+          "Port cancelled: ${e.toString().contains("NotFoundError: Failed to execute 'requestPort'")}");
+      if (e
+          .toString()
+          .contains("NotFoundError: Failed to execute 'requestPort'")) {
+        return;
+      }
       print("Port opening failed: $e");
       throw Exception("Serial connections require Chrome, or Edge");
     }
@@ -46,14 +53,14 @@ class SerialUtilWeb implements SerialUtil {
   Future<void> closePort() async {
     writer?.releaseLock();
     reader?.releaseLock();
-    try{
+    try {
       if (!streamController.isClosed) {
         await streamController.close();
       }
-    } catch(err) {
+    } catch (err) {
       print("Error closing stream controller: $err");
     }
-    
+
     _port?.close().then((_) async {
       writer = null;
       reader = null;
@@ -125,7 +132,7 @@ class SerialUtilWeb implements SerialUtil {
         writer = null;
         reader = null;
         audioCallback!(1, null);
-      }else {
+      } else {
         // print("Audio Callback null");
         // print(audioCallback);
       }
@@ -139,9 +146,9 @@ class SerialUtilWeb implements SerialUtil {
   Future<void> getAvailablePorts(int baudRate, Function callback) async {
     audioCallback = callback;
     _baudRate = baudRate;
-    try{
+    try {
       await connectToPort();
-    }catch(err) {
+    } catch (err) {
       throw Exception("Serial connections require Chrome, or Edge");
     }
 
@@ -150,22 +157,28 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   @override
-  Future<List<String>> getAvailablePortsWeb(int baudRate, Function callback) async {
+  Future<List<String>> getAvailablePortsWeb(
+      int baudRate, Function callback) async {
     audioCallback = callback;
     _baudRate = baudRate;
-    try{
+    try {
       print("connectToPort: $baudRate");
-      try{
+      try {
         await connectToPort();
-      }catch(err) {
+      } catch (err) {
         throw Exception("Serial connections require Chrome, or Edge");
       }
       availablePorts = [_port!.getInfo().usbProductId!.toString()];
       print("availablePorts: $availablePorts");
       return availablePorts;
-    }catch(err) {
-      print("error in getAvailablePortsWeb: $err");
-      throw Exception("Serial connections require Chrome, or Edge");
+    } catch (err) {
+      print(
+          "error in getAvailablePortsWeb: ${err.toString()} --- ${err.toString().contains("Null check operator used on a null value")}");
+      if (err.toString().contains("Null check operator used on a null value")) {
+        throw Exception("BYPASS");
+      } else {
+        throw Exception("Serial connections require Chrome, or Edge");
+      }
       return [];
     }
 
@@ -222,7 +235,7 @@ class SerialUtilWeb implements SerialUtil {
       streamController.add(result.value);
     }
   }
-  
+
   @override
   Stream<String?> deviceStatusStreamListener() {
     return Stream.empty();

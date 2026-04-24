@@ -102,6 +102,10 @@ function cleanupAudioResources() {
     }
 }
 
+async function stopListeningToMicrophone() {
+    cleanupAudioResources();
+}
+
 async function startListeningToMicrophone(sampleRate) {
     // Prevent multiple simultaneous initializations
     if (isInitializing) {

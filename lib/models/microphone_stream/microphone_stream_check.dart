@@ -12,12 +12,15 @@ abstract class MicrophoneUtil {
   // final StreamController<Uint8List> addListenAudioStreamController =
   //     StreamController();
   // Stream<Uint8List>? micStream;
-  ValueNotifier<Uint8List> micStream  = ValueNotifier(Uint8List(0));
-  final ValueNotifier<Uint8List> addListenAudioStreamController = ValueNotifier(Uint8List(0));
+  ValueNotifier<Uint8List> micStream = ValueNotifier(Uint8List(0));
+  final ValueNotifier<Uint8List> addListenAudioStreamController =
+      ValueNotifier(Uint8List(0));
   double sampleRate = 48000;
   Future<void> init() async {}
 
   StreamSubscription? micStatus;
 
   Future<void> checkPointerValue() async {}
+
+  void stopListeningToMicrophone();
 }

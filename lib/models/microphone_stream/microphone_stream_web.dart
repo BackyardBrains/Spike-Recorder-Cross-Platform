@@ -14,14 +14,15 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
   @override
   // StreamController<Uint8List> addListenAudioStreamController =
   //     StreamController<Uint8List>();
-  ValueNotifier<Uint8List> addListenAudioStreamController = ValueNotifier(Uint8List(0));
+  ValueNotifier<Uint8List> addListenAudioStreamController =
+      ValueNotifier(Uint8List(0));
 
   @override
   ValueNotifier<Uint8List> micStream = ValueNotifier(Uint8List(0));
 
   @override
   double sampleRate = 44100;
-  
+
   var mediaStream;
 
   @override
@@ -38,7 +39,8 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
           if (trackSettings["sampleRate"] != null) {
             sampleRate = trackSettings["sampleRate"];
           } else {
-            final audioContextClass = js.context['AudioContext'] ?? js.context['webkitAudioContext'];
+            final audioContextClass =
+                js.context['AudioContext'] ?? js.context['webkitAudioContext'];
             final tempContext = js.JsObject(audioContextClass);
             final rate = tempContext['sampleRate'] as num;
             print("MEDIA CONTEXT 2233: $rate");
@@ -47,7 +49,8 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
           }
         }
       } else {
-        final audioContextClass = js.context['AudioContext'] ?? js.context['webkitAudioContext'];
+        final audioContextClass =
+            js.context['AudioContext'] ?? js.context['webkitAudioContext'];
         final tempContext = js.JsObject(audioContextClass);
         final rate = tempContext['sampleRate'] as num;
         print("MEDIA CONTEXT: $rate");
@@ -57,22 +60,23 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
 
       print("INIT sampleRate: $sampleRate");
       // micStream = ValueNotifier(Uint8List(0));
-    } catch(err) {
+    } catch (err) {
       print("err mic");
       print(err);
     }
-    
+
     // micStream = addListenAudioStreamController;
     js.context['onDataBufferAllocated'] = onDataBufferAllocated;
     // Wrap in closure to preserve 'this' context when called from JavaScript
     js.context['onDataReceived'] = () => onDataReceived();
     await Future.delayed(const Duration(seconds: 1));
-    print("startListeningToMicrophone | sampleRate: $sampleRate");    
+    print("startListeningToMicrophone | sampleRate: $sampleRate");
     js.context.callMethod('startListeningToMicrophone', [sampleRate]);
   }
 
   /// Called only once in the beginning to send address of buffer to dart
-  void onDataBufferAllocated(Int16List dataBuffer, int channelIdx, pSampleRate) {
+  void onDataBufferAllocated(
+      Int16List dataBuffer, int channelIdx, pSampleRate) {
     print("ON DATA BUFFER ALLOCATED MICROPHONE UTILS");
     _micDataBuffer = dataBuffer;
     // if (pSampleRate != null) {
@@ -99,4 +103,9 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
 
   @override
   StreamSubscription? micStatus;
+
+  @override
+  void stopListeningToMicrophone() {
+    js.context.callMethod('stopListeningToMicrophone', []);
+  }
 }

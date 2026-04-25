@@ -91,4 +91,5 @@ class MicrophoneUtilAndroid implements MicrophoneUtil {
   }
 
   Future<void> checkPointerValue() async {}
+  void stopListeningToMicrophone() {}
 }

@@ -1644,7 +1644,7 @@ function flushBufferedSamples() {
     bufferedSampleCounts = [];
 }
 
-
+// called from processing.cpp
 function setExpansionBoardType(rawPosExpBoardType, expBoardType){
     
     postMessage({

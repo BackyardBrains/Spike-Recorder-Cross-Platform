@@ -142,7 +142,7 @@ color selector
 
 flutter build web --no-tree-shake-icons
 flutter build macos --no-tree-shake-icons
-
+flutter build apk --no-tree-shake-icons
 
 NeuronSpikerBox 
 #Serial stream data

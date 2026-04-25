@@ -6,7 +6,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   firebase_core
   flutter_libserialport
   permission_handler_windows
-  record_windows
   screen_retriever
   url_launcher_windows
   window_manager

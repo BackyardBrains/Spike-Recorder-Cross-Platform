@@ -200,11 +200,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
             .toList();
       } else {
         filteredPorts = _serialUtil.availablePorts;
-        if (Platform.isWindows) {
-          filteredPorts = _serialUtil.availablePorts
-              .where((port) => port.contains('COM4'))
-              .toList();
-        }
+        // if (Platform.isWindows) {
+        //   filteredPorts = _serialUtil.availablePorts
+        //       .where((port) => port.contains('COM4'))
+        //       .toList();
+        // }
       }
 
       bool isComMatch = areListsEqual(_availablePorts, filteredPorts);
@@ -1579,7 +1579,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.0.9',
+                                            'SpikeRecorder App ver. 2.0.10',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -3945,13 +3945,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // if (context.mounted) {
 
       if (GraphTemplate.selectedBoard?.uniqueName == "HHIBOX") {
-        sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2 * 2).floor();
+        sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2 ).floor();
       } else 
       if (GraphTemplate.selectedBoard?.uniqueName == "NRNSBPRO") {
         sampleCountToDisplay = (_sampleRate / 5000 * 8 * defaultDeviceChannelCount).floor();
       } else 
       if (_sampleRate >= 10000 && defaultDeviceChannelCount < 2){
-        sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2 * 2).floor();
+        sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2 ).floor();
       } else 
       if (_sampleRate >= 10000 && defaultDeviceChannelCount > 1){
         sampleCountToDisplay = (_sampleRate / 5000 * 8 * defaultDeviceChannelCount).floor();
@@ -4577,13 +4577,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   defaultDeviceChannelCount = deviceChannelCount;
                   
                   if (GraphTemplate.selectedBoard?.uniqueName == "HHIBOX") {
-                    sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2 * 2).floor();
+                    sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2 ).floor();
                   } else 
                   if (GraphTemplate.selectedBoard?.uniqueName == "NRNSBPRO") {
                     sampleCountToDisplay = (_sampleRate / 5000 * 8 * defaultDeviceChannelCount).floor();
                   } else 
                   if (_sampleRate >= 10000 && defaultDeviceChannelCount < 2){
-                    sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2 * 2).floor();
+                    sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2 ).floor();
                   } else 
                   if (_sampleRate >= 10000 && defaultDeviceChannelCount > 1){
                     sampleCountToDisplay = (_sampleRate / 5000 * 8 * defaultDeviceChannelCount).floor();

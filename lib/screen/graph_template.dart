@@ -250,6 +250,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
                   if (isDeviceConnect) {
                     if (isRecording == 1) return;
+                    isDeviceConnect = false;
+
                     print("Writing to port b:; : ${UsbCommand.hwTypeInquiry.cmdAsBytes()} ${DateTime.now().millisecondsSinceEpoch}");
                     Future.delayed(Duration(milliseconds: 1000), () {
                       print("SEND BYTES DELAYED: ${DateTime.now().millisecondsSinceEpoch}");
@@ -259,16 +261,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       //     address: listOfPort.last);
                       // isDeviceConnect = false;
                     });
-                    isDeviceConnect = false;
                   }
                   if (_isDataIdentified) {
                     serialNativeDataSubscription(event, isAudioListen);
                   } else {
                     if (!isDeviceConnect && !isDeviceSelected) {
                       // print("_preEscapeSequenceBuffer ADDBYTES EVENT: ${event} | isDeviceConnect: ${isDeviceConnect} | isDeviceSelected: ${isDeviceSelected}");
-                      if (event.contains(255)) {
-                        print("_preEscapeSequenceBuffer ADDBYTES EVENT: ${event}");
-                      }
+                      // if (event.contains(255)) {
+                      //   // print("_preEscapeSequenceBuffer ADDBYTES EVENT: ${event}");
+                      // }
                       _preEscapeSequenceBuffer.addBytes(event);
                     }
                     if (isDeviceSelected) {
@@ -2563,7 +2564,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   deviceTimer?.cancel();
                   deviceTimer = null;
                 }
-                deviceTimer = Timer.periodic(Duration(seconds: 4), (timer) {
+                deviceTimer = Timer.periodic(Duration(seconds: 7), (timer) {
                   if (isRecording == 1) return;
                   print("Writing to port device:;");
                   _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: _availablePorts.last);

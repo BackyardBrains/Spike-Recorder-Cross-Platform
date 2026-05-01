@@ -18,6 +18,8 @@
 // Set the size of the buffer used to receive data from the input stream
 #define RX_BUFFER_SIZE 1024
 // #define RX_BUFFER_SIZE 32
+#define PROTOCOL_HEADER_SIZE    2
+const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
 
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
   FlutterMethodChannel* channel = [FlutterMethodChannel
@@ -103,7 +105,7 @@
         return;
     }
 
-    [self queueTxData:payload];
+    [self queuePacket:(uint8_t *)payload.bytes length:payload.length];
     result(@YES);
   } else if ([@"setProtocol" isEqualToString:call.method]) {
     NSString *protocol = call.arguments[@"protocol"];
@@ -195,7 +197,7 @@
         [hexString appendFormat:@"%02x ", buf[i]];
     }
     // [self addDebugString:[NSString stringWithFormat:@"%@\n", hexString]];
-    NSLog(@"RX (%ld): %@", (long)len, hexString);    
+//    NSLog(@"RX (%ld): %@", (long)len, hexString);    
 #endif
 }
 
@@ -230,7 +232,7 @@
          for (NSInteger i = 0; i < bytesRead; i++) {
              [hex appendFormat:@"%02X ", buffer[i]];
          }
-        NSLog(@"RX (%ld): %@", (long)bytesRead, hex);
+//        NSLog(@"RX (%ld): %@", (long)bytesRead, hex);
 
     }
 }
@@ -273,6 +275,15 @@
         }
     }
 
+}
+
+- (void)queuePacket:(uint8_t *)payload length:(NSUInteger)len
+{
+    NSMutableData *packet = [NSMutableData dataWithCapacity:(PROTOCOL_HEADER_SIZE + len)];
+
+    [packet appendBytes:kHeaderBytes length:PROTOCOL_HEADER_SIZE];
+    [packet appendBytes:payload length:len];
+    [self queueTxData:packet];
 }
 
 // Stream delegate handles events from both streams.

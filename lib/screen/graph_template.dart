@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:another_xlider/models/handler.dart';
 import 'package:another_xlider/models/tooltip/tooltip.dart';
 import 'package:another_xlider/models/trackbar.dart';
+import 'package:byb_accessory/byb_accessory.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -47,6 +48,7 @@ import 'package:vector_graphics/vector_graphics.dart';
 import 'package:flutter/cupertino.dart';
 
 import 'package:carousel_slider/carousel_slider.dart';
+import '../functionality/IosConnectorDetector.dart';
 
 class GraphTemplate extends StatefulWidget {
   static int isLoadingFile = 0;
@@ -190,7 +192,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
       _serialUtil.getAvailablePorts(baudRate, serialErrorCallback);
       allDevices.clear();
 
-      List<String> filteredPorts;
+      List<String> filteredPorts = [];
+      List<String> listOfPort =
+          Provider.of<PortScanProvider>(context, listen: false).availablePorts;
+
       if (kIsWeb) {
         filteredPorts = _serialUtil.availablePorts;
       } else if (Platform.isMacOS) {
@@ -198,6 +203,220 @@ class _GraphTemplateState extends State<GraphTemplate> {
             .where((port) =>
                 port.contains('usbmodem') || port.contains('usbserial'))
             .toList();
+      } else 
+      if (Platform.isIOS){
+        IosConnectorDetector.getConnectorType().then((value) async {
+          if (value == ConnectorType.usbC) {
+            filteredPorts = _serialUtil.availablePorts
+                .where((port) =>
+                    port.contains('usbmodem') || port.contains('usbserial'))
+                .toList();
+
+          } else {
+            if (!isMfiInitialized) {
+              print("BYB iOS accessory init protocol: $accessoryLabel");
+              await BybAccessory.initWithProtocol("com.backyardbrains.spikerbox");
+              isMfiInitialized = true;
+              // Remove mic listener
+              try {
+                print("BYB iOS -- REMOVE MIC LISTENER");
+                microphoneUtil.micStream.removeListener(micListener);
+                if (!kIsWeb) {
+                  print("microphoneUtil.micStatus?.cancel()");
+                  microphoneUtil.micStatus?.cancel();
+                }
+                isDeviceConnect = true;
+                isDeviceSelected = false;
+                ProcessingUtil.initializeDevice.value = 0;
+
+              } catch (e) {
+                print("Error removing micListener: $e");
+              }
+              
+              // SETUP SERIAL
+              _rxSub?.cancel();
+              _rxSub = null;
+              context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
+              _rxSub = BybAccessory.rxBytesStream.listen((event) async {
+                // bytes from processRxBytes on iOS
+                // parse protocol here
+                // print('RX ${event.length} bytes ----===---- isDeviceConnect: $isDeviceConnect');
+                // context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
+                bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+                // print("IS AUDIO LISTEN | Writing to port b:; : ${isAudioListen} --- bytes : ${event.length}");
+                if (!isAudioListen) {
+                  final provider =
+                      Provider.of<GraphDataProvider>(context, listen: false);
+                  int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+                  if (isDeviceConnect) {
+                    if (isRecording == 1) return;
+                    print("Writing to port b:; : ${UsbCommand.hwTypeInquiry.cmdAsBytes()} ${DateTime.now().millisecondsSinceEpoch}");
+                    Future.delayed(Duration(milliseconds: 1000), () {
+                      print("SEND BYTES DELAYED: ${DateTime.now().millisecondsSinceEpoch}");
+                      BybAccessory.sendBytes(UsbCommand.hwTypeInquiry.cmdAsBytes());
+                      // _serialUtil.writeToPort(
+                      //     bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
+                      //     address: listOfPort.last);
+                      // isDeviceConnect = false;
+                    });
+                    isDeviceConnect = false;
+                  }
+                  if (_isDataIdentified) {
+                    serialNativeDataSubscription(event, isAudioListen);
+                  } else {
+                    if (!isDeviceConnect && !isDeviceSelected) {
+                      // print("_preEscapeSequenceBuffer ADDBYTES EVENT: ${event} | isDeviceConnect: ${isDeviceConnect} | isDeviceSelected: ${isDeviceSelected}");
+                      if (event.contains(255)) {
+                        print("_preEscapeSequenceBuffer ADDBYTES EVENT: ${event}");
+                      }
+                      _preEscapeSequenceBuffer.addBytes(event);
+                    }
+                    if (isDeviceSelected) {
+
+                      // !isDeviceConnect &&
+                      _isDataIdentified = true;
+                      if (!_isBoardTimerRunning) {
+                        _isBoardTimerRunning = true;
+                        if (boardTimer !=null) {
+                          boardTimer?.cancel();
+                          boardTimer = null;
+                        }
+                        boardTimer = Timer.periodic(Duration(seconds: 3), (timer) {
+                          if (isRecording == 1) return;
+                          _isBoardTimerRunning = false;
+                          print("Writing to port board:;");
+                          Uint8List commandBytes =
+                              Uint8List.fromList(utf8.encode("board:;"));
+                          BybAccessory.sendBytes(commandBytes);
+                          // _serialUtil.writeToPort(
+                          //     bytesMessage: commandBytes, address: _availablePorts.last);
+                        });
+                      }
+                      // STEVE
+                      if (!GraphTemplate.isPlayerPaused) {
+                        List<Int16List> samples =
+                            await processingUtil.processSerialData(
+                                event,
+                                displayTimeMs.toInt(),
+                                deviceType,
+                                drawSurfaceWidth,
+                                provider);
+                        int sampleCount = samples[0].length;
+
+                        if (isThresholdingButton) {
+                          int selectedChannel = context
+                              .read<ThresholdStatusProvider>()
+                              .selectedThresholdChannel;
+                          bool isAverageSamples = true;
+                          processingUtil.processThresholdData(samples, samples.length,
+                              drawSurfaceWidth, selectedChannel, isAverageSamples);
+                        }
+
+                        totalSampleCount += sampleCount;
+                        if (totalSampleCount > sampleCountToDisplay) {
+                          totalSampleCount = 0;
+                          DraggableGraph.startPositionIdx = 0;
+                          DraggableGraph.endPositionIdx =
+                              (displayTimeMs * 0.001 * _sampleRate).floor();
+                          // DEBUG STEVE
+                          // return;
+
+                          await processingUtil.processDisplaySerialData(
+                              displayTimeMs.toInt(),
+                              deviceType,
+                              drawSurfaceWidth,
+                              provider,
+                              0,
+                              (displayTimeMs * 0.001 * _sampleRate).floor());
+                          provider.inputListener(Uint8List(0));
+                        }
+                      } else {
+                        // await processingUtil.processDisplaySerialData(displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
+                        // int fromSample = (-bufferPaddingLeft).toInt();
+                        // int toSample = (fromSample + displayTimeMs * 0.001 * _sampleRate).toInt();
+                        int maxSamples =
+                            (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+                        int toSample = (maxSamples + bufferPaddingLeft).toInt();
+                        toSample = min(maxSamples, toSample);
+                        int fromSample =
+                            (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
+                        DraggableGraph.startPositionIdx = fromSample;
+                        DraggableGraph.endPositionIdx = toSample;
+                        // DEBUG STEVE
+                        // return;
+
+                        // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+                        await processingUtil.processDisplaySerialData(
+                            displayTimeMs.toInt(),
+                            deviceType,
+                            drawSurfaceWidth,
+                            provider,
+                            fromSample,
+                            toSample);
+
+                        provider.inputListener(Uint8List(0));
+                      }
+                    } else {
+                      if (!_isDeviceTimerRunning) {
+                        _isDeviceTimerRunning = true;
+                        if (deviceTimer !=null) {
+                          deviceTimer?.cancel();
+                          deviceTimer = null;
+                        }
+                        deviceTimer = Timer.periodic(Duration(seconds: 4), (timer) {
+                          if (isRecording == 1) return;
+                          print("Writing to port device:;");
+                          BybAccessory.sendBytes(UsbCommand.hwTypeInquiry.cmdAsBytes());
+                          // _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: _availablePorts.last);
+                        });
+                      }
+                    }
+                  }
+                }
+
+              }, onError: (e) {
+                print('RX stream error: $e');
+                forceSerialDisconnect = true;
+                print("SERIAL PORT ERROR -- DISCONNECTED");
+                _serialUtil.closePort();
+                final provider = Provider.of<GraphDataProvider>(context, listen: false);
+                isMfiInitialized = false;
+                Future.delayed(Duration(milliseconds: 2500), () {
+                  forceSerialDisconnect = false;
+                  listenToMicrophone(1, provider);
+                });        
+
+              });
+            }
+
+            final accessories = await BybAccessory.getConnectedAccessories();
+            if (accessories.isNotEmpty) {
+              accessoryLabel = accessories.first;
+              final alreadyConnected = await BybAccessory.isConnected();
+              if (!alreadyConnected) {
+                final isConnected = await BybAccessory.connect(name: accessories.first);
+                if (isConnected) {
+                  print("BYB iOS accessory connected: $accessoryLabel");
+                  final info = await BybAccessory.getAccessoryInfo();
+                  print(info);
+                } else {
+                  print("BYB iOS accessory not connected: $accessoryLabel");
+                }
+              } else {
+                // print("BYB iOS accessory already connected: $accessoryLabel");
+              }
+            } else {
+              accessoryLabel = "-@-";
+              debugPrint(
+                  "BYB iOS accessory list is empty. Check UISupportedExternalAccessoryProtocols in Info.plist.");
+            }
+            setState(() {});
+            // filteredPorts = _serialUtil.availablePorts
+            //     .where((port) =>
+            //         port.contains('usbmodem') || port.contains('usbserial'))
+            //     .toList();
+          }
+        });
       } else {
         filteredPorts = _serialUtil.availablePorts;
         // if (Platform.isWindows) {
@@ -215,9 +434,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
 
       // print("SET MICROPHONE DATA STATUS: ${_availablePorts.isEmpty}");
-      context
-          .read<DataStatusProvider>()
-          .setMicrophoneDataStatus(_availablePorts.isEmpty);
+      if (!Platform.isIOS) {
+        context
+            .read<DataStatusProvider>()
+            .setMicrophoneDataStatus(_availablePorts.isEmpty);
+      }
 
       if (!isComMatch) {
         // isDeviceConnect = true;
@@ -1650,6 +1871,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                               const SizedBox(
                                 width: 10,
                               ),
+                              // Text(accessoryLabel ?? "-@-", style: TextStyle(color: Colors.red)),
+                              // Text("BLANKK", style: TextStyle(color: Colors.red)),
 
                               serialWebButton(),
                               // SpikerBoxButton(
@@ -3623,6 +3846,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
   
   Timer? boardTimer;
   Timer? deviceTimer;
+  
+  String? accessoryLabel;
+  
+  bool isMfiInitialized = false;
+  
+  StreamSubscription<Uint8List>? _rxSub;
   // Int32List arrSampleCountWeb = Int32List(0);
   // Int16List arrSamplesWeb = Int16List(1);
 

@@ -24,19 +24,20 @@ enum Command {
 int screenWidth = 0;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  var firebaseInitialized = false;
 
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    firebaseInitialized = true;
   } catch (e) {
     print('Firebase initialization error: $e');
-    // Continue without Firebase on web if it fails
+    // Continue app startup even if Firebase is unavailable.
   }
 
-  // Pass all uncaught "fatal" errors from the framework to Crashlytics
-  // Note: Crashlytics is not supported on web
-  if (!kIsWeb) {
+  // Pass uncaught fatal errors to Crashlytics only after Firebase is ready.
+  if (!kIsWeb && firebaseInitialized) {
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
     PlatformDispatcher.instance.onError = (error, stack) {
       FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);

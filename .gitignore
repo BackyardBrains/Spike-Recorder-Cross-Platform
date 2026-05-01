@@ -11,7 +11,10 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
-
+build/ios/XCBuildData/PIFCache/target/
+ios/build/ios/XCBuildData/PIFCache/project/
+ios/build/ios/XCBuildData/PIFCache/target/
+ios/build/ios/XCBuildData/PIFCache/workspace/
 # IntelliJ related
 *.iml
 *.ipr

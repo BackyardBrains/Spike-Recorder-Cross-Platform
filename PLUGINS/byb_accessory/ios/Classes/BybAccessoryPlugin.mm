@@ -2,9 +2,17 @@
 #import "SpikeRecorder/Audio/BBAudioManager.h"
 
 @interface BybAccessoryPlugin ()
+/// EA notifications are UIKit; register on the main queue (plugin init may not always run there).
+- (void)registerExternalAccessoryObserversOnMainIfNeeded;
 - (void)connectToAccessory:(NSString *)name;
 /// Call only on main thread; uses NSRunLoop main for stream scheduling teardown.
 - (void)tearDownExistingSessionAssumeMainThread;
+/// When iOS cold-launches for MFi, EAAccessoryDidConnect may have fired before this plugin registered.
+- (void)tryAttachAlreadyConnectedAccessoryAfterColdLaunch;
+/// Avoid EA session vs Flutter UI race when accessory wakes the app before UIApplicationStateActive.
+- (void)openSessionWithProtocolDeferringUntilActive:(NSString *)protocolString;
+- (void)flushDeferredAccessorySessionOpenAfterActive:(NSNotification *)notification;
+- (void)cancelDeferredAccessorySessionOpenIfNeeded;
 @end
 
 @implementation BybAccessoryPlugin {
@@ -13,6 +21,10 @@
     NSMutableData *_txData;
     EAAccessory *lastAccessory;
     FlutterEventSink _rxEventSink;
+    NSString *_pendingDeferProtocol;
+    BOOL _didRegisterDeferActiveObserver;
+    BOOL _didReceiveDartInit;
+    BOOL _didRegisterEAObservers;
 
 }
 // Set the size of the buffer used to receive data from the input stream
@@ -31,6 +43,124 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
   BybAccessoryPlugin* instance = [[BybAccessoryPlugin alloc] init];
   [registrar addMethodCallDelegate:instance channel:channel];
   [rxChannel setStreamHandler:instance];
+  // Do not auto-attach during plugin registration. Accessory session open is driven by
+  // explicit Dart initWithProtocol after Flutter has presented first frame.
+}
+
++ (NSArray<NSString *> *)readExternalAccessoryProtocolsFromBundlePlist {
+    id value = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"UISupportedExternalAccessoryProtocols"];
+    if (![value isKindOfClass:[NSArray class]]) {
+        return @[];
+    }
+    NSMutableArray *out = [NSMutableArray array];
+    for (id item in (NSArray *)value) {
+        if ([item isKindOfClass:[NSString class]] && [(NSString *)item length] > 0) {
+            [out addObject:(NSString *)item];
+        }
+    }
+    return out;
+}
+
+- (void)tryAttachAlreadyConnectedAccessoryAfterColdLaunch {
+    if (!_didReceiveDartInit) {
+        NSLog(@"BYB cold-launch: skip auto-attach until Dart initWithProtocol");
+        return;
+    }
+    if (_session != nil) {
+        return;
+    }
+    NSString *protocolToUse = _protocol;
+    if (protocolToUse == nil || protocolToUse.length == 0) {
+        for (NSString *p in [BybAccessoryPlugin readExternalAccessoryProtocolsFromBundlePlist]) {
+            if ([self getCurrentAccessoryWithProtocol:p] != nil) {
+                [_protocol release];
+                _protocol = [p copy];
+                protocolToUse = _protocol;
+                NSLog(@"BYB cold-launch: protocol from Info.plist %@", p);
+                break;
+            }
+        }
+    }
+    if (protocolToUse.length == 0) {
+        return;
+    }
+    if ([self getCurrentAccessoryWithProtocol:protocolToUse] != nil) {
+        NSLog(@"BYB cold-launch: opening session for already-connected accessory");
+        [self openSessionWithProtocolDeferringUntilActive:protocolToUse];
+    }
+}
+
+- (void)cancelDeferredAccessorySessionOpenIfNeeded {
+    [_pendingDeferProtocol release];
+    _pendingDeferProtocol = nil;
+    if (!_didRegisterDeferActiveObserver) {
+        return;
+    }
+    _didRegisterDeferActiveObserver = NO;
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:UIApplicationDidBecomeActiveNotification
+                                                  object:nil];
+}
+
+/// Schedules EA session open once the UI app is active, avoiding headless/stream-before-scene races.
+- (void)openSessionWithProtocolDeferringUntilActive:(NSString *)protocolString {
+    if (protocolString.length == 0) {
+        return;
+    }
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self openSessionWithProtocolDeferringUntilActive:protocolString];
+        });
+        return;
+    }
+    UIApplication *app = [UIApplication sharedApplication];
+    if ([app applicationState] == UIApplicationStateActive) {
+        [self openSessionWithProtocol:protocolString];
+        return;
+    }
+    [_pendingDeferProtocol release];
+    _pendingDeferProtocol = [protocolString copy];
+    if (!_didRegisterDeferActiveObserver) {
+        _didRegisterDeferActiveObserver = YES;
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(flushDeferredAccessorySessionOpenAfterActive:)
+                                                     name:UIApplicationDidBecomeActiveNotification
+                                                   object:nil];
+    }
+    NSLog(@"BYB iOS defer EA open until active (UIApplicationState=%ld, protocol=%@)",
+          (long)[app applicationState], protocolString);
+}
+
+- (void)flushDeferredAccessorySessionOpenAfterActive:(NSNotification *)notification {
+    if (!_didRegisterDeferActiveObserver) {
+        return;
+    }
+    _didRegisterDeferActiveObserver = NO;
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:UIApplicationDidBecomeActiveNotification
+                                                  object:nil];
+
+    NSString *pending = [_pendingDeferProtocol retain];
+    [_pendingDeferProtocol release];
+    _pendingDeferProtocol = nil;
+
+    if (pending.length == 0) {
+        [pending release];
+        return;
+    }
+    if (_session != nil) {
+        NSLog(@"BYB iOS defer flush: session already open, skipping");
+        [pending release];
+        return;
+    }
+    if ([self getCurrentAccessoryWithProtocol:pending] == nil) {
+        NSLog(@"BYB iOS defer flush: no matching accessory for %@", pending);
+        [pending release];
+        return;
+    }
+    NSLog(@"BYB iOS defer flush: calling openSessionWithProtocol for %@", pending);
+    [self openSessionWithProtocol:pending];
+    [pending release];
 }
 
 - (void)handleMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {
@@ -50,6 +180,7 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
     }
     result(accessoryNames);
   } else if ([@"initWithProtocol" isEqualToString:call.method]) {
+    NSLog(@"BYB iOS Init With Protocol.");
     NSString *protocol = call.arguments[@"protocol"];
     if (![protocol isKindOfClass:[NSString class]] || protocol.length == 0) {
         result([FlutterError errorWithCode:@"missing_protocol"
@@ -57,15 +188,17 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
                                    details:nil]);
         return;
     }
-    _protocol = protocol;
-    [self openSessionWithProtocol:_protocol];
+    [_protocol release];
+    _protocol = [protocol copy];
+    _didReceiveDartInit = YES;
+    [self openSessionWithProtocolDeferringUntilActive:_protocol];
     result(@YES);
   } else if ([@"connect" isEqualToString:call.method]) {
     NSString *name = call.arguments[@"name"];
     if ([name isKindOfClass:[NSString class]] && name.length > 0) {
         [self connectToAccessory:name];
-    } else if (_protocol.length > 0) {
-        [self openSessionWithProtocol:_protocol];
+    } else if (_protocol != nil && _protocol.length > 0) {
+        [self openSessionWithProtocolDeferringUntilActive:_protocol];
     } else {
         result([FlutterError errorWithCode:@"missing_target"
                                    message:@"Provide either accessory name or call initWithProtocol first"
@@ -115,11 +248,33 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
                                    details:nil]);
         return;
     }
-    _protocol = protocol;
+    [_protocol release];
+    _protocol = [protocol copy];
     result(@YES);
   } else {
     result(FlutterMethodNotImplemented);
   }
+}
+
+/// External Accessory notifications are delivered through NSNotificationCenter on the system
+/// (not the Flutter engine). There is no Flutter-specific registration API for them — the plugin
+/// instance is the correct observer because it owns EASession / streams. This must run on the
+/// main thread per UIKit / EA guidance.
+- (void)registerExternalAccessoryObserversOnMainIfNeeded {
+    if (_didRegisterEAObservers) {
+        return;
+    }
+    NSAssert([NSThread isMainThread], @"EA observers must be registered on the main queue");
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(accessoryDidConnect:)
+                                                 name:EAAccessoryDidConnectNotification
+                                               object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(accessoryDidDisconnect:)
+                                                 name:EAAccessoryDidDisconnectNotification
+                                               object:nil];
+    [[EAAccessoryManager sharedAccessoryManager] registerForLocalNotifications];
+    _didRegisterEAObservers = YES;
 }
 
 - (instancetype)init {
@@ -128,21 +283,43 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
         _debugString = [NSMutableString stringWithString:@"BybAccessoryPlugin init\n"];
         _txData = [[NSMutableData alloc] init];
         _accessoryInfoString = @"Accessory Not Connected\n";
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(accessoryDidConnect:)
-                                                     name:EAAccessoryDidConnectNotification
-                                                   object:nil];
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(accessoryDidDisconnect:)
-                                                     name:EAAccessoryDidDisconnectNotification
-                                                   object:nil];
-        [[EAAccessoryManager sharedAccessoryManager] registerForLocalNotifications];
+        _didReceiveDartInit = NO;
+        void (^reg)(void) = ^{
+            [self registerExternalAccessoryObserversOnMainIfNeeded];
+        };
+        if ([NSThread isMainThread]) {
+            reg();
+        } else {
+            dispatch_sync(dispatch_get_main_queue(), reg);
+        }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+//            UIWindow *window = [UIApplication sharedApplication].delegate.window;
+            UIWindow *window = [[UIApplication sharedApplication] keyWindow];
+            if (window) {
+                NSLog(@"BYB iOS dispatch_after.");
+
+                // Force the window to re-layout its subviews
+                [window setNeedsLayout];
+                [window layoutIfNeeded];
+                
+                // Briefly toggling a view property can "wake up" the compositor
+                UIView *rootView = window.rootViewController.view;
+                rootView.alpha = 0.99;
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    rootView.alpha = 1.0;
+                });
+            }
+        });  
     }
     return self;
 }
 
 - (void)connectToAccessory:(NSString *)name {
     EAAccessoryManager *manager = [EAAccessoryManager sharedAccessoryManager];
+    if (_protocol == nil || _protocol.length == 0) {
+        NSLog(@"BYB iOS connectToAccessory: no protocol; call initWithProtocol or declare UISupportedExternalAccessoryProtocols");
+        return;
+    }
     NSLog(@"BYB iOS connectToAccessory name=%@ requestedProtocol=%@", name, _protocol);
     for (EAAccessory *accessory in [manager connectedAccessories]) {
         NSLog(@"BYB log  - connectToAccessory - accessory.name : %@", accessory.name);
@@ -156,7 +333,7 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
                 [self addDebugString:@"No protocol found for accessory\n"];
                 return;
             }
-            [self openSessionWithProtocol:selectedProtocol];
+            [self openSessionWithProtocolDeferringUntilActive:selectedProtocol];
             return;
         }
     }
@@ -400,13 +577,14 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
     if ([NSThread isMainThread]) {
         openWork();
     } else {
-        dispatch_sync(dispatch_get_main_queue(), openWork);
+        dispatch_async(dispatch_get_main_queue(), openWork);
     }
 }
 
 // Close an open session and disconnect the associated streams.
 - (void)closeSession
 {
+    [self cancelDeferredAccessorySessionOpenIfNeeded];
     _accessoryInfoString = @"Accessory Not Connected\n";
     [self addDebugString:@"closeSession\n"];
     void (^work)(void) = ^{
@@ -418,7 +596,7 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
     if ([NSThread isMainThread]) {
         work();
     } else {
-        dispatch_sync(dispatch_get_main_queue(), work);
+        dispatch_async(dispatch_get_main_queue(), work);
     }
 }
 
@@ -439,22 +617,19 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
     if (self) {
         _debugString = [NSMutableString stringWithString:@"initWithProtocol:\n"];
         _txData = [[NSMutableData alloc] init];
-        _protocol = protocol;
+        _protocol = [protocol copy];
 
         // Start session if an accessory is already attached
-        [self openSessionWithProtocol:_protocol];
+        [self openSessionWithProtocolDeferringUntilActive:_protocol];
 
-        // Listen for connect/disconnect events
-        [[NSNotificationCenter defaultCenter] addObserver:self
-            selector:@selector(accessoryDidConnect:)
-            name:EAAccessoryDidConnectNotification
-            object:nil];
-        [[NSNotificationCenter defaultCenter] addObserver:self
-            selector:@selector(accessoryDidDisconnect:)
-            name:EAAccessoryDidDisconnectNotification
-            object:nil];
-
-        [[EAAccessoryManager sharedAccessoryManager] registerForLocalNotifications];
+        void (^reg)(void) = ^{
+            [self registerExternalAccessoryObserversOnMainIfNeeded];
+        };
+        if ([NSThread isMainThread]) {
+            reg();
+        } else {
+            dispatch_sync(dispatch_get_main_queue(), reg);
+        }
     }
     return self;
 }
@@ -480,10 +655,18 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
 // there is one.
 - (void)dealloc
 {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
-    [[EAAccessoryManager sharedAccessoryManager] unregisterForLocalNotifications];
+    NSLog(@"DEALLOC BYB iOS accessory plugin");
+    [self cancelDeferredAccessorySessionOpenIfNeeded];
+    if (_didRegisterEAObservers) {
+        [[NSNotificationCenter defaultCenter] removeObserver:self];
+        [[EAAccessoryManager sharedAccessoryManager] unregisterForLocalNotifications];
+        _didRegisterEAObservers = NO;
+    }
     [self closeSession];
-    
+    [_protocol release];
+    _protocol = nil;
+    [_pendingDeferProtocol release];
+    _pendingDeferProtocol = nil;
 }
 
 // Checks if the accessory is currently connected.
@@ -500,11 +683,17 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
 {
     if([[UIApplication sharedApplication] isProtectedDataAvailable])
     {
-        NSLog(@"Device is unlocked! accessoryDidConnect");
+        if (_protocol == nil || _protocol.length == 0) {
+            NSLog(@"BYB ACCESSORY - accessoryDidConnect (default protocol)");
+            [_protocol release];
+            _protocol = [@"com.backyardbrains.spikerbox" copy];
+        } else {
+            NSLog(@"BYB ACCESSORY - accessoryDidConnect %@", _protocol);
+        }
     }
     else
     {
-        NSLog(@"Device is locked! accessoryDidConnect");
+        NSLog(@"BYB ACCESSORY - Device is locked! accessoryDidConnect");
     }
     [self addDebugString:@"DidConnect:\n"];
     if (_session == nil) {

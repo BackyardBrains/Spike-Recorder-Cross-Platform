@@ -1119,6 +1119,20 @@ class _DraggableGraphState extends State<DraggableGraph> {
     //       builder: (context, graphGainProvider, _) {
     final colorProvider = context.watch<ChannelColorProvider>();
     final dataStatus = context.watch<DataStatusProvider>();
+
+    if (!isInitializedGraph) {
+      return const SizedBox();
+    }
+
+    // If we are initialized but dimensions are zero (common in background cold launches),
+    // or if topChartY is empty/contains only zeros, re-initialize to pick up correct sizes.
+    bool isDimensionZero = widthChart == 0 || heightChart == 0;
+    bool isInvalidTopY =
+        topChartY.isEmpty || (topChartY.length > 1 && topChartY.every((y) => y == 0));
+
+    if (isInitializedGraph && (isDimensionZero || isInvalidTopY)) {
+      initializeGraph();
+    }
     
     // final thresholdStatus = context.watch<ThresholdStatusProvider>();
     if (isThresholding != context.read<ThresholdStatusProvider>().isThresholding) {

@@ -1,6 +1,6 @@
 {
-    "name": "spikerbox_architecture",
-    "short_name": "spikerbox_architecture",
+    "name": "Spike Recorder",
+    "short_name": "Spike Recorder",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

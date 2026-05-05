@@ -1,5 +1,5 @@
 name: spikerbox_architecture
-description: A new Flutter project.
+description: Spike Recorder
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -98,10 +98,10 @@ dependencies:
   # flutter_recorder: 1.1.1 # it is slow
   # flutter_audio_waveforms: ^1.2.1+8
   # flutter_audio_waveforms: ^1.2.1+8
-
+  #IOS
   firebase_crashlytics: 5.2.0
   firebase_analytics: 12.3.0
-
+  # MACOS
   # firebase_crashlytics: 5.0.4  
   # firebase_analytics: 12.0.4
   carousel_slider: 5.1.2

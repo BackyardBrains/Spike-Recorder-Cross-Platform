@@ -1,0 +1,15 @@
+flutter_native_splash:
+  # Production flavor splash configuration.
+  # Keep this file valid YAML; the CLI will fail if empty/malformed.
+
+  color: "#000000"
+
+  # If you have a dedicated splash image, set it here (example below).
+  # image: assets/optimized/splash.png
+
+  android: true
+  ios: true
+  web: false
+
+  # Uses the new iOS launch screen generation pipeline.
+  ios_content_mode: center

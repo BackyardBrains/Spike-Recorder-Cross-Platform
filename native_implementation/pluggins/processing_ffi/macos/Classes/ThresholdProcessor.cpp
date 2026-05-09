@@ -3,13 +3,13 @@
 //
 #include <cstring>
 #include <string>
-// #define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
-// void platform_log(const char *fmt, ...) {
-//     va_list args;
-//     va_start(args, fmt);
-//     vprintf(fmt, args);
-//     va_end(args);
-// }
+#define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
+void platform_log_threshold(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+}
 
 #include "ThresholdProcessor.h"
 
@@ -47,9 +47,15 @@ namespace backyardbrains {
         }
 
         void ThresholdProcessor::setThreshold(float threshold) {
-            //__android_log_print(ANDROID_LOG_DEBUG, TAG, "setThreshold(%f)", threshold);
-
+            // __android_log_print(ANDROID_LOG_DEBUG, TAG, "setThreshold(%f)", threshold);
+            // platform_log_threshold("setThreshold\n");
+            // platform_log_threshold(std::to_string(threshold).c_str());
+            // platform_log_threshold("\n");
+            // platform_log_threshold("Selected Channel:\n", getSelectedChannel());
+            // platform_log_threshold(std::to_string(getSelectedChannel()).c_str());
+            // platform_log_threshold("\n");
             ThresholdProcessor::triggerValue[getSelectedChannel()] = threshold;
+            // ThresholdProcessor::triggerValue[getSelectedChannel()] = 945;
         }
 
         void ThresholdProcessor::resetThreshold() {

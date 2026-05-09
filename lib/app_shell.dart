@@ -219,10 +219,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         debugShowCheckedModeBanner: false,
         title: 'Spike Recorder',
         theme: ThemeData(
-          brightness: Brightness.dark,
+          // brightness: Brightness.dark,
           primarySwatch: Colors.blue,
-          scaffoldBackgroundColor: Colors.black,
-          canvasColor: Colors.black,
+          // scaffoldBackgroundColor: Colors.black,
+          // canvasColor: Colors.black,
           textTheme: const TextTheme(),
         ),
         home: kIsWeb

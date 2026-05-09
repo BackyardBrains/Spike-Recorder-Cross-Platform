@@ -47,6 +47,7 @@ abstract class ProcessingUtil {
   
   
   void setAveragedSampleCount(int avgSampleCount);
+  void setSelectedChannel(int selectedChannel);
   void setThreshold(double thresholdValue);
 
   void initThreshold(int channelCount, int sampleRate, double drawSurfaceWidth);

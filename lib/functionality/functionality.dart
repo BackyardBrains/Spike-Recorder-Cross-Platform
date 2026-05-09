@@ -21,7 +21,8 @@ class SetUpFunctionality {
   }
   static Future<dynamic> getDeviceCatalog(localData) async {
     String url =
-        "https://firebasestorage.googleapis.com/v0/b/webspikerecorder.appspot.com/o/default_config.json?alt=media&token=8b0f5e9c-110a-455d-99e9-9fbc0a875f99";
+        // "https://firebasestorage.googleapis.com/v0/b/webspikerecorder.appspot.com/o/default_config.json?alt=media&token=8b0f5e9c-110a-455d-99e9-9fbc0a875f99";
+        "https://firebasestorage.googleapis.com/v0/b/webspikerecorder.appspot.com/o/default_config.json?alt=media&token=26b43910-0d36-411a-b8c0-9de4bdfaa874";
     print("getDeviceCatalog");
     var config = localData;
     // try {

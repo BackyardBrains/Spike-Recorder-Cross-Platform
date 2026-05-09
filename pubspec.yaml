@@ -93,6 +93,8 @@ dependencies:
   # https://pub.dev/packages/card_swiper
   # banner_carousel: ^1.2.1
 
+  # COMMENT OUT FOR WEB
+  # flutter_native_splash: 2.4.7
   window_manager: 0.3.6
   flutter_svg: 2.1.0
   # flutter_recorder: 1.1.1 # it is slow

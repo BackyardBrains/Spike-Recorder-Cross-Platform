@@ -261,7 +261,7 @@ SPEC CHECKSUMS:
   flutter_file_manager_macos: 11df72b919a6e010c8e03ec6adf7439f0319032b
   flutter_libserialport: d1a505fd4b05785f7b50cc7c93b361937ea1c5bd
   flutter_soloud: 6487a1bee397951f3f15f4a855d4da3812e1c3a8
-  FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+  FlutterMacOS: 8f6f14fa908a6fb3fba0cd85dbd81ec4b251fb24
   GoogleAppMeasurement: 3b4687de50ab25ee2d4d541849f10ca8df862a12
   GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1

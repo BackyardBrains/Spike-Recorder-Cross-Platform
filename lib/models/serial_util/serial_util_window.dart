@@ -38,10 +38,11 @@ class SerialUtilWindow implements SerialUtil {
     if (port?.name == address) {
       try {
         print("writing to port: ${utf8.decode(bytesMessage)}");
-        final intsize = port?.write(bytesMessage);
+        final intsize = port?.write(bytesMessage, timeout: 1000);
         print("command is sent. Length: $intsize, cmd: ${intsize}");
       } catch (err, _) {
         port!.close();
+        throw Exception("ERROR WRITING TO PORT: $err");
       }
     }
   }

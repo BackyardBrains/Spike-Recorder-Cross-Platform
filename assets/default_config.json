@@ -147,8 +147,8 @@
             },
             {
                 "uniqueName": "NRNSBPRO",
-                "userFriendlyFullName": "Neuron SpikerBox",
-                "userFriendlyShortName": "SpikerBox",
+                "userFriendlyFullName": "Neuron SpikerBox Pro",
+                "userFriendlyShortName": "Neuron SpikerBox Pro",
                 "hardwareComProtocolType": "iap2",
                 "bybProtocolType": "BYB1",
                 "bybProtocolVersion": "1.0",
@@ -911,8 +911,8 @@
             },
             {
                 "uniqueName": "NEURONSB",
-                "userFriendlyFullName": "Neuron SpikerBox Pro",
-                "userFriendlyShortName": "Neuron SpikerBox Pro",
+                "userFriendlyFullName": "Neuron SpikerBox",
+                "userFriendlyShortName": "Neuron SpikerBox",
                 "hardwareComProtocolType": "iap2,hid",
                 "bybProtocolType": "BYB1",
                 "bybProtocolVersion": "1.0",
@@ -1594,7 +1594,7 @@
                 "minLinuxAppVersion": "1.0.0",
                 "p300CapabilityPresent": 0,
                 "filter": {
-                    "signalType": "plantSignal",
+                    "signalType": "muscleClassicSignal",
                     "lowPassON": 1,
                     "lowPassCutoff": "5.0",
                     "highPassON": 0,
@@ -1613,7 +1613,99 @@
                     }
                 ],
                 "expansionBoards": []
+            },
+            {
+                "uniqueName": "MUSCUSB1",
+                "userFriendlyFullName": "Muscle SpikerBox Classic",
+                "userFriendlyShortName": "Muscle SpikerBox Classic",
+                "hardwareComProtocolType": "serial",
+                "bybProtocolType": "BYB1",
+                "bybProtocolVersion": "1.0",
+                "maxSampleRate": "10000",
+                "maxNumberOfChannels": "1",
+                "sampleResolution": 10,
+                "supportedPlatforms": "android,win,mac,linux,web",
+                "productURL": "https://backyardbrains.com/products/plantspikerbox",
+                "helpURL": "https://backyardbrains.com/products/plantspikerbox",
+                "firmwareUpdateUrl": "",
+                "iconURL": "",
+                "defaultTimeScale": "0.1",
+                "defaultAmplitudeScale": "1.0",
+                "sampleRateIsFunctionOfNumberOfChannels": 0,
+                "miniOSAppVersion": "3.0.0",
+                "minAndroidAppVersion": "1.0.0",
+                "minWinAppVersion": "1.0.0",
+                "minMacAppVersion": "1.0.0",
+                "minLinuxAppVersion": "1.0.0",
+                "p300CapabilityPresent": 0,
+                "filter": {
+                    "signalType": "emgSignal",
+                    "lowPassON": 1,
+                    "lowPassCutoff": "2500.0",
+                    "highPassON": 1,
+                    "highPassCutoff": "1.0",
+                    "notchFilterState": "notch60Hz"
+                },
+                "channels": [
+                    {
+                        "userFriendlyFullName": "Muscle SpikerBox Classic Channel 1",
+                        "userFriendlyShortName": "Muscle SpikerBox Classic Ch. 1",
+                        "activeByDefault": 1,
+                        "filtered": 1,
+                        "calibrationCoef": 1.0,
+                        "channelIsCalibrated": 1,
+                        "defaultVoltageScale": 0.1
+                    }
+                ],
+                "expansionBoards": []
+            },
+            {
+                "uniqueName": "NEURONSS",
+                "userFriendlyFullName": "Neuron SpikerBox Classic",
+                "userFriendlyShortName": "Neuron SpikerBox Classic",
+                "hardwareComProtocolType": "serial",
+                "bybProtocolType": "BYB1",
+                "bybProtocolVersion": "1.0",
+                "maxSampleRate": "10000",
+                "maxNumberOfChannels": "1",
+                "sampleResolution": 10,
+                "supportedPlatforms": "android,win,mac,linux,web",
+                "productURL": "https://backyardbrains.com/products/plantspikerbox",
+                "helpURL": "https://backyardbrains.com/products/plantspikerbox",
+                "firmwareUpdateUrl": "",
+                "iconURL": "",
+                "defaultTimeScale": "0.1",
+                "defaultAmplitudeScale": "1.0",
+                "sampleRateIsFunctionOfNumberOfChannels": 0,
+                "miniOSAppVersion": "3.0.0",
+                "minAndroidAppVersion": "1.0.0",
+                "minWinAppVersion": "1.0.0",
+                "minMacAppVersion": "1.0.0",
+                "minLinuxAppVersion": "1.0.0",
+                "p300CapabilityPresent": 0,
+                "filter": {
+                    "signalType": "emgSignal",
+                    "lowPassON": 1,
+                    "lowPassCutoff": "2500.0",
+                    "highPassON": 1,
+                    "highPassCutoff": "1.0",
+                    "notchFilterState": "notch60Hz"
+                },
+                "channels": [
+                    {
+                        "userFriendlyFullName": "Muscle SpikerBox Classic Channel 1",
+                        "userFriendlyShortName": "Muscle SpikerBox Classic Ch. 1",
+                        "activeByDefault": 1,
+                        "filtered": 1,
+                        "calibrationCoef": 1.0,
+                        "channelIsCalibrated": 1,
+                        "defaultVoltageScale": 0.1
+                    }
+                ],
+                "expansionBoards": []
             }
+             
+             
         ]
     }
 }

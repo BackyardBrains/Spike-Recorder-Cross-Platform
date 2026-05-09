@@ -52,6 +52,10 @@ import '../functionality/IosConnectorDetector.dart';
 
 class GraphTemplate extends StatefulWidget {
   static int isLoadingFile = 0;
+  // isLoadingFile = 1 -> scrubbing
+  // isLoadingFile = 2 -> scrubbing finished
+  // isLoadingFile = 3 -> playback file
+  // isLoadingFile = 4 -> playback file finished
 
   static bool isPlayerPaused = false;
   static Board? selectedBoard;
@@ -183,10 +187,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
   Future<void> _startPortCheck() async {
     _portCheckTimer?.cancel();
     _portCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      // print("PORT CHECK TIMER forceSerialDisconnect: $forceSerialDisconnect -- isSerialDeviceFound $isSerialDeviceFound --- isOpeningFile $isOpeningFile");
       if (forceSerialDisconnect) return;
       if (isOpeningFile) return;
-      if (kIsWeb) {
 
+      if (kIsWeb) {
+        if (_isDataIdentified) return;
       } else {
         if (!Platform.isIOS && _isDataIdentified) return;
       }
@@ -378,9 +384,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       // print("SET MICROPHONE DATA STATUS: ${_availablePorts.isEmpty}");
       if (!Platform.isIOS) {
-        context
-            .read<DataStatusProvider>()
-            .setMicrophoneDataStatus(_availablePorts.isEmpty);
+        // context
+        //     .read<DataStatusProvider>()
+        //     .setMicrophoneDataStatus(_availablePorts.isEmpty);
       }
 
       if (!isComMatch) {
@@ -394,8 +400,32 @@ class _GraphTemplateState extends State<GraphTemplate> {
             .setBaudRate(baudRate);
         allDevices = context.read<SerialDataProvider>().getAllPortDetail;
         if (isDeviceConnect) {
+          // if (blacklistSerialPortIds.contains(_availablePorts.last)) {
+          //   isSerialDeviceFound = false;
+          //   return;
+          // }
           isSerialDeviceFound = true;
+          serialPortId = _availablePorts.last;
+          print("isSerialDeviceFound: $isSerialDeviceFound");
+          lastEstablishingConnectionTime = DateTime.now();
           await portListOnConnect();
+          try{
+            Future.delayed(Duration(milliseconds: 2000), () async {
+              final provider =
+                  Provider.of<GraphDataProvider>(context, listen: false);
+              _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(), address: _availablePorts.last);
+              print("isDeviceSelected: $isDeviceSelected -- isDataIdentified: $_isDataIdentified");
+              // if (isDeviceSelected){
+              //   context
+              //       .read<DataStatusProvider>()
+              //       .setMicrophoneDataStatus(_availablePorts.isEmpty);
+              // }
+
+            });
+
+          }catch(err) {
+            print("ERROR PORT LIST ON WRITE: $err");
+          } 
         }
       }
     });
@@ -1752,7 +1782,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.0.10',
+                                            'SpikeRecorder App ver. 2.0.11',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -1838,6 +1868,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       onTapButton: () {
                                         isThresholdingButton =
                                             !isThresholdingButton;
+                                        print(
+                                            "initThreshold : ${_sampleRate}, $deviceChannelCount === deviceChannelCount :$deviceChannelCount @@@ isThresholdingButton :$isThresholdingButton  ");
                                         if (isThresholdingButton) {
                                           processingUtil.initThreshold(
                                               deviceChannelCount,
@@ -1845,8 +1877,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               MediaQuery.of(context)
                                                   .size
                                                   .width);
-                                          print(
-                                              "initThreshold : ${_sampleRate}, $deviceChannelCount ===");
                                           processingUtil
                                               .setAveragedSampleCount(1);
                                           processingUtil.setThreshold(525);
@@ -1913,6 +1943,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                               //     forceSerialDisconnect = !forceSerialDisconnect;
                               //   }, iconData: Icons.usb),
                               // },
+                              // CONNECT LIST USB SERIAL WEB
+                              /*
                               StreamBuilder<List<ComDataWithBoard>>(
                                   stream: deviceListStream,
                                   builder: (context, snapshot) {
@@ -1923,6 +1955,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       if (listOfBoard?.length == 0) {
                                         return SpikerBoxButton(
                                             onTapButton: () async {
+                                              print("USB ICON CLICKED");
                                               forceSerialDisconnect = true;
                                               initMessageIdentifier();
 
@@ -1983,10 +2016,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                                   .getAllPortDetail;
                                               if (isDeviceConnect) {
                                                 isSerialDeviceFound = true;
+                                                lastEstablishingConnectionTime = DateTime.now();
                                                 await portListOnConnect();
                                               }
+
+                                              forceSerialDisconnect = true;
                                               // }
-                                              forceSerialDisconnect = false;
                                             },
                                             iconData: Icons.usb);
                                       }
@@ -2034,6 +2069,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       return Container();
                                     }
                                   })
+                              */
                             ],
                           ),
                           Row(
@@ -2336,7 +2372,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
           print("DEVICE STATUS STREAM: $event");
           if (event == "android.hardware.usb.action.USB_DEVICE_DETACHED") {
             forceSerialDisconnect = true;
-            print("SERIAL PORT ERROR -- DISCONNECTED");
+            bool isMicrophoneActive = context
+                .read<DataStatusProvider>()
+                .isMicrophoneData;
+            // if haven't switch to serial port, do nothing
+            print("SERIAL PORT ERROR -- DISCONNECTED -- isMicrophoneActive: $isMicrophoneActive");
+            if (isMicrophoneActive) return;
+
             serialDataSubscription?.cancel();
             deviceStatusStreamSubscription?.cancel();
             _serialUtil.closePort();
@@ -2556,7 +2598,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }, onError: (error) {
         // if (error is SerialPortError) {
         forceSerialDisconnect = true;
-        print("SERIAL PORT ERROR -- DISCONNECTED");
+        bool isMicrophoneActive = context
+            .read<DataStatusProvider>()
+            .isMicrophoneData;
+        // if haven't switch to serial port, do nothing
+        print("SERIAL PORT ERROR -- DISCONNECTED -- isMicrophoneActive: $isMicrophoneActive");
+        if (isMicrophoneActive) return;
+
         _serialUtil.closePort();
         Future.delayed(Duration(milliseconds: 2500), () {
           forceSerialDisconnect = false;
@@ -2705,7 +2753,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     stopCurrentPlaying();
     _deviceName.value = "";
     predefinedFiltersChannel = [
-      ["EMG", "ECG", "EEG", "Custom"]
+      ["Plant", "ECG", "EEG", "Custom"]
     ];
     defaultDeviceChannelCount = 1;
 
@@ -3806,6 +3854,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
   StreamSubscription<Uint8List>? _rxSub;
   
   ConnectorType? connectorType;
+  
+  DateTime lastEstablishingConnectionTime = DateTime.now();
+  
+  String? serialPortId;
+  List<String> blacklistSerialPortIds = [];
+  
+  // bool isTryingToConnect = false;
   // Int32List arrSampleCountWeb = Int32List(0);
   // Int16List arrSamplesWeb = Int16List(1);
 
@@ -4408,6 +4463,18 @@ class _GraphTemplateState extends State<GraphTemplate> {
         }
       } else {
         if (isThresholdingButton) {
+          if (arr.isEmpty || arr[0] <= 0) {
+            arr = [
+              kIsWeb
+                  ? processingUtil.thresholdingArraylength
+                  : (displayTimeMs * 0.001 * _sampleRate).floor().clamp(1, 1 << 30)
+            ];
+          }
+          if (arr.isEmpty || arr[0] <= 0) {
+            arr = [
+              (displayTimeMs * 0.001 * _sampleRate).floor().clamp(1, 1 << 30)
+            ];
+          }
           double displayTimeDivision = (displayTimeMs / 10000);
           double gap = (arr[0] * (1 - displayTimeDivision));
           int maxSamples =
@@ -4688,11 +4755,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
           }
           print("foundDevices");
           print(foundDevices);
+          isDeviceSelected = true;
           // HARDCODE
           // if (foundDevices == "MUSCLESS") {
           //   foundDevices = "HEARTSS";
           // }
-
+          context
+              .read<DataStatusProvider>()
+              .setMicrophoneDataStatus(_availablePorts.isEmpty);
           Provider.of<ConstantProvider>(context, listen: false)
               .setBaudRate(foundDevices == "HHIBOX" ? 500000 : 222222);
           Provider.of<ConstantProvider>(context, listen: false)
@@ -4833,7 +4903,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       serialUsageType = "Plant";
                     }
 
-                    isDeviceSelected = true;
                     customSliderBarArray.clear();
                     for (int idxChannel = 0;
                         idxChannel < deviceChannelCount;
@@ -6214,7 +6283,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           Provider.of<GraphDataProvider>(context, listen: false);
       listenToMicrophone(1, graphDataProvider);
       streamScrubBuilderController.add(Random().nextInt(100000));
-
+      isSerialDeviceFound = false; 
       return;
     }
     _isSerialWebButtonEnabled = true;
@@ -6225,6 +6294,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
       try {
         availablePorts = await _serialUtil.getAvailablePortsWeb(baudRate, serialErrorCallback);
       }catch(err) {
+        isSerialDeviceFound = false;
+        if (err.toString().contains("BYPASS")) {
+          _isSerialWebButtonEnabled = false;
+          setState(() {});
+          return;
+        }
         PanaraInfoDialog.show(
           context,
           textColor: Colors.red,
@@ -6234,6 +6309,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           onTapDismiss: () {
             Navigator.pop(context);
             _isSerialWebButtonEnabled = false;
+            setState(() {});
           },
           panaraDialogType: PanaraDialogType.error,
           barrierDismissible: false,
@@ -6276,6 +6352,56 @@ class _GraphTemplateState extends State<GraphTemplate> {
       isDeviceSelected = false;
       _isDataIdentified = false;
       streamScrubBuilderController.add(Random().nextInt(100000));
+
+      // SERIAL WEB 
+      isSerialDeviceFound = true;
+      Timer.periodic(Duration(seconds: 3), (timer) {
+        print("Timer periodic $isSerialDeviceFound");
+        if (isSerialDeviceFound) {
+          int diff = DateTime.now().difference(lastEstablishingConnectionTime).inSeconds;
+          if ( diff > 2) {
+            // If the device is found and the data is yet not identified, disconnect the device
+            print("isSerialDeviceFound: $isSerialDeviceFound -- diff $diff --- isDeviceSelected $isDeviceSelected");
+            if (!isDeviceSelected) {
+              try{
+                isSerialDeviceFound = false;
+                final provider = Provider.of<GraphDataProvider>(context, listen: false);
+                isMfiInitialized = false;
+                _mfiMicListenerDetached = false;
+                Future.delayed(Duration(milliseconds: 1500), () {
+                  forceSerialDisconnect = false;
+                  context
+                      .read<DataStatusProvider>()
+                      .setMicrophoneDataStatus(true);
+
+                  listenToMicrophone(1, provider);
+                  timer.cancel();
+                });
+                lastEstablishingConnectionTime = DateTime.now();
+                _serialUtil.closePort();
+              }catch(err) {
+                print("ERROR CLOSING PORT: $err");
+              }
+
+              return;
+            } else {
+              // if isDataIdentified already, then update the lastEstablishingConnectionTime so it won't be disconnected again
+              lastEstablishingConnectionTime = DateTime.now();
+            }
+          } else {
+            // it is below the time gap of waiting isDataIdentified do nothing
+          }
+        } else {
+          // isSerialDeviceFound not found
+          if (!isDeviceSelected) {
+            // If the device is not found and the data is not identified, set the isSerialDeviceFound to false
+          } else {
+            // serialDeviceFound not found but the data isDataIdentified
+          }
+        }
+
+      });
+
 
       serialDataSubscription = _serialUtil.dataStream?.listen((event) async {
         if (isOpeningFile) {
@@ -6502,6 +6628,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   onTriggerDisconnect(String p1) {
+    isSerialDeviceFound = false;
     // if (p1 == "") {
     //   return;
     // }
@@ -6796,7 +6923,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void serialSubscriptionListener(Uint8List event, bool isMfi, listOfPort) async {
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     // print("IS AUDIO LISTEN | Writing to port b:; : ${isAudioListen} --- bytes : ${event.length}");
-    if (!isAudioListen) {
+    // if (!isAudioListen) {
+    if (true) {
       final provider =
           Provider.of<GraphDataProvider>(context, listen: false);
       int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
@@ -6846,8 +6974,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
               if (isMfi) {
                 BybAccessory.sendBytes(UsbCommand.hwTypeInquiry.cmdAsBytes());
               } else {
-                _serialUtil.writeToPort(
-                    bytesMessage: commandBytes, address: _availablePorts.last);
+                if (_availablePorts.isNotEmpty) {
+                  _serialUtil.writeToPort(
+                      bytesMessage: commandBytes, address: _availablePorts.last);
+                }
               }
             });
           }

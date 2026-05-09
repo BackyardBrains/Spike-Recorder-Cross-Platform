@@ -562,7 +562,7 @@ class DraggableGraph extends StatefulWidget {
   @override
   State<DraggableGraph> createState() => _DraggableGraphState();
 }
-
+// https://github.com/BackyardBrains/Spike-Recorder-Cross-Platform/commit/102ad25925eca57e1a40203be249e3e91ce03d42
 class _DraggableGraphState extends State<DraggableGraph> {
   int channelCount = 1;
   List<double> gainChannel = [];
@@ -571,8 +571,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
   List<bool> showWaveform = [];
   double widthChart = 800;
   double heightChart = 600;
-  double defaultGain = 0.25 * 0.25;
-  // double defaultGain = 0.125;
+  // double defaultGain = 0.25;
+  double defaultGain = 0.125;
   
   FocusNode keyboardFocusNode = FocusNode();
   Debouncer debouncerKeyboard = Debouncer(milliseconds: 77);
@@ -1050,6 +1050,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
   bool isChoosingThresholdType = false;
   
   // int  signalMultiplier = (150).floor();
+  // Threshold value 525 , 75 is the default gap 
   double signalMultiplier = 525 / 75;
   List<double> signalMultiplierChannel = List.generate(50, (index) => 0);
   
@@ -1120,19 +1121,19 @@ class _DraggableGraphState extends State<DraggableGraph> {
     final colorProvider = context.watch<ChannelColorProvider>();
     final dataStatus = context.watch<DataStatusProvider>();
 
-    if (!isInitializedGraph) {
-      return const SizedBox();
-    }
+    // if (!isInitializedGraph) {
+    //   return const SizedBox();
+    // }
 
-    // If we are initialized but dimensions are zero (common in background cold launches),
-    // or if topChartY is empty/contains only zeros, re-initialize to pick up correct sizes.
-    bool isDimensionZero = widthChart == 0 || heightChart == 0;
-    bool isInvalidTopY =
-        topChartY.isEmpty || (topChartY.length > 1 && topChartY.every((y) => y == 0));
+    // // If we are initialized but dimensions are zero (common in background cold launches),
+    // // or if topChartY is empty/contains only zeros, re-initialize to pick up correct sizes.
+    // bool isDimensionZero = widthChart == 0 || heightChart == 0;
+    // bool isInvalidTopY =
+    //     topChartY.isEmpty || (topChartY.length > 1 && topChartY.every((y) => y == 0));
 
-    if (isInitializedGraph && (isDimensionZero || isInvalidTopY)) {
-      initializeGraph();
-    }
+    // if (isInitializedGraph && (isDimensionZero || isInvalidTopY)) {
+    //   initializeGraph();
+    // }
     
     // final thresholdStatus = context.watch<ThresholdStatusProvider>();
     if (isThresholding != context.read<ThresholdStatusProvider>().isThresholding) {
@@ -1363,8 +1364,9 @@ class _DraggableGraphState extends State<DraggableGraph> {
     signalMultiplierChannel[c] = signalMultiplierChannel[c] * heightScale;
     listMedianDistance[c] = thresholdMarkerTop[c] + thresholdIconTopDifference - median;
     thresholdValue[c] = ((signalMultiplierChannel[c] * listMedianDistance[c]).floor()).abs();
-    print("thresholdValue[c]: ${thresholdValue[c]} === ${signalMultiplierChannel[c]} ${listMedianDistance[c]} * $heightScale}");
-    
+    print("thresholdValue[c]: ${thresholdValue[c]} === ${signalMultiplierChannel[c]} ${listMedianDistance[c]} * $heightScale");
+    // context.read<ThresholdStatusProvider>().setThresholdParams(thresholdValue);
+
     // print("TEMP MARKER TOP: $tempMarkerTop = $median + $listMedianDistance ( $signalMultiplier * ${gainChannel[c]})");
     // thresholdMarkerTop[c] = calculatedMedian - halfMaxIntValue - thresholdIconTopDifference;
     // thresholdValue[c] = ((thresholdMarkerTop[c] +
@@ -1507,7 +1509,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
       initialLevelMedian[c] = calculatedMedian;
       listMedianDistance[c] = thresholdMarkerTop[c] + thresholdIconTopDifference - calculatedMedian;
     }
-    print("MEDIAN: $initialLevelMedian | $listMedianDistance" );
+    print("MEDIAN: $initialLevelMedian | $listMedianDistance @@ thresholdMarkerTop: $thresholdMarkerTop" );
 
   }
 
@@ -1525,22 +1527,26 @@ class _DraggableGraphState extends State<DraggableGraph> {
     isInitializedGraph = false;
     print("Initial Device Listener");
     if (ProcessingUtil.initializeDevice.value == 0 ) {
-      defaultGain = 0.25 * 0.25;
+      defaultGain = 0.125;
       initializeGraph();
       initLevelMedian(1, 0);
 
     } else {
       Future.delayed(Duration(seconds: 1), (){
+        channelCount = context.read<ConstantProvider>().getChannelCount();
         print("DECREASE GAINNNNN");
         print("initializeDeviceListener channelCount: $channelCount");
-        defaultGain = (0.25 * 0.25) / 27;
+        // defaultGain = (0.25 * 0.25) / 27;
+        defaultGain = (0.125);
         initializeGraph();
         initLevelMedian(channelCount, 0);
-        // for (int i = 0; i < channelCount; i++) {
-        //   decreaseGain(i, isInitial:true);
-        //   decreaseGain(i, isInitial:true);
-        //   decreaseGain(i, isInitial:true);
-        // }
+        for (int i = 0; i < channelCount; i++) {
+          for (int j = 0; j < 3; j++) {
+            decreaseGain(i, isInitial:true);
+            decreaseGain(i, isInitial:true);
+            decreaseGain(i, isInitial:true);
+          }
+        }
         setState(() {});
       });
     }
@@ -1575,9 +1581,9 @@ class _DraggableGraphState extends State<DraggableGraph> {
     selectedThresholdMarker = idx;
     setThresholdMarker(idx, thresholdMarkerTop, thresholdValue, prevVal, gainChannel[idx]);
 
-    GraphGainProvider graphGainProvider =
-        Provider.of<GraphGainProvider>(context, listen: false);
-    graphGainProvider.increaseGainChannel(idx);
+    // GraphGainProvider graphGainProvider =
+    //     Provider.of<GraphGainProvider>(context, listen: false);
+    // graphGainProvider.increaseGainChannel(idx);
   }
 }
 

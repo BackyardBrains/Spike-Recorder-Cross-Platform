@@ -1,5 +1,7 @@
 #import "BybAccessoryPlugin.h"
 #import "SpikeRecorder/Audio/BBAudioManager.h"
+#import <math.h>
+#import <string.h>
 
 @interface BybAccessoryPlugin ()
 /// EA notifications are UIKit; register on the main queue (plugin init may not always run there).
@@ -25,6 +27,13 @@
     BOOL _didRegisterDeferActiveObserver;
     BOOL _didReceiveDartInit;
     BOOL _didRegisterEAObservers;
+    int _samplingRate;
+    int _numberOfChannels;
+    int _halfTheSampleVoltageRange;
+    int currentAddOnBoard;
+    BOOL _restartDevice;
+    BOOL _p300IsActive;
+    BOOL _p300AudioIsActive;
 
 }
 // Set the size of the buffer used to receive data from the input stream
@@ -32,6 +41,10 @@
 // #define RX_BUFFER_SIZE 32
 #define PROTOCOL_HEADER_SIZE    2
 const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
+#define BOARD_WITH_EVENT_INPUTS 0
+#define BOARD_WITH_ADDITIONAL_INPUTS 1
+#define BOARD_WITH_HAMMER 4
+#define BOARD_WITH_JOYSTICK 5
 
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
   FlutterMethodChannel* channel = [FlutterMethodChannel
@@ -284,6 +297,13 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
         _txData = [[NSMutableData alloc] init];
         _accessoryInfoString = @"Accessory Not Connected\n";
         _didReceiveDartInit = NO;
+        _samplingRate = 10000;
+        _numberOfChannels = 2;
+        _halfTheSampleVoltageRange = 512;
+        currentAddOnBoard = BOARD_WITH_EVENT_INPUTS;
+        _restartDevice = NO;
+        _p300IsActive = NO;
+        _p300AudioIsActive = NO;
         void (^reg)(void) = ^{
             [self registerExternalAccessoryObserversOnMainIfNeeded];
         };
@@ -312,6 +332,121 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
         });  
     }
     return self;
+}
+
+- (void)sendAsciiCommand:(NSString *)command
+{
+    if (command.length == 0) {
+        return;
+    }
+    const char *bytes = [command UTF8String];
+    [self queuePacket:(uint8_t *)bytes length:strlen(bytes)];
+}
+
+- (void)initProtocol
+{
+    [self initWithProtocol:@"com.backyardbrains.spikerbox"];
+    _samplingRate = 10000;
+    _numberOfChannels = 2;
+    _halfTheSampleVoltageRange = 512;
+    currentAddOnBoard = BOARD_WITH_EVENT_INPUTS;
+    _restartDevice = NO;
+    _p300IsActive = NO;
+    _p300AudioIsActive = NO;
+}
+
+- (void)setSampleRate:(int)inSampleRate numberOfChannels:(int)inNumberOfChannels andResolution:(int)resolution
+{
+    _samplingRate = inSampleRate;
+    _numberOfChannels = inNumberOfChannels;
+    if (resolution > 0) {
+        _halfTheSampleVoltageRange = (int)(pow(2, resolution) / 2.0);
+    } else {
+        _halfTheSampleVoltageRange = 512;
+    }
+}
+
+- (void)sendCommandGetAdc
+{
+    uint8_t cmd[6] = {5, 0, 0, 0, 0, 0};
+    [self queuePacket:cmd length:sizeof(cmd)];
+}
+
+- (void)askForBoardType
+{
+    [self sendAsciiCommand:@"board:;\n"];
+}
+
+- (void)askForImportantStates
+{
+    [self sendAsciiCommand:@"board:;p300?:;\n"];
+}
+
+- (bool)getP300State
+{
+    return _p300IsActive;
+}
+
+- (bool)getP300AudioState
+{
+    return _p300AudioIsActive;
+}
+
+- (void)askForP300AudioState
+{
+    [self sendAsciiCommand:@"sound?:;\n"];
+}
+
+- (void)askForP300State
+{
+    [self sendAsciiCommand:@"p300?:;\n"];
+}
+
+- (void)setP300Active:(bool)active
+{
+    [self sendAsciiCommand:(active ? @"stimon:;\n" : @"stimoff:;\n")];
+    _p300IsActive = active;
+}
+
+- (void)setP300AudioActive:(bool)active
+{
+    [self sendAsciiCommand:(active ? @"sounon:;\n" : @"sounoff:;\n")];
+    _p300AudioIsActive = active;
+}
+
+- (void)setHardwareHighGainActive:(BOOL)state
+{
+    [self sendAsciiCommand:(state ? @"gainon:1;gainon:2;\n" : @"gainoff:1;gainoff:2;\n")];
+}
+
+- (void)setHardwareHPFActive:(BOOL)state
+{
+    [self sendAsciiCommand:(state ? @"hpfon:2;hpfon:1;\n" : @"hpfoff:2;hpfoff:1;\n")];
+}
+
+- (int)getCurrentExpansionBoard
+{
+    return currentAddOnBoard;
+}
+
+- (int)numberOfChannels
+{
+    return _numberOfChannels;
+}
+
+- (int)sampleRate
+{
+    return _samplingRate;
+}
+
+- (bool)shouldRestartDevice
+{
+    return _restartDevice;
+}
+
+- (void)deviceRestarted
+{
+    _restartDevice = NO;
 }
 
 - (void)connectToAccessory:(NSString *)name {

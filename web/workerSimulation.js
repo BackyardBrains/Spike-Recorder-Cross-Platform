@@ -1192,18 +1192,22 @@ self.onmessage = async function (eventFromMain) {
         break;
         case "SET_THRESHOLD_AVERAGE_SAMPLE":
             let avgSampleCount = eventFromMain.data.avgSampleCount;
+            console.log("SET_THRESHOLD_AVERAGE_SAMPLE: ", avgSampleCount);
             Module._processing_set_averaged_sample_count(avgSampleCount);
         break;
         case "SET_THRESHOLD_VALUE":
             let thresholdValue = eventFromMain.data.thresholdValue;
+            console.log("SET_THRESHOLD_VALUE: ", thresholdValue);
             Module._processing_set_threshold(thresholdValue);
         break;
         case "SET_THRESHOLD_IS_THRESHOLDING":
             isThresholding = eventFromMain.data.isThresholding;
+            console.log("SET_THRESHOLD_IS_THRESHOLDING: ", isThresholding);
             Module._processing_set_is_thresholding(isThresholding);
         break;
         case "SET_THRESHOLD_TRIGGER_TYPE":
             let eventThresholdTriggeredType = eventFromMain.data.eventThresholdTriggeredType;
+            console.log("SET_THRESHOLD_TRIGGER_TYPE: ", eventThresholdTriggeredType);
             Module._processing_set_averaging_trigger_type(eventThresholdTriggeredType);
         break;
         case "CREATE_NWB_FILE":

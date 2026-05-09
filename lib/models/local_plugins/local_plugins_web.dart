@@ -181,19 +181,19 @@ class LocalPluginWeb implements LocalPlugin {
     // print("setExpansionBoardTypeDart");
     // print(GraphTemplate.selectedBoard);
     if (GraphTemplate.selectedBoard != null) {
-      print("zzz setExpansionBoardTypeDart1");
+      // print("zzz setExpansionBoardTypeDart1");
       if (GraphTemplate.selectedBoard!.expansionBoards != null) {
-        print("setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
+        // print("setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
         for (var expBoard in GraphTemplate.selectedBoard!.expansionBoards!) {
-          print("setExpansionBoardTypeDart3 ==${expBoardType.toString()}");
+          // print("setExpansionBoardTypeDart3 ==${expBoardType.toString()}");
           if (expBoard.boardType == expBoardType.toString()) {
-            print("setExpansionBoardTypeDart4 || $currentExpansionBoardString == ${expBoardType.toString()}");
+            // print("setExpansionBoardTypeDart4 || $currentExpansionBoardString == ${expBoardType.toString()}");
             if (currentExpansionBoardString == "" && expBoardType == 0) {
               return;
             } else if (currentExpansionBoardString != expBoardType.toString()) {
               currentExpansionBoardString = expBoardType.toString();
               if (expBoard.maxSampleRate != null) {
-                print("setExpansionBoardTypeDart5");
+                // print("setExpansionBoardTypeDart5");
                 int boardChannels = -1;
                 if (GraphTemplate.selectedBoard!.uniqueName == "HUMANSB") {
                   if (expBoardType == 1) {

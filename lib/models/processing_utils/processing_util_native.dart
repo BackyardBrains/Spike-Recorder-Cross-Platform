@@ -102,7 +102,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       return;
     }
     nativeCallbackPortSubscription = _nativeCallbackPort.listen((message) {
-      print("setupDartCallbacks listen start $message");
+      // print("setupDartCallbacks listen start $message");
       if (message is List && message.length >= 3) {
         // Receive 3 parameters from C++
         final int value1 = message[0] as int;
@@ -161,25 +161,25 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   void handleExpansionBoardTypeDetection(int expBoardType,
       [int param2 = 0, int param3 = 0]) {
-    print(
-        'Expansion board type detected: $expBoardType, param2: $param2, param3: $param3');
-    print("setExpansionBoardTypeDart");
-    print(GraphTemplate.selectedBoard);
+    // print(
+    //     'Expansion board type detected: $expBoardType, param2: $param2, param3: $param3');
+    // print("setExpansionBoardTypeDart");
+    // print(GraphTemplate.selectedBoard);
     if (GraphTemplate.selectedBoard != null) {
-      print("setExpansionBoardTypeDart1");
+      // print("setExpansionBoardTypeDart1");
       if (GraphTemplate.selectedBoard!.expansionBoards != null) {
-        print(
-            "setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
+        // print(
+        //     "setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
         for (var expBoard in GraphTemplate.selectedBoard!.expansionBoards!) {
-          print("setExpansionBoardTypeDart3 ==${expBoardType.toString()}");
+          // print("setExpansionBoardTypeDart3 ==${expBoardType.toString()}");
           if (expBoard.boardType == expBoardType.toString()) {
-            print("setExpansionBoardTypeDart4 || $currentExpansionBoardString == ${expBoardType.toString()}");
+            // print("setExpansionBoardTypeDart4 || $currentExpansionBoardString == ${expBoardType.toString()}");
             if (currentExpansionBoardString == "" && expBoardType == 0) {
               return;
             } else if (currentExpansionBoardString != expBoardType.toString()) {
               currentExpansionBoardString = expBoardType.toString();
               if (expBoard.maxSampleRate != null) {
-                print("setExpansionBoardTypeDart5");
+                // print("setExpansionBoardTypeDart5");
                 int boardChannels = -1;
                 if (GraphTemplate.selectedBoard!.uniqueName == "HUMANSB") {
                   if (expBoardType == 1) {
@@ -326,6 +326,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
   void setAveragedSampleCount(int avgSampleCount) {
     print("setAveragedSampleCount: $avgSampleCount");
     pb.processingBindings.setAveragedSampleCount(avgSampleCount);
+  }
+
+  @override
+  void setSelectedChannel(int selectedChannel) {
+    pb.processingBindings.setSelectedChannel(selectedChannel);
   }
 
   @override
@@ -1219,8 +1224,13 @@ class ProcessingUtilImpl implements ProcessingUtil {
   void initThreshold(
       int channelCount, int sampleRate, double drawSurfaceWidth) {
     pb.processingBindings.init();
-    pb.processingBindings.setChannelCount(channelCount);
-    pb.processingBindings.setSampleRate(sampleRate);
+    // Use the same channel count and sample rate as the active pipeline
+    // (initializeSerial / initializeMicrophone). The UI passes deviceChannelCount
+    // which omits expansion board channels, so serial thresholding would desync
+    // from processSerialData when expansionBoardChannelCount > 0.
+    print("Processing util initThreshold: $_channelCount $_sampleRate");
+    pb.processingBindings.setChannelCount(_channelCount);
+    pb.processingBindings.setSampleRate(_sampleRate);
   }
 
   @override

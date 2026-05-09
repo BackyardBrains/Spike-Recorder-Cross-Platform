@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+// import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 import 'app_shell.dart' deferred as app_shell;
 
@@ -10,8 +11,10 @@ const MethodChannel _startupChannel = MethodChannel('byb/startup');
 /// tiny (SDK imports + deferred `app_shell`) so that frame compiles and paints before the heavy
 /// app graph is loaded from the deferred part.
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
+  // WidgetsFlutterBinding.ensureInitialized();
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  // FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  
   if (kIsWeb) {
     await app_shell.loadLibrary();
     app_shell.registerDeferredStartupTasks();
@@ -61,6 +64,7 @@ class _IosFastFirstFrameState extends State<_IosFastFirstFrame> {
     if (!mounted) return;
     setState(() {
       _isReady = true;
+      // FlutterNativeSplash.remove();
     });
   }
 

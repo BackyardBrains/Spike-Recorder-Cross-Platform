@@ -496,6 +496,13 @@ class ProcessingUtilImpl implements ProcessingUtil {
   void setAveragedSampleCount(int avgSampleCount) {
     js.context.callMethod("setAveragedSampleCount", [avgSampleCount]);
   }
+
+  @override
+  void setSelectedChannel(int selectedChannel) {
+    if (js.context.hasProperty("setSelectedChannel")) {
+      js.context.callMethod("setSelectedChannel", [selectedChannel]);
+    }
+  }
   
   @override
   void setThreshold(double thresholdValue) {

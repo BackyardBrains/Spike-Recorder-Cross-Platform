@@ -15,7 +15,12 @@ class SerialUtilIos implements SerialUtil {
   Transaction<String>? _transaction;
   List<UsbDevice> devices = [];
   int _baudRate = 0;
+  @override
+  int vendorId = 0;
+  @override
+  int productId = 0;
 
+  void changePortBaudRate(int baudRate) {}
   @override
   Future<void> connectToPort() async {
     // if (devices.isEmpty) {

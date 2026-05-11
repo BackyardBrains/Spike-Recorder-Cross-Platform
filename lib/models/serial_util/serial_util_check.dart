@@ -7,11 +7,16 @@ abstract class SerialUtil {
   factory SerialUtil() => getSerialUtil();
   bool isOpeningFile = false;
 
+  int vendorId = 0;
+  int productId = 0;
+
+  // static SerialPort? serialPort;
+
   Future<void> getAvailablePorts(int baudRate, Function audioCallback) async => [];
   Future<List<String>> getAvailablePortsWeb(int baudRate, Function audioCallback) async => [];
 
   void writeToPort({required Uint8List bytesMessage, String? address}) async {}
-
+  void changePortBaudRate(int baudRate) async {}
   void connectToPort() {}
   void closePort() {}
 

@@ -10,6 +10,10 @@ class SerialUtilWindow implements SerialUtil {
   bool isOpeningFile = false;
   SerialPort? port;
   int _baudRate = 0;
+  @override
+  int vendorId = 0;
+  @override
+  int productId = 0;
 
   @override
   List<String> availablePorts = [];
@@ -25,6 +29,7 @@ class SerialUtilWindow implements SerialUtil {
     // });
     return availablePorts;
   }
+  void changePortBaudRate(int baudRate) {}
 
   // get the list of current ports
   @override

@@ -12,30 +12,58 @@ SerialUtil getSerialUtil() => SerialUtilWeb();
 class SerialUtilWeb implements SerialUtil {
   @override
   bool isOpeningFile = false;
-  SerialPort? _port;
+  static SerialPort? serialPort;
+
   SerialPortInfo? portInfo;
   Function? audioCallback;
 
-  StreamController<Uint8List> streamController = StreamController();
+  @override
+  int vendorId = 0;
+  @override
+  int productId = 0;
+
+  StreamController<Uint8List> streamController =
+      StreamController<Uint8List>.broadcast();
   @override
   Stream<Uint8List>? dataStream;
 
   WritableStreamDefaultWriter? writer;
+  bool _isClosingReader = false;
+  /// Prevents overlapping close/open/read cycles from duplicate baud timers.
+  bool _serialReopenInProgress = false;
 
   int _baudRate = 0;
 
   @override
   Future<void> connectToPort() async {
-    print("connectToPort 1000: $_port");
+    print("connectToPort 1000: $serialPort");
 
     try {
-      _port = await window.navigator.serial.requestPort();
-      await _port?.open(
+      serialPort = await window.navigator.serial.requestPort();
+      portInfo = serialPort?.getInfo();
+      print("portInfo: ${portInfo?.usbVendorId} ${portInfo?.usbProductId}");
+      vendorId = portInfo?.usbVendorId ?? 0;
+      productId = portInfo?.usbProductId ?? 0;
+
+      try{
+        if (portInfo?.usbVendorId == 0x2E73 && portInfo?.usbProductId == 0x009) {
+          _baudRate = 500000;
+        } else 
+        if (portInfo?.usbVendorId == 0x0403 && portInfo?.usbProductId == 0x6015) {
+          _baudRate = 500000;
+          // _baudRate = 222222;
+        } else {
+          _baudRate = 222222;
+        }
+      }catch(err) {
+        print("ERR");
+      }
+
+      await serialPort?.open(
         baudRate: _baudRate,
-        bufferSize: 8192,
+        // bufferSize: 8192,
       );
-      portInfo = _port?.getInfo();
-      openPortToListen(" ", _baudRate);
+      await openPortToListen(" ", _baudRate);
     } catch (e) {
       print(
           "Port cancelled: ${e.toString().contains("NotFoundError: Failed to execute 'requestPort'")}");
@@ -51,37 +79,38 @@ class SerialUtilWeb implements SerialUtil {
 
   @override
   Future<void> closePort() async {
-    writer?.releaseLock();
-    reader?.releaseLock();
+    print("closePort 1000: $serialPort");
+    await _disposeReader();
+    await _disposeWriterForClose();
     try {
       if (!streamController.isClosed) {
-        await streamController.close();
+        unawaited(streamController.close().catchError((_) {}));
       }
     } catch (err) {
       print("Error closing stream controller: $err");
     }
 
-    _port?.close().then((_) async {
+    serialPort?.close().then((_) async {
       writer = null;
       reader = null;
       portInfo = null;
-      _port = null;
+      serialPort = null;
     }).catchError((e) {
       print("Error closing web serial port: $e");
       writer = null;
       reader = null;
       portInfo = null;
-      _port = null;
+      serialPort = null;
     });
   }
 
   @override
   void writeToPort({required Uint8List bytesMessage, String? address}) async {
-    if (_port == null) {
+    if (serialPort == null) {
       return;
     }
 
-    writer ??= _port!.writable.writer;
+    writer ??= serialPort!.writable.writer;
 
     await writer!.ready;
     await writer!.write(bytesMessage);
@@ -100,44 +129,109 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   ReadableStreamReader? reader;
+  /// Completed when [_pumpSerialReadLoop] for the current reader finishes (after cancel).
+  Future<void>? _readPumpFuture;
   @override
   Future<Stream<Uint8List>?> openPortToListen(
       String? name, int baudRate) async {
     _baudRate = baudRate;
-    if (_port == null) {
+    if (serialPort == null) {
       return null;
     }
     try {
-      reader = _port!.readable.reader;
-      streamController = StreamController();
-      dataStream = streamController.stream.asBroadcastStream();
-
-      // continuouslyReadData(reader: reader);
-      while (true) {
-        final ReadableStreamDefaultReadResult result = await reader!.read();
-        streamController.add(result.value);
+      print("READER1 $serialPort");
+      // Release previous reader before acquiring readable (Web Serial lock rules).
+      await _disposeReader();
+      final readable = serialPort!.readable;
+      try {
+        reader = readable.reader;
+      } catch (e) {
+        // Readable may still be locked briefly after cancel(); wait and retry once.
+        print("readable.reader first attempt failed: $e");
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        reader = readable.reader;
       }
+      print("READER2");
+      // Avoid `await streamController.close()` here: it can hang when anything still
+      // listens on this sink (e.g. graph_template's serialDataSubscription).
+      if (dataStream == null) {
+        dataStream = streamController.stream;
+      } else if (streamController.isClosed) {
+        streamController = StreamController<Uint8List>.broadcast();
+        dataStream = streamController.stream;
+      } else {
+        try {
+          streamController.close();
+          streamController = StreamController<Uint8List>.broadcast();
+          dataStream = streamController.stream;
+        } catch(err) {
+          print("OPEN PORT");
+        }
+
+      }
+      print("READER3");
+      print("READER4");
+
+      final localReader = reader!;
+      // Return dataStream before blocking on reads so callers (e.g. graph_template)
+      // can subscribe in the same turn without racing a null dataStream.
+      _readPumpFuture = _pumpSerialReadLoop(localReader);
+      unawaited(_readPumpFuture!);
+      return dataStream;
     } catch (e) {
       print("Reading port failed with exception: \n$e");
       if (audioCallback != null && !isOpeningFile) {
         print("Audio Callback not null0");
-        // final reader = _port!.readable.reader;
         writer?.releaseLock();
-        // await writer?.close();
         print("Audio Callback not null1");
-        reader?.releaseLock();
+        await _disposeReader();
         print("Audio Callback not null2");
-        await _port?.close();
+        await serialPort?.close();
         print("Audio Callback not null3");
         writer = null;
         reader = null;
-        audioCallback!(1, null);
+        try {
+          audioCallback!(1, null);
+        } catch (cbErr) {
+          print("audioCallback error: $cbErr");
+        }
       } else {
         // print("Audio Callback null");
         // print(audioCallback);
       }
 
       return null;
+    }
+  }
+
+  Future<void> _pumpSerialReadLoop(ReadableStreamReader localReader) async {
+    try {
+      while (reader == localReader) {
+        final ReadableStreamDefaultReadResult result = await localReader.read();
+        if (result.done) {
+          print("RESULT DONEZ");
+          break;
+        }
+        streamController.add(result.value);
+      }
+    } catch (e) {
+      print("Reading port failed with exception: \n$e");
+      if (audioCallback != null && !isOpeningFile) {
+        print("Audio Callback not null0");
+        writer?.releaseLock();
+        print("Audio Callback not null1");
+        await _disposeReader();
+        print("Audio Callback not null2");
+        await serialPort?.close();
+        print("Audio Callback not null3");
+        writer = null;
+        reader = null;
+        try {
+          audioCallback!(1, null);
+        } catch (cbErr) {
+          print("audioCallback error: $cbErr");
+        }
+      }
     }
   }
 
@@ -152,7 +246,11 @@ class SerialUtilWeb implements SerialUtil {
       throw Exception("Serial connections require Chrome, or Edge");
     }
 
-    availablePorts = [_port!.getInfo().usbProductId!.toString()];
+    if (serialPort == null) {
+      availablePorts = [];
+      return;
+    }
+    availablePorts = [serialPort!.getInfo().usbProductId!.toString()];
     print("getttavailablePorts: $availablePorts");
   }
 
@@ -168,7 +266,10 @@ class SerialUtilWeb implements SerialUtil {
       } catch (err) {
         throw Exception("Serial connections require Chrome, or Edge");
       }
-      availablePorts = [_port!.getInfo().usbProductId!.toString()];
+      if (serialPort == null) {
+        return [];
+      }
+      availablePorts = [serialPort!.getInfo().usbProductId!.toString()];
       print("availablePorts: $availablePorts");
       return availablePorts;
     } catch (err) {
@@ -179,7 +280,6 @@ class SerialUtilWeb implements SerialUtil {
       } else {
         throw Exception("Serial connections require Chrome, or Edge");
       }
-      return [];
     }
 
     // print("getttavailablePorts: $availablePorts");
@@ -239,5 +339,152 @@ class SerialUtilWeb implements SerialUtil {
   @override
   Stream<String?> deviceStatusStreamListener() {
     return Stream.empty();
+  }
+  
+  @override
+  void changePortBaudRate(int baudRate) {
+    if (serialPort == null) {
+      return;
+    }
+    if (_baudRate == baudRate) {
+      return;
+    }
+    if (_serialReopenInProgress) {
+      return;
+    }
+    _serialReopenInProgress = true;
+    _baudRate = baudRate;
+    unawaited(_reopenPortAndListen().whenComplete(() {
+      _serialReopenInProgress = false;
+    }).catchError((Object e, StackTrace st) {
+      print("changePortBaudRate async error: $e");
+    }));
+  }
+
+  Future<void> _reopenPortAndListen() async {
+    if (serialPort == null) {
+      return;
+    }
+    try {
+      await _fullyReleasePortStreams();
+      await _closeSerialPortWithSettle();
+      await _openSerialPortWithRetry();
+      await openPortToListen(" ", _baudRate);
+    } catch (e, _) {
+      print("_reopenPortAndListen failed: $e");
+    }
+  }
+
+  Future<void> _fullyReleasePortStreams() async {
+    // Web Serial requires readable + writable unlocked before port.close().
+    // Release the reader side first (stops the read loop), then the writer.
+    await _disposeReader();
+    await _disposeWriterForClose();
+  }
+
+  Future<void> _disposeWriterForClose() async {
+    final w = writer;
+    writer = null;
+    if (w == null) {
+      return;
+    }
+    try {
+      await w.ready;
+    } catch (_) {}
+    try {
+      await w.close();
+    } catch (_) {}
+    try {
+      w.releaseLock();
+    } catch (_) {}
+  }
+
+  /// Close the port and give Chromium time to finish internal teardown.
+  Future<void> _closeSerialPortWithSettle() async {
+    final port = serialPort;
+    if (port == null) {
+      return;
+    }
+    Object? lastCloseError;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        await port.close();
+        lastCloseError = null;
+        break;
+      } catch (e) {
+        lastCloseError = e;
+        print("serialPort.close attempt ${attempt + 1} failed: $e");
+        await Future<void>.delayed(Duration(milliseconds: 80 * (attempt + 1)));
+        await _disposeReader();
+        await _disposeWriterForClose();
+      }
+    }
+    if (lastCloseError != null) {
+      print("serialPort.close: giving up after retries, last error: $lastCloseError");
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+
+  bool _isPortAlreadyOpenError(Object e) {
+    final s = e.toString();
+    return s.contains('already open') || s.contains('InvalidStateError');
+  }
+
+  Future<void> _openSerialPortWithRetry() async {
+    final port = serialPort;
+    if (port == null) {
+      return;
+    }
+    try {
+      await port.open(baudRate: _baudRate);
+    } catch (e) {
+      if (!_isPortAlreadyOpenError(e)) {
+        rethrow;
+      }
+      // Port still reported open: close again, settle, then open once more.
+      try {
+        await port.close();
+      } catch (_) {}
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      await port.open(baudRate: _baudRate);
+    }
+  }
+
+  Future<void> _disposeReader() async {
+    if (_isClosingReader) {
+      return;
+    }
+    final localReader = reader;
+    if (localReader == null) {
+      try {
+        await (_readPumpFuture ?? Future<void>.value());
+      } catch (_) {}
+      _readPumpFuture = null;
+      return;
+    }
+    _isClosingReader = true;
+    reader = null;
+    try {
+      try {
+        await (localReader as dynamic).cancel();
+      } catch (_) {
+        // cancel may fail if reader is already invalid.
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      // Wait until read pump exits so read() is not still pending during releaseLock.
+      try {
+        await (_readPumpFuture ?? Future<void>.value());
+      } catch (_) {}
+      _readPumpFuture = null;
+      // Required for SerialPort.close(): readable must be unlocked (cancel alone is not enough).
+      try {
+        localReader.releaseLock();
+      } catch (_) {
+        // Still locked briefly on some builds; port.close may retry after settle.
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+    } finally {
+      _isClosingReader = false;
+    }
   }
 }

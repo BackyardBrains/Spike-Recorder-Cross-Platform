@@ -1786,7 +1786,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.0.11',
+                                            'SpikeRecorder App ver. 2.0.12',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -2800,7 +2800,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
       print(
           "listenToMicrophone already in progress, waiting for completion...");
       if (_listenToMicrophoneCompleter != null) {
-        await _listenToMicrophoneCompleter!.future;
+        try {
+          await _listenToMicrophoneCompleter!.future;
+        } catch (error) {
+          // Another in-flight initialization failed; avoid bubbling an uncaught
+          // async error from the waiter path and let the next call retry setup.
+          print("Previous listenToMicrophone failed: $error");
+        }
       }
       return;
     }
@@ -4881,7 +4887,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   defaultDeviceChannelCount = deviceChannelCount;
                   
                   if (GraphTemplate.selectedBoard?.uniqueName == "HHIBOX") {
-                    sampleCountToDisplay = (_sampleRate / 5000 * 8 ).floor();
+                    if (kIsWeb) {
+                      sampleCountToDisplay = (_sampleRate / 5000 * 8).floor();
+                    } else {
+                      sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2).floor();
+                    }
                   } else 
                   if (GraphTemplate.selectedBoard?.uniqueName == "NRNSBPRO") {
                     sampleCountToDisplay = (_sampleRate / 5000 * 8 * defaultDeviceChannelCount).floor();
@@ -5735,7 +5745,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       SoftwareColors.kButtonBackGroundColor, // Button color
                 ),
                 onPressed: () async {
-                  serialWebButtonPressed();
+                  if (_isSerialWebButtonEnabled) {
+                    _isSerialWebButtonEnabled = false;
+                    _serialUtil.closePort();
+                    isDeviceConnect = false;
+                    isDeviceSelected = false;
+                    _isDataIdentified = false;
+                    GraphDataProvider graphDataProvider =
+                        Provider.of<GraphDataProvider>(context, listen: false);
+                    listenToMicrophone(1, graphDataProvider);
+                    streamScrubBuilderController.add(Random().nextInt(100000));
+                    isSerialDeviceFound = false; 
+                    return;
+                  }
+                  _isSerialWebButtonEnabled = true;
+                  setState(() {});
+                  serialWebButtonPressed(_baudRate);
                 },
                 child: Row(
                   children: [
@@ -6377,25 +6402,238 @@ class _GraphTemplateState extends State<GraphTemplate> {
     );
   }
 
-  void serialWebButtonPressed() async {
-    if (_isSerialWebButtonEnabled) {
-      _isSerialWebButtonEnabled = false;
+  void callSerialDataSubscription() {
+    bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+    final provider = Provider.of<GraphDataProvider>(context, listen: false);
+    serialDataSubscription?.cancel();
+    serialDataSubscription = _serialUtil.dataStream?.listen((event) async {
+      if (isOpeningFile) {
+        return;
+      }
+      if (!isAudioListen) {
+        // print("SERIAL DATA SUBSCRIPTION: $event");
+        arr = [processingUtil.thresholdingArraylength];
+
+        int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+        if (isDeviceConnect) {
+          // _serialUtil.writeToPort(
+          //     bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
+          //     address: _availablePorts.last);
+          // isDeviceConnect = false;
+          Future.delayed(Duration(milliseconds: 1000), () {
+            print("DELAYED: ${DateTime.now().millisecondsSinceEpoch}");
+            _serialUtil.writeToPort(
+                bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
+                address: _availablePorts.last);
+            // isDeviceConnect = false;
+          });
+          isDeviceConnect = false;
+
+        }
+        if (_isDataIdentified) {
+          if (!GraphTemplate.isPlayerPaused) {
+            processingUtil
+                .processSerialData(event, displayTimeMs.toInt(), deviceType,
+                    drawSurfaceWidth, provider)
+                .then((samples) {
+              totalSampleCount += samples[0].length;
+              if (totalSampleCount > sampleCountToDisplay) {
+                totalSampleCount = 0;
+                if (isThresholdingButton) {
+                  double displayTimeDivision = (displayTimeMs / 10000);
+                  double gap = (arr[0] * (1 - displayTimeDivision));
+                  int maxSamples =
+                      (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
+                          .floor();
+                  int toSample = maxSamples - (gap / 2).floor();
+                  int fromSample = toSample - arr[0] + (gap).floor();
+                  DraggableGraph.startPositionIdx = fromSample;
+                  DraggableGraph.endPositionIdx = toSample;
+
+                  processingUtil.processDisplaySerialData(
+                      displayTimeMs.toInt(),
+                      deviceType,
+                      drawSurfaceWidth,
+                      provider,
+                      fromSample,
+                      toSample);
+                } else {
+                  int maxSamples =
+                      (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
+                          .floor();
+                  int maxDisplaySamples =
+                      (displayTimeMs * 0.001 * _sampleRate).floor();
+                  DraggableGraph.startPositionIdx =
+                      maxSamples - maxDisplaySamples;
+                  DraggableGraph.endPositionIdx = maxSamples;
+
+                  processingUtil.processDisplaySerialData(
+                      displayTimeMs.toInt(),
+                      deviceType,
+                      drawSurfaceWidth,
+                      provider,
+                      0,
+                      maxDisplaySamples);
+                }
+              }
+            });
+            if (isRecording == 1) {
+              recordingNotifier.value = [
+                recordingStartTime,
+                DateTime.now().millisecondsSinceEpoch
+              ];
+            }
+          } else {
+            if (SoundWaveView.dragDetails != null) {
+              // int fromSample = (-bufferPaddingLeft).toInt();
+              // int toSample = (fromSample + displayTimeMs * 0.001 * _sampleRate).toInt();
+              totalSampleCount += 2;
+              if (totalSampleCount > sampleCountToDisplay) {
+                totalSampleCount = 0;
+
+                int maxSamples =
+                    (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
+                        .floor();
+                int toSample = (maxSamples + bufferPaddingLeft).toInt();
+                toSample = min(maxSamples, toSample);
+                int fromSample =
+                    (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
+                DraggableGraph.startPositionIdx = fromSample;
+                DraggableGraph.endPositionIdx = toSample;
+
+                // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
+                if (isThresholdingButton) {
+                  double displayTimeDivision = (displayTimeMs / 10000);
+                  double gap = (arr[0] * (1 - displayTimeDivision));
+                  toSample = maxSamples - (gap / 2).floor();
+                  fromSample = toSample - arr[0] + (gap).floor();
+                  processingUtil.processDisplaySerialData(
+                      displayTimeMs.toInt(),
+                      deviceType,
+                      drawSurfaceWidth,
+                      provider,
+                      fromSample,
+                      toSample);
+                } else {
+                  processingUtil.processDisplaySerialData(
+                      displayTimeMs.toInt(),
+                      deviceType,
+                      drawSurfaceWidth,
+                      provider,
+                      fromSample,
+                      toSample);
+                }
+              }
+            } else {}
+          }
+        } else {
+          if (!isDeviceConnect && !isDeviceSelected) {
+            _preEscapeSequenceBuffer.addBytes(event);
+            // print("ENTER:  $event = $isAudioListen $dummyDataStatus | $_isDataIdentified $isDeviceSelected");
+          }
+          if (isDeviceSelected) {
+            // !isDeviceConnect &&
+            _isDataIdentified = true;
+            _isBoardTimerRunning = true;
+            if (boardTimer !=null) {
+              boardTimer?.cancel();
+              boardTimer = null;
+            }
+            boardTimer = Timer.periodic(Duration(seconds: 3), (timer) {
+              if (isRecording == 1) return;
+              
+              _isBoardTimerRunning = false;
+              print("Writing to port board:;");
+              Uint8List commandBytes =
+                  Uint8List.fromList(utf8.encode("board:;"));
+              _serialUtil.writeToPort(
+                  bytesMessage: commandBytes, address: _availablePorts.last);
+            });
+            // STEVE
+            // processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((sampleCount) {
+            //   totalSampleCount += sampleCount;
+            processingUtil
+                .processSerialData(event, displayTimeMs.toInt(), deviceType,
+                    drawSurfaceWidth, provider)
+                .then((samples) {
+              totalSampleCount += samples[0].length;
+              if (totalSampleCount > sampleCountToDisplay) {
+                totalSampleCount = 0;
+                if (isThresholdingButton) {
+                  double displayTimeDivision = (displayTimeMs / 10000);
+                  double gap = (arr[0] * (1 - displayTimeDivision));
+                  int maxSamples =
+                      (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
+                          .floor();
+                  int toSample = maxSamples - (gap / 2).floor();
+                  int fromSample = toSample - arr[0] + (gap).floor();
+                  DraggableGraph.startPositionIdx = fromSample;
+                  DraggableGraph.endPositionIdx = toSample;
+                  processingUtil.processDisplaySerialData(
+                      displayTimeMs.toInt(),
+                      deviceType,
+                      drawSurfaceWidth,
+                      provider,
+                      fromSample,
+                      toSample);
+                } else {
+                  int maxSamples =
+                      (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
+                          .floor();
+                  int maxDisplaySamples =
+                      (displayTimeMs * 0.001 * _sampleRate).floor();
+                  DraggableGraph.startPositionIdx =
+                      maxSamples - maxDisplaySamples;
+                  DraggableGraph.endPositionIdx = maxSamples;
+
+                  processingUtil.processDisplaySerialData(
+                      displayTimeMs.toInt(),
+                      deviceType,
+                      drawSurfaceWidth,
+                      provider,
+                      0,
+                      (maxDisplaySamples).floor());
+                }
+              }
+            });
+          }
+        }
+      }
+    }, onError: (error) {
+      // if (error is SerialPortError) {
+      forceSerialDisconnect = true;
+      print("SERIAL PORT ERROR -- DISCONNECTED");
       _serialUtil.closePort();
-      isDeviceConnect = false;
-      isDeviceSelected = false;
-      _isDataIdentified = false;
-      GraphDataProvider graphDataProvider =
-          Provider.of<GraphDataProvider>(context, listen: false);
-      listenToMicrophone(1, graphDataProvider);
-      streamScrubBuilderController.add(Random().nextInt(100000));
-      isSerialDeviceFound = false; 
-      return;
-    }
-    _isSerialWebButtonEnabled = true;
+      Future.delayed(Duration(milliseconds: 2500), () {
+        forceSerialDisconnect = false;
+        _isSerialWebButtonEnabled = false;
+        isDeviceConnect = false;
+        isDeviceSelected = false;
+        if (boardTimer != null) {
+          boardTimer?.cancel();
+          boardTimer = null;
+        }
+        if (deviceTimer !=null) {
+          deviceTimer?.cancel();
+          deviceTimer = null;
+        }
+
+        _isDataIdentified = false;
+        streamScrubBuilderController.add(Random().nextInt(100000));
+        listenToMicrophone(1, provider);
+      });
+      // }
+    });
+    portName = _availablePorts.first;
+  }
+
+
+  void serialWebButtonPressed(List<int> _baudRate) async {
     try {
-      int baudRate = context.read<ConstantProvider>().getBaudRate();
+      // int baudRate = context.read<ConstantProvider>().getBaudRate();
+      int baudRate = 0;
       print("getAvailablePorts: $baudRate");
-      List<String> availablePorts;
+      List<String> availablePorts = [];
       try {
         availablePorts = await _serialUtil.getAvailablePortsWeb(baudRate, serialErrorCallback);
       }catch(err) {
@@ -6441,7 +6679,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
       _pendingPlayback = false;
 
       serialDataSubscription?.cancel();
-      _availablePorts = _serialUtil.availablePorts;
+      _availablePorts = List<String>.from(availablePorts);
+      if (_availablePorts.isEmpty) {
+        _isSerialWebButtonEnabled = false;
+        return;
+      }
       if (!mounted) return;
       Provider.of<PortScanProvider>(context, listen: false)
           .setPortScanList(_availablePorts);
@@ -6458,13 +6700,29 @@ class _GraphTemplateState extends State<GraphTemplate> {
       _isDataIdentified = false;
       streamScrubBuilderController.add(Random().nextInt(100000));
 
-      // SERIAL WEB 
-      isSerialDeviceFound = true;
-      Timer.periodic(Duration(seconds: 3), (timer) {
+      // SERIAL WEB — single watchdog timer (avoid duplicate baud-change timers).
+      periodicTimerSerial?.cancel();
+      // isSerialDeviceFound = true;
+      periodicTimerSerial = Timer.periodic(Duration(seconds: 5), (timer) {
         print("Timer periodic $isSerialDeviceFound");
-        if (isSerialDeviceFound) {
+        if (!_isDataIdentified) {
           int diff = DateTime.now().difference(lastEstablishingConnectionTime).inSeconds;
-          if ( diff > 2) {
+          if ( diff > 4) {
+            if (_serialUtil.vendorId == 0x0403 && _serialUtil.productId == 0x6015) {
+              try{
+                print("Change baud rate to 2222222");
+                _serialUtil.changePortBaudRate(222222);
+                callSerialDataSubscription();
+
+                return;
+              }catch(err){
+                print("ERROR CHANGING BAUD RATE: $err");
+                return;
+
+              }finally {
+                timer.cancel();
+              }
+            }
             // If the device is found and the data is yet not identified, disconnect the device
             print("isSerialDeviceFound: $isSerialDeviceFound -- diff $diff --- isDeviceSelected $isDeviceSelected");
             if (!isDeviceSelected) {
@@ -6504,228 +6762,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
             // serialDeviceFound not found but the data isDataIdentified
           }
         }
-
       });
 
-
-      serialDataSubscription = _serialUtil.dataStream?.listen((event) async {
-        if (isOpeningFile) {
-          return;
-        }
-        if (!dummyDataStatus && !isAudioListen) {
-          arr = [processingUtil.thresholdingArraylength];
-
-          int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
-          if (isDeviceConnect) {
-            // _serialUtil.writeToPort(
-            //     bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
-            //     address: _availablePorts.last);
-            // isDeviceConnect = false;
-            Future.delayed(Duration(milliseconds: 1000), () {
-              print("DELAYED: ${DateTime.now().millisecondsSinceEpoch}");
-              _serialUtil.writeToPort(
-                  bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
-                  address: _availablePorts.last);
-              // isDeviceConnect = false;
-            });
-            isDeviceConnect = false;
-
-          }
-          if (_isDataIdentified) {
-            if (!GraphTemplate.isPlayerPaused) {
-              processingUtil
-                  .processSerialData(event, displayTimeMs.toInt(), deviceType,
-                      drawSurfaceWidth, provider)
-                  .then((samples) {
-                totalSampleCount += samples[0].length;
-                if (totalSampleCount > sampleCountToDisplay) {
-                  totalSampleCount = 0;
-                  if (isThresholdingButton) {
-                    double displayTimeDivision = (displayTimeMs / 10000);
-                    double gap = (arr[0] * (1 - displayTimeDivision));
-                    int maxSamples =
-                        (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
-                            .floor();
-                    int toSample = maxSamples - (gap / 2).floor();
-                    int fromSample = toSample - arr[0] + (gap).floor();
-                    DraggableGraph.startPositionIdx = fromSample;
-                    DraggableGraph.endPositionIdx = toSample;
-
-                    processingUtil.processDisplaySerialData(
-                        displayTimeMs.toInt(),
-                        deviceType,
-                        drawSurfaceWidth,
-                        provider,
-                        fromSample,
-                        toSample);
-                  } else {
-                    int maxSamples =
-                        (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
-                            .floor();
-                    int maxDisplaySamples =
-                        (displayTimeMs * 0.001 * _sampleRate).floor();
-                    DraggableGraph.startPositionIdx =
-                        maxSamples - maxDisplaySamples;
-                    DraggableGraph.endPositionIdx = maxSamples;
-
-                    processingUtil.processDisplaySerialData(
-                        displayTimeMs.toInt(),
-                        deviceType,
-                        drawSurfaceWidth,
-                        provider,
-                        0,
-                        maxDisplaySamples);
-                  }
-                }
-              });
-              if (isRecording == 1) {
-                recordingNotifier.value = [
-                  recordingStartTime,
-                  DateTime.now().millisecondsSinceEpoch
-                ];
-              }
-            } else {
-              if (SoundWaveView.dragDetails != null) {
-                // int fromSample = (-bufferPaddingLeft).toInt();
-                // int toSample = (fromSample + displayTimeMs * 0.001 * _sampleRate).toInt();
-                totalSampleCount += 2;
-                if (totalSampleCount > sampleCountToDisplay) {
-                  totalSampleCount = 0;
-
-                  int maxSamples =
-                      (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
-                          .floor();
-                  int toSample = (maxSamples + bufferPaddingLeft).toInt();
-                  toSample = min(maxSamples, toSample);
-                  int fromSample =
-                      (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
-                  DraggableGraph.startPositionIdx = fromSample;
-                  DraggableGraph.endPositionIdx = toSample;
-
-                  // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
-                  if (isThresholdingButton) {
-                    double displayTimeDivision = (displayTimeMs / 10000);
-                    double gap = (arr[0] * (1 - displayTimeDivision));
-                    toSample = maxSamples - (gap / 2).floor();
-                    fromSample = toSample - arr[0] + (gap).floor();
-                    processingUtil.processDisplaySerialData(
-                        displayTimeMs.toInt(),
-                        deviceType,
-                        drawSurfaceWidth,
-                        provider,
-                        fromSample,
-                        toSample);
-                  } else {
-                    processingUtil.processDisplaySerialData(
-                        displayTimeMs.toInt(),
-                        deviceType,
-                        drawSurfaceWidth,
-                        provider,
-                        fromSample,
-                        toSample);
-                  }
-                }
-              } else {}
-            }
-          } else {
-            if (!isDeviceConnect && !isDeviceSelected) {
-              _preEscapeSequenceBuffer.addBytes(event);
-              // print("ENTER:  $event = $isAudioListen $dummyDataStatus | $_isDataIdentified $isDeviceSelected");
-            }
-            if (isDeviceSelected) {
-              // !isDeviceConnect &&
-              _isDataIdentified = true;
-              _isBoardTimerRunning = true;
-              if (boardTimer !=null) {
-                boardTimer?.cancel();
-                boardTimer = null;
-              }
-              boardTimer = Timer.periodic(Duration(seconds: 3), (timer) {
-                if (isRecording == 1) return;
-                
-                _isBoardTimerRunning = false;
-                print("Writing to port board:;");
-                Uint8List commandBytes =
-                    Uint8List.fromList(utf8.encode("board:;"));
-                _serialUtil.writeToPort(
-                    bytesMessage: commandBytes, address: _availablePorts.last);
-              });
-              // STEVE
-              // processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider).then((sampleCount) {
-              //   totalSampleCount += sampleCount;
-              processingUtil
-                  .processSerialData(event, displayTimeMs.toInt(), deviceType,
-                      drawSurfaceWidth, provider)
-                  .then((samples) {
-                totalSampleCount += samples[0].length;
-                if (totalSampleCount > sampleCountToDisplay) {
-                  totalSampleCount = 0;
-                  if (isThresholdingButton) {
-                    double displayTimeDivision = (displayTimeMs / 10000);
-                    double gap = (arr[0] * (1 - displayTimeDivision));
-                    int maxSamples =
-                        (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
-                            .floor();
-                    int toSample = maxSamples - (gap / 2).floor();
-                    int fromSample = toSample - arr[0] + (gap).floor();
-                    DraggableGraph.startPositionIdx = fromSample;
-                    DraggableGraph.endPositionIdx = toSample;
-                    processingUtil.processDisplaySerialData(
-                        displayTimeMs.toInt(),
-                        deviceType,
-                        drawSurfaceWidth,
-                        provider,
-                        fromSample,
-                        toSample);
-                  } else {
-                    int maxSamples =
-                        (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate)
-                            .floor();
-                    int maxDisplaySamples =
-                        (displayTimeMs * 0.001 * _sampleRate).floor();
-                    DraggableGraph.startPositionIdx =
-                        maxSamples - maxDisplaySamples;
-                    DraggableGraph.endPositionIdx = maxSamples;
-
-                    processingUtil.processDisplaySerialData(
-                        displayTimeMs.toInt(),
-                        deviceType,
-                        drawSurfaceWidth,
-                        provider,
-                        0,
-                        (maxDisplaySamples).floor());
-                  }
-                }
-              });
-            }
-          }
-        }
-      }, onError: (error) {
-        // if (error is SerialPortError) {
-        forceSerialDisconnect = true;
-        print("SERIAL PORT ERROR -- DISCONNECTED");
-        _serialUtil.closePort();
-        Future.delayed(Duration(milliseconds: 2500), () {
-          forceSerialDisconnect = false;
-          _isSerialWebButtonEnabled = false;
-          isDeviceConnect = false;
-          isDeviceSelected = false;
-          if (boardTimer != null) {
-            boardTimer?.cancel();
-            boardTimer = null;
-          }
-          if (deviceTimer !=null) {
-            deviceTimer?.cancel();
-            deviceTimer = null;
-          }
-
-          _isDataIdentified = false;
-          streamScrubBuilderController.add(Random().nextInt(100000));
-          listenToMicrophone(1, provider);
-        });
-        // }
-      });
-      portName = _availablePorts.first;
+      callSerialDataSubscription();
     } catch (e) {
       Debugging.printing("Opening port failed:\n$e");
     }
@@ -7213,6 +7252,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
     }    
   }
+  
 }
 
 class NotchPassFilterWidget extends StatefulWidget {

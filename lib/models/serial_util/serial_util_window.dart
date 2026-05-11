@@ -20,6 +20,7 @@ class SerialUtilWindow implements SerialUtil {
   @override
   Future<List<String>> startPortCheck(int baudRate) async {
     // Timer.periodic(Duration(seconds: 5), (timer) {
+    _baudRate = baudRate;
     availablePorts = SerialPort.availablePorts;
     // });
     return availablePorts;
@@ -28,7 +29,7 @@ class SerialUtilWindow implements SerialUtil {
   // get the list of current ports
   @override
   Future<void> getAvailablePorts(int baudRate, Function callback) async {
-    availablePorts = await startPortCheck(9600); // Adjust baudRate as needed
+    availablePorts = await startPortCheck(baudRate); // Adjust baudRate as needed
 
     // Wait for 5 seconds before the next check
   }
@@ -50,6 +51,7 @@ class SerialUtilWindow implements SerialUtil {
   @override
   void setConfig() {
     SerialPortConfig config = SerialPortConfig();
+    print("SETTING CONFIG FOR BAUD RATE: $_baudRate");
     config.baudRate = _baudRate;
     config.bits = 8;
     config.stopBits = 1;

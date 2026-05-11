@@ -90,13 +90,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   List<String> listOfDevices = [
     "PLANTSS;",
-    "MUSCLESS;",
-    "HEARTSS;",
+    "MUSCUSB1;", // "MUSCLESS;",
+    "HBLEOSB;",
     "MSBPCDC;",
     "NRNSBPRO;",
     "HUMANSB;", // 5
     "MSBPCDC;",
-    "HHIBOX;"
+    "NSBPCDC;",
+    "HHIBOX;",
+    "UNIBOX;",
+    "NEURONSS;",
+    "HEARTSS;"
   ];
   List<String> _availablePorts = [];
   LocalPlugin localPlugin = LocalPlugin();
@@ -194,7 +198,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (kIsWeb) {
         if (_isDataIdentified) return;
       } else {
-        if (!Platform.isIOS && _isDataIdentified) return;
+        if (!Platform.isIOS && _isDataIdentified) return; 
       }
 
       // print("START PORT CHECK");
@@ -408,7 +412,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           serialPortId = _availablePorts.last;
           print("isSerialDeviceFound: $isSerialDeviceFound");
           lastEstablishingConnectionTime = DateTime.now();
-          await portListOnConnect();
+          await portListOnConnect(_baudRate);
           try{
             Future.delayed(Duration(milliseconds: 2000), () async {
               final provider =
@@ -840,14 +844,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
         .buffer
         .asUint8List();
 
-    _dummyDataTimer?.cancel();
-    _dummyDataTimer =
-        Timer.periodic(const Duration(milliseconds: timeMs), (timer) {
-      bool dummyDataStatus = context.read<DataStatusProvider>().isSampleDataOn;
-      if (dummyDataStatus) {
-        _preprocessingBuffer.addBytes(_sampleData);
-      }
-    });
+    // _dummyDataTimer?.cancel();
+    // _dummyDataTimer =
+    //     Timer.periodic(const Duration(milliseconds: timeMs), (timer) {
+    //   bool dummyDataStatus = context.read<DataStatusProvider>().isSampleDataOn;
+    //   if (dummyDataStatus) {
+    //     _preprocessingBuffer.addBytes(_sampleData);
+    //   }
+    // });
 
     localPlugin.spawnHelperIsolate().then(
       (value) {
@@ -1150,8 +1154,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     } catch (e) {
       print("Error removing micListener: $e");
     }
-
     // Cancel subscriptions
+
     serialDataSubscription?.cancel();
     microphoneSubscription?.cancel();
 
@@ -2275,22 +2279,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
               childOverlay: !isOpeningFile
                   ? SizedBox()
                   : Positioned(
-                      top: 0,
-                      left: 0,
+                      bottom: 35,
+                      right: 10,
                       child: Container(
                           margin: kIsWeb ? const EdgeInsets.fromLTRB(0, 0, 0, 0) : 
                                       Platform.isAndroid || Platform.isIOS? const EdgeInsets.fromLTRB(0, 110, 0, 0) : const EdgeInsets.fromLTRB(0, 0, 0, 0),
-                          width: MediaQuery.of(context).size.width,
-                          child: Center(
+                          child: SizedBox(
                             child: Container(
-                                margin: EdgeInsets.only(top: 25),
+                              alignment: Alignment.center,
+                                // margin: EdgeInsets.only(top: 65),
                                 padding: EdgeInsets.symmetric(
                                     horizontal: 16, vertical: 4),
                                 decoration: BoxDecoration(
                                     color: Colors.black,
                                     borderRadius: BorderRadius.circular(16)),
                                 child: Text(openedFilePath,
-                                    style: TextStyle(color: Colors.white))),
+                                    style: TextStyle(color: Colors.white, fontSize: 10))),
                           )),
                     ),
             );
@@ -2322,19 +2326,36 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   List<int> serialBuffer = [];
-
-  Future<void> portListOnConnect() async {
+  Future<void> portListOnConnect(List<int> _baudRate) async {
     try {
       DataStatusProvider dataStatus = context.read<DataStatusProvider>();
       List<String> listOfPort =
           Provider.of<PortScanProvider>(context, listen: false).availablePorts;
-      int baudRate = context.read<ConstantProvider>().getBaudRate();
-      print("portListOnConnect listOfPort: $listOfPort --- baudRate:$baudRate");
+      // int baudRate = context.read<ConstantProvider>().getBaudRate();
       if (listOfPort.isEmpty) {
         return;
       }
-      getData = await _serialUtil.openPortToListen(listOfPort.last, baudRate);
 
+
+      // for (int baudRate in _baudRate) {
+      if (_baudRate.isEmpty) {
+        return;
+      }
+      int baudRate = _baudRate.removeAt(0);
+      {
+        print("portListOnConnect listOfPort: $listOfPort --- baudRate: $baudRate");
+        try{
+          getData = (await _serialUtil.openPortToListen(listOfPort.last, baudRate))?.asBroadcastStream();
+          try {
+            _serialUtil.writeToPort(bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes());
+          } catch (e) {
+            print("Error $baudRate: $e");
+          }
+        }catch(err) {
+          print("Error $baudRate: $err");
+        }
+      }
+    
       // Only proceed if connection was successful
       if (getData == null) {
         print("Failed to connect to port: ${listOfPort.last}");
@@ -2403,7 +2424,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
           }
         });
       }
-
       serialDataSubscription?.cancel();
       serialDataSubscription = getData?.listen((event) async {
         serialSubscriptionListener(event, false, listOfPort);
@@ -2616,6 +2636,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
         // }
       });
       portName = listOfPort.last;
+      // check if SERIAL DATA SUBSCRIPTION FOUND ANY DEVICES
+      Future.delayed(Duration(milliseconds: 5500)).then((v) {
+        if (_isDataIdentified && isDeviceSelected) {
+        } else {
+          portListOnConnect(_baudRate);
+        }
+      });
+
+
     } catch (e) {
       print("Error in portListOnConnect: $e");
       DataStatusProvider dataStatus = context.read<DataStatusProvider>();
@@ -2692,6 +2721,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
   int totalSampleCount = 0;
   int sampleCountToDisplay = 8;
 
+  /// Rolling window meter for serial RX (see [serialSubscriptionListener]).
+  final Stopwatch _serialRxThroughputStopwatch = Stopwatch();
+  int _serialRxBytesInWindow = 0;
+  static const Duration _serialRxThroughputLogInterval = Duration(seconds: 1);
+  /// On-wire ADC rate for SpikerBox serial (not [_sampleRate], which follows mic/UI).
+  static const int _serialRxBaselineSampleRate = 10000;
+
   double bufferPaddingLeft = 0;
 
   Board? selectedBoard;
@@ -2753,7 +2789,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     stopCurrentPlaying();
     _deviceName.value = "";
     predefinedFiltersChannel = [
-      ["Plant", "ECG", "EEG", "Custom"]
+      ["EMG", "ECG", "EEG", "Custom"]
     ];
     defaultDeviceChannelCount = 1;
 
@@ -3028,6 +3064,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     if (isAudioListen) {
       if (GraphTemplate.isLoadingFile == 2 ||
           GraphTemplate.isLoadingFile == 4) {
+        // print("GraphTemplate.isLoadingFile: ${GraphTemplate.isLoadingFile}");
         int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
         // int maxSamples = (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
         // int maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
@@ -3042,6 +3079,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
         toSample = min(maxSamples, toSample);
         int fromSample =
             (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
+        if (isThresholdingButton) {
+          // print("Don't Draw last result for thresholding");
+          return;
+        }
         processingUtil.prepareDisplayMicrophoneData(
             [Int16List(0)],
             drawSurfaceWidth,
@@ -3052,6 +3093,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             toSample);
         // print("RANGE MASK : ${DraggableGraph.startPositionIdx} -- ${DraggableGraph.endPositionIdx} || ${maxDisplaySamples} || ${maxSamples} ${_sampleRate}");
       } else if (GraphTemplate.isLoadingFile == 1) {
+        // print("PROCESS MICROPHONE ISLOADINGFILE 1");
         GraphTemplate.isLoadingFile = 2;
         // List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples.sublist(0, loadedArrChannelCount[0]).buffer.asUint8List());
         // loadedArrSamples[0].fillRange(0, loadedArrSamples[0].length, 5000);
@@ -3059,11 +3101,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
             .processMicrophoneData(loadedArrSamples[0].buffer.asUint8List());
         // List<Int16List> tempData = processingUtil.processMicrophoneData(Uint8List(0));
         microphoneUtil.micStream.value = Uint8List(0);
+        if (isThresholdingButton) {
+          return;
+        }
+
       } else {
         if (GraphTemplate.isLoadingFile == 3) {
+          // print("PROCESS MICROPHONE ISLOADINGFILE 3");
           GraphTemplate.isLoadingFile = 4;
           // print("PROCESS MICROPHONE DATA LOADED 3: ${GraphTemplate.isLoadingFile}");
-          processingUtil.processMicrophoneData(microphoneUtil.micStream.value);
+          List<Int16List> tempData = processingUtil.processMicrophoneData(microphoneUtil.micStream.value);
         } else if (!GraphTemplate.isPlayerPaused) {
           if (isThresholdingButton) {
             if (kIsWeb) {
@@ -4339,16 +4386,18 @@ class _GraphTemplateState extends State<GraphTemplate> {
     int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
 
     if (GraphTemplate.isLoadingFile == 2 || GraphTemplate.isLoadingFile == 4) {
+      // print("Graph Template isLoadingFile 2/4: ${GraphTemplate.isLoadingFile}");
       int maxSamples =
           (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
       int toSample = (maxSamples + bufferPaddingLeft).toInt();
       toSample = min(maxSamples, toSample);
       int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
+
       await processingUtil.processDisplaySerialData(displayTimeMs.toInt(),
           deviceType, drawSurfaceWidth, provider, fromSample, toSample);
       setState(() {});
     } else if (GraphTemplate.isLoadingFile == 1) {
-      print("Graph Template isLoadingFile: ${GraphTemplate.isLoadingFile}");
+      // print("Graph Template isLoadingFile 1: ${GraphTemplate.isLoadingFile}");
       GraphTemplate.isLoadingFile = 2;
       // SERIAL FILE CHANGES
       // List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples[0].buffer.asUint8List());
@@ -4366,6 +4415,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       processingUtil.processingSerialDataResult(
           flattenedList, samplesCount, widget.channelCount);
     } else if (GraphTemplate.isLoadingFile == 3) {
+      // print("Graph Template isLoadingFile 3: ${GraphTemplate.isLoadingFile}");
       // SERIAL FILE CHANGES
       // processingUtil.processMicrophoneData(microphoneUtil.micStream.value);
       // List<Int16List> samples = await processingUtil.processSerialData(event, displayTimeMs.toInt(), deviceType, drawSurfaceWidth, provider);
@@ -4517,7 +4567,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
       // List<String> listOfPort = Provider.of<PortScanProvider>(context, listen: false).availablePorts;
       serialNativeDataSubscription(Uint8List(0), isAudioListen);
-      print("periodicSerialDataSubscription");
+      // print("periodicSerialDataSubscription");
     });
   }
 
@@ -4831,7 +4881,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   defaultDeviceChannelCount = deviceChannelCount;
                   
                   if (GraphTemplate.selectedBoard?.uniqueName == "HHIBOX") {
-                    sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2 ).floor();
+                    sampleCountToDisplay = (_sampleRate / 5000 * 8 ).floor();
                   } else 
                   if (GraphTemplate.selectedBoard?.uniqueName == "NRNSBPRO") {
                     sampleCountToDisplay = (_sampleRate / 5000 * 8 * defaultDeviceChannelCount).floor();
@@ -4954,6 +5004,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     });
   }
 
+  int counterThreshold = 0;
   void _startPlaybackTimer() {
     print("START PLAYBACK TIMER");
     _isStreamEnded = false; // Reset flag when starting playback
@@ -4981,9 +5032,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
             timerPlaybackLoadedEndIndex = loadedArrSamples[0].length - 1;
           }
 
+          // create sublist array based on the start and end timer index
+          // check if the sublist array is not empty
+          // insert data into c++
+
           List<Int16List> sublistArray = [];
-          print(
-              "loadedArrSamples: Channel: ${widget.channelCount} --- $timerPlaybackLoadedStartIndex $timerPlaybackLoadedEndIndex || ${loadedArrSamples.length}");
           for (int i = 0; i < widget.channelCount; i++) {
             Int16List sublistSamples = loadedArrSamples[i].sublist(
                 timerPlaybackLoadedStartIndex.floor(),
@@ -5008,6 +5061,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               }
             }
           }
+          print(
+              "loadedArrSamples: Channel: ${widget.channelCount} --- LENGTH: ${timerPlaybackLoadedEndIndex - timerPlaybackLoadedStartIndex}");
           timerPlaybackLoadedStartIndex =
               (timerPlaybackLoadedStartIndex + sampleDivider);
 
@@ -5074,9 +5129,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
           if (isAudioListen) {
             GraphTemplate.isLoadingFile = 3;
-            processingUtil
+            List<Int16List> tempData = processingUtil
                 .processMicrophoneData(sublistArray[0].buffer.asUint8List());
             microphoneUtil.micStream.value = Uint8List(0);
+
+            if (!kIsWeb &&isThresholdingButton) {
+              int selectedThresholdChannelIdx =
+                context.read<ThresholdStatusProvider>().selectedThresholdChannel;
+              bool isAverageSamples = true;
+              arr = processingUtil.processThresholdData(
+                  tempData,
+                  tempData.length,
+                  MediaQuery.of(context).size.width.floor(),
+                  selectedThresholdChannelIdx,
+                  isAverageSamples);
+            }
           } else {
             GraphTemplate.isLoadingFile = 4;
             int channelIdx = 0;
@@ -5089,6 +5156,42 @@ class _GraphTemplateState extends State<GraphTemplate> {
             }).toList());
             processingUtil.processingSerialDataResult(
                 flattenedList, samplesCount, widget.channelCount);
+            List<Int16List> tempData = sublistArray;
+            if (!kIsWeb && isThresholdingButton) {
+              print("Process Threshold Data");
+              int selectedThresholdChannelIdx =
+                context.read<ThresholdStatusProvider>().selectedThresholdChannel;
+              bool isAverageSamples = true;
+              /*
+              arr = processingUtil.processThresholdData(
+                  tempData,
+                  tempData.length,
+                  MediaQuery.of(context).size.width.floor(),
+                  selectedThresholdChannelIdx,
+                  isAverageSamples);
+              */
+              // List<Int16List> tempDataThreshold = List<Int16List>.generate(sublistArray.length, (index) => Int16List(sublistArray[index].length)..fillRange(0, sublistArray[index].length, 1000));
+              List<Int16List> tempDataThreshold = sublistArray;
+              // for (int i = 0; i < tempDataThreshold.length; i++) {
+              //   Int16List element = tempDataThreshold[i];
+              //   // int dateTimeTemp = (DateTime.now().millisecondsSinceEpoch % 1000000).floor();
+              //   for (int j = 0; j < element.length; j++) {
+              //     // element[j] = dateTimeTemp + j + i * 1000;
+              //     // element[j] = sublistArray[i][j];
+              //     // element[j] = ++counterThreshold;
+              //     element[j] = 100;
+              //   }
+              //   // print("tempDataThreshold[$i] : ${tempDataThreshold[i]}");
+              // }
+              // print("tempDataThreshold0.length: ${tempDataThreshold[0].length}");
+              // print("tempDataThreshold1.length: ${tempDataThreshold[1].length}");
+              arr = processingUtil.processThresholdData(
+                  tempDataThreshold,
+                  tempDataThreshold.length,
+                  MediaQuery.of(context).size.width.floor(),
+                  selectedThresholdChannelIdx,
+                  isAverageSamples);
+            }
           }
 
           double playbackPercentage =
@@ -5692,12 +5795,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 duration: Duration(seconds: 7),
               ));
             } else {
+              String recordedFilePathProcessed = "~/Downloads/"+recordedFilePath!.substring(recordedFilePath!.lastIndexOf("/") + 1);
+              
               ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(
                 // content: Text("File recorded successfully: $recordedFilePath"),
                 // content: getSavedRecordingBanner(recordedFilePath),
                 behavior: SnackBarBehavior.floating,
                 backgroundColor: Colors.transparent,
-                content: getSavedRecordingBanner(recordedFilePath),
+                content: getSavedRecordingBanner(recordedFilePathProcessed),
                 margin: EdgeInsets.only(
                   bottom: MediaQuery.of(widgetContext).size.height / 2 -
                       30, // Adjust -25 based on approximate SnackBar height
@@ -6919,8 +7024,45 @@ class _GraphTemplateState extends State<GraphTemplate> {
     //   ),
     // );
   }
+
+  /// Logs raw UART bytes/sec (debug). This includes protocol framing, device
+  /// messages, and any non-sample bytes — not the same as
+  /// `sampleRate × decoded bytes per sample`.
+  void _recordSerialRxThroughput(int byteCount) {
+    if (!_serialRxThroughputStopwatch.isRunning) {
+      _serialRxThroughputStopwatch.start();
+    }
+    _serialRxBytesInWindow += byteCount;
+    if (_serialRxThroughputStopwatch.elapsed < _serialRxThroughputLogInterval) {
+      return;
+    }
+    final elapsedSec = _serialRxThroughputStopwatch.elapsedMilliseconds / 1000.0;
+    final rate = elapsedSec > 0 ? _serialRxBytesInWindow / elapsedSec : 0.0;
+    final avgUartBytesPerSample =
+        rate / _serialRxBaselineSampleRate; // if ADC is really at this rate
+    final decodedPayloadFloor =
+        _serialRxBaselineSampleRate * _channelBytes; // int16-style frames only
+    final impliedSpsIfWireMatchesChannelBytes =
+        _channelBytes > 0 ? rate / _channelBytes : 0.0;
+    if (kDebugMode) {
+      debugPrint(
+        'SERIAL RX: ${rate.toStringAsFixed(0)} B/s '
+        '(${_serialRxBytesInWindow} B / ${elapsedSec.toStringAsFixed(2)} s) | '
+        '@ ${_serialRxBaselineSampleRate} Hz → '
+        '${avgUartBytesPerSample.toStringAsFixed(2)} UART B/sample (avg) | '
+        'if every byte were sample data at $_channelBytes B/frame → '
+        '${impliedSpsIfWireMatchesChannelBytes.toStringAsFixed(0)} frames/s '
+        '(decoded floor ~$decodedPayloadFloor B/s; mic/UI $_sampleRate Hz)',
+      );
+    }
+    _serialRxBytesInWindow = 0;
+    _serialRxThroughputStopwatch.reset();
+    _serialRxThroughputStopwatch.start();
+  }
   
   void serialSubscriptionListener(Uint8List event, bool isMfi, listOfPort) async {
+    // _recordSerialRxThroughput(event.length);
+
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     // print("IS AUDIO LISTEN | Writing to port b:; : ${isAudioListen} --- bytes : ${event.length}");
     // if (!isAudioListen) {
@@ -6933,7 +7075,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         isDeviceConnect = false;
 
         print("Writing to port b:; : ${UsbCommand.hwTypeInquiry.cmdAsBytes()} ${DateTime.now().millisecondsSinceEpoch}");
-        Future.delayed(Duration(milliseconds: 1000), () {
+        Future.delayed(Duration(milliseconds: 2000), () {
           print("SEND BYTES DELAYED: ${DateTime.now().millisecondsSinceEpoch}");
           if (isMfi) {
             BybAccessory.sendBytes(UsbCommand.hwTypeInquiry.cmdAsBytes());
@@ -6967,6 +7109,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
             }
             boardTimer = Timer.periodic(Duration(seconds: 3), (timer) {
               if (isRecording == 1) return;
+              if (GraphTemplate.selectedBoard!=null && GraphTemplate.selectedBoard!.expansionBoards!=null && GraphTemplate.selectedBoard!.expansionBoards!.isEmpty)  return;
+
               _isBoardTimerRunning = false;
               print("Writing to port board:;");
               Uint8List commandBytes =

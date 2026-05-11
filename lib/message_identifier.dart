@@ -43,7 +43,6 @@ class MessageIdentifier {
         case MessageState.inStartSequence:
           // print("IN START SEQUENCE _messageBuffer Device : ");
           // print(newPacket);
-
           if (newPacket[i] == startSequence[_startSequenceFoundIndex + 1]) {
             if (_startSequenceFoundIndex == startSequence.length - 2) {
               messageState = MessageState.inMessage;

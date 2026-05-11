@@ -1033,6 +1033,38 @@ int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_
             empty_events,
             empty_event_count
         );
+
+        // Diagnostic: compare input chunk size vs full threshold template appended to ring buffer.
+        // Throttled — expect out0 ≈ sr * 2.4 and buf10s = sr * 10 (so buf/tpl ≈ 4.17). Remove when done.
+        {
+            static int32_t s_threshold_diag_call = 0;
+            s_threshold_diag_call++;
+            const bool log_now = (s_threshold_diag_call <= 5) ||
+                                 (s_threshold_diag_call % 50 == 0);
+            if (log_now) {
+                const int32_t buf10s =
+                    current_sample_rate * MAX_NUMBER_OF_SECONDS;
+                const int32_t tpl24 =
+                    static_cast<int32_t>(current_sample_rate * 2.4f);
+                const int32_t in0 = in_sample_counts[0];
+                const int32_t out0 = out_sample_counts[0];
+                const int32_t in1 =
+                    current_channel_count > 1 ? in_sample_counts[1] : -1;
+                const int32_t out1 =
+                    current_channel_count > 1 ? out_sample_counts[1] : -1;
+                const double tpl_per_buf =
+                    (tpl24 > 0) ? static_cast<double>(buf10s) /
+                                      static_cast<double>(tpl24)
+                                  : 0.0;
+                platform_log_processing(
+                    "[threshold_diag] #%d sr=%d ch=%d | in0=%d in1=%d "
+                    "out0=%d out1=%d | buf10s=%d tpl2_4s=%d buf/tpl=%.2f\n",
+                    s_threshold_diag_call, current_sample_rate,
+                    current_channel_count, in0, in1, out0, out1, buf10s, tpl24,
+                    tpl_per_buf);
+            }
+        }
+
         // thresholdProcessor->process(
         //     (out_samples),
         //     (out_sample_counts),
@@ -1043,8 +1075,6 @@ int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_
         //     const_cast<int*>(empty_events),
         //     empty_event_count
         // );
-
-
 
         // platform_log("LOG\n");
         // for (int i = 0; i < out_sample_counts[0]; i++) {

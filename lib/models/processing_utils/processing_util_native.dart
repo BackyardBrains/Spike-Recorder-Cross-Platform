@@ -1161,6 +1161,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
           (_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS / 2)
               .floor()); // 5x for envelope
     }
+    // print("frameCount: $frameCount || SAMPLERATE : ${_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS / 2}");
 
     try {
       // Prepare input data pointer

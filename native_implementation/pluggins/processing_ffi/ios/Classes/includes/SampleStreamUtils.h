@@ -149,7 +149,10 @@ namespace backyardbrains {
             static const int NEURON_PRO_HARDWARE = 4;
             // SpikerBox Neuron PRO hardware type.
             static const int HUMAN_HARDWARE = 5;
-            static const int HHIBOX_HARDWARE = 7;
+            static const int MUSCLE_SPIKERBOX_HARDWARE = 6;
+            static const int NEURON_SPIKERBOX_HARDWARE = 7;
+            static const int HHIBOX_HARDWARE = 8;
+            static const int HEART_SHIELD_HARDWARE = 9;
 
             // Sample rate used throughout the app.
             static const int SAMPLE_RATE = 10000;

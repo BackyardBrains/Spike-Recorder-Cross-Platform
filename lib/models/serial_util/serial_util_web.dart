@@ -31,6 +31,8 @@ class SerialUtilWeb implements SerialUtil {
   bool _isClosingReader = false;
   /// Prevents overlapping close/open/read cycles from duplicate baud timers.
   bool _serialReopenInProgress = false;
+  /// Bumped when the port is closed/reopened so in-flight writes abandon stale writers.
+  int _writableSession = 0;
 
   int _baudRate = 0;
 
@@ -50,8 +52,8 @@ class SerialUtilWeb implements SerialUtil {
           _baudRate = 500000;
         } else 
         if (portInfo?.usbVendorId == 0x0403 && portInfo?.usbProductId == 0x6015) {
-          _baudRate = 500000;
-          // _baudRate = 222222;
+          // _baudRate = 500000;
+          _baudRate = 222222;
         } else {
           _baudRate = 222222;
         }
@@ -106,16 +108,68 @@ class SerialUtilWeb implements SerialUtil {
 
   @override
   void writeToPort({required Uint8List bytesMessage, String? address}) async {
-    if (serialPort == null) {
+    // `void` + `async`: callers never await this Future, so any uncaught error
+    // becomes an unhandled async error (uncaught in JS on web). Keep failures contained.
+    try {
+      await _writeToPortUnchecked(bytesMessage);
+    } catch (e, _) {
+      print("SerialUtilWeb.writeToPort failed: $e");
+      await _resetWriterAfterError();
+      audioCallback!(1, null);
+    }
+  }
+
+  Future<void> _writeToPortUnchecked(Uint8List bytesMessage) async {
+    if (serialPort == null || _serialReopenInProgress) {
+      return;
+    }
+    final session = _writableSession;
+    if (!_writeSessionStillValid(session)) {
       return;
     }
 
     writer ??= serialPort!.writable.writer;
+    var w = writer;
+    if (w == null || !_writeSessionStillValid(session)) {
+      return;
+    }
 
-    await writer!.ready;
-    await writer!.write(bytesMessage);
-    await writer!.ready;
+    await w.ready;
+    if (!_writeSessionStillValid(session) || writer != w) {
+      return;
+    }
+
+    await w.write(bytesMessage);
+    if (!_writeSessionStillValid(session) || writer != w) {
+      return;
+    }
+
+    await w.ready;
+    if (!_writeSessionStillValid(session) || writer != w) {
+      return;
+    }
+
     Debugging.printing("message sent : ${String.fromCharCodes(bytesMessage)}");
+  }
+
+  bool _writeSessionStillValid(int session) =>
+      session == _writableSession && serialPort != null && !_serialReopenInProgress;
+
+  Future<void> _resetWriterAfterError() async {
+    final w = writer;
+    writer = null;
+    if (w == null) {
+      return;
+    }
+    try {
+      await w.ready;
+    } catch (_) {}
+    try {
+      await w.close();
+    } catch (_) {}
+    try {
+      w.releaseLock();
+    } catch (_) {}
   }
 
   @override
@@ -342,7 +396,7 @@ class SerialUtilWeb implements SerialUtil {
   }
   
   @override
-  void changePortBaudRate(int baudRate) {
+  Future<void> changePortBaudRate(int baudRate) async {
     if (serialPort == null) {
       return;
     }
@@ -354,17 +408,22 @@ class SerialUtilWeb implements SerialUtil {
     }
     _serialReopenInProgress = true;
     _baudRate = baudRate;
-    unawaited(_reopenPortAndListen().whenComplete(() {
-      _serialReopenInProgress = false;
-    }).catchError((Object e, StackTrace st) {
+    try {
+      await _reopenPortAndListen();
+    } catch (e, _) {
       print("changePortBaudRate async error: $e");
-    }));
+    } finally {
+      _serialReopenInProgress = false;
+    }
   }
 
   Future<void> _reopenPortAndListen() async {
     if (serialPort == null) {
       return;
     }
+    // Invalidate any writer acquired while the previous session was still "open"
+    // and drop in-flight writes that still hold the old WritableStreamDefaultWriter.
+    _writableSession++;
     try {
       await _fullyReleasePortStreams();
       await _closeSerialPortWithSettle();
@@ -372,6 +431,9 @@ class SerialUtilWeb implements SerialUtil {
       await openPortToListen(" ", _baudRate);
     } catch (e, _) {
       print("_reopenPortAndListen failed: $e");
+    } finally {
+      // Always attach the next write to the current port's writable, never a pre-close writer.
+      writer = null;
     }
   }
 

@@ -6541,7 +6541,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             }
             boardTimer = Timer.periodic(Duration(seconds: 3), (timer) {
               if (isRecording == 1) return;
-              
+
               _isBoardTimerRunning = false;
               print("Writing to port board:;");
               Uint8List commandBytes =
@@ -6627,6 +6627,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
     portName = _availablePorts.first;
   }
 
+  /// Heart & Brain uses 222222 baud; FTDI 0x0403/0x6015 is opened at 500k for other boards.
+  /// Bytes before the baud switch are line noise for this device — clear framing state and
+  /// any partial 32-byte serial chunks so escape sequences match the BYB USB protocol
+  /// (SpikerBox escape sequences in the Spike Recorder USB communication guide).
+  void _resetSerialPipelineAfterBaudChange() {
+    initMessageIdentifier();
+    _residualBuffer.clear();
+    _preEscapeSequenceBuffer.discardPendingInput();
+    _preprocessingBuffer.discardPendingInput();
+  }
+
 
   void serialWebButtonPressed(List<int> _baudRate) async {
     try {
@@ -6709,19 +6720,26 @@ class _GraphTemplateState extends State<GraphTemplate> {
           int diff = DateTime.now().difference(lastEstablishingConnectionTime).inSeconds;
           if ( diff > 4) {
             if (_serialUtil.vendorId == 0x0403 && _serialUtil.productId == 0x6015) {
-              try{
-                print("Change baud rate to 2222222");
-                _serialUtil.changePortBaudRate(222222);
+              print("Change baud rate to 222222");
+              isDeviceConnect = true;
+              isDeviceSelected = false;
+              isSerialDeviceFound = false;
+              _isDataIdentified = false;
+              GraphTemplate.isLoadingFile = 0;
+              foundDevices = "";
+
+              _serialUtil.changePortBaudRate(222222).then((_) async {
+                if (!mounted) return;
+                _resetSerialPipelineAfterBaudChange();
+                // Must run after reopen: openPortToListen replaces dataStream / StreamController;
+                // subscribing before that leaves serialDataSubscription on a dead stream.
                 callSerialDataSubscription();
-
-                return;
-              }catch(err){
+              }).catchError((Object err) {
                 print("ERROR CHANGING BAUD RATE: $err");
-                return;
-
-              }finally {
+              }).whenComplete(() {
                 timer.cancel();
-              }
+              });
+              return;
             }
             // If the device is found and the data is yet not identified, disconnect the device
             print("isSerialDeviceFound: $isSerialDeviceFound -- diff $diff --- isDeviceSelected $isDeviceSelected");

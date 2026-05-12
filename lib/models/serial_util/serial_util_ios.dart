@@ -20,7 +20,7 @@ class SerialUtilIos implements SerialUtil {
   @override
   int productId = 0;
 
-  void changePortBaudRate(int baudRate) {}
+  Future<void> changePortBaudRate(int baudRate) async {}
   @override
   Future<void> connectToPort() async {
     // if (devices.isEmpty) {

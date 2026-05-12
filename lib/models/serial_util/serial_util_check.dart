@@ -16,7 +16,7 @@ abstract class SerialUtil {
   Future<List<String>> getAvailablePortsWeb(int baudRate, Function audioCallback) async => [];
 
   void writeToPort({required Uint8List bytesMessage, String? address}) async {}
-  void changePortBaudRate(int baudRate) async {}
+  Future<void> changePortBaudRate(int baudRate) async {}
   void connectToPort() {}
   void closePort() {}
 

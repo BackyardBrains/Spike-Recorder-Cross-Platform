@@ -29,7 +29,7 @@ class SerialUtilWindow implements SerialUtil {
     // });
     return availablePorts;
   }
-  void changePortBaudRate(int baudRate) {}
+  Future<void> changePortBaudRate(int baudRate) async {}
 
   // get the list of current ports
   @override

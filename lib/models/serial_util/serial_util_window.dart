@@ -72,10 +72,24 @@ class SerialUtilWindow implements SerialUtil {
     return isOpen;
   }
 
+  /// Windows keeps COM ports exclusive; release the previous handle before reopening
+  /// (e.g. baud scan in [portListOnConnect]) or the next open returns Access denied (errno 5).
+  void _releasePortSilently() {
+    try {
+      reader?.close();
+    } catch (_) {}
+    reader = null;
+    try {
+      if (port != null && port!.isOpen) {
+        port!.close();
+      }
+    } catch (_) {}
+    port = null;
+  }
+
   @override
   void closePort() {
-    reader.close();
-    port!.close();
+    _releasePortSilently();
   }
 
   @override
@@ -83,7 +97,7 @@ class SerialUtilWindow implements SerialUtil {
     return Future.value(0);
   }
 
-  late SerialPortReader reader;
+  SerialPortReader? reader;
   StreamSubscription? serialBufferSubscription;
   StreamController<Uint8List> _serialBufferController = StreamController();
   Uint8List serialBuffer = Uint8List(1200);
@@ -100,6 +114,7 @@ class SerialUtilWindow implements SerialUtil {
     _baudRate = baudRate;
     // checkEscapeSequence();
     if (portName == null) return null;
+    _releasePortSilently();
     port = SerialPort(portName);
 
     if (port?.name == portName) {
@@ -136,7 +151,7 @@ class SerialUtilWindow implements SerialUtil {
       });
       return _serialBufferController.stream.asBroadcastStream();
       */
-      return reader.stream;
+      return reader!.stream;
     }
     return null;
   }

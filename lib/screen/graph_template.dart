@@ -36,6 +36,7 @@ import 'package:spikerbox_architecture/widget/bybdropdown_widget.dart';
 import 'package:spikerbox_architecture/widget/darkdropdown_widget.dart';
 import 'package:spikerbox_architecture/widget/hump_custom_painter.dart';
 import 'package:tabbed_view/tabbed_view.dart';
+import 'package:wav/wav.dart';
 import 'package:window_manager/window_manager.dart';
 import '../provider/provider_export.dart';
 import '../widget/widget_export.dart';
@@ -56,7 +57,6 @@ class GraphTemplate extends StatefulWidget {
   // isLoadingFile = 2 -> scrubbing finished
   // isLoadingFile = 3 -> playback file
   // isLoadingFile = 4 -> playback file finished
-
   static bool isPlayerPaused = false;
   static Board? selectedBoard;
   static ProcessingUtil? processingUtil;
@@ -1786,7 +1786,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.0.12',
+                                            'SpikeRecorder App ver. 2.0.13',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -1872,6 +1872,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       onTapButton: () {
                                         isThresholdingButton =
                                             !isThresholdingButton;
+                                        thresholdSliderValue = 1;
+                                            
                                         print(
                                             "initThreshold : ${_sampleRate}, $deviceChannelCount === deviceChannelCount :$deviceChannelCount @@@ isThresholdingButton :$isThresholdingButton  ");
                                         if (isThresholdingButton) {
@@ -2259,7 +2261,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                 // isRecording = 1;
                               } else {
                                 resetRecordingState(widgetContext);
-
                                 setState(() {});
                               }
                             },
@@ -3925,6 +3926,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // Int32List arrConfigWeb = Int32List(10);
     // Int32List arrSampleCount = Int32List(widget.channelCount);
     // Int16List arrSamples = Int16List(1);
+    // if (currentLoadedFilePath.endsWith(".wav")) {
+    //   final wavReader = await Wav.readFile(currentLoadedFilePath);
+    //   print("WAV READER2: ${wavReader.samplesPerSecond} ${wavReader.channels.length} ${wavReader.format}");
+    //   // GraphTemplate.nwbFileUtil?.processingInit(wavReader.samplesPerSecond, wavReader.channels.length, wavReader., deviceManufacturer, visibleChannelsList, visibleChannelCount)
+    //   return;
+    // }
 
     print("======SEEK OPEN FILE - Initiating");
     await GraphTemplate.nwbFileUtil
@@ -4189,6 +4196,71 @@ class _GraphTemplateState extends State<GraphTemplate> {
     Int16List arrSamples = Int16List(1);
     // await GraphTemplate.nwbFileUtil?.readElectricalSeries(arrSampleCount, arrChannelCount, 0, 1);
     // DEMO
+    print("CURRENT LOADED FILEzzzqqqqq PATH: $currentLoadedFilePath");
+    if (currentLoadedFilePath.endsWith(".wav")) {
+      String? recordedFilePath = "";
+      final wavReader = await Wav.readFile(currentLoadedFilePath);
+      final wavChannelCount = wavReader.channels.length;
+      final wavSampleRate = wavReader.samplesPerSecond;
+      if (wavChannelCount > 1) {
+        recordedFilePath = await GraphTemplate
+            .nwbFileUtil
+            ?.processingInit(
+                wavSampleRate,
+                wavChannelCount,
+                "SpikeRecorder Device|||",
+                "SpikeRecorder Systems@@@LegacyFormat",
+                visibleSignalsList,
+                visibleChannelCount);
+
+
+        print("WAV READER2: ${wavReader.samplesPerSecond} ${wavReader.channels.length} ${wavReader.format}");
+      } else {
+        recordedFilePath = await GraphTemplate
+            .nwbFileUtil
+            ?.processingInit(
+              wavSampleRate,
+              wavChannelCount,
+              "Audio|||",
+              "SpikeRecorder Systems",
+              visibleSignalsList,
+              visibleChannelCount);
+
+      }
+
+      final channels = wavReader.channels;
+      final samplesCount = Int32List(channels.length);
+      var totalSamples = 0;
+      for (var c = 0; c < channels.length; c++) {
+        samplesCount[c] = channels[c].length;
+        totalSamples += channels[c].length;
+      }
+      final flattenedList = Int16List(totalSamples);
+      var offset = 0;
+      for (var c = 0; c < channels.length; c++) {
+        final ch = channels[c];
+        for (var i = 0; i < ch.length; i++) {
+          // Inverse of package:wav int16 decode: intToSample(fold(uint16), 16) uses divisor 32767.5.
+          final f = ch[i].clamp(-1.0, 1.0);
+          final u = ((f + 1.0) * 32767.5).round().clamp(0, 65535);
+          flattenedList[offset + i] = u - 32768;
+        }
+        offset += ch.length;
+      }
+      // STEVE: native nwbfile_add_electrical_series reads samplesCount[0..channelCount-1] and
+      // copies channelCount slices from inSamples — channelCount must match WAV channels and
+      // processingInit. Do not finish with an empty Int16List; native still std::copies by samplesCount.
+      if (!kIsWeb) {
+        GraphTemplate.nwbFileUtil?.addElectricalSeries(
+            flattenedList, samplesCount, 0, wavChannelCount, 1);
+      }
+      currentLoadedFilePath = recordedFilePath ?? "";
+
+      // final wavReader = await Wav.readFile(currentLoadedFilePath);
+      // print("WAV READER: ${wavReader.samplesPerSecond} ${wavReader.channels.length} ");
+      // wavReader.channels
+    } else {
+    }
     print("======SEEK OPEN FILE - Initiating");
     bool? isFileOpened = await GraphTemplate.nwbFileUtil?.seekElectricalSeries(
         currentLoadedFilePath,
@@ -5054,13 +5126,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
             sublistArray.add(sublistSamples);
             if (!_isStreamEnded && loadedFileStreams[i] != null) {
               try {
-                print("isSpeakerChannelMuted[i] == ${isSpeakerChannelMuted[i]} ");
+                // print("isSpeakerChannelMuted[i] == ${isSpeakerChannelMuted[i]} ");
                 if (isSpeakerChannelMuted[i]) {
                   // soloud!.addAudioDataStream(loadedFileStreams[i]!,
                   //     (Int16List(sublistSamples.length)).buffer.asUint8List());
                 } else {
-                  // soloud!.addAudioDataStream(loadedFileStreams[i]!,
-                  //     sublistSamples.buffer.asUint8List());
+                  if (kIsWeb) {
+                    soloud!.addAudioDataStream(loadedFileStreams[i]!,
+                        sublistSamples.buffer.asUint8List());
+                  }
                 }
               } catch (e) {
                 // Stream may have been ended, stop trying to add data
@@ -5071,8 +5145,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               }
             }
           }
-          print(
-              "loadedArrSamples: Channel: ${widget.channelCount} --- LENGTH: ${timerPlaybackLoadedEndIndex - timerPlaybackLoadedStartIndex}");
+          // print(
+          //     "loadedArrSamples: Channel: ${widget.channelCount} --- LENGTH: ${timerPlaybackLoadedEndIndex - timerPlaybackLoadedStartIndex}");
           timerPlaybackLoadedStartIndex =
               (timerPlaybackLoadedStartIndex + sampleDivider);
 
@@ -6734,6 +6808,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 // Must run after reopen: openPortToListen replaces dataStream / StreamController;
                 // subscribing before that leaves serialDataSubscription on a dead stream.
                 callSerialDataSubscription();
+                Future.delayed(Duration(milliseconds: 1500), () {
+                  listenToMicrophone(1, provider);
+                });
               }).catchError((Object err) {
                 print("ERROR CHANGING BAUD RATE: $err");
               }).whenComplete(() {

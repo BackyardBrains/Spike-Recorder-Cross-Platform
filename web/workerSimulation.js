@@ -1,3 +1,6 @@
+importScripts("wavfile.js");
+var wav = new wavefile.WaveFile();
+
 let maxBufferedSerialEmptyCount = 300;
 let bufferedSerialEmptyValue = [];
 let bufferedSerialEmptyCount = [];
@@ -1217,6 +1220,7 @@ self.onmessage = async function (eventFromMain) {
             }
             console.log("CREATE_NWB_FILE: ", eventFromMain.data);
             let recordedFileCookie = eventFromMain.data.recordedFileCookie;
+
             console.log("COOKIE WORKER: ", recordedFileCookie);
             let FS = null;
             if (NwbModule.FS) {
@@ -1248,10 +1252,89 @@ self.onmessage = async function (eventFromMain) {
                 }
             }
                 
-            isRecording = 0;
             let filePath = eventFromMain.data.filePath;
             osFilePath = filePath;
             console.log("OS FILE PATH : $osFilePath");
+
+            // if filePath.contains(".wav") then it is a wav file
+            let isWavFileOpened = eventFromMain.data.isWavFile !== undefined && eventFromMain.data.isWavFile ? true:false;
+            if (isWavFileOpened) {
+                isRecording = -1;
+
+                let fileHandle = eventFromMain.data.fileHandle;
+                const readData = await fileHandle.getFile();
+                console.log("Read Data: ", readData);
+                if (readData) {
+                    const fileBuffer = await readData.arrayBuffer();
+                    wav.fromBuffer(new Uint8Array(fileBuffer),true);
+                    let wavSampleRate = wav.fmt.sampleRate;
+                    let wavChannelCount = wav.fmt.numChannels;
+                    if (wavChannelCount > 1) {
+                        deviceInfo = "SpikeRecorder Device|||";
+                        deviceManufacturer = "SpikeRecorder Systems@@@LegacyFormat";
+                    } else {
+                        deviceInfo = "Audio|||";
+                        deviceManufacturer = "SpikeRecorder Systems";
+                    }
+
+                    let nwbFilePath = fileHandle.name.replace(".wav", ".nwb");
+                    console.log("NWB FILE PATHzzz: ", nwbFilePath);
+                    const result = NwbModule.ccall(
+                        'processing_init',
+                        'number',
+                        ['string', 'number', 'number', 'string', 'string'],
+                        [nwbFilePath, wavSampleRate, wavChannelCount, deviceInfo, deviceManufacturer]
+                    );
+                    bufferedSerialEmptyValue = [];
+                    bufferedSerialEmptyCount = [];
+                    for (let i = 0; i < wavChannelCount; i++) {
+                        const tempArray = new Int16Array(maxBufferedSerialEmptyCount)
+                        bufferedSerialEmptyValue.push( tempArray );
+                        bufferedSerialEmptyCount.push( 0 );
+                    }
+
+                    let samplesCtrPtr = NwbModule._malloc(wavChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
+                    let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
+                    let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + wavChannelCount));
+
+                    const flattenedList = wav.data.samples;
+                    const bufferSize = Math.floor(flattenedList.length / Int16Array.BYTES_PER_ELEMENT);
+                    // let channelSamples = [];
+                    for (let i = 0; i<wav.fmt.numChannels;i++){
+                        const sampleLength = Math.floor( bufferSize / wav.fmt.numChannels);
+                        // channelSamples.push(channelSample);
+                        samplesCtrBuffer[i] = sampleLength;
+                    }
+                    console.log("flattenedList: ", flattenedList);
+                    const flatList = new Int16Array(flattenedList.buffer);
+                    const totalSamples = flatList.length;
+                    let samplesPtr = NwbModule._malloc(totalSamples * NwbModule.HEAP16.BYTES_PER_ELEMENT);
+                    let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
+                    let samplesBufferRecording = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + totalSamples));
+                    console.log("totalSamples: ", totalSamples);
+                    console.log("FLAT LIST: ", flatList);
+                    for (let j = 0; j < bufferSize ; j++){                
+                        const div = Math.floor( j / wav.fmt.numChannels );
+                        const mod = (j) % wav.fmt.numChannels;
+                        const subBuffer = flattenedList.slice(j * Int16Array.BYTES_PER_ELEMENT, (j+1) * Int16Array.BYTES_PER_ELEMENT);
+                        flatList[div]= new DataView(subBuffer.buffer).getInt16(0, true);
+                    }
+                    console.log("FLAT LIST ENDIAN : ", flatList);
+                    samplesBufferRecording.set(flatList);
+                    // samplesBufferRecording.set((new Int16Array(totalSamples)).fill(10000));
+
+                    NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, wav.fmt.numChannels, 1);
+                    NwbModule._free(samplesPtr);
+                    NwbModule._free(samplesCtrPtr);
+                    isRecording = -1;
+
+                }
+                return;
+            } else {
+                isRecording = 0;
+
+            }
+
 
             let nwbSampleRate = eventFromMain.data.sampleRate;
             let nwbChannelCount = eventFromMain.data.channelCount;
@@ -1294,6 +1377,7 @@ self.onmessage = async function (eventFromMain) {
             postMessage({
                 "message": "NWB_FILE_CREATED",
                 "result": filePath,
+                "isWavFile": isWavFile,
             });
         break;
         case "ADD_ELECTRICAL_SERIES":
@@ -1452,7 +1536,7 @@ self.onmessage = async function (eventFromMain) {
                     }
                 }
     
-                console.log("!!@!!START OPENING FILE WEB 1");
+                console.log("!!@!!START OPENING FILE WEB 1 , fileName: ", fileName);
     
                 // seek buffer       
                 let tempLoadedChannelCount = 10;
@@ -1469,10 +1553,39 @@ self.onmessage = async function (eventFromMain) {
             }
         break;
         // Entry point for seek and open file web
+        case "CONVERT_WAV_TO_NWB": // change to CREATE_NWB_FILE
+            try{
+                console.log("convert wav to nwb");
+                let fileName = eventFromMain.data.filePath;
+                let startIdx = eventFromMain.data.startIdx;
+                let endIdx = eventFromMain.data.endIdx;
+                let startChannel = eventFromMain.data.startChannel;
+                let endChannel = eventFromMain.data.endChannel;
+                let fileHandle = eventFromMain.data.fileHandle;
+
+                const readData = await fileHandle.getFile();
+                if (readData) {
+                    const fileBuffer = await readData.arrayBuffer();
+                    wav.fromBuffer(fileBuffer,true);
+                    const result = NwbModule.ccall(
+                        'processing_init',
+                        'number',
+                        ['string', 'number', 'number', 'string', 'string'],
+                        // [filePath, nwbSampleRate, nwbChannelCount, deviceInfoPointer, deviceManufacturerPointer]
+                        [filePath, nwbSampleRate, recordChannelCount, deviceInfoPointer, deviceManufacturerPointer]
+                    );
+                            
+                    NwbModule._nwbfile_add_electrical_series(flattenedList, samplesCount, 0, wav.fmt.numChannels, 1);
+                }
+
+            }catch(err){
+                
+            }
+        break;
         case "START_OPENING_FILE_WEB":
             try{
                 console.log("start opening file web");
-                let fileName = eventFromMain.data.filePath;
+                let fileName = eventFromMain.data.filePath.replace(".wav", ".nwb");
                 let startIdx = eventFromMain.data.startIdx;
                 let endIdx = eventFromMain.data.endIdx;
                 let startChannel = eventFromMain.data.startChannel;

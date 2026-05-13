@@ -5447,8 +5447,8 @@ index 549cbb3..682162c 100644
  
            List<Int16List> sublistArray = [];
 -          print("loadedArrSamples: Channel: ${widget.channelCount} --- $timerPlaybackLoadedStartIndex $timerPlaybackLoadedEndIndex || ${loadedArrSamples.length}");
-+          print(
-+              "loadedArrSamples: Channel: ${widget.channelCount} --- $timerPlaybackLoadedStartIndex $timerPlaybackLoadedEndIndex || ${loadedArrSamples.length}");
+# +          print(
+# +              "loadedArrSamples: Channel: ${widget.channelCount} --- $timerPlaybackLoadedStartIndex $timerPlaybackLoadedEndIndex || ${loadedArrSamples.length}");
            for (int i = 0; i < widget.channelCount; i++) {
 -            Int16List sublistSamples = loadedArrSamples[i].sublist(timerPlaybackLoadedStartIndex.floor(), timerPlaybackLoadedEndIndex.floor());
 +            Int16List sublistSamples = loadedArrSamples[i].sublist(

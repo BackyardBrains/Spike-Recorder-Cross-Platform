@@ -555,7 +555,7 @@ async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, end
           accept: {
             // 'audio/wav': ['.wav'],
             // 'text/plain': ['.txt'],
-            'application/zip': ['.nwb'],
+            'application/zip': ['.nwb', '.wav'],
           },
         },
       ],
@@ -574,23 +574,56 @@ async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, end
       if (fileSizeInBytes < 10) {
         return "File can't be opened"
       }
-      window.setOpenedFileName(fileHandle[0].name);
+      if (fileHandle[0].name.endsWith(".wav")) {
+        mWorker.postMessage({
+          "message": "CREATE_NWB_FILE",
+          "isWavFile": true,
+          "fileHandle": fileHandle[0],
+          "filePath": fileHandle[0].name,
+          "startIdx": startIdx,
+          "endIdx": endIdx,
+          "startChannel": startChannel,
+          "endChannel": endChannel,
+          "fileHandle": fileHandle[0],
+          "isStartOpeningFileWeb": isStartOpeningFileWeb,
+        }, fileHandle[0]);
+        window.setOpenedFileName(fileHandle[0].name.replace(".wav", ".nwb"));
+      } else {
+        window.setOpenedFileName(fileHandle[0].name);
+      }
+      setTimeout(() => {
+        if (fileHandle[0].name.endsWith(".wav")) {
+          console.log("MWORKER TRY TO POST MESSAGE: ");
+          mWorker.postMessage({
+            "message": "START_OPENING_FILE_WEB",
+            "filePath": fileHandle[0].name.replace(".wav", ".nwb"),
+            "startIdx": startIdx,
+            "endIdx": endIdx,
+            "startChannel": startChannel,
+            "endChannel": endChannel,
+            "fileHandle": fileHandle[0],
+            "isStartOpeningFileWeb": isStartOpeningFileWeb,
+          });
+        }        
+      }, 1000);
     }catch(e){
       console.log("error: ", e);
       return "File not opened";
     }
   }
-  console.log("MWORKER TRY TO POST MESSAGE: ");
-  mWorker.postMessage({
-    "message": "START_OPENING_FILE_WEB",
-    "filePath": fileHandle[0].name,
-    "startIdx": startIdx,
-    "endIdx": endIdx,
-    "startChannel": startChannel,
-    "endChannel": endChannel,
-    "fileHandle": fileHandle[0],
-    "isStartOpeningFileWeb": isStartOpeningFileWeb,
-  });
+  if (fileHandle[0].name.endsWith(".nwb")) {
+    console.log("MWORKER TRY TO POST MESSAGE: ");
+    mWorker.postMessage({
+      "message": "START_OPENING_FILE_WEB",
+      "filePath": fileHandle[0].name,
+      "startIdx": startIdx,
+      "endIdx": endIdx,
+      "startChannel": startChannel,
+      "endChannel": endChannel,
+      "fileHandle": fileHandle[0],
+      "isStartOpeningFileWeb": isStartOpeningFileWeb,
+    });
+  }
 }
 
 async function seekOpeningFileWeb(filePath, startIdx, endIdx, startChannel, endChannel, isStartOpeningFileWeb = false) {
@@ -626,7 +659,7 @@ async function seekOpeningFileWeb(filePath, startIdx, endIdx, startChannel, endC
   console.log("MWORKER TRY TO POST MESSAGE: ");
   mWorker.postMessage({
     "message": "SEEK_OPENING_FILE_WEB",
-    "filePath": fileHandle[0].name,
+    "filePath": fileHandle[0].name.replace(".wav", ".nwb"),
     "startIdx": startIdx,
     "endIdx": endIdx,
     "startChannel": startChannel,

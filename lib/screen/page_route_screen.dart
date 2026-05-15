@@ -63,7 +63,7 @@ class _DashBoardPageRouteState extends State<DashBoardPageRoute> {
                       ),
                     );
                   },
-                  childWidget: const Text("Web application Version 2.0.13"),
+                  childWidget: const Text("Web application Version 2.0.16"),
                 ),
               );
             })

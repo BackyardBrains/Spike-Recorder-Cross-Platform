@@ -28,7 +28,9 @@ class SerialUtilWeb implements SerialUtil {
   Stream<Uint8List>? dataStream;
 
   WritableStreamDefaultWriter? writer;
-  bool _isClosingReader = false;
+  /// Second [_disposeReader] waits for the first so releaseLock always finishes
+  /// before a concurrent path calls [SerialPort.close] (avoids "locked stream").
+  Future<void>? _disposeReaderInFlight;
   /// Prevents overlapping close/open/read cycles from duplicate baud timers.
   bool _serialReopenInProgress = false;
   /// Bumped when the port is closed/reopened so in-flight writes abandon stale writers.
@@ -36,11 +38,24 @@ class SerialUtilWeb implements SerialUtil {
 
   int _baudRate = 0;
 
+  /// [ReadableStreamDefaultReader.cancel] / the read pump can stall on some USB
+  /// states; [closePort] must not block [connectToPort] indefinitely.
+  static const Duration _readCancelTimeout = Duration(seconds: 2);
+  static const Duration _readPumpJoinTimeout = Duration(seconds: 4);
+  static const Duration _writerReadyTimeout = Duration(seconds: 2);
+
   @override
   Future<void> connectToPort() async {
     print("connectToPort 1000: $serialPort");
 
     try {
+      // UI often calls [closePort] without await. The next [connectToPort] can run
+      // while the previous [closePort] is still running; [requestPort] then overwrites
+      // [serialPort] before [SerialPort.close] finishes, so the browser still has an
+      // open handle and [open] throws InvalidStateError: The port is already open.
+      if (serialPort != null) {
+        await closePort();
+      }
       serialPort = await window.navigator.serial.requestPort();
       portInfo = serialPort?.getInfo();
       print("portInfo: ${portInfo?.usbVendorId} ${portInfo?.usbProductId}");
@@ -49,18 +64,20 @@ class SerialUtilWeb implements SerialUtil {
 
       try{
         if (portInfo?.usbVendorId == 0x2E73 && portInfo?.usbProductId == 0x009) {
-          _baudRate = 500000;
-        } else 
-        if (portInfo?.usbVendorId == 0x0403 && portInfo?.usbProductId == 0x6015) {
           // _baudRate = 500000;
           _baudRate = 222222;
+        } else 
+        if (portInfo?.usbVendorId == 0x0403 && portInfo?.usbProductId == 0x6015) {
+          print("baudRate vendorId: ${portInfo?.usbVendorId} ---- productId: ${portInfo?.usbProductId}");
+                _baudRate = 500000;
+          // _baudRate = 222222;
         } else {
           _baudRate = 222222;
         }
       }catch(err) {
         print("ERR");
       }
-
+      print("baudRate serial web: $_baudRate");
       await serialPort?.open(
         baudRate: _baudRate,
         // bufferSize: 8192,
@@ -75,13 +92,18 @@ class SerialUtilWeb implements SerialUtil {
         return;
       }
       print("Port opening failed: $e");
+      try {
+        await closePort();
+      } catch (_) {}
       throw Exception("Serial connections require Chrome, or Edge");
     }
   }
 
   @override
   Future<void> closePort() async {
-    print("closePort 1000: $serialPort");
+    print("closePort 1000 start: $serialPort");
+    // Drop in-flight writes that might still touch the writer while we tear down.
+    _writableSession++;
     await _disposeReader();
     await _disposeWriterForClose();
     try {
@@ -91,19 +113,20 @@ class SerialUtilWeb implements SerialUtil {
     } catch (err) {
       print("Error closing stream controller: $err");
     }
+    print("closePort 1000 MIDDLE: $serialPort");
 
-    serialPort?.close().then((_) async {
-      writer = null;
-      reader = null;
-      portInfo = null;
-      serialPort = null;
-    }).catchError((e) {
+    try {
+      await _closeSerialPortWithSettle();
+    } catch (e) {
       print("Error closing web serial port: $e");
+    } finally {
       writer = null;
       reader = null;
       portInfo = null;
       serialPort = null;
-    });
+    }
+    print("closePort 1000 END: $serialPort");
+
   }
 
   @override
@@ -120,6 +143,7 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   Future<void> _writeToPortUnchecked(Uint8List bytesMessage) async {
+    print("writeToPortUnchecked: $serialPort $_serialReopenInProgress");
     if (serialPort == null || _serialReopenInProgress) {
       return;
     }
@@ -162,7 +186,7 @@ class SerialUtilWeb implements SerialUtil {
       return;
     }
     try {
-      await w.ready;
+      await w.ready.timeout(_writerReadyTimeout, onTimeout: () {});
     } catch (_) {}
     try {
       await w.close();
@@ -221,7 +245,6 @@ class SerialUtilWeb implements SerialUtil {
         } catch(err) {
           print("OPEN PORT");
         }
-
       }
       print("READER3");
       print("READER4");
@@ -236,22 +259,12 @@ class SerialUtilWeb implements SerialUtil {
       print("Reading port failed with exception: \n$e");
       if (audioCallback != null && !isOpeningFile) {
         print("Audio Callback not null0");
-        writer?.releaseLock();
-        print("Audio Callback not null1");
-        await _disposeReader();
-        print("Audio Callback not null2");
-        await serialPort?.close();
-        print("Audio Callback not null3");
-        writer = null;
-        reader = null;
+        await _teardownSerialPortAfterReadFailure();
         try {
           audioCallback!(1, null);
         } catch (cbErr) {
           print("audioCallback error: $cbErr");
         }
-      } else {
-        // print("Audio Callback null");
-        // print(audioCallback);
       }
 
       return null;
@@ -272,21 +285,34 @@ class SerialUtilWeb implements SerialUtil {
       print("Reading port failed with exception: \n$e");
       if (audioCallback != null && !isOpeningFile) {
         print("Audio Callback not null0");
-        writer?.releaseLock();
-        print("Audio Callback not null1");
-        await _disposeReader();
-        print("Audio Callback not null2");
-        await serialPort?.close();
-        print("Audio Callback not null3");
-        writer = null;
-        reader = null;
-        try {
-          audioCallback!(1, null);
-        } catch (cbErr) {
-          print("audioCallback error: $cbErr");
-        }
+        // Must not await teardown here: [_disposeReaderBody] waits on this pump
+        // future; awaiting [_teardownSerialPortAfterReadFailure] would deadlock
+        // because teardown calls [_disposeReader] again.
+        unawaited(_teardownSerialPortAfterReadFailure().then((_) {
+          try {
+            audioCallback!(1, null);
+          } catch (cbErr) {
+            print("audioCallback error: $cbErr");
+          }
+        }));
       }
     }
+  }
+
+  /// Same stream-unlock + close sequence as [closePort], for read/open failures.
+  Future<void> _teardownSerialPortAfterReadFailure() async {
+    if (serialPort == null) {
+      return;
+    }
+    _writableSession++;
+    await _fullyReleasePortStreams();
+    try {
+      await _closeSerialPortWithSettle();
+    } catch (_) {}
+    writer = null;
+    reader = null;
+    portInfo = null;
+    serialPort = null;
   }
 
   /// Connection is directly established with the selected port
@@ -451,7 +477,7 @@ class SerialUtilWeb implements SerialUtil {
       return;
     }
     try {
-      await w.ready;
+      await w.ready.timeout(_writerReadyTimeout, onTimeout: () {});
     } catch (_) {}
     try {
       await w.close();
@@ -468,7 +494,7 @@ class SerialUtilWeb implements SerialUtil {
       return;
     }
     Object? lastCloseError;
-    for (var attempt = 0; attempt < 3; attempt++) {
+    for (var attempt = 0; attempt < 6; attempt++) {
       try {
         await port.close();
         lastCloseError = null;
@@ -476,9 +502,9 @@ class SerialUtilWeb implements SerialUtil {
       } catch (e) {
         lastCloseError = e;
         print("serialPort.close attempt ${attempt + 1} failed: $e");
-        await Future<void>.delayed(Duration(milliseconds: 80 * (attempt + 1)));
-        await _disposeReader();
-        await _disposeWriterForClose();
+        _writableSession++;
+        await Future<void>.delayed(Duration(milliseconds: 100 * (attempt + 1)));
+        await _fullyReleasePortStreams();
       }
     }
     if (lastCloseError != null) {
@@ -505,6 +531,7 @@ class SerialUtilWeb implements SerialUtil {
       }
       // Port still reported open: close again, settle, then open once more.
       try {
+        await _fullyReleasePortStreams();
         await port.close();
       } catch (_) {}
       await Future<void>.delayed(const Duration(milliseconds: 150));
@@ -513,40 +540,55 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   Future<void> _disposeReader() async {
-    if (_isClosingReader) {
+    if (_disposeReaderInFlight != null) {
+      await _disposeReaderInFlight;
       return;
     }
+    _disposeReaderInFlight = _disposeReaderBody();
+    try {
+      await _disposeReaderInFlight;
+    } finally {
+      _disposeReaderInFlight = null;
+    }
+  }
+
+  Future<void> _disposeReaderBody() async {
     final localReader = reader;
     if (localReader == null) {
       try {
-        await (_readPumpFuture ?? Future<void>.value());
+        await (_readPumpFuture ?? Future<void>.value())
+            .timeout(_readPumpJoinTimeout, onTimeout: () {});
       } catch (_) {}
       _readPumpFuture = null;
       return;
     }
-    _isClosingReader = true;
     reader = null;
     try {
       try {
-        await (localReader as dynamic).cancel();
+        final cancelResult = (localReader as dynamic).cancel();
+        if (cancelResult is Future) {
+          await cancelResult.timeout(_readCancelTimeout, onTimeout: () {});
+        }
       } catch (_) {
         // cancel may fail if reader is already invalid.
       }
-      await Future<void>.delayed(const Duration(milliseconds: 60));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
       // Wait until read pump exits so read() is not still pending during releaseLock.
       try {
-        await (_readPumpFuture ?? Future<void>.value());
+        await (_readPumpFuture ?? Future<void>.value())
+            .timeout(_readPumpJoinTimeout, onTimeout: () {});
       } catch (_) {}
       _readPumpFuture = null;
       // Required for SerialPort.close(): readable must be unlocked (cancel alone is not enough).
-      try {
-        localReader.releaseLock();
-      } catch (_) {
-        // Still locked briefly on some builds; port.close may retry after settle.
+      for (var attempt = 0; attempt < 8; attempt++) {
+        try {
+          localReader.releaseLock();
+          break;
+        } catch (_) {
+          await Future<void>.delayed(Duration(milliseconds: 35 * (attempt + 1)));
+        }
       }
-      await Future<void>.delayed(const Duration(milliseconds: 40));
-    } finally {
-      _isClosingReader = false;
-    }
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    } catch (_) {}
   }
 }

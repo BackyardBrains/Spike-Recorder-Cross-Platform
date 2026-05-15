@@ -578,16 +578,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
             if (isOpeningFile) {
               print("CANCELING PERIODIC TIMER SERIAL");
 
-              try {
-                _serialUtil.closePort();
-                Future.delayed(Duration(milliseconds: 1500), () {
-                  if (context.mounted) {
-                    _availablePorts.clear();
-                  }
-                });
-              } catch (err) {
-                print("ERR: $err");
-              }
+              // try {
+              //   _serialUtil.closePort();
+              //   Future.delayed(Duration(milliseconds: 1500), () {
+              //     if (context.mounted) {
+              //       _availablePorts.clear();
+              //     }
+              //   });
+              // } catch (err) {
+              //   print("ERR: $err");
+              // }
               listenToMicrophone(1, graphDataProvider);
             }
           }
@@ -1786,7 +1786,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.0.13',
+                                            'SpikeRecorder App ver. 2.0.16',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -2327,8 +2327,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   List<int> serialBuffer = [];
-  Future<void> portListOnConnect(List<int> _baudRate) async {
+  Future<void> portListOnConnect(List<int> _rawbaudRate) async {
     try {
+      List<int> _baudRate = List<int>.from(_rawbaudRate);
       DataStatusProvider dataStatus = context.read<DataStatusProvider>();
       List<String> listOfPort =
           Provider.of<PortScanProvider>(context, listen: false).availablePorts;
@@ -2793,6 +2794,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       ["EMG", "ECG", "EEG", "Custom"]
     ];
     defaultDeviceChannelCount = 1;
+    _isSerialWebButtonEnabled = false;
 
     // Prevent multiple simultaneous calls
     print(
@@ -4317,9 +4319,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
         sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2 ).floor();
       } else 
       if (_sampleRate >= 10000 && defaultDeviceChannelCount > 1){
-        sampleCountToDisplay = (_sampleRate / 5000 * 8 * defaultDeviceChannelCount).floor();
+        sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2).floor();
       } else {
-        sampleCountToDisplay = (_sampleRate / 5000 * 8).floor();
+        sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2).floor();
       }
 
       context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
@@ -4974,7 +4976,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   if (_sampleRate >= 10000 && defaultDeviceChannelCount > 1){
                     sampleCountToDisplay = (_sampleRate / 5000 * 8 * defaultDeviceChannelCount).floor();
                   } else {
-                    sampleCountToDisplay = (_sampleRate / 5000 * 8).floor();
+                    sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2).floor();
                   }
 
                   context.read<ChannelColorProvider>().setSerialChannelCount(
@@ -5087,6 +5089,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   int counterThreshold = 0;
+  
+  DateTime? lastDateTimeSerialDataArrival = DateTime.now();
   void _startPlaybackTimer() {
     print("START PLAYBACK TIMER");
     _isStreamEnded = false; // Reset flag when starting playback
@@ -5822,9 +5826,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   if (_isSerialWebButtonEnabled) {
                     _isSerialWebButtonEnabled = false;
                     _serialUtil.closePort();
-                    isDeviceConnect = false;
+                    isDeviceConnect = true;
                     isDeviceSelected = false;
+                    isSerialDeviceFound = false;
                     _isDataIdentified = false;
+
                     GraphDataProvider graphDataProvider =
                         Provider.of<GraphDataProvider>(context, listen: false);
                     listenToMicrophone(1, graphDataProvider);
@@ -5834,6 +5840,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   }
                   _isSerialWebButtonEnabled = true;
                   setState(() {});
+                  print("serialWebButtonPressed ::: $_baudRate");
                   serialWebButtonPressed(_baudRate);
                 },
                 child: Row(
@@ -6481,10 +6488,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
     serialDataSubscription?.cancel();
     serialDataSubscription = _serialUtil.dataStream?.listen((event) async {
+      lastDateTimeSerialDataArrival = DateTime.now();
       if (isOpeningFile) {
         return;
       }
-      if (!isAudioListen) {
+      // if (!isAudioListen) {
+      if (1==1) {
+        context
+            .read<DataStatusProvider>()
+            .setMicrophoneDataStatus(false);
+
         // print("SERIAL DATA SUBSCRIPTION: $event");
         arr = [processingUtil.thresholdingArraylength];
 
@@ -6615,6 +6628,26 @@ class _GraphTemplateState extends State<GraphTemplate> {
             }
             boardTimer = Timer.periodic(Duration(seconds: 3), (timer) {
               if (isRecording == 1) return;
+              if (DateTime.now().difference(lastDateTimeSerialDataArrival!).inSeconds > 3) {
+                boardTimer?.cancel();
+                // cancel FTDI stuck
+                serialDataSubscription?.cancel();
+                isDeviceConnect = true;
+                isDeviceSelected = false;
+                isSerialDeviceFound = false;
+                _isDataIdentified = false;
+                GraphTemplate.isLoadingFile = 0;
+                foundDevices = "";
+                try {
+                  _serialUtil.closePort();
+                }catch(err){
+                  print("ERROR CLOSING PORT ON FTDI STUCK: $err");
+                }
+                print("BOARD FTDI STUCK");
+                listenToMicrophone(1, provider);
+                
+                
+              }
 
               _isBoardTimerRunning = false;
               print("Writing to port board:;");
@@ -6714,14 +6747,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
 
   void serialWebButtonPressed(List<int> _baudRate) async {
+    lastEstablishingConnectionTime = DateTime.now();
+    try{
+      _serialUtil.closePort();
+    }catch(err){
+      print("ERROR IN SERIAL WEB BUTTON PRESSED: $err");
+    }
+    
     try {
       // int baudRate = context.read<ConstantProvider>().getBaudRate();
       int baudRate = 0;
-      print("getAvailablePorts: $baudRate");
+      print("getAvailablePorts serialWebButtonPressed: $baudRate");
       List<String> availablePorts = [];
       try {
         availablePorts = await _serialUtil.getAvailablePortsWeb(baudRate, serialErrorCallback);
       }catch(err) {
+        print("ERROR GETTING AVAILABLE PORTS: $err");
         isSerialDeviceFound = false;
         if (err.toString().contains("BYPASS")) {
           _isSerialWebButtonEnabled = false;
@@ -6752,8 +6793,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
       print("availablePorts GRAPH TEMPLATE: $availablePorts");
 
-      Provider.of<GraphResumePlayProvider>(context, listen: false)
-          .setGraphResumePlay(false);
+      // Provider.of<GraphResumePlayProvider>(context, listen: false)
+      //     .setGraphResumePlay(false);
       GraphTemplate.isLoadingFile = 0;
       isOpeningFile = false;
       bool isPlay = true;
@@ -6770,9 +6811,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
         return;
       }
       if (!mounted) return;
-      Provider.of<PortScanProvider>(context, listen: false)
-          .setPortScanList(_availablePorts);
-      context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
+      // run audio until serial data is identified
+      // Provider.of<PortScanProvider>(context, listen: false)
+      //     .setPortScanList(_availablePorts);
+      // context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
 
       if (!mounted) return;
       bool dummyDataStatus = context.read<DataStatusProvider>().isSampleDataOn;
@@ -6782,37 +6824,82 @@ class _GraphTemplateState extends State<GraphTemplate> {
           "_serialUtil.dataStream $isAudioListen $dummyDataStatus | $_isDataIdentified $isDeviceSelected");
       isDeviceConnect = true;
       isDeviceSelected = false;
+      isSerialDeviceFound = false;
       _isDataIdentified = false;
       streamScrubBuilderController.add(Random().nextInt(100000));
+      callSerialDataSubscription();
 
       // SERIAL WEB — single watchdog timer (avoid duplicate baud-change timers).
       periodicTimerSerial?.cancel();
       // isSerialDeviceFound = true;
-      periodicTimerSerial = Timer.periodic(Duration(seconds: 5), (timer) {
-        print("Timer periodic $isSerialDeviceFound");
-        if (!_isDataIdentified) {
+      // 1. isDeviceConnect is true
+      // 2. !_isDataIdentified && !isDeviceConnect is true = device found but with different baud rate.
+      // 3. check last datetime serial data arrival
+      periodicTimerSerial = Timer.periodic(Duration(seconds: 3), (timer) {
+        print("Timer periodic $isSerialDeviceFound || $_isDataIdentified || $isDeviceConnect");
+        // isDeviceConnect is true = serial subscription is not yet established after 2s then FTDI stuck
+        if (!_isDataIdentified && isDeviceConnect) {
+          Future.delayed(Duration(milliseconds: 2000), () {
+            if (!_isDataIdentified) {
+              try{
+                _serialUtil.closePort();
+              }catch(err){
+                print("ERROR CLOSING PORT ON FTDI STUCK: $err");
+              }
+              context
+                  .read<DataStatusProvider>()
+                  .setMicrophoneDataStatus(true);
+              listenToMicrophone(1, provider);
+              serialDataSubscription?.cancel();
+              timer.cancel();
+            }
+          });
+        }
+
+        // !_isDataIdentified && !isDeviceConnect is true = device found but with different baud rate.
+        if (!_isDataIdentified && !isDeviceConnect) {
           int diff = DateTime.now().difference(lastEstablishingConnectionTime).inSeconds;
-          if ( diff > 4) {
+          if ( diff > 2) {
             if (_serialUtil.vendorId == 0x0403 && _serialUtil.productId == 0x6015) {
               print("Change baud rate to 222222");
-              isDeviceConnect = true;
-              isDeviceSelected = false;
-              isSerialDeviceFound = false;
-              _isDataIdentified = false;
-              GraphTemplate.isLoadingFile = 0;
-              foundDevices = "";
-
               _serialUtil.changePortBaudRate(222222).then((_) async {
                 if (!mounted) return;
                 _resetSerialPipelineAfterBaudChange();
                 // Must run after reopen: openPortToListen replaces dataStream / StreamController;
                 // subscribing before that leaves serialDataSubscription on a dead stream.
+                print("CALL SERIAL DATA SUBSCRIPTION");
+                isDeviceConnect = true;
+                isDeviceSelected = false;
+                isSerialDeviceFound = false;
+                _isDataIdentified = false;
+                lastDateTimeSerialDataArrival = DateTime.now();
+
+                GraphTemplate.isLoadingFile = 0;
+                foundDevices = "";
+
+                // context
+                //     .read<DataStatusProvider>()
+                //     .setMicrophoneDataStatus(false);
                 callSerialDataSubscription();
-                Future.delayed(Duration(milliseconds: 1500), () {
-                  listenToMicrophone(1, provider);
+
+                Future.delayed(Duration(milliseconds: 3500), () {
+                  if (!_isDataIdentified) {
+                    try{
+                      _serialUtil.closePort();
+                    }catch(err){}
+                    bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+                    if (!isAudioListen) {
+                      context
+                          .read<DataStatusProvider>()
+                          .setMicrophoneDataStatus(true);
+                      listenToMicrophone(1, provider);
+                      serialDataSubscription?.cancel();                    
+                    }
+                  }
                 });
               }).catchError((Object err) {
                 print("ERROR CHANGING BAUD RATE: $err");
+                
               }).whenComplete(() {
                 timer.cancel();
               });
@@ -6832,7 +6919,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       .read<DataStatusProvider>()
                       .setMicrophoneDataStatus(true);
 
-                  listenToMicrophone(1, provider);
+                    try{
+                      _serialUtil.closePort();
+                    }catch(err){}
+                    listenToMicrophone(1, provider);
+                    serialDataSubscription?.cancel();
                   timer.cancel();
                 });
                 lastEstablishingConnectionTime = DateTime.now();
@@ -6856,10 +6947,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
           } else {
             // serialDeviceFound not found but the data isDataIdentified
           }
+          Provider.of<PortScanProvider>(context, listen: false)
+              .setPortScanList(_availablePorts);
+          context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
+
         }
       });
 
-      callSerialDataSubscription();
     } catch (e) {
       Debugging.printing("Opening port failed:\n$e");
     }

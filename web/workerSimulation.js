@@ -1254,7 +1254,7 @@ self.onmessage = async function (eventFromMain) {
                 
             let filePath = eventFromMain.data.filePath;
             osFilePath = filePath;
-            console.log("OS FILE PATH : $osFilePath");
+            console.log("OS FILE PATH : ", osFilePath);
 
             // if filePath.contains(".wav") then it is a wav file
             let isWavFileOpened = eventFromMain.data.isWavFile !== undefined && eventFromMain.data.isWavFile ? true:false;
@@ -1297,31 +1297,29 @@ self.onmessage = async function (eventFromMain) {
                     let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
                     let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + wavChannelCount));
 
-                    const flattenedList = wav.data.samples;
-                    const bufferSize = Math.floor(flattenedList.length / Int16Array.BYTES_PER_ELEMENT);
-                    // let channelSamples = [];
-                    for (let i = 0; i<wav.fmt.numChannels;i++){
-                        const sampleLength = Math.floor( bufferSize / wav.fmt.numChannels);
-                        // channelSamples.push(channelSample);
-                        samplesCtrBuffer[i] = sampleLength;
+                    // wav.data.samples is raw PCM bytes (Uint8Array). Decode to int16 and split
+                    // into planar channel arrays — NWB expects [ch0..chN] contiguous (see nwbfile_processing_plugin_web.cpp).
+                    const decoded = wav.getSamples(false, Int16Array);
+                    const channelArrays =
+                        wav.fmt.numChannels === 1 ? [decoded] : decoded;
+                    let segmentIndex = 0;
+                    for (let i = 0; i < wav.fmt.numChannels; i++) {
+                        samplesCtrBuffer[i] = channelArrays[i].length;
+                        segmentIndex += channelArrays[i].length;
                     }
-                    console.log("flattenedList: ", flattenedList);
-                    const flatList = new Int16Array(flattenedList.buffer);
-                    const totalSamples = flatList.length;
-                    let samplesPtr = NwbModule._malloc(totalSamples * NwbModule.HEAP16.BYTES_PER_ELEMENT);
+                    let samplesPtr = NwbModule._malloc(segmentIndex * NwbModule.HEAP16.BYTES_PER_ELEMENT);
                     let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
-                    let samplesBufferRecording = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + totalSamples));
-                    console.log("totalSamples: ", totalSamples);
-                    console.log("FLAT LIST: ", flatList);
-                    for (let j = 0; j < bufferSize ; j++){                
-                        const div = Math.floor( j / wav.fmt.numChannels );
-                        const mod = (j) % wav.fmt.numChannels;
-                        const subBuffer = flattenedList.slice(j * Int16Array.BYTES_PER_ELEMENT, (j+1) * Int16Array.BYTES_PER_ELEMENT);
-                        flatList[div]= new DataView(subBuffer.buffer).getInt16(0, true);
+                    let samplesBufferRecording = NwbModule.HEAP16.subarray(
+                        samplesPtrStart,
+                        samplesPtrStart + segmentIndex
+                    );
+                    let writeOffset = 0;
+                    // for (let i = 0; i < wav.fmt.numChannels; i++) {
+                    for (let i = wav.fmt.numChannels - 1; i >= 0; i--) {
+                        const ch = channelArrays[i];
+                        samplesBufferRecording.set(ch, writeOffset);
+                        writeOffset += ch.length;
                     }
-                    console.log("FLAT LIST ENDIAN : ", flatList);
-                    samplesBufferRecording.set(flatList);
-                    // samplesBufferRecording.set((new Int16Array(totalSamples)).fill(10000));
 
                     NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, wav.fmt.numChannels, 1);
                     NwbModule._free(samplesPtr);
@@ -1377,7 +1375,7 @@ self.onmessage = async function (eventFromMain) {
             postMessage({
                 "message": "NWB_FILE_CREATED",
                 "result": filePath,
-                "isWavFile": isWavFile,
+                "isWavFile": osFilePath.endsWith(".wav")? true : false,
             });
         break;
         case "ADD_ELECTRICAL_SERIES":

@@ -12,15 +12,19 @@ abstract class SerialUtil {
 
   // static SerialPort? serialPort;
 
-  Future<void> getAvailablePorts(int baudRate, Function audioCallback) async => [];
-  Future<List<String>> getAvailablePortsWeb(int baudRate, Function audioCallback) async => [];
+  Future<void> getAvailablePorts(int baudRate, Function audioCallback) async =>
+      [];
+  Future<List<String>> getAvailablePortsWeb(
+          int baudRate, Function audioCallback) async =>
+      [];
 
   void writeToPort({required Uint8List bytesMessage, String? address}) async {}
   Future<void> changePortBaudRate(int baudRate) async {}
-  void connectToPort() {}
-  void closePort() {}
+  Future<void> connectToPort() async {}
+  Future<void> closePort() async {}
 
   void setConfig() {}
+  void setBaudRate(int baudRate) {}
 
   Future<Stream<Uint8List>?> openPortToListen(
       String? portName, int baudRate) async {

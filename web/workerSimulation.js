@@ -23,6 +23,48 @@ let loadedConfigBuffer;
 // NWB Plugin module (modularized)
 let NwbModule;
 
+/**
+ * Load a fresh NWB WASM instance. Required before each CREATE_NWB_FILE because
+ * processing_init keeps the HDF5 file open in native globals; a second init on
+ * the same module throws H5::FileIException.
+ */
+async function reinitializeNwbModule() {
+    NwbModule = await NWBPlugin();
+    self.NwbModule = NwbModule;
+    return NwbModule;
+}
+
+function getNwbFilesystem() {
+    if (!NwbModule) {
+        return null;
+    }
+    if (NwbModule.FS) {
+        return NwbModule.FS;
+    }
+    if (NwbModule._FS) {
+        return NwbModule._FS;
+    }
+    return null;
+}
+
+function callProcessingInit(filePath, sampleRate, channelCount, deviceInfo, deviceManufacturer) {
+    if (!filePath || channelCount <= 0 || sampleRate <= 0) {
+        console.error("Invalid NWB init params", { filePath, sampleRate, channelCount });
+        return -1;
+    }
+    try {
+        return NwbModule.ccall(
+            'processing_init',
+            'number',
+            ['string', 'number', 'number', 'string', 'string'],
+            [filePath, sampleRate, channelCount, deviceInfo, deviceManufacturer]
+        );
+    } catch (err) {
+        console.error("processing_init threw:", err);
+        return -1;
+    }
+}
+
 let dataArrayStartChannelWise = [];
 let ptrDataArrayChannelWise = [];
 let dataBufferChannelWise = [];
@@ -1214,22 +1256,25 @@ self.onmessage = async function (eventFromMain) {
             Module._processing_set_averaging_trigger_type(eventThresholdTriggeredType);
         break;
         case "CREATE_NWB_FILE":
-            if (!NwbModule) {
-                console.error("NwbModule not initialized yet");
+            if (typeof NWBPlugin === 'undefined') {
+                console.error("NWBPlugin not loaded yet");
+                return;
+            }
+            try {
+                await reinitializeNwbModule();
+            } catch (err) {
+                console.error("Failed to reinitialize NWB module:", err);
+                postMessage({
+                    message: "NWB_FILE_CREATE_FAILED",
+                    error: String(err),
+                });
                 return;
             }
             console.log("CREATE_NWB_FILE: ", eventFromMain.data);
             let recordedFileCookie = eventFromMain.data.recordedFileCookie;
 
             console.log("COOKIE WORKER: ", recordedFileCookie);
-            let FS = null;
-            if (NwbModule.FS) {
-                FS = NwbModule.FS;
-            } else if (typeof FS !== 'undefined') {
-                // FS is global
-            } else if (NwbModule._FS) {
-                FS = NwbModule._FS;
-            }
+            let FS = getNwbFilesystem();
             if (recordedFileCookie !== undefined && recordedFileCookie != "") {
                 let arrRecordedFiles = recordedFileCookie.split(";");
                 let flag = false;
@@ -1266,7 +1311,12 @@ self.onmessage = async function (eventFromMain) {
                 console.log("Read Data: ", readData);
                 if (readData) {
                     const fileBuffer = await readData.arrayBuffer();
-                    wav.fromBuffer(new Uint8Array(fileBuffer),true);
+                    wav.fromBuffer(new Uint8Array(fileBuffer), true);
+                    // Spike Recorder WAV exports are often 32-bit float (format 3), not PCM.
+                    // getSamples(false, Int16Array) on float WAV yields silence; convert first.
+                    if (wav.bitDepth === '32f' || wav.bitDepth === '64' || wav.fmt.audioFormat === 3) {
+                        wav.toBitDepth('16');
+                    }
                     let wavSampleRate = wav.fmt.sampleRate;
                     let wavChannelCount = wav.fmt.numChannels;
                     if (wavChannelCount > 1) {
@@ -1279,12 +1329,18 @@ self.onmessage = async function (eventFromMain) {
 
                     let nwbFilePath = fileHandle.name.replace(".wav", ".nwb");
                     console.log("NWB FILE PATHzzz: ", nwbFilePath);
-                    const result = NwbModule.ccall(
-                        'processing_init',
-                        'number',
-                        ['string', 'number', 'number', 'string', 'string'],
-                        [nwbFilePath, wavSampleRate, wavChannelCount, deviceInfo, deviceManufacturer]
+                    console.log("WAV metadata:", { wavSampleRate, wavChannelCount });
+                    const result = callProcessingInit(
+                        nwbFilePath, wavSampleRate, wavChannelCount, deviceInfo, deviceManufacturer
                     );
+                    if (result !== 0) {
+                        postMessage({
+                            message: "NWB_FILE_CREATE_FAILED",
+                            error: "processing_init returned " + result,
+                            filePath: nwbFilePath,
+                        });
+                        return;
+                    }
                     bufferedSerialEmptyValue = [];
                     bufferedSerialEmptyCount = [];
                     for (let i = 0; i < wavChannelCount; i++) {
@@ -1326,6 +1382,11 @@ self.onmessage = async function (eventFromMain) {
                     NwbModule._free(samplesCtrPtr);
                     isRecording = -1;
 
+                    postMessage({
+                        message: "NWB_FILE_CREATED",
+                        result: nwbFilePath,
+                        isWavFile: true,
+                    });
                 }
                 return;
             } else {
@@ -1355,14 +1416,18 @@ self.onmessage = async function (eventFromMain) {
             let deviceInfoPointer = eventFromMain.data.deviceInfoPointer;
             let deviceManufacturerPointer = eventFromMain.data.deviceManufacturerPointer;
             // NwbModule._processing_init(filePath, nwbSampleRate, nwbChannelCount, deviceInfoPointer, deviceManufacturerPointer);
-            const result = NwbModule.ccall(
-                'processing_init',
-                'number',
-                ['string', 'number', 'number', 'string', 'string'],
-                // [filePath, nwbSampleRate, nwbChannelCount, deviceInfoPointer, deviceManufacturerPointer]
-                [filePath, nwbSampleRate, recordChannelCount, deviceInfoPointer, deviceManufacturerPointer]
+            const result = callProcessingInit(
+                filePath, nwbSampleRate, recordChannelCount, deviceInfoPointer, deviceManufacturerPointer
             );
             console.log("PROCESSING INIT result: ", result);
+            if (result !== 0) {
+                postMessage({
+                    message: "NWB_FILE_CREATE_FAILED",
+                    error: "processing_init returned " + result,
+                    filePath: filePath,
+                });
+                return;
+            }
             
             // Initialize buffers for accumulating samples
             // bufferedSamplesPerChannel = [];
@@ -1521,16 +1586,8 @@ self.onmessage = async function (eventFromMain) {
                         const wasmfsFile = await FS.readFile(fileName);
                         console.log("FILE EXISTS", fileName)
                     }catch(err){
-                        console.log("err");
-                        console.log(err);
-                        const readData = await fileHandle.getFile();
-                        if (readData) {
-                            const fileBuffer = await readData.arrayBuffer();
-                            const arrayBuffer = new Uint8Array(fileBuffer);
-                            await FS.writeFile(fileName, arrayBuffer);
-                            console.log("FILE WRITTER", fileName)
-                        }
-        
+                        console.log("NWB not in MEMFS yet:", fileName, err);
+                        // Do not write raw .wav bytes to a .nwb path — that corrupts HDF5.
                     }
                 }
     
@@ -1605,16 +1662,8 @@ self.onmessage = async function (eventFromMain) {
                         const wasmfsFile = await FS.readFile(fileName);
                         console.log("FILE EXISTS", fileName)
                     }catch(err){
-                        console.log("err");
-                        console.log(err);
-                        const readData = await fileHandle.getFile();
-                        if (readData) {
-                            const fileBuffer = await readData.arrayBuffer();
-                            const arrayBuffer = new Uint8Array(fileBuffer);
-                            await FS.writeFile(fileName, arrayBuffer);
-                            console.log("FILE WRITTER", fileName)
-                        }
-        
+                        console.log("NWB not in MEMFS yet:", fileName, err);
+                        // Do not write raw .wav bytes to a .nwb path — that corrupts HDF5.
                     }
                 }
     

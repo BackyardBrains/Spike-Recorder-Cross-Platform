@@ -88,14 +88,17 @@ class SerialUtilWindow implements SerialUtil {
   }
 
   @override
-  void closePort() {
+  void setBaudRate(int baudRate) {
+    _baudRate = baudRate;
+  }
+
+  @override
+  Future<void> closePort() async {
     _releasePortSilently();
   }
 
   @override
-  Future<int> connectToPort() {
-    return Future.value(0);
-  }
+  Future<void> connectToPort() async {}
 
   SerialPortReader? reader;
   StreamSubscription? serialBufferSubscription;

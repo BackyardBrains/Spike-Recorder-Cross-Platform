@@ -112,35 +112,36 @@ class SerialUtilAndroid implements SerialUtil {
   }
 
   @override
+  void setBaudRate(int baudRate) {
+    _baudRate = baudRate;
+  }
+
+  @override
   void streamListen({required Stream<Uint8List>? getData}) {
     // TODO: implement streamListen
   }
 
   @override
-  void closePort() {
+  Future<void> closePort() async {
     print("closePort!!!");
-    
-    // Cancel other subscriptions first
-    _subscription?.cancel().then((_) {
-      _subscription = null;
-    }).catchError((e) {
+
+    try {
+      await _subscription?.cancel();
+    } catch (e) {
       print("Error cancelling subscription: $e");
-    });
-    
-    // Dispose transaction
+    }
+    _subscription = null;
+
     _transaction?.dispose();
     _transaction = null;
-    
-    // Close the port - this should close all USB requests including those from inputStream
-    // The caller should cancel their stream subscription before calling closePort()
-    _port?.close().then((_) {
-      _port = null;
-      _device = null;
-    }).catchError((e) {
+
+    try {
+      await _port?.close();
+    } catch (e) {
       print("Error closing port: $e");
-      _port = null;
-      _device = null;
-    });
+    }
+    _port = null;
+    _device = null;
   }
 
   Future<bool> _connectTo(device) async {

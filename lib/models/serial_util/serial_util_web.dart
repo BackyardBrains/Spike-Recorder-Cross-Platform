@@ -12,6 +12,8 @@ import 'serial_util_check.dart';
 SerialUtil getSerialUtil() => SerialUtilWeb();
 
 class SerialUtilWeb implements SerialUtil {
+  bool _useHardwareFlowControl = true;
+
   @override
   bool isOpeningFile = false;
   static SerialPort? serialPort;
@@ -911,7 +913,9 @@ class SerialUtilWeb implements SerialUtil {
             stopBits: StopBits.one,
             parity: Parity.none,
             bufferSize: _serialBufferSize,
-            flowControl: FlowControl.none,
+            flowControl: _useHardwareFlowControl
+                ? FlowControl.hardware
+                : FlowControl.none,
           ),
       () => port.open(
             baudRate: _baudRate,
@@ -919,7 +923,9 @@ class SerialUtilWeb implements SerialUtil {
             stopBits: StopBits.one,
             parity: Parity.none,
             bufferSize: 8192,
-            flowControl: FlowControl.none,
+            flowControl: _useHardwareFlowControl
+                ? FlowControl.hardware
+                : FlowControl.none,
           ),
       () => port.open(baudRate: _baudRate),
     ];
@@ -952,7 +958,7 @@ class SerialUtilWeb implements SerialUtil {
     try {
       final result = (port as dynamic).setSignals(
         dataTerminalReady: true,
-        requestToSend: false,
+        requestToSend: _useHardwareFlowControl,
       );
       if (result is Future) {
         await result;

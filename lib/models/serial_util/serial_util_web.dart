@@ -12,7 +12,7 @@ import 'serial_util_check.dart';
 SerialUtil getSerialUtil() => SerialUtilWeb();
 
 class SerialUtilWeb implements SerialUtil {
-  bool _useHardwareFlowControl = true;
+  bool _useHardwareFlowControl = false;
 
   @override
   bool isOpeningFile = false;
@@ -57,7 +57,8 @@ class SerialUtilWeb implements SerialUtil {
       UsbCommand.hwTypeInquiry.cmdAsBytes();
   static const Duration _probeSettleTime = Duration(milliseconds: 150);
   static const Duration _probeReopenDelay = Duration(milliseconds: 300);
-  static const Duration _probeFrameTimeout = Duration(seconds: 5);
+  static const Duration _probeFrameTimeout = Duration(seconds: 3);
+  static const int _probeAttemptsPerBaud = 2;
 
   final SerialDeviceFrameParser _frameParser = SerialDeviceFrameParser();
   bool _probing = false;
@@ -188,7 +189,19 @@ class SerialUtilWeb implements SerialUtil {
 
     try {
       await Future<void>.delayed(_probeSettleTime);
-      final success = await _sendQueryAndAwaitFrameProbe();
+      var success = false;
+      for (var attempt = 1; attempt <= _probeAttemptsPerBaud; attempt++) {
+        if (attempt > 1) {
+          print(
+            'SerialUtilWeb: probe @$baud no response in '
+            '${_probeFrameTimeout.inSeconds}s — retry $attempt/$_probeAttemptsPerBaud',
+          );
+        }
+        success = await _sendQueryAndAwaitFrameProbe();
+        if (success) {
+          break;
+        }
+      }
       await _stopProbeReadLoop(_probeActiveReader!, probePump);
 
       if (success) {
@@ -958,7 +971,7 @@ class SerialUtilWeb implements SerialUtil {
     try {
       final result = (port as dynamic).setSignals(
         dataTerminalReady: true,
-        requestToSend: _useHardwareFlowControl,
+        requestToSend: false,
       );
       if (result is Future) {
         await result;

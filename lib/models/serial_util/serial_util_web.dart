@@ -12,7 +12,7 @@ import 'serial_util_check.dart';
 SerialUtil getSerialUtil() => SerialUtilWeb();
 
 class SerialUtilWeb implements SerialUtil {
-  bool _useHardwareFlowControl = false;
+  bool _useHardwareFlowControl = true;
 
   @override
   bool isOpeningFile = false;
@@ -57,8 +57,9 @@ class SerialUtilWeb implements SerialUtil {
       UsbCommand.hwTypeInquiry.cmdAsBytes();
   static const Duration _probeSettleTime = Duration(milliseconds: 150);
   static const Duration _probeReopenDelay = Duration(milliseconds: 300);
-  static const Duration _probeFrameTimeout = Duration(seconds: 3);
+  static const Duration _probeFrameTimeout = Duration(seconds: 1);
   static const int _probeAttemptsPerBaud = 2;
+  static const int _probeBaudScanRounds = 5;
 
   final SerialDeviceFrameParser _frameParser = SerialDeviceFrameParser();
   bool _probing = false;
@@ -83,19 +84,28 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   /// Tries [_probeBaudRates] in order; first baud with a valid escape frame wins.
+  /// Repeats the full baud list up to [_probeBaudScanRounds] times if all fail.
   Future<int?> _autoDetectBaudRate() async {
     if (serialPort == null) {
       return null;
     }
     _probing = true;
     try {
-      for (final baud in _probeBaudRates) {
-        print('SerialUtilWeb: probing baud $baud');
-        final ok = await _tryProbeBaud(baud);
-        if (ok) {
-          return baud;
+      for (var round = 1; round <= _probeBaudScanRounds; round++) {
+        if (round > 1) {
+          print(
+            'SerialUtilWeb: all baud rates failed — '
+            'rescan round $round/$_probeBaudScanRounds',
+          );
         }
-        await Future<void>.delayed(_probeReopenDelay);
+        for (final baud in _probeBaudRates) {
+          print('SerialUtilWeb: probing baud $baud (round $round)');
+          final ok = await _tryProbeBaud(baud);
+          if (ok) {
+            return baud;
+          }
+          await Future<void>.delayed(_probeReopenDelay);
+        }
       }
       return null;
     } finally {
@@ -184,8 +194,9 @@ class SerialUtilWeb implements SerialUtil {
 
     _probing = true;
     _probeReading = true;
-    _probeActiveReader = port.readable.reader;
-    final probePump = _probeReadLoop(port, _probeActiveReader!);
+    final probeReader = port.readable.reader;
+    _probeActiveReader = probeReader;
+    final probePump = _probeReadLoop(port, probeReader);
 
     try {
       await Future<void>.delayed(_probeSettleTime);
@@ -202,7 +213,10 @@ class SerialUtilWeb implements SerialUtil {
           break;
         }
       }
-      await _stopProbeReadLoop(_probeActiveReader!, probePump);
+      // Read loop may clear [_probeActiveReader] in its finally before we stop;
+      // prefer the latest reader, then fall back to the one we started with.
+      final readerToStop = _probeActiveReader ?? probeReader;
+      await _stopProbeReadLoop(readerToStop, probePump);
 
       if (success) {
         _probing = false;
@@ -352,7 +366,6 @@ class SerialUtilWeb implements SerialUtil {
       }
     } finally {
       await _releaseReaderLock(activeReader);
-      _probeActiveReader = null;
     }
   }
 
@@ -919,6 +932,7 @@ class SerialUtilWeb implements SerialUtil {
     }
 
     Object? lastError;
+    print("openSerialPortWithRetry start: $_baudRate");
     final attempts = <Future<void> Function()>[
       () => port.open(
             baudRate: _baudRate,
@@ -971,7 +985,7 @@ class SerialUtilWeb implements SerialUtil {
     try {
       final result = (port as dynamic).setSignals(
         dataTerminalReady: true,
-        requestToSend: false,
+        requestToSend: true,
       );
       if (result is Future) {
         await result;

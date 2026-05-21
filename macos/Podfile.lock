@@ -155,6 +155,8 @@ PODS:
   - PromisesObjC (2.4.0)
   - PromisesSwift (2.4.0):
     - PromisesObjC (= 2.4.0)
+  - record_macos (1.2.0):
+    - FlutterMacOS
   - screen_retriever (0.0.1):
     - FlutterMacOS
   - url_launcher_macos (0.0.1):
@@ -179,6 +181,7 @@ DEPENDENCIES:
   - nwbfile_plugin (from `Flutter/ephemeral/.symlinks/plugins/nwbfile_plugin/macos`)
   - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
   - processing_ffi (from `Flutter/ephemeral/.symlinks/plugins/processing_ffi/macos`)
+  - record_macos (from `Flutter/ephemeral/.symlinks/plugins/record_macos/macos`)
   - screen_retriever (from `Flutter/ephemeral/.symlinks/plugins/screen_retriever/macos`)
   - url_launcher_macos (from `Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos`)
   - window_manager (from `Flutter/ephemeral/.symlinks/plugins/window_manager/macos`)
@@ -235,6 +238,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin
   processing_ffi:
     :path: Flutter/ephemeral/.symlinks/plugins/processing_ffi/macos
+  record_macos:
+    :path: Flutter/ephemeral/.symlinks/plugins/record_macos/macos
   screen_retriever:
     :path: Flutter/ephemeral/.symlinks/plugins/screen_retriever/macos
   url_launcher_macos:
@@ -275,6 +280,7 @@ SPEC CHECKSUMS:
   processing_ffi: 5380a7696f8f042084eb66412ca37649862b5dfb
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   PromisesSwift: 9d77319bbe72ebf6d872900551f7eeba9bce2851
+  record_macos: 4680f37daeebf52162e715efb7ff682f0a5ce4fd
   screen_retriever: 59634572a57080243dd1bf715e55b6c54f241a38
   url_launcher_macos: c82c93949963e55b228a30115bd219499a6fe404
   window_manager: 3a1844359a6295ab1e47659b1a777e36773cd6e8

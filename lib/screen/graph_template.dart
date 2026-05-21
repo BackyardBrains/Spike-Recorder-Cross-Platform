@@ -773,7 +773,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       arrFilterUsageTypeChannel.clear();
       carouselSliderControllerChannel.clear();
       for (int idxChannel = 0; idxChannel < deviceChannelCount; idxChannel++) {
-        arrFilterUsageTypeChannel.add("EMG");
+        // arrFilterUsageTypeChannel.add("EMG");
+        arrFilterUsageTypeChannel.add("");
         carouselSliderControllerChannel.add(CarouselSliderController());
         customSliderBarArray.add(
           CustomSliderBarButton(
@@ -885,7 +886,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
           for (int idxChannel = 0;
               idxChannel < deviceChannelCount;
               idxChannel++) {
-            arrFilterUsageTypeChannel.add("EMG");
+            // arrFilterUsageTypeChannel.add("EMG");
+            arrFilterUsageTypeChannel.add("");
             carouselSliderControllerChannel.add(CarouselSliderController());
             customSliderBarArray.add(
               CustomSliderBarButton(
@@ -1792,7 +1794,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.0.16',
+                                            'SpikeRecorder App ver. 2.1.0',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -2868,13 +2870,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
     print(
         "isListeningToMicrophone222 : $_isListeningToMicrophone --- $customSliderBarArray");
     filterUsageTypeChannels.clear();
-    filterUsageTypeChannels.add("EMG");
+    // filterUsageTypeChannels.add("EMG");
+    filterUsageTypeChannels.add("");
     arrFilterUsageTypeChannel.clear();
-    arrFilterUsageTypeChannel.add("EMG");
+    // arrFilterUsageTypeChannel.add("EMG");
+    arrFilterUsageTypeChannel.add("");
     carouselSliderControllerChannel.clear();
     carouselSliderControllerChannel.add(CarouselSliderController());
 
-    serialUsageType = "EMG";
+    // serialUsageType = "EMG";
+    serialUsageType = "";
 
     createTabBarConfiguration(channelCount, provider);
 
@@ -3790,7 +3795,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // endValue: endValue,
     // sliderValue: _sliderValue,
     print(
-        "_predefinedFilterSettings -- filterUsageTypeChannels: $filterUsageTypeChannels -- arrFilterUsageTypeChannel: ${arrFilterUsageTypeChannel[channelIdx]}");
+        "_predefinedFilterSettings222 -- filterUsageTypeChannels: $filterUsageTypeChannels -- arrFilterUsageTypeChannel: ${arrFilterUsageTypeChannel[channelIdx]}");
     Widget predefinedFilterWidget = SizedBox();
     List<Widget> listPredefinedFilter =
         buildPredefinedFilter(channelIdx, filterUsageTypeChannels[channelIdx]);
@@ -5032,9 +5037,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       }
                       arrFilterUsageTypeChannel.clear();
                       for (int i = 0; i < deviceChannelCount; i++) {
-                        arrFilterUsageTypeChannel.add("EMG");
+                        // arrFilterUsageTypeChannel.add("EMG");
+                        arrFilterUsageTypeChannel.add("");
                       }
-                      serialUsageType = "EMG";
+                      // serialUsageType = "EMG";
+                      serialUsageType = "";
                     } else if (GraphTemplate.selectedBoard?.uniqueName ==
                         "NRNSBPRO") {
                       predefinedFiltersChannel.clear();
@@ -5043,9 +5050,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       }
                       arrFilterUsageTypeChannel.clear();
                       for (int i = 0; i < deviceChannelCount; i++) {
-                        arrFilterUsageTypeChannel.add("Neuron");
+                        // arrFilterUsageTypeChannel.add("Neuron");
+                        arrFilterUsageTypeChannel.add("");
                       }
-                      serialUsageType = "Neuron";
+                      // serialUsageType = "Neuron";
+                      serialUsageType = "";
                     } else if (GraphTemplate.selectedBoard?.uniqueName ==
                         "PLANTSS") {
                       predefinedFiltersChannel.clear();
@@ -5054,10 +5063,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       }
                       arrFilterUsageTypeChannel.clear();
                       for (int i = 0; i < deviceChannelCount; i++) {
-                        arrFilterUsageTypeChannel.add("Plant");
+                        // arrFilterUsageTypeChannel.add("Plant");
+                        arrFilterUsageTypeChannel.add("");
                       }
 
-                      serialUsageType = "Plant";
+                      // serialUsageType = "Plant";
+                      serialUsageType = "";
                     }
 
                     customSliderBarArray.clear();
@@ -5996,7 +6007,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   buildSerialUsageTypeButton(String s, int channelIdx) {
     bool isSelected = serialUsageType.contains(s);
-    print("Serial usage type : $serialUsageType --VS-- $s == $isSelected");
+    print("SELECTED Serial usage type : $serialUsageType --VS-- $s == $isSelected");
     ButtonStyle style = ElevatedButton.styleFrom(
       // Toggle colors based on selection
       backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
@@ -7134,7 +7145,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   buildPredefinedFilter(int channelIdx, String serialType) {
     List<String> predefinedFilters = predefinedFiltersChannel[channelIdx];
-    // print("predefinedFiltersChannel: $predefinedFilters");
+    print("predefinedFiltersChannel: $predefinedFilters");
     List<Widget> widgets = [];
     if (predefinedFilters.length >= 0) {
       // predefinedFilters = ["EMG", "ECG", "EEG", "Custom"];

@@ -625,7 +625,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
   }
 
   void refreshState() {
-    print("REFRESH STATE startValue: ${context.read<CustomRangeSliderProvider>().startValue}");
+    // print("REFRESH STATE startValue: ${context.read<CustomRangeSliderProvider>().startValue}");
     setState(() {
       
     });

@@ -156,3 +156,7 @@ brew install --cask ftdi-vcp-driver
 
 
 https://devanlai.github.io/webdfu/dfu-util/
+
+
+dart pub cache clean
+flutter pub get

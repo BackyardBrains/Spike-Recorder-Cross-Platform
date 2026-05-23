@@ -77,8 +77,12 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
   
   bool isMobileDevice = false;
   @override
-  void initState() {
-    super.initState();
+  void dispose() {
+    _lowSampleRateController.dispose();
+    _lowCutOffController.dispose();
+    _highSampleRateController.dispose();
+    _highCutOffController.dispose();
+    super.dispose();
   }
 
   // Convert linear frequency to custom log space where 0-1 has step size of 1
@@ -122,15 +126,14 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
 
     sampleRate = context.read<SampleRateProvider>().sampleRate.toDouble();
     maxFreq = sampleRate / 2;
-    start = context.read<CustomRangeSliderProvider>().startValue[widget.channelIdx];
-    double endValue = context.read<CustomRangeSliderProvider>().endValue[widget.channelIdx];
+    final sliderProvider = context.watch<CustomRangeSliderProvider>();
+    start = sliderProvider.startValue[widget.channelIdx];
+    final double endValue = sliderProvider.endValue[widget.channelIdx];
     if (endValue == 0) {
       end = maxFreq;
     } else {
-      end = context.read<CustomRangeSliderProvider>().endValue[widget.channelIdx];
+      end = endValue;
     }
-
-    context.watch<CustomRangeSliderProvider>().addListener(refreshState);
 
     // print("start: $start, end: $end");
     // print("maxFreq: $maxFreq");
@@ -197,6 +200,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
             children: [
               if (!widget.readOnly && !isMobileDevice) ... [
                 SetFrequencyWidget(
+                  key: ValueKey('low-${widget.channelIdx}'),
                   frequencyType: "Low",
                   frequencyValue: start.toInt(),
                   maxFrequency: maxFreq,
@@ -374,6 +378,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
 
               if (!widget.readOnly && !isMobileDevice) ... [
                 SetFrequencyWidget(
+                  key: ValueKey('high-${widget.channelIdx}'),
                   frequencyType: "High",
                   frequencyValue: end.toInt(),
                   maxFrequency: maxFreq,
@@ -408,6 +413,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
               Container(
                 margin: EdgeInsets.only(left:10, bottom: 10),
                 child: SetFrequencyWidget(
+                  key: ValueKey('low-mobile-${widget.channelIdx}'),
                   frequencyType: "Low",
                   frequencyValue: start.toInt(),
                   maxFrequency: maxFreq,
@@ -436,6 +442,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
               Container(
                 margin: EdgeInsets.only(right:10, bottom: 10),
                 child: SetFrequencyWidget(
+                  key: ValueKey('high-mobile-${widget.channelIdx}'),
                   frequencyType: "High",
                   frequencyValue: end.toInt(),
                   maxFrequency: maxFreq,
@@ -624,12 +631,6 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
     );
   }
 
-  void refreshState() {
-    // print("REFRESH STATE startValue: ${context.read<CustomRangeSliderProvider>().startValue}");
-    setState(() {
-      
-    });
-  }
 }
 
 
@@ -665,8 +666,9 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
   @override
   void didUpdateWidget(SetFrequencyWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Update text field when slider changes the value
-    if (oldWidget.frequencyValue != widget.frequencyValue) {
+    // Sync from slider only when the field is not being edited.
+    if (!_focusNode.hasFocus &&
+        oldWidget.frequencyValue != widget.frequencyValue) {
       _controller.text = widget.frequencyValue.toString();
     }
   }
@@ -730,15 +732,14 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             ),
             onTap: () {
-              // Select all text when tapped
               _controller.selection = TextSelection(
                 baseOffset: 0,
                 extentOffset: _controller.text.length,
               );
             },
-            onSubmitted: (value) {
-              _validateAndUpdate();
-            },
+            onChanged: (_) => _validateAndUpdate(),
+            onSubmitted: (_) => _validateAndUpdate(),
+            onEditingComplete: _validateAndUpdate,
           ),
         ),
       ],

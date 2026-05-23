@@ -576,7 +576,32 @@ class _DraggableGraphState extends State<DraggableGraph> {
   
   FocusNode keyboardFocusNode = FocusNode();
   Debouncer debouncerKeyboard = Debouncer(milliseconds: 77);
-  
+
+  @override
+  void dispose() {
+    keyboardFocusNode.dispose();
+    ProcessingUtil.initializeDevice.removeListener(initializeDeviceListener);
+    super.dispose();
+  }
+
+  /// True when the user is typing in a TextField (or similar), not the graph.
+  bool _isTextInputFocused() {
+    final FocusNode? focused = FocusManager.instance.primaryFocus;
+    if (focused == null || identical(focused, keyboardFocusNode)) {
+      return false;
+    }
+    final BuildContext? focusContext = focused.context;
+    if (focusContext == null) {
+      return false;
+    }
+    return focusContext.findAncestorStateOfType<EditableTextState>() != null;
+  }
+
+  void _requestGraphKeyboardFocusIfAppropriate() {
+    if (_isTextInputFocused()) return;
+    keyboardFocusNode.requestFocus();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -599,12 +624,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
     });
     Future.delayed(Duration(seconds: 1), () {
       initializeGraph();
-      keyboardFocusNode.requestFocus();
+      _requestGraphKeyboardFocusIfAppropriate();
       // init Threshold Value
-    });
-
-    Timer.periodic(Duration(seconds: 1), (_){
-      keyboardFocusNode.requestFocus();
     });
     
     ProcessingUtil.initializeDevice.removeListener(initializeDeviceListener);
@@ -1096,20 +1117,16 @@ class _DraggableGraphState extends State<DraggableGraph> {
   
   int prevRefreshTime = 0;
   void _handleKeyEvent(KeyEvent event) {
-    if (event is KeyDownEvent) {
-      // debouncerKeyboard.run(() {
-        final String? character = event.character;
+    if (event is! KeyDownEvent) return;
 
-        // Check if the character is a digit (0-9)
-        if (character != null && _isNumeric(character)) {
-          keyboardCharacter = character;
-          print("CHARACTER : $character");
-          ProcessingUtil.eventMarkerNotifier.value = [int.parse(character), -1];
-          // ProcessingUtil.eventMarkerNotifier.value = [-1, -1];
-        } else if (event.logicalKey == LogicalKeyboardKey.backspace) {
-          // Handle backspace key: remove the last character from the text field.
-        }
-      // });
+    // Let TextFields receive digit/backspace keys for filter frequency entry, etc.
+    if (_isTextInputFocused()) return;
+
+    final String? character = event.character;
+
+    if (character != null && _isNumeric(character)) {
+      keyboardCharacter = character;
+      ProcessingUtil.eventMarkerNotifier.value = [int.parse(character), -1];
     }
   }
 
@@ -1515,7 +1532,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
 
   void thresholdMenuListener() {
     print("thresholdMenuListener");
-    keyboardFocusNode.requestFocus();
+    _requestGraphKeyboardFocusIfAppropriate();
     // initializeDeviceListener();
   }
   

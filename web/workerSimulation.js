@@ -7,6 +7,27 @@ let bufferedSerialEmptyCount = [];
 let recordSignalsList;
 let recordChannelCount = 1;
 
+/** Dart Int16List (.o), JS Array, or Int16Array after postMessage. */
+function parseVisibleSignalsList(visibleSignalsList, channelCount) {
+    if (visibleSignalsList == null) {
+        return new Int16Array(channelCount).fill(1);
+    }
+    if (visibleSignalsList instanceof Int16Array) {
+        return visibleSignalsList;
+    }
+    if (visibleSignalsList.o != null) {
+        return new Int16Array(visibleSignalsList.o);
+    }
+    if (Array.isArray(visibleSignalsList)) {
+        return Int16Array.from(visibleSignalsList);
+    }
+    if (typeof visibleSignalsList.length === "number") {
+        return Int16Array.from(visibleSignalsList);
+    }
+    console.warn("parseVisibleSignalsList: unexpected type, defaulting all visible", visibleSignalsList);
+    return new Int16Array(channelCount).fill(1);
+}
+
 let startingCounter = 0;
 let startingTimer = 0;
 let isOpeningFile = false;
@@ -45,6 +66,129 @@ function getNwbFilesystem() {
         return NwbModule._FS;
     }
     return null;
+}
+
+function normalizeNwbFileName(fileName) {
+    if (!fileName) {
+        return '';
+    }
+    return fileName.replace(/^\/+/, '').replace(/\.wav$/i, '.nwb');
+}
+
+function nwbExistsInMemfs(fileName) {
+    const FS = getNwbFilesystem();
+    if (!FS) {
+        return null;
+    }
+    const bare = normalizeNwbFileName(fileName);
+    for (const path of [bare, '/' + bare]) {
+        try {
+            FS.readFile(path);
+            return bare;
+        } catch (_) {}
+    }
+    return null;
+}
+
+/** Load a disk-picked .nwb into WASM MEMFS so nwbfile_seek_electrical_series can open it. */
+async function ensureNwbInMemfs(fileName, fileHandle) {
+    const bare = normalizeNwbFileName(fileName);
+    const existing = nwbExistsInMemfs(bare);
+    if (existing) {
+        console.log("NWB already in MEMFS:", existing);
+        return existing;
+    }
+    if (!fileHandle || typeof fileHandle.getFile !== 'function') {
+        console.error("NWB not in MEMFS and no fileHandle:", bare);
+        return null;
+    }
+    const FS = getNwbFilesystem();
+    if (!FS) {
+        console.error("ensureNwbInMemfs: NwbModule FS unavailable");
+        return null;
+    }
+    try {
+        const file = await fileHandle.getFile();
+        if (!file || file.size < 64) {
+            console.error("ensureNwbInMemfs: file too small", file?.size);
+            return null;
+        }
+        const buffer = new Uint8Array(await file.arrayBuffer());
+        FS.writeFile(bare, buffer);
+        console.log("Loaded NWB into MEMFS:", bare, buffer.length, "bytes");
+        return bare;
+    } catch (err) {
+        console.error("ensureNwbInMemfs failed:", err);
+        return null;
+    }
+}
+
+async function prepareNwbFileForOpening(fileName, fileHandle, isStartOpeningFileWeb) {
+    if (isStartOpeningFileWeb) {
+        await reinitializeNwbModule();
+    }
+    return await ensureNwbInMemfs(fileName, fileHandle);
+}
+
+function postSeekOpenFailed(isStartOpeningFileWeb, isPlayback) {
+    const message = isPlayback
+        ? 'SEEK_NWB_FILE_BUFFER_WEB_CALLBACK_PLAYBACK'
+        : 'SEEK_NWB_FILE_BUFFER_WEB_CALLBACK';
+    postMessage({
+        message: message,
+        arrSamples: new Int16Array(0),
+        arrSampleCount: new Int32Array(0),
+        outConfigBuffer: new Int32Array(10),
+        isStartOpeningFileWeb: isStartOpeningFileWeb,
+        openFailed: true,
+    });
+}
+
+async function handleOpenNwbFileWeb(eventFromMain, isPlayback) {
+    let fileName = normalizeNwbFileName(eventFromMain.data.filePath);
+    const startIdx = eventFromMain.data.startIdx;
+    const endIdx = eventFromMain.data.endIdx;
+    const startChannel = eventFromMain.data.startChannel;
+    const endChannel = eventFromMain.data.endChannel;
+    const fileHandle = eventFromMain.data.fileHandle;
+    const isStartOpeningFileWeb = eventFromMain.data.isStartOpeningFileWeb;
+
+    const readyPath = await prepareNwbFileForOpening(
+        fileName,
+        fileHandle,
+        isStartOpeningFileWeb
+    );
+    if (!readyPath) {
+        postSeekOpenFailed(isStartOpeningFileWeb, isPlayback);
+        return;
+    }
+    fileName = readyPath;
+
+    console.log("!!@!!START OPENING FILE WEB, fileName:", fileName);
+
+    const samplesLength = endIdx - startIdx;
+    const loadedChannelCount = endChannel - startChannel + 1;
+    const loadedOutSamples = NwbModule._malloc(
+        loadedChannelCount * samplesLength * NwbModule.HEAP16.BYTES_PER_ELEMENT
+    );
+    const loadedOutSamplesCount = NwbModule._malloc(
+        loadedChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT
+    );
+    const loadedOutConfig = NwbModule._malloc(10 * NwbModule.HEAP32.BYTES_PER_ELEMENT);
+    console.log("!!@!!seekNwbFileBufferWeb loadedChannelCount", loadedChannelCount);
+    seekNwbFileBufferWeb(
+        fileName,
+        loadedOutSamples,
+        loadedOutSamplesCount,
+        loadedOutConfig,
+        startIdx,
+        endIdx,
+        startChannel,
+        endChannel,
+        samplesLength,
+        isStartOpeningFileWeb,
+        isPlayback
+    );
 }
 
 function callProcessingInit(filePath, sampleRate, channelCount, deviceInfo, deviceManufacturer) {
@@ -1397,8 +1541,22 @@ self.onmessage = async function (eventFromMain) {
 
             let nwbSampleRate = eventFromMain.data.sampleRate;
             let nwbChannelCount = eventFromMain.data.channelCount;
-            recordSignalsList = new Int16Array(eventFromMain.data.visibleSignalsList.o);
+            recordSignalsList = parseVisibleSignalsList(
+                eventFromMain.data.visibleSignalsList,
+                nwbChannelCount
+            );
             recordChannelCount = eventFromMain.data.visibleChannelCount;
+            if (recordSignalsList.length < nwbChannelCount) {
+                const padded = new Int16Array(nwbChannelCount).fill(1);
+                padded.set(recordSignalsList);
+                recordSignalsList = padded;
+            }
+            console.log(
+                "CREATE_NWB_FILE visible channels:",
+                recordChannelCount,
+                "mask:",
+                Array.from(recordSignalsList)
+            );
 
             bufferedSerialEmptyValue = [];
             bufferedSerialEmptyCount = [];
@@ -1453,7 +1611,8 @@ self.onmessage = async function (eventFromMain) {
             let samplesCount = eventFromMain.data.samplesCount;
             let nwbSelectedChannel = eventFromMain.data.selectedChannel;
             // let tempNwbChannelCount = eventFromMain.data.channelCount;
-            let tempNwbChannelCount = totalChannel;
+            let tempNwbChannelCount =
+                recordChannelCount > 0 ? recordChannelCount : totalChannel;
             let isFinishRecording = eventFromMain.data.isFinishRecording;
 
             console.log("samples isFinishRecording: ", isFinishRecording, "samples length:", samples ? samples.length : 0, "samplesCount length:", samplesCount ? samplesCount.length : 0);
@@ -1471,7 +1630,7 @@ self.onmessage = async function (eventFromMain) {
                 // Allocate memory for sample counts
                 let samplesCtrPtr = NwbModule._malloc(tempNwbChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
                 let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
-                let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + totalChannel));
+                let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + tempNwbChannelCount));
                 console.log("samplesCtrBuffer: ", samplesCtrBuffer);
                 // Set sample counts to minimum required (1 per channel)
                 samplesCtrBuffer.fill(minSamplesPerChannel);
@@ -1562,49 +1721,12 @@ self.onmessage = async function (eventFromMain) {
             // console.log("PROCESSING SERIAL DATA RESULT: ", resultSerialInject, sampleData, sampleCounts, serialChannelCount);
         break;
         case "SEEK_OPENING_FILE_WEB":
-            try{
-                console.log("start opening file web");
-                let fileName = eventFromMain.data.filePath;
-                let startIdx = eventFromMain.data.startIdx;
-                let endIdx = eventFromMain.data.endIdx;
-                let startChannel = eventFromMain.data.startChannel;
-                let endChannel = eventFromMain.data.endChannel;
-                let fileHandle = eventFromMain.data.fileHandle;
-                let isStartOpeningFileWeb = eventFromMain.data.isStartOpeningFileWeb;
-    
-    
-                if (isStartOpeningFileWeb) {
-                    let FS = null;                
-                    if (NwbModule.FS) {
-                        FS = NwbModule.FS;
-                    } else if (typeof FS !== 'undefined') {
-                        // FS is global
-                    } else if (NwbModule._FS) {
-                        FS = NwbModule._FS;
-                    }
-                    try{
-                        const wasmfsFile = await FS.readFile(fileName);
-                        console.log("FILE EXISTS", fileName)
-                    }catch(err){
-                        console.log("NWB not in MEMFS yet:", fileName, err);
-                        // Do not write raw .wav bytes to a .nwb path — that corrupts HDF5.
-                    }
-                }
-    
-                console.log("!!@!!START OPENING FILE WEB 1 , fileName: ", fileName);
-    
-                // seek buffer       
-                let tempLoadedChannelCount = 10;
-                let samplesLength = endIdx - startIdx;
-                let loadedChannelCount = endChannel - startChannel + 1; // +1 because endChannel is inclusive
-                let loadedOutSamples = NwbModule._malloc(loadedChannelCount * samplesLength * NwbModule.HEAP16.BYTES_PER_ELEMENT);
-                let loadedOutSamplesCount = NwbModule._malloc(loadedChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
-                let loadedOutConfig = NwbModule._malloc(10 * NwbModule.HEAP32.BYTES_PER_ELEMENT);
-                console.log("!!@!!seekNwbFileBufferWeb == loadedChannelCount", loadedChannelCount);
-                seekNwbFileBufferWeb(fileName, loadedOutSamples, loadedOutSamplesCount, loadedOutConfig, startIdx, endIdx, startChannel, endChannel, samplesLength, isStartOpeningFileWeb, true);
-            }catch(err){
-                console.log("err");
-                console.log(err);
+            try {
+                console.log("start opening file web (seek playback)");
+                await handleOpenNwbFileWeb(eventFromMain, true);
+            } catch (err) {
+                console.log("SEEK_OPENING_FILE_WEB error:", err);
+                postSeekOpenFailed(eventFromMain.data.isStartOpeningFileWeb, true);
             }
         break;
         // Entry point for seek and open file web
@@ -1638,49 +1760,12 @@ self.onmessage = async function (eventFromMain) {
             }
         break;
         case "START_OPENING_FILE_WEB":
-            try{
+            try {
                 console.log("start opening file web");
-                let fileName = eventFromMain.data.filePath.replace(".wav", ".nwb");
-                let startIdx = eventFromMain.data.startIdx;
-                let endIdx = eventFromMain.data.endIdx;
-                let startChannel = eventFromMain.data.startChannel;
-                let endChannel = eventFromMain.data.endChannel;
-                let fileHandle = eventFromMain.data.fileHandle;
-                let isStartOpeningFileWeb = eventFromMain.data.isStartOpeningFileWeb;
-    
-    
-                if (isStartOpeningFileWeb) {
-                    let FS = null;                
-                    if (NwbModule.FS) {
-                        FS = NwbModule.FS;
-                    } else if (typeof FS !== 'undefined') {
-                        // FS is global
-                    } else if (NwbModule._FS) {
-                        FS = NwbModule._FS;
-                    }
-                    try{
-                        const wasmfsFile = await FS.readFile(fileName);
-                        console.log("FILE EXISTS", fileName)
-                    }catch(err){
-                        console.log("NWB not in MEMFS yet:", fileName, err);
-                        // Do not write raw .wav bytes to a .nwb path — that corrupts HDF5.
-                    }
-                }
-    
-                console.log("!!@!!START OPENING FILE WEB 1");
-    
-                // seek buffer       
-                let tempLoadedChannelCount = 10;
-                let samplesLength = endIdx - startIdx;
-                let loadedChannelCount = endChannel - startChannel + 1; // +1 because endChannel is inclusive
-                let loadedOutSamples = NwbModule._malloc(loadedChannelCount * samplesLength * NwbModule.HEAP16.BYTES_PER_ELEMENT);
-                let loadedOutSamplesCount = NwbModule._malloc(tempLoadedChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
-                let loadedOutConfig = NwbModule._malloc(10 * NwbModule.HEAP32.BYTES_PER_ELEMENT);
-                console.log("!!@!!seekNwbFileBufferWeb == loadedChannelCount", loadedChannelCount);
-                seekNwbFileBufferWeb(fileName, loadedOutSamples, loadedOutSamplesCount, loadedOutConfig, startIdx, endIdx, startChannel, endChannel, samplesLength, isStartOpeningFileWeb, false);
-            }catch(err){
-                console.log("err");
-                console.log(err);
+                await handleOpenNwbFileWeb(eventFromMain, false);
+            } catch (err) {
+                console.log("START_OPENING_FILE_WEB error:", err);
+                postSeekOpenFailed(eventFromMain.data.isStartOpeningFileWeb, false);
             }
         break;
         default:
@@ -1761,28 +1846,37 @@ function flushBufferedSamples() {
     bufferedSerialEmptyValue;
     bufferedSerialEmptyCount;
     let totalSamplesCount = 0;
-    for (let i = 0; i < recordChannelCount; i++) {
+    const visibleCounts = [];
+    for (let i = 0; i < totalChannel; i++) {
+        if (recordSignalsList && recordSignalsList[i] === 0) continue;
+        visibleCounts.push(bufferedSerialEmptyCount[i]);
         totalSamplesCount += bufferedSerialEmptyCount[i];
     }
     let sampledBuffer = new Int16Array(totalSamplesCount);
-    totalSamplesCount = 0;
-    for (let i = 0; i < recordChannelCount; i++) {
-        sampledBuffer.set(bufferedSerialEmptyValue[i], totalSamplesCount);
-        totalSamplesCount += bufferedSerialEmptyCount[i];
+    let writeOffset = 0;
+    for (let i = 0; i < totalChannel; i++) {
+        if (recordSignalsList && recordSignalsList[i] === 0) continue;
+        const chCount = bufferedSerialEmptyCount[i];
+        sampledBuffer.set(
+            bufferedSerialEmptyValue[i].subarray(0, chCount),
+            writeOffset
+        );
+        writeOffset += chCount;
     }
 
     let samplesCtrPtr = NwbModule._malloc(recordChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
     let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
     let samplesCtrBufferNWB = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + recordChannelCount));
-    samplesCtrBufferNWB.set(bufferedSerialEmptyCount);
+    samplesCtrBufferNWB.set(visibleCounts);
 
     let samplesPtr = NwbModule._malloc(totalSamplesCount * NwbModule.HEAP16.BYTES_PER_ELEMENT);
     let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
     let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + totalSamplesCount));
 
-    // Copy buffered samples sequentially: [ch0_samples, ch1_samples, ch2_samples, ...]
+    // Copy buffered samples sequentially: [visible ch0, visible ch1, ...]
     let segmentIndex = 0;
-    for (let i = 0; i < recordChannelCount; i++) {
+    for (let i = 0; i < totalChannel; i++) {
+        if (recordSignalsList && recordSignalsList[i] === 0) continue;
         let samplesLength = bufferedSerialEmptyCount[i];
         if (i < bufferedSamplesPerChannel.length && bufferedSamplesPerChannel[i] && bufferedSamplesPerChannel[i].length > 0) {
             // Copy actual buffered samples
@@ -1937,8 +2031,17 @@ async function makeFilePublicWeb(filePath) {
     }
 
     try {
-        // if (FS.existsSync(fileName)) {
-            const readData = FS.readFile('/' + fileName);
+        const bareName = normalizeNwbFileName(fileName);
+        let readData = null;
+        for (const path of [bareName, '/' + bareName]) {
+            try {
+                readData = FS.readFile(path);
+                break;
+            } catch (_) {}
+        }
+        if (!readData) {
+            throw new Error('NWB not found in MEMFS: ' + bareName);
+        }
             if (recordingFileWritable) {
                 await recordingFileWritable.write(readData);
                 try {
@@ -2017,15 +2120,21 @@ async function makeFilePublicWeb(filePath) {
 
 async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outConfig, startIdx, endIdx, startChannel, endChannel, samplesLength, isStartOpeningFileWeb = false, isPlayback) {
     // SECTION seekNwbFileBufferWeb:  SR_minutes.nwb 5760000 347443 -5412557
-    console.log("SECTION seekNwbFileBufferWeb: ", filePath, startIdx, endIdx, samplesLength);
+    const seekPath = normalizeNwbFileName(filePath);
+    console.log("SECTION seekNwbFileBufferWeb: ", seekPath, startIdx, endIdx, samplesLength);
     console.log("isStartOpeningFileWeb: ", isStartOpeningFileWeb);
     // FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short* outSamples, int* outSamplesCount, int* outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) {
-    const result = NwbModule.ccall('nwbfile_seek_electrical_series', 'number', ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number'], [filePath, outSamples, outSamplesCount, outConfig, startIdx, endIdx, startChannel, endChannel]);
+    const result = NwbModule.ccall('nwbfile_seek_electrical_series', 'number', ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number'], [seekPath, outSamples, outSamplesCount, outConfig, startIdx, endIdx, startChannel, endChannel]);
 
     if (result == 0) {
         console.log("seekNwbFileBufferWeb success " + result);
     } else {
         console.log("seekNwbFileBufferWeb failed " + result);
+        NwbModule._free(outSamples);
+        NwbModule._free(outSamplesCount);
+        NwbModule._free(outConfig);
+        postSeekOpenFailed(isStartOpeningFileWeb, isPlayback);
+        return;
     }
     let outConfigStart = outConfig / NwbModule.HEAP32.BYTES_PER_ELEMENT;
     let outConfigBuffer = NwbModule.HEAP32.subarray(outConfigStart, (outConfigStart + 10));
@@ -2088,6 +2197,10 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
 function initWithConfig(config) {
     let initConfig = config;
     console.log("INIT_WITH_CONFIGZzz: ", initConfig);
+    if (!initConfig || initConfig[0] <= 0 || initConfig[1] <= 0) {
+        console.error("initWithConfig: invalid config, skipping processing init", initConfig);
+        return;
+    }
     sampleRate = initConfig[0];
     channelCount = initConfig[1];
     Module._processing_init();

@@ -584,16 +584,11 @@ async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, end
           "endIdx": endIdx,
           "startChannel": startChannel,
           "endChannel": endChannel,
-          "fileHandle": fileHandle[0],
           "isStartOpeningFileWeb": isStartOpeningFileWeb,
         }, fileHandle[0]);
         window.setOpenedFileName(fileHandle[0].name.replace(".wav", ".nwb"));
-      } else {
-        window.setOpenedFileName(fileHandle[0].name);
-      }
-      setTimeout(() => {
-        if (fileHandle[0].name.endsWith(".wav")) {
-          console.log("MWORKER TRY TO POST MESSAGE: ");
+        setTimeout(() => {
+          console.log("MWORKER TRY TO POST MESSAGE (wav): ");
           mWorker.postMessage({
             "message": "START_OPENING_FILE_WEB",
             "filePath": fileHandle[0].name.replace(".wav", ".nwb"),
@@ -604,25 +599,25 @@ async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, end
             "fileHandle": fileHandle[0],
             "isStartOpeningFileWeb": isStartOpeningFileWeb,
           });
-        }        
-      }, 1000);
+        }, 1000);
+      } else if (fileHandle[0].name.endsWith(".nwb")) {
+        window.setOpenedFileName(fileHandle[0].name);
+        console.log("MWORKER TRY TO POST MESSAGE (nwb): ");
+        mWorker.postMessage({
+          "message": "START_OPENING_FILE_WEB",
+          "filePath": fileHandle[0].name,
+          "startIdx": startIdx,
+          "endIdx": endIdx,
+          "startChannel": startChannel,
+          "endChannel": endChannel,
+          "fileHandle": fileHandle[0],
+          "isStartOpeningFileWeb": isStartOpeningFileWeb,
+        });
+      }
     }catch(e){
       console.log("error: ", e);
       return "File not opened";
     }
-  }
-  if (fileHandle[0].name.endsWith(".nwb")) {
-    console.log("MWORKER TRY TO POST MESSAGE: ");
-    mWorker.postMessage({
-      "message": "START_OPENING_FILE_WEB",
-      "filePath": fileHandle[0].name,
-      "startIdx": startIdx,
-      "endIdx": endIdx,
-      "startChannel": startChannel,
-      "endChannel": endChannel,
-      "fileHandle": fileHandle[0],
-      "isStartOpeningFileWeb": isStartOpeningFileWeb,
-    });
   }
 }
 

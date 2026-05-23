@@ -94,7 +94,17 @@ class NwbFileUtilImpl implements NWBFileUtil {
     String charPointer = path.toString();
     String deviceInfoPointer = deviceInfo;
     String deviceManufacturerPointer = deviceManufacturer;
-    String resultString =js.context.callMethod('createNwbFile', [charPointer, sampleRate, channelCount, deviceInfoPointer, deviceManufacturerPointer, visibleChannelsList, visibleChannelCount]);
+    // Worker expects a typed array (.o buffer); plain List<int> does not survive postMessage.
+    final visibleSignals = Int16List.fromList(visibleChannelsList);
+    String resultString = js.context.callMethod('createNwbFile', [
+      charPointer,
+      sampleRate,
+      channelCount,
+      deviceInfoPointer,
+      deviceManufacturerPointer,
+      visibleSignals,
+      visibleChannelCount,
+    ]);
 
     return Future.value(path);
   }

@@ -10,7 +10,6 @@ class ChannelColorProvider extends ChangeNotifier {
   int isRecording = 0;
 
   void setAudioChannelCount(int count) {
-    visibleChannels.clear();
     if (audioColors.length < count) {
       for (int i = audioColors.length; i < count; i++) {
         if (i < ChannelColorDefaults.audioChannelColors.length) {
@@ -18,17 +17,15 @@ class ChannelColorProvider extends ChangeNotifier {
         } else {
           audioColors.add(SoftwareColors.kGraphColor);
         }
-        visibleChannels.add(1);
       }
     } else if (audioColors.length > count) {
       audioColors = audioColors.sublist(0, count);
     }
-    visibleChannelsCount = count;
+    _syncVisibleChannelsLength(count);
     notifyListeners();
   }
 
   void setSerialChannelCount(int count) {
-    visibleChannels.clear();
     if (serialColors.length < count) {
       for (int i = serialColors.length; i < count; i++) {
         if (i < ChannelColorDefaults.serialChannelColors.length) {
@@ -36,17 +33,23 @@ class ChannelColorProvider extends ChangeNotifier {
         } else {
           serialColors.add(SoftwareColors.kGraphColor);
         }
-        visibleChannels.add(1);
       }
     } else if (serialColors.length > count) {
-      for (int i = serialColors.length; i < count; i++) {
-        visibleChannels.add(1);
-      }
       serialColors = serialColors.sublist(0, count);
     }
-    visibleChannelsCount = count;
-
+    _syncVisibleChannelsLength(count);
     notifyListeners();
+  }
+
+  void _syncVisibleChannelsLength(int count) {
+    while (visibleChannels.length < count) {
+      visibleChannels.add(1);
+    }
+    if (visibleChannels.length > count) {
+      visibleChannels.removeRange(count, visibleChannels.length);
+    }
+    visibleChannelsCount =
+        visibleChannels.where((visibility) => visibility == 1).length;
   }
 
   void setAudioColor(int index, Color color) {

@@ -98,13 +98,21 @@ namespace backyardbrains {
         }
 
         void Processor::applyFilters(int channel, short *data, int sampleCount) {
-            if (channelFilterEnabled && !channelFilterEnabled[channel]) {
+            if (!channelFilterEnabled || channel < 0 || channel >= channelCount || !channelFilterEnabled[channel]) {
                 return;
             }
 
-            if (lowPassFilteringEnabled) lowPassFilter[channel]->filter(data, sampleCount);
-            if (highPassFilteringEnabled) highPassFilter[channel]->filter(data, sampleCount);
-            if (notchFilteringEnabled) {
+            if (sampleRate <= 0 || lowPassFilter == nullptr || highPassFilter == nullptr || notchFilter == nullptr) {
+                return;
+            }
+
+            if (lowPassFilteringEnabled && lowPassFilter[channel] != nullptr) {
+                lowPassFilter[channel]->filter(data, sampleCount);
+            }
+            if (highPassFilteringEnabled && highPassFilter[channel] != nullptr) {
+                highPassFilter[channel]->filter(data, sampleCount);
+            }
+            if (notchFilteringEnabled && notchFilter[channel] != nullptr) {
                 notchFilter[channel]->filter(data, sampleCount);
             }
         }
@@ -113,8 +121,13 @@ namespace backyardbrains {
             lowPassFilteringEnabled = highCutOffFreq != -1 && highCutOffFreq != MAX_FILTER_CUT_OFF;
             highPassFilteringEnabled = lowCutOffFreq != -1 && lowCutOffFreq != MIN_FILTER_CUT_OFF;
 
-            // Processor::lowCutOff = lowCutOffFreq;
-            // Processor::highCutOff = highCutOffFreq;
+            if (lowCutOffFreq == -1 || highCutOffFreq == -1) {
+                return;
+            }
+
+            Processor::lowCutOff = lowCutOffFreq;
+            Processor::highCutOff = highCutOffFreq;
+
             if (initialized) {
                 deleteFilters(channelCount, channelIdx);
                 // Ensure arrays are allocated before creating filters
@@ -137,15 +150,20 @@ namespace backyardbrains {
 
         void Processor::setNotchFilter(float centerFreq) {
             notchFilteringEnabled = centerFreq != -1 && centerFreq != MIN_FILTER_CUT_OFF;
-
             Processor::centerFrequency = centerFreq;
-            if (initialized) deleteFilters(channelCount, -1);
-            lowPassFilter = new LowPassFilterPtr[channelCount];
-            highPassFilter = new HighPassFilterPtr[channelCount];
-            notchFilter = new NotchFilterPtr[channelCount];
-            channelFilterEnabled = new bool[channelCount];
 
-            createFilters(Processor::sampleRate, channelCount, -1, lowCutOff, highCutOff, centerFrequency);
+            if (!initialized || notchFilter == nullptr) {
+                return;
+            }
+
+            for (int i = 0; i < channelCount; i++) {
+                if (notchFilter[i] == nullptr) {
+                    notchFilter[i] = new NotchFilter();
+                    notchFilter[i]->initWithSamplingRate(sampleRate);
+                }
+                notchFilter[i]->setCenterFrequency(centerFrequency);
+                notchFilter[i]->setQ(1.0);
+            }
         }
 
         void Processor::setChannelFilterEnabled(int channel, bool enabled) {

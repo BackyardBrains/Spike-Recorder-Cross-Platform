@@ -15,8 +15,86 @@ class NwbFileUtilImpl implements NWBFileUtil {
   @override
   String openedNwbFilePath = "";
 
+  /// Per-physical-channel mask: 1 = record, 0 = skip (from [ChannelColorProvider]).
+  List<int> _recordVisibleMask = [1];
+  int _recordVisibleChannelCount = 1;
+
   @override
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
+
+  /// Keeps only visible channels in planar layout: [ch0 samples][ch1 samples]...
+  static ({Int16List data, Int32List counts, int channelCount})
+      filterVisibleChannelSamples(
+    Int16List data,
+    Int32List samplesCount,
+    int physicalChannelCount,
+    List<int> visibleMask,
+  ) {
+    final channelCount = physicalChannelCount < samplesCount.length
+        ? physicalChannelCount
+        : samplesCount.length;
+
+    int visibleCount = 0;
+    for (int i = 0; i < channelCount; i++) {
+      if (i >= visibleMask.length || visibleMask[i] != 0) {
+        visibleCount++;
+      }
+    }
+
+    if (visibleCount == 0) {
+      return (
+        data: Int16List(0),
+        counts: Int32List(0),
+        channelCount: 0,
+      );
+    }
+
+    if (visibleMask.isEmpty ||
+        (visibleCount == channelCount &&
+            visibleMask.length >= channelCount &&
+            visibleMask.take(channelCount).every((v) => v == 1))) {
+      return (
+        data: data,
+        counts: samplesCount,
+        channelCount: channelCount,
+      );
+    }
+
+    final filteredCounts = Int32List(visibleCount);
+    var totalSamples = 0;
+    var readOffset = 0;
+    for (int i = 0; i < channelCount; i++) {
+      final len = samplesCount[i];
+      if (i < visibleMask.length && visibleMask[i] == 0) {
+        readOffset += len;
+        continue;
+      }
+      totalSamples += len;
+      readOffset += len;
+    }
+
+    final filteredData = Int16List(totalSamples);
+    readOffset = 0;
+    var writeOffset = 0;
+    var recordIdx = 0;
+    for (int i = 0; i < channelCount; i++) {
+      final len = samplesCount[i];
+      if (i < visibleMask.length && visibleMask[i] == 0) {
+        readOffset += len;
+        continue;
+      }
+      filteredData.setRange(writeOffset, writeOffset + len, data, readOffset);
+      filteredCounts[recordIdx++] = len;
+      writeOffset += len;
+      readOffset += len;
+    }
+
+    return (
+      data: filteredData,
+      counts: filteredCounts,
+      channelCount: visibleCount,
+    );
+  }
 
   @override
   Future<String> processingInit(
@@ -41,15 +119,29 @@ class NwbFileUtilImpl implements NWBFileUtil {
       // String computerNamePath = (await getApplicationDocumentsDirectory()).path.split("/Library")[0];
       // path = "${computerNamePath}/spike_recorder$recordedTime.nwb";
     }
-    print("NWB file path: $path ---- $sampleRate");
+    _recordVisibleMask = List<int>.from(visibleChannelsList);
+    _recordVisibleChannelCount = visibleChannelCount > 0
+        ? visibleChannelCount
+        : _recordVisibleMask.where((v) => v == 1).length;
+    if (_recordVisibleChannelCount == 0) {
+      print("❌ No visible channels to record");
+      return Future.value("false");
+    }
+
+    print(
+        "NWB file path: $path ---- $sampleRate, visible channels: $_recordVisibleChannelCount / $channelCount, mask: $_recordVisibleMask");
     Pointer<Char> charPointer = path.toString().toNativeUtf8().cast<Char>();
     Pointer<Char> deviceInfoPointer = deviceInfo.toNativeUtf8().cast<Char>();
     Pointer<Char> deviceManufacturerPointer =
         deviceManufacturer.toNativeUtf8().cast<Char>();
 
     print("Dart processing init start");
-    int initResult = nwb.processingInit(charPointer, sampleRate, channelCount,
-        deviceInfoPointer, deviceManufacturerPointer);
+    int initResult = nwb.processingInit(
+        charPointer,
+        sampleRate,
+        _recordVisibleChannelCount,
+        deviceInfoPointer,
+        deviceManufacturerPointer);
     print("Dart processing init END");
     if (initResult < 0) {
       print("❌ Failed to initialize NWB file, error code: $initResult");
@@ -89,14 +181,36 @@ class NwbFileUtilImpl implements NWBFileUtil {
   @override
   Future<bool> addElectricalSeries(Int16List data, Int32List samplesCount,
       int selectedChannel, int channelCount, int isFinishRecording) {
-    // print("addElectricalSeries: $isFinishRecording SamplesCOUNT: $samplesCount DATA: $data");
-    Pointer<Int16> dataPtr = calloc<Int16>(data.length);
-    dataPtr.asTypedList(data.length).setAll(0, data);
-    Pointer<Int32> samplesCountPtr = calloc<Int32>(samplesCount.length);
-    samplesCountPtr.asTypedList(samplesCount.length).setAll(0, samplesCount);
-    nwb.nwbfile_add_electrical_series(dataPtr, samplesCountPtr, selectedChannel,
-        channelCount, isFinishRecording);
-    return Future.value(true);
+    final filtered = filterVisibleChannelSamples(
+      data,
+      samplesCount,
+      channelCount,
+      _recordVisibleMask,
+    );
+    if (filtered.channelCount == 0) {
+      return Future.value(false);
+    }
+
+    Pointer<Int16> dataPtr = calloc<Int16>(filtered.data.length);
+    dataPtr.asTypedList(filtered.data.length).setAll(0, filtered.data);
+    Pointer<Int32> samplesCountPtr =
+        calloc<Int32>(filtered.counts.length);
+    samplesCountPtr
+        .asTypedList(filtered.counts.length)
+        .setAll(0, filtered.counts);
+    try {
+      nwb.nwbfile_add_electrical_series(
+        dataPtr,
+        samplesCountPtr,
+        selectedChannel,
+        filtered.channelCount,
+        isFinishRecording,
+      );
+      return Future.value(true);
+    } finally {
+      calloc.free(dataPtr);
+      calloc.free(samplesCountPtr);
+    }
   }
 
   @override

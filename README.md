@@ -160,3 +160,11 @@ https://devanlai.github.io/webdfu/dfu-util/
 
 dart pub cache clean
 flutter pub get
+
+
+
+rm -f web/main.dart.js web/main.dart.js_1.part.js web/main.dart.js_2.part.js web/main.dart.js_3.part.js
+rm -rf .dart_tool/flutter_build build/web
+rm -f ~/.pub-cache/hosted/pub.dev/.cache/*-advisories.json   # if pub get fails
+flutter pub get
+flutter build web --no-tree-shake-icons

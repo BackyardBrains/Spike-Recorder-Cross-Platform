@@ -16,6 +16,9 @@ export 'processing_util_native.dart'
 
 // The abstract interface all implementations must follow
 abstract class ProcessingUtil {
+  /// Web only: worker posts processed PCM chunks after WASM processing.
+  static void Function(List<Int16List> chunks)? webLivePlaybackListener;
+
   static int positionIndex = 0;
   // Maximum display time in seconds
   static const double MAX_DISPLAY_SECONDS = 10.0;

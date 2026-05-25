@@ -63,6 +63,14 @@ function initializeModule() {
       window.onPostDisplay(event.data.bufferViews, event.data.bufferCountViews);
       window.onEventPositionCalculated();
     } else
+    if (event.data.message === "LIVE_PLAYBACK_CHUNK") {
+      const liveViews = event.data.chunkViews || event.data.bufferViews;
+      if (typeof window.onWebLivePlayback === "function") {
+        window.onWebLivePlayback(liveViews);
+      } else {
+        console.warn("LIVE_PLAYBACK_CHUNK: window.onWebLivePlayback is not registered");
+      }
+    } else
     if (event.data.message === "SET_EXPANSION_BOARD_TYPE") { 
       console.log("event.data.expansionBoardType: ", event.data.expansionBoardType);
       window.setExpansionBoardTypeDart(event.data.expansionBoardType);
@@ -272,10 +280,18 @@ function initializeSerialWeb(sampleRate, channelCount, drawSurfaceWidth){
   });
 }
 function processSerialDataWeb(samples, displayTimeMs, deviceType, eventLabels, eventPositions){
-  // console.log("samples: ", samples);
+  // Copy bytes for worker transfer (same pattern as mic).
+  let sampleBytes = samples;
+  if (sampleBytes != null) {
+    if (typeof sampleBytes.slice === "function") {
+      sampleBytes = sampleBytes.slice();
+    } else if (sampleBytes.buffer != null) {
+      sampleBytes = new Uint8Array(sampleBytes.buffer);
+    }
+  }
   mWorker.postMessage({
     "message": "SEND_SERIAL_DATA_WEB",
-    "samples": samples,
+    "samples": sampleBytes,
     "channelIdx": 0,
     "displayTimeMs": displayTimeMs,
     "deviceType": deviceType,

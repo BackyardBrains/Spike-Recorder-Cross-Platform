@@ -108,8 +108,6 @@ PODS:
   - Flutter (1.0.0)
   - flutter_file_manager_ios (0.0.1):
     - Flutter
-  - flutter_native_splash (2.4.3):
-    - Flutter
   - flutter_soloud (0.0.1):
     - Flutter
   - GoogleAdsOnDeviceConversion (3.4.2):
@@ -193,6 +191,8 @@ PODS:
   - PromisesObjC (2.4.0)
   - PromisesSwift (2.4.0):
     - PromisesObjC (= 2.4.0)
+  - record_ios (1.2.0):
+    - Flutter
   - SDWebImage (5.21.7):
     - SDWebImage/Core (= 5.21.7)
   - SDWebImage/Core (5.21.7)
@@ -212,7 +212,6 @@ DEPENDENCIES:
   - firebase_crashlytics (from `.symlinks/plugins/firebase_crashlytics/ios`)
   - Flutter (from `Flutter`)
   - flutter_file_manager_ios (from `.symlinks/plugins/flutter_file_manager_ios/ios`)
-  - flutter_native_splash (from `.symlinks/plugins/flutter_native_splash/ios`)
   - flutter_soloud (from `.symlinks/plugins/flutter_soloud/ios`)
   - just_audio (from `.symlinks/plugins/just_audio/darwin`)
   - mic_stream (from `.symlinks/plugins/mic_stream/ios`)
@@ -221,6 +220,7 @@ DEPENDENCIES:
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - processing_ffi (from `.symlinks/plugins/processing_ffi/ios`)
+  - record_ios (from `.symlinks/plugins/record_ios/ios`)
   - sound_stream_now (from `.symlinks/plugins/sound_stream_now/ios`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
 
@@ -266,8 +266,6 @@ EXTERNAL SOURCES:
     :path: Flutter
   flutter_file_manager_ios:
     :path: ".symlinks/plugins/flutter_file_manager_ios/ios"
-  flutter_native_splash:
-    :path: ".symlinks/plugins/flutter_native_splash/ios"
   flutter_soloud:
     :path: ".symlinks/plugins/flutter_soloud/ios"
   just_audio:
@@ -284,6 +282,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
   processing_ffi:
     :path: ".symlinks/plugins/processing_ffi/ios"
+  record_ios:
+    :path: ".symlinks/plugins/record_ios/ios"
   sound_stream_now:
     :path: ".symlinks/plugins/sound_stream_now/ios"
   url_launcher_ios:
@@ -310,7 +310,6 @@ SPEC CHECKSUMS:
   FirebaseSessions: 804bd321f2d2f2ddafe74ef7856062aa19f179c2
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_file_manager_ios: a25a3d5f9473c8486213797d5f5e3c546e4a8c06
-  flutter_native_splash: df59bb2e1421aa0282cb2e95618af4dcb0c56c29
   flutter_soloud: 1f5ba78506351cbd64f6993d13e548af29648ae6
   GoogleAdsOnDeviceConversion: 02fc8fe599acd867e328321effb0d9b2d023a38a
   GoogleAppMeasurement: 3b4687de50ab25ee2d4d541849f10ca8df862a12
@@ -326,6 +325,7 @@ SPEC CHECKSUMS:
   processing_ffi: df201b093cc2208ac5c5234466b35a820d162d3c
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   PromisesSwift: 9d77319bbe72ebf6d872900551f7eeba9bce2851
+  record_ios: 26294aaa39e4bb7665b0fef78bdc23d723b432f2
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
   sound_stream_now: dc25979946047a4d0e8191d8b2024887493178a5
   SwiftyGif: 706c60cf65fa2bc5ee0313beece843c8eb8194d4

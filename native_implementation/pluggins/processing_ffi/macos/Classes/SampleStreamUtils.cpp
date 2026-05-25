@@ -11,8 +11,7 @@ namespace backyardbrains {
         const std::string SampleStreamUtils::HARDWARE_TYPE_PREFIX = "HWT:";
         const std::string SampleStreamUtils::HARDWARE_TYPE_PLANT = SampleStreamUtils::HARDWARE_TYPE_PREFIX + "PLANTSS;";
         const std::string SampleStreamUtils::HARDWARE_TYPE_MUSCLE =
-                // SampleStreamUtils::HARDWARE_TYPE_PREFIX + "MUSCLESS;";
-                SampleStreamUtils::HARDWARE_TYPE_PREFIX + "MUSCUSB1;";
+                SampleStreamUtils::HARDWARE_TYPE_PREFIX + "MUSCLESS;";
         const std::string SampleStreamUtils::HARDWARE_TYPE_HEART_AND_BRAIN_6CH =
                 SampleStreamUtils::HARDWARE_TYPE_PREFIX + "HEARTSS;";
         const std::string SampleStreamUtils::HARDWARE_TYPE_HEART_AND_BRAIN =

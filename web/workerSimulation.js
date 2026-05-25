@@ -310,6 +310,71 @@ let displayTimeMs;
 */
 
 let isThresholding = false;
+
+function canPostLivePlayback() {
+    return isRecording == -1 && !isThresholding;
+}
+
+function serialProcessingOk(serialResult) {
+    return serialResult > 0 || serialResult === 0;
+}
+
+function resolveSerialFrameCount(serialResult, outSampleCountsBuffer, totalChannel, serialPacketLen, byteLength) {
+    let frameCount = serialResult > 0 ? serialResult : 0;
+    for (let i = 0; i < totalChannel; i++) {
+        const c = outSampleCountsBuffer[i] | 0;
+        if (c > 0 && c < serialPacketLen) {
+            frameCount = c;
+            break;
+        }
+    }
+    if (frameCount <= 0) {
+        frameCount = Math.max(1, Math.floor((byteLength / 2) / Math.max(1, totalChannel)));
+    }
+    return frameCount;
+}
+
+function buildSerialLiveChunkViews(inSamplesBuffer, outSampleCountsBuffer, totalChannel, serialPacketLen, frameCount) {
+    const chunkViews = [];
+    let offset = 0;
+    for (let i = 0; i < totalChannel; i++) {
+        let n = outSampleCountsBuffer[i] | 0;
+        if (n <= 0 || n >= serialPacketLen) {
+            n = frameCount;
+        }
+        if (n <= 0) continue;
+        chunkViews.push(inSamplesBuffer.slice(offset, offset + n));
+        offset += n;
+    }
+    if (chunkViews.length === 0 && frameCount > 0) {
+        for (let i = 0; i < totalChannel; i++) {
+            const start = i * serialPacketLen;
+            chunkViews.push(inSamplesBuffer.slice(start, start + frameCount));
+        }
+    }
+    if (chunkViews.length === 0 && frameCount > 0) {
+        chunkViews.push(inSamplesBuffer.slice(0, Math.min(frameCount, inSamplesBuffer.length)));
+    }
+    return chunkViews;
+}
+
+function postSerialLivePlaybackChunk(inSamplesBuffer, outSampleCountsBuffer, serialResult, totalChannel, serialPacketLen, byteLength) {
+    if (!canPostLivePlayback() || !serialProcessingOk(serialResult)) {
+        return;
+    }
+    const frameCount = resolveSerialFrameCount(
+        serialResult, outSampleCountsBuffer, totalChannel, serialPacketLen, byteLength
+    );
+    const chunkViews = buildSerialLiveChunkViews(
+        inSamplesBuffer, outSampleCountsBuffer, totalChannel, serialPacketLen, frameCount
+    );
+    if (chunkViews.length > 0) {
+        postMessage({
+            message: "LIVE_PLAYBACK_CHUNK",
+            chunkViews: chunkViews,
+        });
+    }
+}
 let thresholdArrayLength = 0;
 
 /* FFT */
@@ -709,11 +774,10 @@ self.onmessage = async function (eventFromMain) {
             inDataPtrStart = inDataPtr / Module.HEAPU8.BYTES_PER_ELEMENT;
             inDataArr = Module.HEAPU8.subarray(inDataPtrStart, (inDataPtrStart + data.length));
             
-            inSamplesPtr = Module._malloc( packetLen * Module.HEAP16.BYTES_PER_ELEMENT);
-            inSamplesPtrStart = inSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
-            inSamplesBuffer = Module.HEAP16.subarray(inSamplesPtrStart, (inSamplesPtrStart + packetLen));
-
             totalChannel = channelCount;
+            inSamplesPtr = Module._malloc( packetLen * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
+            inSamplesPtrStart = inSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            inSamplesBuffer = Module.HEAP16.subarray(inSamplesPtrStart, (inSamplesPtrStart + packetLen * totalChannel));
             outSampleCountsPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
             outSampleCountsPtrStart = outSampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
             outSampleCountsBuffer = Module.HEAP32.subarray(outSampleCountsPtrStart, (outSampleCountsPtrStart + totalChannel));
@@ -724,8 +788,9 @@ self.onmessage = async function (eventFromMain) {
             }
             inDataArr.set(data);
 
+            let micResult = -1;
             try{
-                const micResult = Module._processing_process_microphone_stream(
+                micResult = Module._processing_process_microphone_stream(
                     inSamplesPtr,
                     outSampleCountsPtr,
                     inDataPtr,
@@ -739,6 +804,25 @@ self.onmessage = async function (eventFromMain) {
     
                 return;
 
+            }
+            if (micResult === 0 && isRecording == -1 && !isThresholding) {
+                let frameCount = outSampleCountsBuffer[0];
+                if (frameCount <= 0) {
+                    frameCount = Math.floor(data.length / 2);
+                }
+                const chunkViews = [];
+                for (let i = 0; i < totalChannel; i++) {
+                    const n = outSampleCountsBuffer[i] > 0 ? outSampleCountsBuffer[i] : frameCount;
+                    if (n <= 0) continue;
+                    const start = i * packetLen;
+                    chunkViews.push(inSamplesBuffer.slice(start, start + n));
+                }
+                if (chunkViews.length > 0) {
+                    postMessage({
+                        message: "LIVE_PLAYBACK_CHUNK",
+                        chunkViews: chunkViews,
+                    });
+                }
             }
             
             let selectedChannel = 0;
@@ -1009,20 +1093,19 @@ self.onmessage = async function (eventFromMain) {
             
             drawSurfaceWidth = eventFromMain.data.drawSurfaceWidth;
             const serialPacketLen = drawSurfaceWidth * 5;
-            // const serialPacketLen = data.length;
-            // const serialPacketLen = MAX_DISPLAY_SECONDS * sampleRate;
+            totalChannel = channelCount;
             inSamplesPtr = Module._malloc( serialPacketLen * totalChannel * Module.HEAP16.BYTES_PER_ELEMENT);
             inSamplesPtrStart = inSamplesPtr / Module.HEAP16.BYTES_PER_ELEMENT;
             inSamplesBuffer = Module.HEAP16.subarray(inSamplesPtrStart, (inSamplesPtrStart + serialPacketLen * totalChannel));
             inSamplesBuffer.fill(0, 0, serialPacketLen * totalChannel);
 
-            totalChannel = channelCount;
             outSampleCountsPtr = Module._malloc( totalChannel * Module.HEAP32.BYTES_PER_ELEMENT);
             outSampleCountsPtrStart = outSampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
             outSampleCountsBuffer = Module.HEAP32.subarray(outSampleCountsPtrStart, (outSampleCountsPtrStart + totalChannel));
 
+            // Slot stride expected by WASM (see processing_process_sample_stream).
             for (let i = 0; i < totalChannel; i++) {
-                outSampleCountsBuffer[i] = data.length;
+                outSampleCountsBuffer[i] = serialPacketLen;
             }
             inDataArr.set(data);
             // console.log("inDataArr:::: ", inDataArr.subarray(0,5));
@@ -1034,9 +1117,16 @@ self.onmessage = async function (eventFromMain) {
                 data.length,
                 deviceType
             );
-            // console.log("isThresholding: ", isThresholding);
-            
-            if (serialResult > 0) {
+            postSerialLivePlaybackChunk(
+                inSamplesBuffer,
+                outSampleCountsBuffer,
+                serialResult,
+                totalChannel,
+                serialPacketLen,
+                data.length
+            );
+
+            if (serialProcessingOk(serialResult)) {
                 // RECORD SERIAL
                 // if (startingTimer == 0) {
                 //     startingTimer = Date.now();

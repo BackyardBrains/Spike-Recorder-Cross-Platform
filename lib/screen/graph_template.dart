@@ -26,6 +26,7 @@ import 'package:spikerbox_architecture/functionality/utils.dart';
 import 'package:spikerbox_architecture/message_identifier.dart';
 import 'package:spikerbox_architecture/models/models.dart';
 import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
+import 'package:spikerbox_architecture/models/audio/processed_sample_player.dart';
 import 'package:spikerbox_architecture/models/processing_utils/processing_util.dart';
 import 'package:spikerbox_architecture/provider/fft_status_provider.dart';
 import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
@@ -276,6 +277,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               }
             }
             final alreadyConnected = await BybAccessory.isConnected();
+            context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
             print(
                 "BYB IOS --- DEVICE STATUZZZ ---@--- isMfiDeviceConnect: $isMfiDeviceConnect @@ alreadyConnected: $alreadyConnected");
             // if (isMfiDeviceConnect && isMfiDeviceConnect != alreadyConnected) {
@@ -295,6 +297,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
             //   }
 
             // }
+            print("BYB iOS accessory alreadyConnected : $alreadyConnected");
+
             if (!alreadyConnected) {
               isDeviceConnect = true;
               isDeviceSelected = false;
@@ -306,8 +310,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               isMfiDeviceConnect = true;
               if (isConnected) {
                 print("BYB iOS accessory connected: $accessoryLabel");
-                final info = await BybAccessory.getAccessoryInfo();
-                print(info);
+                // final info = await BybAccessory.getAccessoryInfo();
+                // print(info);
               } else {
                 print("BYB iOS accessory not connected: $accessoryLabel");
                 // print('RX stream error: $e');
@@ -330,6 +334,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
               }
             } else {
               isMfiDeviceConnect = true;
+              print("BYB iOS accessory connected: $accessoryLabel");
+              // final info = await BybAccessory.getAccessoryInfo();
+              // print(info);
+
               print(
                   "BYB IOS --- DEVICE ALREADY CONNECTED ---@--- isMfiDeviceConnect: $isMfiDeviceConnect @@ alreadyConnected: $alreadyConnected");
             }
@@ -750,6 +758,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     // Initialize ProcessingUtil
     processingUtil = createProcessingUtil();
+    if (kIsWeb) {
+      processingUtil.setupDartCallbacks();
+      _registerWebLivePlaybackListener();
+    }
     processingUtil.postChannelCountStream =
         processingUtil.postChannelCountController.stream.asBroadcastStream();
 
@@ -757,6 +769,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     processingUtil.postChannelCountStream?.listen((channelCount) {
       print("EXPANSION BOARD CHANNEL COUNT: $channelCount");
       widget.channelCount = channelCount;
+      if (!context.read<DataStatusProvider>().isMicrophoneData) {
+        unawaited(_ensureLiveMonitorPlayer(channelCount: channelCount));
+      }
       context.read<ConstantProvider>().setChannelCount(channelCount);
 
       // Device is serial
@@ -1123,6 +1138,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
   @override
   void dispose() {
     print("GraphTemplate dispose: cleaning up resources...");
+    if (kIsWeb) {
+      ProcessingUtil.webLivePlaybackListener = null;
+    }
 
     // Cancel all timers
     _portCheckTimer?.cancel();
@@ -2607,7 +2625,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         //     // Debugging.printing('us: ${stopwatch.elapsedMicroseconds}, length : ${event.length}');
         //     // stopwatch.reset();
         //   } else {
-        //     Uint8List? firstFrameData = _frameDetect.addData(event);
+        //     Uint8List? firstFrameData = _frameDetect.addData(0event);
 
         //     if (firstFrameData != null) {
         //       _preEscapeSequenceBuffer.addBytes(firstFrameData);
@@ -2726,6 +2744,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   /// Caps graph repaints (~60 Hz) while [sampleCountToDisplay] gates sample batching.
   DateTime? _lastSerialDisplayAt;
   bool _serialDisplayDeferred = false;
+  bool _serialGraphPaintInFlight = false;
   static const Duration _minSerialDisplayInterval = Duration(milliseconds: 16);
 
   /// [rollingWindow] vs [rollingFromZero] display window for live serial.
@@ -2798,6 +2817,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void listenToMicrophone(channelCount, provider) async {
     print("listenToMicrophone");
     stopCurrentPlaying();
+    _registerWebLivePlaybackListener();
     _deviceName.value = "";
     predefinedFiltersChannel = [
       ["EMG", "ECG", "EEG", "Custom"]
@@ -2947,6 +2967,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       await processingUtil.setBandFilter(-1, -1, -1);
 
       print("listenToMicrophone5");
+      await _ensureLiveMonitorPlayer(channelCount: channelCount);
+
       microphoneUtil.micStream.addListener(micListener);
       isDeviceConnect = true;
       isDeviceSelected = false;
@@ -3001,6 +3023,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
   List<SoLoud.AudioSource?> loadedFileStreams = [];
 
   List<SoLoud.SoundHandle?> loadedSoundHandles = [];
+
+  /// Live monitor: plays tails of [ProcessingUtil.processMicrophoneData] via SoLoud.
+  ProcessedSamplePlayer? _processedSamplePlayer;
+
+  /// Reused inside [micListener] so we process once and play before graph work.
+  List<Int16List>? _liveMicProcessedCache;
+
+  int? _liveMonitorSampleRate;
+  int? _liveMonitorChannelCount;
 
   bool isOpeningFile = false;
 
@@ -3081,6 +3112,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
 
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+    _liveMicProcessedCache = null;
+
+    // Live monitor: process + enqueue before graph/NWB/FFT work to minimize latency.
+    if (isAudioListen &&
+        _shouldRunLiveMonitor() &&
+        !isThresholdingButton &&
+        microphoneUtil.micStream.value.isNotEmpty &&
+        !isSpeakerChannelMuted[0]) {
+      final micChunk = Uint8List.fromList(microphoneUtil.micStream.value);
+      if (!kIsWeb) {
+        _liveMicProcessedCache =
+            processingUtil.processMicrophoneData(micChunk);
+        _processedSamplePlayer?.enqueueProcessedChunk(_liveMicProcessedCache!);
+      }
+    }
     // print("isAUDIO LISTEN: $isAudioListen GraphTemplate.isLoadingFile: ${GraphTemplate.isLoadingFile}");
     if (isAudioListen) {
       if (GraphTemplate.isLoadingFile == 2 ||
@@ -3189,8 +3235,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   isAverageSamples);
             }
           } else {
-            List<Int16List> tempData = processingUtil
-                .processMicrophoneData(microphoneUtil.micStream.value);
+            List<Int16List> tempData = _liveMicProcessedCache ??
+                processingUtil.processMicrophoneData(
+                    Uint8List.fromList(microphoneUtil.micStream.value));
+            _liveMicProcessedCache = null;
             tempData.add(Int16List.fromList(tempData[0]));
             // print("PROCESS MICROPHONE DATA LOADED 4 : ${GraphTemplate.isLoadingFile} || TEMPDATA - $tempData");
             Int32List samplesCount =
@@ -3888,18 +3936,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   bool isDetailConfiguration = false;
   int customizeDetailChannelIdx = 0;
 
-  var isSpeakerChannelMuted = [
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-    false
-  ];
+  /// `true` = muted ("Mute Speakers" checked). Default: muted.
+  var isSpeakerChannelMuted = List<bool>.filled(10, true);
 
   List<CustomSliderBarButton> customSliderBarArray = [];
 
@@ -4167,6 +4205,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         microphoneUtil.micStream.value = Uint8List(0);
       }
       if (!_pendingPlayback) {
+        unawaited(_pauseLiveMonitorForFilePlayback());
         Provider.of<GraphResumePlayProvider>(context, listen: false)
             .setGraphResumePlay(false);
         GraphTemplate.isLoadingFile = 1;
@@ -4528,6 +4567,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // processingUtil.processingNwbFileInjectData(flattenedList, samplesCount, 0, widget.channelCount);
       GraphTemplate.isLoadingFile = 4;
     } else {
+      if (!isAudioListen && event.isNotEmpty && _shouldRunLiveMonitor()) {
+        _registerWebLivePlaybackListener();
+        unawaited(_ensureLiveMonitorPlayer());
+      }
       if (!GraphTemplate.isPlayerPaused) {
         if (event.isNotEmpty) {
           _enqueueSerialIngest(event, provider, drawSurfaceWidth);
@@ -4580,10 +4623,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void periodicSerialDataSubscription() {
     periodicTimerSerial?.cancel();
-    // HARDCODE
-    // bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
-    // serialNativeDataSubscription(Uint8List(0), isAudioListen);
-    // return;
+    // Refreshes loaded-file / paused graph only (empty payload). Live UART RX does
+    // not use this timer — see [serialSubscriptionListener] + [_drainSerialIngestQueue].
+    // timeMs ≈ 100 ms at dummySamplingRate 10 kHz; not the live playback delay source.
 
     periodicTimerSerial =
         Timer.periodic(Duration(milliseconds: timeMs), (timer) {
@@ -4833,9 +4875,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
           // if (foundDevices == "MUSCLESS") {
           //   foundDevices = "HEARTSS";
           // }
-          context
-              .read<DataStatusProvider>()
-              .setMicrophoneDataStatus(_availablePorts.isEmpty);
+          if (isMfiDeviceConnect) {
+            context
+                .read<DataStatusProvider>()
+                .setMicrophoneDataStatus(false);
+          } else {
+            context
+                .read<DataStatusProvider>()
+                .setMicrophoneDataStatus(_availablePorts.isEmpty);
+
+          }
           Provider.of<ConstantProvider>(context, listen: false)
               .setBaudRate(foundDevices == "HHIBOX" ? 500000 : 222222);
           Provider.of<ConstantProvider>(context, listen: false)
@@ -4853,11 +4902,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
               portCom: portName, deviceDetect: foundDevices);
           context.read<SerialDataProvider>().setPortOfDevices(serialData);
           _emitConnectedDeviceBoardList();
-          print("isDeviceConnect: ");
-          print(isDeviceConnect);
           // if (isDeviceConnect) {
           bool isAudioListen =
               context.read<DataStatusProvider>().isMicrophoneData;
+          print("isDeviceConnect: ");
+          print("$isDeviceConnect -- isAudioListen : $isAudioListen");
           if (!isAudioListen) {
             SetUpFunctionality().getAllDeviceList().then((value) {
               print("INIT STATE GET ALL DEVICE LIST");
@@ -4894,6 +4943,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       "SAMPLE RAtE: $_sampleRate -----${GraphTemplate.selectedBoard} ${board.uniqueName} --- $foundDevices ::: ${board.uniqueName == foundDevices} $deviceType");
                   double drawSurfaceWidth = MediaQuery.of(context).size.width;
                   processingUtil.initializeSerial(board, drawSurfaceWidth);
+                  if (!isAudioListen) {
+                    _registerWebLivePlaybackListener();
+                    unawaited(_ensureLiveMonitorPlayer(
+                      channelCount: int.parse(board.maxNumberOfChannels!),
+                    ));
+                  }
                   ProcessingUtil.initializeDevice.value = 1;
                   processingUtil.defaultChannelCountNoExpansionBoard =
                       int.parse(board.maxNumberOfChannels!);
@@ -5088,15 +5143,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
             sublistArray.add(sublistSamples);
             if (!_isStreamEnded && loadedFileStreams[i] != null) {
               try {
-                // print("isSpeakerChannelMuted[i] == ${isSpeakerChannelMuted[i]} ");
-                if (isSpeakerChannelMuted[i]) {
-                  // soloud!.addAudioDataStream(loadedFileStreams[i]!,
-                  //     (Int16List(sublistSamples.length)).buffer.asUint8List());
-                } else {
-                  if (kIsWeb) {
-                    soloud!.addAudioDataStream(loadedFileStreams[i]!,
-                        sublistSamples.buffer.asUint8List());
-                  }
+                if (kIsWeb) {
+                  soloud!.addAudioDataStream(
+                    loadedFileStreams[i]!,
+                    _loadedFilePcmBytes(sublistSamples),
+                  );
                 }
               } catch (e) {
                 // Stream may have been ended, stop trying to add data
@@ -5261,6 +5312,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void callbackPlayButton(bool isPlay) async {
     // 1. UI state (no provider notify yet on play path so rebuild cannot run during setup)
     print("setGraphResumePlay PLAYBACK PAUSE BUTTON $isPlay");
+    if (isPlay) {
+      await _pauseLiveMonitorForFilePlayback();
+    }
     _toPauseGraph = isPlay;
     GraphTemplate.isPlayerPaused = !isPlay;
     print(
@@ -5272,9 +5326,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
         .setGraphResumePlay(isPlay);
     // }
 
-    // 2. SoLoud initialization
-    if (soloud == null) {
-      soloud = SoLoud.SoLoud.instance;
+    // 2. SoLoud initialization (shared with live monitor — live streams paused above when playing)
+    soloud ??= SoLoud.SoLoud.instance;
+    if (!soloud!.isInitialized) {
       await soloud!.init(
         bufferSize: 512,
         sampleRate: _sampleRate,
@@ -5617,13 +5671,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
         combinedIdx += initialSampleCount.floor();
         if (!_isStreamEnded && loadedFileStreams[i] != null) {
           try {
-            if (isSpeakerChannelMuted[i]) {
-              soloud!.addAudioDataStream(loadedFileStreams[i]!,
-                  (Int16List(loadedArrSamples[i].length)).buffer.asUint8List());
-            } else {
-              soloud!.addAudioDataStream(loadedFileStreams[i]!,
-                  loadedArrSamples[i].buffer.asUint8List());
-            }
+            // if (isSpeakerChannelMuted[i]) {
+            //   soloud!.addAudioDataStream(loadedFileStreams[i]!,
+            //       (Int16List(loadedArrSamples[i].length)).buffer.asUint8List());
+            // } else {
+            //   soloud!.addAudioDataStream(loadedFileStreams[i]!,
+            //       loadedArrSamples[i].buffer.asUint8List());
+            // }
+            soloud!.addAudioDataStream(
+              loadedFileStreams[i]!,
+              _loadedFilePcmBytes(loadedArrSamples[i]),
+            );
           } catch (e) {
             // Stream may have been ended, stop trying to add data
             print("Error adding audio data to stream (may be ended): $e");
@@ -5745,7 +5803,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         print("listenToMicrophone soloud == null ");
       }
 
-      isSpeakerChannelMuted.fillRange(0, isSpeakerChannelMuted.length, false);
+      // isSpeakerChannelMuted.fillRange(0, isSpeakerChannelMuted.length, true);
       timerPlaybackLoadedFile?.cancel();
       timerPlaybackLoadedFile = null;
       timerPlaybackLoadedStartIndex = 0;
@@ -5772,7 +5830,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   serialWebButton() {
     return kIsWeb
-        ? isRecording != 0
+        ? isRecording != 0 || isOpeningFile 
             ? SizedBox()
             : ElevatedButton(
                 // elevation: 2,
@@ -6339,6 +6397,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
               onChanged: (flag) {
                 if (flag != null) {
                   isSpeakerChannelMuted[customizeDetailChannelIdx] = flag;
+                  _processedSamplePlayer?.setChannelMuted(
+                    customizeDetailChannelIdx,
+                    flag,
+                  );
+                  _processedSamplePlayer?.enabled =
+                      _liveMonitorAnyChannelAudible();
+                  if (_liveMonitorAnyChannelAudible()) {
+                    unawaited(_ensureLiveMonitorPlayer());
+                  }
                 }
                 setState(() {});
               }),
@@ -6452,7 +6519,106 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _serialIngestQueue.clear();
     _serialIngestDraining = false;
     _serialDisplayDeferred = false;
+    _serialGraphPaintInFlight = false;
     _lastSerialDisplayAt = null;
+  }
+
+  void _registerWebLivePlaybackListener() {
+    if (!kIsWeb) return;
+    ProcessingUtil.webLivePlaybackListener = _onWebLivePlaybackChunks;
+  }
+
+  /// Live monitor and loaded-file playback share [SoLoud.instance]; stop live streams before file play.
+  Future<void> _pauseLiveMonitorForFilePlayback() async {
+    if (_processedSamplePlayer?.isActive ?? false) {
+      await _processedSamplePlayer!.stop();
+    }
+  }
+
+  /// PCM for opened-file playback (ignores "Mute Speakers" — that applies to live monitor only).
+  Uint8List _loadedFilePcmBytes(Int16List samples) {
+    return samples.buffer.asUint8List(
+      samples.offsetInBytes,
+      samples.lengthInBytes,
+    );
+  }
+
+  void _syncLiveMonitorSpeakerMutes() {
+    final player = _processedSamplePlayer;
+    if (player == null) return;
+    final limit =
+        widget.channelCount.clamp(1, isSpeakerChannelMuted.length);
+    for (var i = 0; i < limit; i++) {
+      player.setChannelMuted(i, isSpeakerChannelMuted[i]);
+    }
+    player.enabled = _liveMonitorAnyChannelAudible();
+  }
+
+  bool _liveMonitorAnyChannelAudible() {
+    final channelLimit =
+        widget.channelCount.clamp(1, isSpeakerChannelMuted.length);
+    for (var i = 0; i < channelLimit; i++) {
+      if (!isSpeakerChannelMuted[i]) return true;
+    }
+    return false;
+  }
+
+  bool _shouldRunLiveMonitor() {
+    if (!mounted || GraphTemplate.isPlayerPaused) return false;
+    if (GraphTemplate.isLoadingFile != 0) return false;
+    return true;
+  }
+
+  /// Starts or reconfigures SoLoud for live mic or serial monitoring.
+  Future<void> _ensureLiveMonitorPlayer({int? channelCount}) async {
+    if (!mounted) return;
+
+    final channels = channelCount ?? widget.channelCount;
+    if (channels < 1 || _sampleRate < 1) return;
+
+    _processedSamplePlayer ??= ProcessedSamplePlayer(
+      lowLatencyBufferSeconds: 0.01,
+    );
+
+    final sameConfig = _liveMonitorSampleRate == _sampleRate &&
+        _liveMonitorChannelCount == channels &&
+        _processedSamplePlayer!.isActive;
+    if (sameConfig) {
+      _syncLiveMonitorSpeakerMutes();
+      return;
+    }
+
+    if (_processedSamplePlayer!.isActive) {
+      await _processedSamplePlayer!.stop();
+    }
+    await _processedSamplePlayer!.init(
+      sampleRate: _sampleRate,
+      channelCount: channels,
+    );
+    await _processedSamplePlayer!.start();
+    _liveMonitorSampleRate = _sampleRate;
+    _liveMonitorChannelCount = channels;
+    _syncLiveMonitorSpeakerMutes();
+  }
+
+  void _onWebLivePlaybackChunks(List<Int16List> chunks) {
+    if (!mounted || chunks.isEmpty) return;
+    if (!_shouldRunLiveMonitor()) return;
+    if (ProcessingUtil.webLivePlaybackListener != _onWebLivePlaybackChunks) {
+      _registerWebLivePlaybackListener();
+    }
+    unawaited(() async {
+      await _ensureLiveMonitorPlayer(channelCount: chunks.length);
+      if (!_liveMonitorAnyChannelAudible()) return;
+      _processedSamplePlayer?.enqueueProcessedChunk(chunks);
+    }());
+  }
+
+  void _enqueueLiveSerialAudio(List<Int16List> samples) {
+    if (kIsWeb) return;
+    if (!_shouldRunLiveMonitor() || samples.isEmpty) return;
+    if (context.read<DataStatusProvider>().isMicrophoneData) return;
+    _processedSamplePlayer?.enqueueProcessedChunk(samples);
   }
 
   void _enqueueSerialIngest(
@@ -6469,23 +6635,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
     unawaited(_drainSerialIngestQueue(provider, drawSurfaceWidth));
   }
 
-  Uint8List? _takeCoalescedSerialBatch() {
+  /// One UART chunk per drain step — avoids merging backlog into a single late playback burst.
+  Uint8List? _takeNextSerialChunk() {
     if (_serialIngestQueue.isEmpty) return null;
-    if (_serialIngestQueue.length == 1) {
-      return _serialIngestQueue.removeAt(0);
-    }
-    var totalLen = 0;
-    for (final chunk in _serialIngestQueue) {
-      totalLen += chunk.length;
-    }
-    final batch = Uint8List(totalLen);
-    var offset = 0;
-    while (_serialIngestQueue.isNotEmpty) {
-      final chunk = _serialIngestQueue.removeAt(0);
-      batch.setRange(offset, offset + chunk.length, chunk);
-      offset += chunk.length;
-    }
-    return batch;
+    return _serialIngestQueue.removeAt(0);
   }
 
   Future<void> _drainSerialIngestQueue(
@@ -6495,7 +6648,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     try {
       while (_serialIngestQueue.isNotEmpty) {
         if (!mounted) return;
-        final batch = _takeCoalescedSerialBatch();
+        final batch = _takeNextSerialChunk();
         if (batch == null || batch.isEmpty) continue;
 
         final samples = await processingUtil.processSerialData(
@@ -6505,7 +6658,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
           drawSurfaceWidth,
           provider,
         );
-        await _onSerialSamplesIngested(samples, provider, drawSurfaceWidth);
+        // Audio first; do not await graph paint (that was blocking the next chunk).
+        _enqueueLiveSerialAudio(samples);
+        _accumulateSerialSamplesForDisplay(samples, drawSurfaceWidth);
+        _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
       }
     } finally {
       _serialIngestDraining = false;
@@ -6549,11 +6705,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
   }
 
-  Future<void> _onSerialSamplesIngested(
+  void _accumulateSerialSamplesForDisplay(
     List<Int16List> samples,
-    GraphDataProvider provider,
     int drawSurfaceWidth,
-  ) async {
+  ) {
     if (!mounted || samples.isEmpty) return;
 
     _handleSerialRecording(samples);
@@ -6571,18 +6726,61 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
 
     totalSampleCount += samples[0].length;
+  }
+
+  void _scheduleSerialGraphPaint(
+    GraphDataProvider provider,
+    int drawSurfaceWidth,
+  ) {
+    if (!mounted) return;
     if (!_shouldPaintSerialGraphNow()) {
       _serialDisplayDeferred = true;
       return;
     }
-
-    totalSampleCount = 0;
-    _serialDisplayDeferred = false;
-    _lastSerialDisplayAt = DateTime.now();
-    await _paintLiveSerialGraph(provider, drawSurfaceWidth);
-    if (mounted) {
-      provider.inputListener(Uint8List(0));
+    if (_serialGraphPaintInFlight) {
+      _serialDisplayDeferred = true;
+      return;
     }
+    _serialGraphPaintInFlight = true;
+    unawaited(_runSerialGraphPaint(provider, drawSurfaceWidth));
+  }
+
+  Future<void> _runSerialGraphPaint(
+    GraphDataProvider provider,
+    int drawSurfaceWidth,
+  ) async {
+    try {
+      do {
+        if (!mounted) return;
+        if (!_shouldPaintSerialGraphNow()) {
+          _serialDisplayDeferred = true;
+          return;
+        }
+        totalSampleCount = 0;
+        _serialDisplayDeferred = false;
+        _lastSerialDisplayAt = DateTime.now();
+        await _paintLiveSerialGraph(provider, drawSurfaceWidth);
+        if (mounted) {
+          provider.inputListener(Uint8List(0));
+        }
+      } while (mounted && _serialDisplayDeferred && _shouldPaintSerialGraphNow());
+    } finally {
+      _serialGraphPaintInFlight = false;
+      if (mounted &&
+          _serialDisplayDeferred &&
+          _shouldPaintSerialGraphNow()) {
+        _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
+      }
+    }
+  }
+
+  Future<void> _onSerialSamplesIngested(
+    List<Int16List> samples,
+    GraphDataProvider provider,
+    int drawSurfaceWidth,
+  ) async {
+    _accumulateSerialSamplesForDisplay(samples, drawSurfaceWidth);
+    _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
   }
 
   bool _shouldPaintSerialGraphNow() {
@@ -7241,6 +7439,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
         });
       }
       if (_isDataIdentified) {
+        if (!isAudioListen && event.isNotEmpty && _shouldRunLiveMonitor()) {
+          _registerWebLivePlaybackListener();
+          unawaited(_ensureLiveMonitorPlayer());
+        }
         serialNativeDataSubscription(event, isAudioListen);
       } else {
         if (!isDeviceConnect && !isDeviceSelected) {
@@ -7281,6 +7483,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
             });
           }
           if (!GraphTemplate.isPlayerPaused) {
+            if (!isAudioListen && event.isNotEmpty && _shouldRunLiveMonitor()) {
+              _registerWebLivePlaybackListener();
+              unawaited(_ensureLiveMonitorPlayer());
+            }
             _enqueueSerialIngest(
               event,
               provider,

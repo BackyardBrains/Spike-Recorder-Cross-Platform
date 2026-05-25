@@ -43,6 +43,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     js.context['onDrawingBufferAllocated'] = onDrawingBufferAllocated;
     js.context['onThresholdProcessCallback'] = onThresholdProcessCallback;
     js.context['onSendingFftBuffer'] = onSendingFftBuffer;
+    js.context['onWebLivePlayback'] = onWebLivePlayback;
     // initFft();
     _isInitialized = true;
     return true;
@@ -107,8 +108,19 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
   @override
   List<Int16List> processMicrophoneData(Uint8List data) {
-    // start setup markers
-    if (!isAllocated) return [Int16List(0)];
+    if (data.isEmpty) return [Int16List(0)];
+
+    // Always forward mic PCM to the WASM worker (graph + live playback on web).
+    if (!isAllocated) {
+      js.context.callMethod("processMicrophoneDataWeb", [
+        data,
+        0,
+        data.length,
+        json.encode(ProcessingUtil.eventLabels),
+        json.encode(ProcessingUtil.eventPosition),
+      ]);
+      return [Int16List(0)];
+    }
 
     int frameCount = (data.length / 2).floor();
     int removedIndicesCount = 0;
@@ -820,6 +832,57 @@ class ProcessingUtilImpl implements ProcessingUtil {
   
   @override
   void setupDartCallbacks() {
+    js.context['onWebLivePlayback'] = onWebLivePlayback;
+  }
+
+  void onWebLivePlayback(channelData) {
+    final listener = ProcessingUtil.webLivePlaybackListener;
+    if (listener == null || channelData == null) return;
+
+    final channels = <Int16List>[];
+    if (channelData is List) {
+      for (final ch in channelData) {
+        final converted = _jsChannelToInt16List(ch);
+        if (converted != null && converted.isNotEmpty) {
+          channels.add(converted);
+        }
+      }
+    } else {
+      final converted = _jsChannelToInt16List(channelData);
+      if (converted != null && converted.isNotEmpty) {
+        channels.add(converted);
+      }
+    }
+    if (channels.isEmpty) return;
+    listener(channels);
+  }
+
+  /// Converts WASM worker [Int16Array] views (and Dart lists) for SoLoud playback.
+  Int16List? _jsChannelToInt16List(dynamic ch) {
+    if (ch == null) return null;
+    if (ch is Int16List) return ch;
+    if (ch is TypedData) {
+      final byteLen = ch.lengthInBytes;
+      if (byteLen < 2 || byteLen.isOdd) return null;
+      return ch.buffer.asInt16List(
+        ch.offsetInBytes ~/ 2,
+        byteLen ~/ 2,
+      );
+    }
+    if (ch is List) {
+      if (ch.isEmpty) return null;
+      return Int16List.fromList(ch.cast<int>());
+    }
+    if (ch is js.JsObject) {
+      final len = (ch['length'] as num?)?.toInt();
+      if (len == null || len <= 0) return null;
+      final out = Int16List(len);
+      for (var i = 0; i < len; i++) {
+        out[i] = (ch[i] as num).toInt();
+      }
+      return out;
+    }
+    return null;
   }
   
   @override

@@ -626,11 +626,11 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
 {
     NSMutableString *infoString = [NSMutableString stringWithString:@"Accessory Info:\n"];
     [infoString appendFormat:@"Name.... %@\n", accessory.name];
-    [infoString appendFormat:@"Manufacturer.... %@\n", accessory.manufacturer];
-    [infoString appendFormat:@"Model Number.... %@\n", accessory.modelNumber];
-    [infoString appendFormat:@"Serial Number.... %@\n", accessory.serialNumber];
-    [infoString appendFormat:@"Firmware Revision.... %@\n", accessory.firmwareRevision];
-    [infoString appendFormat:@"Hardware Revision.... %@\n", accessory.hardwareRevision];
+    // [infoString appendFormat:@"Manufacturer.... %@\n", accessory.manufacturer];
+    // [infoString appendFormat:@"Model Number.... %@\n", accessory.modelNumber];
+    // [infoString appendFormat:@"Serial Number.... %@\n", accessory.serialNumber];
+    // [infoString appendFormat:@"Firmware Revision.... %@\n", accessory.firmwareRevision];
+    // [infoString appendFormat:@"Hardware Revision.... %@\n", accessory.hardwareRevision];
     _accessoryInfoString = infoString;
 }
 

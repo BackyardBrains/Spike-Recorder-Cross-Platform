@@ -24,10 +24,6 @@ namespace backyardbrains {
                 SampleStreamUtils::HARDWARE_TYPE_PREFIX + "NEURONSB;";
         const std::string SampleStreamUtils::HARDWARE_TYPE_MUSCLE_PRO =
                 SampleStreamUtils::HARDWARE_TYPE_PREFIX + "MUSCLESB;";
-        const std::string SampleStreamUtils::HARDWARE_TYPE_NEURON_SS =
-                SampleStreamUtils::HARDWARE_TYPE_PREFIX + "NEURONSS;";
-        const std::string SampleStreamUtils::HARDWARE_TYPE_NEURON_SBPRO =
-                SampleStreamUtils::HARDWARE_TYPE_PREFIX + "NRNSBPRO;";
         const std::string SampleStreamUtils::SAMPLE_RATE_PREFIX = "MSF:";
         const std::string SampleStreamUtils::NUM_OF_CHANNELS_PREFIX = "MNC:";
         const std::string SampleStreamUtils::EVENT_PREFIX = "EVNT:";

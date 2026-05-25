@@ -56,11 +56,14 @@ class SerialUtilWeb implements SerialUtil {
   Future<void> _serialLifecycle = Future<void>.value();
 
   static const int _serialBufferSize = 1048576;
+  static const int _probeBufferSize = 8192;
+  static const int _probeFrameDetectMaxBytes = 65536;
   static const List<int> _probeBaudRates = [500000, 230400, 222222];
   static final Uint8List _probeQueryBytes = Uint8List.fromList([
     ...UsbCommand.hwTypeInquiry.cmdAsBytes(),
     ...utf8.encode('board:;'),
   ]);
+
   /// Same tokens [GraphTemplate.listOfDevices] accepts from hwTypeInquiry.
   static const List<String> _probeDeviceReplyTokens = [
     'PLANTSS;',
@@ -76,6 +79,7 @@ class SerialUtilWeb implements SerialUtil {
     'HEARTSS;',
   ];
   static const int _probeAsciiWindowMax = 16384;
+
   /// Valid BYB ADC pairs (byte >127 then low byte) — same as [FrameDetect] in graph.
   static const int _probeAdcSyncHitsRequired = 2;
   static const Duration _probeSettleTime = Duration(milliseconds: 400);
@@ -103,6 +107,7 @@ class SerialUtilWeb implements SerialUtil {
   bool _probeSawCompleteFrame = false;
   bool _probeAcceptRx = false;
   bool _intentionalProbeStop = false;
+
   /// Set while [_disposeReaderBody] cancels the reader — pending [read] ends with BreakError.
   bool _intentionalReaderStop = false;
   int _probeRxBytes = 0;
@@ -147,9 +152,8 @@ class SerialUtilWeb implements SerialUtil {
           if (ok) {
             return baud;
           }
-          final score = _probeRxBytes > 0
-              ? _probeAdcFrameHits / _probeRxBytes
-              : 0.0;
+          final score =
+              _probeRxBytes > 0 ? _probeAdcFrameHits / _probeRxBytes : 0.0;
           print(
             'SerialUtilWeb: @$baud scan rawRx=$_probeRxBytes '
             'adcSyncs=$_probeAdcFrameHits score=${score.toStringAsFixed(6)}',
@@ -170,6 +174,8 @@ class SerialUtilWeb implements SerialUtil {
         final ok = await _tryProbeBaud(bestAdcBaud, acceptAdcStream: true);
         return ok ? bestAdcBaud : null;
       }
+      print('SerialUtilWeb: END');
+
       return null;
     } finally {
       _cancelQueryRepeatTimer();
@@ -184,6 +190,7 @@ class SerialUtilWeb implements SerialUtil {
 
   void _startQueryRepeatTimer() {
     _cancelQueryRepeatTimer();
+    print("_startQueryRepeatTimer : $_probing");
     if (!_probing) {
       return;
     }
@@ -203,8 +210,7 @@ class SerialUtilWeb implements SerialUtil {
     _probeMessageId.reset();
     _probeAsciiWindow.clear();
     _probeRxBytes = 0;
-    _probeFrameDetect =
-        FrameDetect(channelCount: 1, minimumBytesToCheck: 50);
+    _probeFrameDetect = FrameDetect(channelCount: 1, minimumBytesToCheck: 50);
     _probeAdcFrameHits = 0;
   }
 
@@ -215,6 +221,10 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   void _noteProbeAdcStreamSync(Uint8List chunk) {
+    if (_probeRxBytes > _probeFrameDetectMaxBytes) {
+      _probeFrameDetect =
+          FrameDetect(channelCount: 1, minimumBytesToCheck: 50);
+    }
     final detect = _probeFrameDetect;
     if (detect == null) {
       return;
@@ -308,14 +318,19 @@ class SerialUtilWeb implements SerialUtil {
 
     _probing = true;
     _probeReading = true;
-    _probeAcceptRx = true;
+    // Drain the port during settle without heavy parsing (avoids starving timers).
+    // Windows Chromium + FTDI often delivers very large read chunks when bufferSize
+    // is high; macOS web tends to be less aggressive, so this hang was mainly Windows.
+    _probeAcceptRx = false;
     final probeReader = port.readable.reader;
     _probeActiveReader = probeReader;
     final probePump = _probeReadLoop(port, probeReader);
 
     try {
       await Future<void>.delayed(_probeSettleTime);
-      var success = _probeSawCompleteFrame;
+      _probeAcceptRx = true;
+
+      var success = false;
       for (var attempt = 1; attempt <= _probeAttemptsPerBaud; attempt++) {
         if (attempt > 1) {
           print(
@@ -380,6 +395,7 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   Future<void> _sendProbeQueryOnce() async {
+    print("_sendProbeQueryOnce : $_probeWriteInFlight");
     while (_probeWriteInFlight != null) {
       await _probeWriteInFlight;
     }
@@ -1121,31 +1137,45 @@ class SerialUtilWeb implements SerialUtil {
     final flow = probing || !_useHardwareFlowControl
         ? FlowControl.none
         : FlowControl.hardware;
-    final attempts = <Future<void> Function()>[
-      () => port.open(
-            baudRate: _baudRate,
-            dataBits: DataBits.eight,
-            stopBits: StopBits.one,
-            parity: Parity.none,
-            bufferSize: _serialBufferSize,
-            flowControl: flow,
-          ),
-      () => port.open(
-            baudRate: _baudRate,
-            dataBits: DataBits.eight,
-            stopBits: StopBits.one,
-            parity: Parity.none,
-            bufferSize: 8192,
-            flowControl: flow,
-          ),
-      () => port.open(baudRate: _baudRate),
-    ];
+    final attempts = probing
+        ? <Future<void> Function()>[
+            () => port.open(
+                  baudRate: _baudRate,
+                  dataBits: DataBits.eight,
+                  stopBits: StopBits.one,
+                  parity: Parity.none,
+                  bufferSize: _probeBufferSize,
+                  flowControl: flow,
+                ),
+            () => port.open(baudRate: _baudRate),
+          ]
+        : <Future<void> Function()>[
+            () => port.open(
+                  baudRate: _baudRate,
+                  dataBits: DataBits.eight,
+                  stopBits: StopBits.one,
+                  parity: Parity.none,
+                  bufferSize: _serialBufferSize,
+                  flowControl: flow,
+                ),
+            () => port.open(
+                  baudRate: _baudRate,
+                  dataBits: DataBits.eight,
+                  stopBits: StopBits.one,
+                  parity: Parity.none,
+                  bufferSize: 8192,
+                  flowControl: flow,
+                ),
+            () => port.open(baudRate: _baudRate),
+          ];
 
     for (var i = 0; i < attempts.length; i++) {
       try {
         await attempts[i]();
         _portOpen = true;
-        await _trySetPortSignals(port);
+        if (!probing) {
+          await _trySetPortSignals(port);
+        }
         if (i > 0) {
           print(
               'SerialUtilWeb: open @$_baudRate succeeded on attempt ${i + 1}');
@@ -1154,7 +1184,9 @@ class SerialUtilWeb implements SerialUtil {
       } catch (e) {
         if (_isPortAlreadyOpenError(e)) {
           _portOpen = true;
-          await _trySetPortSignals(port);
+          if (!probing) {
+            await _trySetPortSignals(port);
+          }
           return;
         }
         lastError = e;
@@ -1253,8 +1285,13 @@ class SerialUtilWeb implements SerialUtil {
         }
       }
       await Future<void>.delayed(const Duration(milliseconds: 120));
-    } catch (_) {} finally {
+    } catch (_) {
+    } finally {
       _intentionalReaderStop = false;
     }
   }
+
+  @override
+  // TODO: implement detectedBaudRate
+  int get detectedBaudRate => throw UnimplementedError();
 }

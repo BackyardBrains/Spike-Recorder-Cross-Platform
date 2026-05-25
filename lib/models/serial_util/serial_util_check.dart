@@ -7,6 +7,9 @@ abstract class SerialUtil {
   factory SerialUtil() => getSerialUtil();
   bool isOpeningFile = false;
 
+  /// Non-zero after [openPortToListen] with baud `0` (auto-detect) succeeds.
+  int get detectedBaudRate => 0;
+
   int vendorId = 0;
   int productId = 0;
 

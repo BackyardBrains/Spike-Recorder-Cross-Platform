@@ -1814,7 +1814,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.4',
+                                            'SpikeRecorder App ver. 2.1.5',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -2509,7 +2509,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   if (isRecording == 1) return;
                   if (GraphTemplate.selectedBoard != null &&
                       GraphTemplate.selectedBoard!.expansionBoards != null &&
-                      GraphTemplate.selectedBoard!.expansionBoards!.isEmpty) return;
+                      GraphTemplate.selectedBoard!.expansionBoards!.isEmpty)
+                    return;
 
                   _isBoardTimerRunning = false;
                   print("Writing to port board:;");
@@ -3122,8 +3123,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         !isSpeakerChannelMuted[0]) {
       final micChunk = Uint8List.fromList(microphoneUtil.micStream.value);
       if (!kIsWeb) {
-        _liveMicProcessedCache =
-            processingUtil.processMicrophoneData(micChunk);
+        _liveMicProcessedCache = processingUtil.processMicrophoneData(micChunk);
         _processedSamplePlayer?.enqueueProcessedChunk(_liveMicProcessedCache!);
       }
     }
@@ -4876,14 +4876,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
           //   foundDevices = "HEARTSS";
           // }
           if (isMfiDeviceConnect) {
-            context
-                .read<DataStatusProvider>()
-                .setMicrophoneDataStatus(false);
+            context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
           } else {
             context
                 .read<DataStatusProvider>()
                 .setMicrophoneDataStatus(_availablePorts.isEmpty);
-
           }
           Provider.of<ConstantProvider>(context, listen: false)
               .setBaudRate(foundDevices == "HHIBOX" ? 500000 : 222222);
@@ -5830,7 +5827,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   serialWebButton() {
     return kIsWeb
-        ? isRecording != 0 || isOpeningFile 
+        ? isRecording != 0 || isOpeningFile
             ? SizedBox()
             : ElevatedButton(
                 // elevation: 2,
@@ -5861,7 +5858,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   }
                   _isSerialWebButtonEnabled = true;
                   setState(() {});
-                  print("serialWebButtonPressed ::: $_baudRate isDeviceConnect: $isDeviceConnect");
+                  print(
+                      "serialWebButtonPressed ::: $_baudRate isDeviceConnect: $isDeviceConnect");
                   serialWebButtonPressed(_baudRate);
                 },
                 child: Row(
@@ -5989,7 +5987,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   buildSerialUsageTypeButton(String s, int channelIdx) {
     bool isSelected = serialUsageType.contains(s);
-    print("SELECTED Serial usage type : $serialUsageType --VS-- $s == $isSelected");
+    print(
+        "SELECTED Serial usage type : $serialUsageType --VS-- $s == $isSelected");
     ButtonStyle style = ElevatedButton.styleFrom(
       // Toggle colors based on selection
       backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
@@ -6546,8 +6545,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void _syncLiveMonitorSpeakerMutes() {
     final player = _processedSamplePlayer;
     if (player == null) return;
-    final limit =
-        widget.channelCount.clamp(1, isSpeakerChannelMuted.length);
+    final limit = widget.channelCount.clamp(1, isSpeakerChannelMuted.length);
     for (var i = 0; i < limit; i++) {
       player.setChannelMuted(i, isSpeakerChannelMuted[i]);
     }
@@ -6716,9 +6714,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     if (isThresholdingButton) {
       if (kIsWeb) {
       } else {
-        final selectedChannel = context
-            .read<ThresholdStatusProvider>()
-            .selectedThresholdChannel;
+        final selectedChannel =
+            context.read<ThresholdStatusProvider>().selectedThresholdChannel;
         const isAverageSamples = true;
         arr = processingUtil.processThresholdData(samples, samples.length,
             drawSurfaceWidth, selectedChannel, isAverageSamples);
@@ -6763,12 +6760,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
         if (mounted) {
           provider.inputListener(Uint8List(0));
         }
-      } while (mounted && _serialDisplayDeferred && _shouldPaintSerialGraphNow());
+      } while (
+          mounted && _serialDisplayDeferred && _shouldPaintSerialGraphNow());
     } finally {
       _serialGraphPaintInFlight = false;
-      if (mounted &&
-          _serialDisplayDeferred &&
-          _shouldPaintSerialGraphNow()) {
+      if (mounted && _serialDisplayDeferred && _shouldPaintSerialGraphNow()) {
         _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
       }
     }

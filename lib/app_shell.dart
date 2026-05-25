@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:byb_accessory/byb_accessory.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
+// import 'package:firebase_core/firebase_core.dart';
+// import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+// import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -68,24 +68,24 @@ void registerDeferredStartupTasks() {
 
 Future<void> _initializeFirebaseAndCrashlytics() async {
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    // await Firebase.initializeApp(
+    //   options: DefaultFirebaseOptions.currentPlatform,
+    // );
   } catch (e) {
     debugPrint('Firebase initialization error: $e');
     return;
   }
 
   if (kIsWeb) return;
-  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
+  // FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  // PlatformDispatcher.instance.onError = (error, stack) {
+  //   FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+  //   return true;
+  // };
 }
 
 class MyApp extends StatefulWidget {
-  static FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+  // static FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 
   const MyApp({super.key});
 
@@ -116,7 +116,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         _startAccessoryInitIfNeeded();
         // if (SchedulerBinding.instance.hasScheduledFrame) return;
         SchedulerBinding.instance.scheduleFrame();
-
       });
       /*
       WidgetsBinding.instance.addPostFrameCallback((_) {

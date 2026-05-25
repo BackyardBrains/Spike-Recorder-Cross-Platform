@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:html';
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:serial/serial.dart';
+import 'package:spikerbox_architecture/message_identifier.dart';
 import 'package:spikerbox_architecture/models/debugging.dart';
+import 'package:spikerbox_architecture/models/frame_detect.dart';
 import 'package:spikerbox_architecture/models/usb_protocol/commands.dart';
 
 import 'serial_device_frame_parser.dart';
@@ -53,24 +57,61 @@ class SerialUtilWeb implements SerialUtil {
 
   static const int _serialBufferSize = 1048576;
   static const List<int> _probeBaudRates = [500000, 230400, 222222];
-  static final Uint8List _probeQueryBytes =
-      UsbCommand.hwTypeInquiry.cmdAsBytes();
-  static const Duration _probeSettleTime = Duration(milliseconds: 150);
+  static final Uint8List _probeQueryBytes = Uint8List.fromList([
+    ...UsbCommand.hwTypeInquiry.cmdAsBytes(),
+    ...utf8.encode('board:;'),
+  ]);
+  /// Same tokens [GraphTemplate.listOfDevices] accepts from hwTypeInquiry.
+  static const List<String> _probeDeviceReplyTokens = [
+    'PLANTSS;',
+    'MUSCUSB1;',
+    'HBLEOSB;',
+    'MSBPCDC;',
+    'NRNSBPRO;',
+    'HUMANSB;',
+    'NSBPCDC;',
+    'HHIBOX;',
+    'UNIBOX;',
+    'NEURONSS;',
+    'HEARTSS;',
+  ];
+  static const int _probeAsciiWindowMax = 16384;
+  /// Valid BYB ADC pairs (byte >127 then low byte) — same as [FrameDetect] in graph.
+  static const int _probeAdcSyncHitsRequired = 2;
+  static const Duration _probeSettleTime = Duration(milliseconds: 400);
   static const Duration _probeReopenDelay = Duration(milliseconds: 300);
-  static const Duration _probeFrameTimeout = Duration(seconds: 1);
+  static const Duration _probeFrameTimeout = Duration(seconds: 3);
   static const int _probeAttemptsPerBaud = 2;
   static const int _probeBaudScanRounds = 5;
 
   final SerialDeviceFrameParser _frameParser = SerialDeviceFrameParser();
+  final BytesBuilder _probeAsciiWindow = BytesBuilder(copy: false);
+  late final MessageIdentifier _probeMessageId = MessageIdentifier(
+    onDeviceData: (_) {},
+    onDeviceMessage: (Uint8List msg) {
+      if (!_probing || !_probeAcceptRx || _probeSawCompleteFrame) {
+        return;
+      }
+      if (_probeReplyIdentifiesDevice(msg)) {
+        print('SerialUtilWeb: probe escape message @ $_baudRate');
+        _onProbeCompleteFrame();
+      }
+    },
+  );
   bool _probing = false;
   bool _probeReading = false;
   bool _probeSawCompleteFrame = false;
   bool _probeAcceptRx = false;
   bool _intentionalProbeStop = false;
+  /// Set while [_disposeReaderBody] cancels the reader — pending [read] ends with BreakError.
+  bool _intentionalReaderStop = false;
   int _probeRxBytes = 0;
   Completer<bool>? _probeResponseCompleter;
   Timer? _queryRepeatTimer;
   ReadableStreamReader? _probeActiveReader;
+  Future<void>? _probeWriteInFlight;
+  FrameDetect? _probeFrameDetect;
+  int _probeAdcFrameHits = 0;
 
   /// [ReadableStreamDefaultReader.cancel] / the read pump can stall on some USB
   /// states; [closePort] must not block [connectToPort] indefinitely.
@@ -90,6 +131,8 @@ class SerialUtilWeb implements SerialUtil {
       return null;
     }
     _probing = true;
+    int? bestAdcBaud;
+    var bestAdcScore = 0.0;
     try {
       for (var round = 1; round <= _probeBaudScanRounds; round++) {
         if (round > 1) {
@@ -100,12 +143,32 @@ class SerialUtilWeb implements SerialUtil {
         }
         for (final baud in _probeBaudRates) {
           print('SerialUtilWeb: probing baud $baud (round $round)');
-          final ok = await _tryProbeBaud(baud);
+          final ok = await _tryProbeBaud(baud, acceptAdcStream: false);
           if (ok) {
             return baud;
           }
+          final score = _probeRxBytes > 0
+              ? _probeAdcFrameHits / _probeRxBytes
+              : 0.0;
+          print(
+            'SerialUtilWeb: @$baud scan rawRx=$_probeRxBytes '
+            'adcSyncs=$_probeAdcFrameHits score=${score.toStringAsFixed(6)}',
+          );
+          if (_probeAdcFrameHits >= _probeAdcSyncHitsRequired &&
+              score > bestAdcScore) {
+            bestAdcScore = score;
+            bestAdcBaud = baud;
+          }
           await Future<void>.delayed(_probeReopenDelay);
         }
+      }
+      if (bestAdcBaud != null) {
+        print(
+          'SerialUtilWeb: using $bestAdcBaud (score=$bestAdcScore, '
+          'no escape reply)',
+        );
+        final ok = await _tryProbeBaud(bestAdcBaud, acceptAdcStream: true);
+        return ok ? bestAdcBaud : null;
       }
       return null;
     } finally {
@@ -135,15 +198,67 @@ class SerialUtilWeb implements SerialUtil {
     });
   }
 
-  Future<bool> _sendQueryAndAwaitFrameProbe() async {
-    _probeSawCompleteFrame = false;
+  void _resetProbeRxState() {
     _frameParser.reset();
+    _probeMessageId.reset();
+    _probeAsciiWindow.clear();
+    _probeRxBytes = 0;
+    _probeFrameDetect =
+        FrameDetect(channelCount: 1, minimumBytesToCheck: 50);
+    _probeAdcFrameHits = 0;
+  }
+
+  void _resetProbeMessageAttemptState() {
+    _frameParser.reset();
+    _probeMessageId.reset();
+    _probeAsciiWindow.clear();
+  }
+
+  void _noteProbeAdcStreamSync(Uint8List chunk) {
+    final detect = _probeFrameDetect;
+    if (detect == null) {
+      return;
+    }
+    if (detect.addData(chunk) != null) {
+      _probeAdcFrameHits++;
+    }
+  }
+
+  bool _probeReplyIdentifiesDevice(Uint8List msg) {
+    final raw = String.fromCharCodes(msg);
+    for (final token in _probeDeviceReplyTokens) {
+      if (raw.contains(token)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _probeAsciiWindowContainsDeviceToken() {
+    if (_probeAsciiWindow.isEmpty) {
+      return false;
+    }
+    final text = String.fromCharCodes(_probeAsciiWindow.toBytes());
+    for (final token in _probeDeviceReplyTokens) {
+      if (text.contains(token)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<bool> _sendQueryAndAwaitFrameProbe() async {
+    if (_probeSawCompleteFrame) {
+      return true;
+    }
+    _resetProbeMessageAttemptState();
     _probeResponseCompleter = Completer<bool>();
 
+    if (_probing) {
+      _probeAcceptRx = true;
+    }
     await _sendProbeQueryOnce();
     if (_probing) {
-      _frameParser.reset();
-      _probeAcceptRx = true;
       _startQueryRepeatTimer();
     }
 
@@ -154,19 +269,19 @@ class SerialUtilWeb implements SerialUtil {
           print(
             'SerialUtilWeb: probe timeout (${_probeFrameTimeout.inSeconds}s) — '
             'rawRx=$_probeRxBytes B, buf=${_frameParser.bufferedBytes} B, '
-            'start=${_frameParser.hasStartMarker}, end=${_frameParser.hasEndMarker}',
+            'start=${_frameParser.hasStartMarker}, end=${_frameParser.hasEndMarker}, '
+            'adcSyncs=$_probeAdcFrameHits',
           );
           return _probeSawCompleteFrame;
         },
       );
     } finally {
       _cancelQueryRepeatTimer();
-      _probeAcceptRx = false;
       _probeResponseCompleter = null;
     }
   }
 
-  Future<bool> _tryProbeBaud(int baud) async {
+  Future<bool> _tryProbeBaud(int baud, {bool acceptAdcStream = true}) async {
     final port = serialPort;
     if (port == null) {
       return false;
@@ -182,11 +297,10 @@ class SerialUtilWeb implements SerialUtil {
     _baudRate = baud;
     _probeSawCompleteFrame = false;
     _probeAcceptRx = false;
-    _probeRxBytes = 0;
-    _frameParser.reset();
+    _resetProbeRxState();
 
     try {
-      await _openSerialPortWithRetry();
+      await _openSerialPortWithRetry(probing: true);
     } catch (e) {
       print('SerialUtilWeb: probe open @$baud failed: $e');
       return false;
@@ -194,13 +308,14 @@ class SerialUtilWeb implements SerialUtil {
 
     _probing = true;
     _probeReading = true;
+    _probeAcceptRx = true;
     final probeReader = port.readable.reader;
     _probeActiveReader = probeReader;
     final probePump = _probeReadLoop(port, probeReader);
 
     try {
       await Future<void>.delayed(_probeSettleTime);
-      var success = false;
+      var success = _probeSawCompleteFrame;
       for (var attempt = 1; attempt <= _probeAttemptsPerBaud; attempt++) {
         if (attempt > 1) {
           print(
@@ -218,6 +333,16 @@ class SerialUtilWeb implements SerialUtil {
       final readerToStop = _probeActiveReader ?? probeReader;
       await _stopProbeReadLoop(readerToStop, probePump);
 
+      if (acceptAdcStream &&
+          !success &&
+          _probeAdcFrameHits >= _probeAdcSyncHitsRequired) {
+        print(
+          'SerialUtilWeb: probe @$baud OK via ADC stream '
+          '($_probeAdcFrameHits syncs, no escape reply)',
+        );
+        success = true;
+      }
+
       if (success) {
         _probing = false;
         await _fullyReleasePortStreams();
@@ -232,6 +357,7 @@ class SerialUtilWeb implements SerialUtil {
       await _closeSerialPortWithSettle();
       return false;
     } finally {
+      _probeAcceptRx = false;
       _probeActiveReader = null;
       _probeResponseCompleter = null;
     }
@@ -254,6 +380,21 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   Future<void> _sendProbeQueryOnce() async {
+    while (_probeWriteInFlight != null) {
+      await _probeWriteInFlight;
+    }
+    final write = _sendProbeQueryOnceBody();
+    _probeWriteInFlight = write;
+    try {
+      await write;
+    } finally {
+      if (identical(_probeWriteInFlight, write)) {
+        _probeWriteInFlight = null;
+      }
+    }
+  }
+
+  Future<void> _sendProbeQueryOnceBody() async {
     final port = serialPort;
     if (port == null || _serialReopenInProgress) {
       return;
@@ -264,10 +405,12 @@ class SerialUtilWeb implements SerialUtil {
       await w.ready.timeout(_writerReadyTimeout, onTimeout: () {});
       await w.write(_probeQueryBytes);
       await w.ready.timeout(_writerReadyTimeout, onTimeout: () {});
-      await w.close();
     } catch (e) {
       print('SerialUtilWeb: probe query send failed: $e');
     } finally {
+      try {
+        await w?.close();
+      } catch (_) {}
       try {
         w?.releaseLock();
       } catch (_) {}
@@ -289,31 +432,58 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   void _onProbeRxChunk(Uint8List chunk) {
-    _probeRxBytes += chunk.length;
     if (_probing && !_probeAcceptRx) {
       return;
     }
+    _probeRxBytes += chunk.length;
+
+    _noteProbeAdcStreamSync(chunk);
+
+    // Same path as graph_template [_preEscapeSequenceBuffer] → MessageIdentifier.
+    _probeMessageId.addPacket(chunk);
+
+    _probeAsciiWindow.add(chunk);
+    if (_probeAsciiWindow.length > _probeAsciiWindowMax) {
+      final all = _probeAsciiWindow.toBytes();
+      _probeAsciiWindow.clear();
+      _probeAsciiWindow.add(
+        Uint8List.sublistView(all, all.length - _probeAsciiWindowMax),
+      );
+    }
+    if (!_probeSawCompleteFrame && _probeAsciiWindowContainsDeviceToken()) {
+      print('SerialUtilWeb: probe ASCII token in stream @ $_baudRate');
+      _onProbeCompleteFrame();
+      return;
+    }
+
     if (_frameParser.feed(chunk)) {
       final frame = _frameParser.lastCompleteFrame;
       final payload = _frameParser.lastPayload;
       if (frame != null && payload != null) {
-        print(
-          'SerialUtilWeb: probe frame OK (${frame.length} B, '
-          '${payload.length} B payload) @ $_baudRate',
-        );
-        _onProbeCompleteFrame();
+        if (_probeReplyIdentifiesDevice(payload)) {
+          print(
+            'SerialUtilWeb: probe frame OK (${frame.length} B, '
+            '${payload.length} B payload) @ $_baudRate',
+          );
+          _onProbeCompleteFrame();
+        }
       }
     }
   }
 
-  bool _isRecoverableProbeReadError(Object e) {
-    return isSerialRecoverableLineError(e) || isSerialBreakError(e);
-  }
+  bool _isRecoverableProbeReadError(Object e) =>
+      isSerialRecoverableLineError(e);
 
   Future<ReadableStreamReader> _freshProbeReader(
     SerialPort port,
     ReadableStreamReader old,
   ) async {
+    try {
+      final cancelResult = (old as dynamic).cancel();
+      if (cancelResult is Future) {
+        await cancelResult.timeout(_readCancelTimeout, onTimeout: () {});
+      }
+    } catch (_) {}
     await _releaseReaderLock(old);
     if (!_probing) {
       await Future<void>.delayed(const Duration(milliseconds: 30));
@@ -348,8 +518,12 @@ class SerialUtilWeb implements SerialUtil {
           if (_intentionalProbeStop) {
             break;
           }
+          if (isSerialBreakError(e)) {
+            // Cancel/wrong-baud BREAK — skip this read, keep the probe loop alive.
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+            continue;
+          }
           if (_probing && _isRecoverableProbeReadError(e)) {
-            print('SerialUtilWeb: probe $e — keep reading');
             if (!_probeReading || serialPort == null) {
               break;
             }
@@ -661,6 +835,11 @@ class SerialUtilWeb implements SerialUtil {
             outbound.add(result.value);
           }
         } catch (e) {
+          if (_intentionalReaderStop ||
+              isSerialBreakError(e) ||
+              isSerialReaderReleaseError(e)) {
+            break;
+          }
           if (isSerialRecoverableLineError(e) &&
               reader == activeReader &&
               serialPort != null) {
@@ -677,6 +856,11 @@ class SerialUtilWeb implements SerialUtil {
         }
       }
     } catch (e) {
+      if (_intentionalReaderStop ||
+          isSerialBreakError(e) ||
+          isSerialReaderReleaseError(e)) {
+        return;
+      }
       print("Reading port failed with exception: \n$e");
       if (audioCallback != null && !isOpeningFile) {
         print("Audio Callback not null0");
@@ -925,14 +1109,18 @@ class SerialUtilWeb implements SerialUtil {
     return s.contains('already open') || s.contains('InvalidStateError');
   }
 
-  Future<void> _openSerialPortWithRetry() async {
+  Future<void> _openSerialPortWithRetry({bool probing = false}) async {
     final port = serialPort;
     if (port == null || _portOpen) {
       return;
     }
 
     Object? lastError;
-    print("openSerialPortWithRetry start: $_baudRate");
+    print("openSerialPortWithRetry start: $_baudRate probing=$probing");
+    // During probe, skip hardware flow control so hwTypeInquiry can be written.
+    final flow = probing || !_useHardwareFlowControl
+        ? FlowControl.none
+        : FlowControl.hardware;
     final attempts = <Future<void> Function()>[
       () => port.open(
             baudRate: _baudRate,
@@ -940,9 +1128,7 @@ class SerialUtilWeb implements SerialUtil {
             stopBits: StopBits.one,
             parity: Parity.none,
             bufferSize: _serialBufferSize,
-            flowControl: _useHardwareFlowControl
-                ? FlowControl.hardware
-                : FlowControl.none,
+            flowControl: flow,
           ),
       () => port.open(
             baudRate: _baudRate,
@@ -950,9 +1136,7 @@ class SerialUtilWeb implements SerialUtil {
             stopBits: StopBits.one,
             parity: Parity.none,
             bufferSize: 8192,
-            flowControl: _useHardwareFlowControl
-                ? FlowControl.hardware
-                : FlowControl.none,
+            flowControl: flow,
           ),
       () => port.open(baudRate: _baudRate),
     ];
@@ -1041,6 +1225,7 @@ class SerialUtilWeb implements SerialUtil {
       return;
     }
     reader = null;
+    _intentionalReaderStop = true;
     try {
       try {
         final cancelResult = (localReader as dynamic).cancel();
@@ -1068,6 +1253,8 @@ class SerialUtilWeb implements SerialUtil {
         }
       }
       await Future<void>.delayed(const Duration(milliseconds: 120));
-    } catch (_) {}
+    } catch (_) {} finally {
+      _intentionalReaderStop = false;
+    }
   }
 }

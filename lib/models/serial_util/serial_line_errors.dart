@@ -12,6 +12,12 @@ bool isSerialFramingError(Object error) {
   return message.contains('FramingError') || message.contains('Framing error');
 }
 
+/// UART parity mismatch — common when baud rate is wrong during auto-probe.
+bool isSerialParityError(Object error) {
+  final message = error.toString();
+  return message.contains('ParityError') || message.contains('Parity error');
+}
+
 /// Read cancelled because we released the reader (not a baud-rate mismatch).
 bool isSerialBreakError(Object error) {
   final message = error.toString();
@@ -31,6 +37,9 @@ String serialLineErrorLabel(Object error) {
   if (isSerialFramingError(error)) {
     return 'FramingError';
   }
+  if (isSerialParityError(error)) {
+    return 'ParityError';
+  }
   if (isSerialBreakError(error)) {
     return 'Break';
   }
@@ -38,7 +47,9 @@ String serialLineErrorLabel(Object error) {
 }
 
 bool isSerialRecoverableLineError(Object error) =>
-    isSerialFramingError(error) || isSerialBufferOverrunError(error);
+    isSerialFramingError(error) ||
+    isSerialParityError(error) ||
+    isSerialBufferOverrunError(error);
 
 /// [SerialPort.close] on a port that was never opened or is already closed.
 bool isSerialPortAlreadyClosedError(Object error) {

@@ -11,6 +11,12 @@ void main() {
     expect(isSerialFramingError(Exception('FramingError: Framing error')), isTrue);
   });
 
+  test('detects ParityError message forms', () {
+    expect(isSerialParityError(Exception('ParityError: Parity error')), isTrue);
+    expect(isSerialRecoverableLineError(Exception('ParityError: Parity error')),
+        isTrue);
+  });
+
   test('detects BreakError from reader cancel', () {
     expect(isSerialBreakError(Exception('BreakError: Break received')), isTrue);
     expect(isSerialBreakError(Exception('Break received')), isTrue);

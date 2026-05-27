@@ -498,8 +498,8 @@ self.onmessage = async function (eventFromMain) {
             console.log("INITIALIZE_MICROPHONE : ", sampleRate, channelCount, drawSurfaceWidth);
             // sampleRate = eventFromMain.data.sampleRate;
             Module._processing_init();
-            Module._processing_set_channel_count(channelCount);
             let r = Module._processing_set_sample_rate(sampleRate);
+            Module._processing_set_channel_count(channelCount);
             console.log("SAMPLER RATE RES: ", r);
             packetLen = MAX_DISPLAY_SECONDS * sampleRate;
             const packetLen2 = packetLen; //1156;

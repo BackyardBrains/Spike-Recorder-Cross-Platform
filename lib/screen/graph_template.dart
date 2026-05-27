@@ -1814,7 +1814,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.5',
+                                            'SpikeRecorder App ver. 2.1.6',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -3752,7 +3752,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     startValue = filterValues[0];
     endValue = filterValues[1];
     double type = filterValues[2];
-    print("setupFilterValues - END");
+    print("setupFilterValues - END | $startValue --- $endValue | $type");
     List<String> filterTypes = [
       "ECG",
       "EEG",

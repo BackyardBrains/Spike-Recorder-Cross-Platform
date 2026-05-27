@@ -28,7 +28,7 @@ namespace backyardbrains {
             notchFilter = new NotchFilterPtr[channelCount];
             channelFilterEnabled = new bool[channelCount];
 
-            createFilters(0, channelCount, -1, lowCutOff, highCutOff, centerFrequency);
+            createFilters(Processor::sampleRate, channelCount, -1, lowCutOff, highCutOff, centerFrequency);
 
             initialized = true;
         }
@@ -40,6 +40,9 @@ namespace backyardbrains {
         }
 
         void Processor::setSampleRate(float sampleRate) {
+            if (sampleRate <= 0.0f) {
+                return;
+            }
             if (initialized) deleteFilters(channelCount, -1);
             Processor::sampleRate = sampleRate;
             // platform_log_filtering("SET SAMPLE RATE \n");
@@ -169,8 +172,8 @@ namespace backyardbrains {
             for (int i = 0; i < channelCount; i++) {
                 if (notchFilter[i] == nullptr) {
                     notchFilter[i] = new NotchFilter();
-                    notchFilter[i]->initWithSamplingRate(sampleRate);
                 }
+                notchFilter[i]->initWithSamplingRate(sampleRate);
                 notchFilter[i]->setCenterFrequency(centerFrequency);
                 notchFilter[i]->setQ(1.0);
             }
@@ -182,6 +185,9 @@ namespace backyardbrains {
         }
 
         void Processor::createFilters(float sampleRate, int channelCount, int channelIdx, float lowCutOff, float highCutOff, float centerFrequency) {
+            if (sampleRate <= 0.0f) {
+                return;
+            }
             // if (lowPassFilter == nullptr || highPassFilter == nullptr || notchFilter == nullptr) {
             //     lowPassFilter = new LowPassFilterPtr[channelCount];
             //     highPassFilter = new HighPassFilterPtr[channelCount];

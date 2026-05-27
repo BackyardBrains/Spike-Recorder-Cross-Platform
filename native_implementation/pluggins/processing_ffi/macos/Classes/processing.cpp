@@ -569,6 +569,14 @@ int32_t processing_set_sample_rate(int32_t sample_rate) {
             circularBuffer->setup(current_sample_rate, current_channel_count);
             circularBufferThreshold->setup(current_sample_rate, current_channel_count);
         }
+
+        if (current_notch_filter_freq != PROCESSING_MIN_FILTER_CUTOFF) {
+            processing_set_notch_filter(current_notch_filter_freq);
+        }
+        if (current_low_cut_off_freq != PROCESSING_MIN_FILTER_CUTOFF ||
+            current_high_cut_off_freq != PROCESSING_MAX_FILTER_CUTOFF) {
+            processing_set_band_filter(-1, current_low_cut_off_freq, current_high_cut_off_freq);
+        }
         
         return 0;
     } catch (...) {

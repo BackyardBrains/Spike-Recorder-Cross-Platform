@@ -43,7 +43,13 @@ namespace backyardbrains {
 // Filter integer data buffer
 //
         void FilterBase::filter(int16_t *data, int32_t numFrames, bool flush) {
+            if (data == nullptr || numFrames <= 0 || samplingRate <= 0.0) {
+                return;
+            }
             auto *tempFloatBuffer = (double *) std::malloc(numFrames * sizeof(double));
+            if (tempFloatBuffer == nullptr) {
+                return;
+            }
             for (int32_t i = numFrames - 1; i >= 0; i--) {
                 tempFloatBuffer[i] = (double) data[i];
             }
@@ -106,6 +112,9 @@ namespace backyardbrains {
         }
 
         void FilterBase::intermediateVariables(double Fc, double Q) {
+            if (samplingRate <= 0.0 || Fc <= 0.0 || Q <= 0.0) {
+                return;
+            }
             omega = static_cast<double>(2 * M_PI * Fc / samplingRate);
             omegaS = sin(omega);
             omegaC = cos(omega);

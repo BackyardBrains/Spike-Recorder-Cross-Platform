@@ -16,7 +16,11 @@ import 'serial_util_check.dart';
 SerialUtil getSerialUtil() => SerialUtilWeb();
 
 class SerialUtilWeb implements SerialUtil {
-  bool _useHardwareFlowControl = true;
+  // Many USB-serial bridges used by BYB devices do not implement RTS/CTS in a way
+  // that Chromium's Web Serial API can reliably negotiate (especially on ChromeOS).
+  // Using hardware flow control here has been observed to cause intermittent
+  // "NetworkError: The device has been lost." after a successful open.
+  bool _useHardwareFlowControl = false;
 
   @override
   bool isOpeningFile = false;
@@ -704,7 +708,16 @@ class SerialUtilWeb implements SerialUtil {
     } catch (e, _) {
       print("SerialUtilWeb.writeToPort failed: $e");
       await _resetWriterAfterError();
-      audioCallback!(1, null);
+      // Avoid compounding a transport error with a null-callback crash.
+      // Some call paths write before `getAvailablePortsWeb` finishes wiring the callback,
+      // and ChromeOS disconnections can tear down the port mid-session.
+      try {
+        await _teardownSerialPortAfterReadFailure();
+      } catch (_) {}
+      final cb = audioCallback;
+      if (cb != null) {
+        cb(1, null);
+      }
     }
   }
 
@@ -907,7 +920,10 @@ class SerialUtilWeb implements SerialUtil {
     writer = null;
     reader = null;
     portInfo = null;
-    // serialPort = null;
+    // After "device lost", the underlying handle is typically invalid; force a fresh
+    // requestPort() next time instead of repeatedly failing open().
+    serialPort = null;
+    _portOpen = false;
   }
 
   /// Connection is directly established with the selected port

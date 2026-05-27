@@ -1409,7 +1409,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                               // bottom:0,
                               child: SizedBox(
                                 height: serialUsageType == "Custom" ? 340 : 220,
-                                child: TabbedViewTheme(
+                                child: IgnorePointer(
+                                  ignoring: isDrawerOpened,
+                                  child: TabbedViewTheme(
                                     data: channelTabTheme!,
                                     child: TabbedView(
                                       controller: _channelTabController!,
@@ -1440,7 +1442,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                         setState(() {});
                                         return true;
                                       },
-                                    )),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                             Positioned(
@@ -1535,7 +1539,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                               left: 0,
                               right: 0,
                               child: Column(
-                                  mainAxisSize: MainAxisSize.max,
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     SizedBox(
@@ -1600,6 +1605,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                     // ),
                                     if (isDrawerOpened) ...[
                                       Container(
+                                        width: double.infinity,
                                         decoration: BoxDecoration(
                                           color: Color(0x14D9D9D9),
                                           borderRadius: BorderRadius.only(
@@ -1618,38 +1624,32 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               notchFilterSettings
                                                   .filterConfiguration
                                                   .sampleRate = _sampleRate;
-                                              print(
-                                                  "the notch filter setting is ${notchFilterSettings.toJson()}");
-                                              if (notchFilterSettings
-                                                  .isFilterOn) {
+                                              try {
                                                 if (notchFilterSettings
-                                                        .filterConfiguration
-                                                        .cutOffFrequency ==
-                                                    50) {
-                                                  int temp =
-                                                      await processingUtil
-                                                          .setNotchFilter(50);
-                                                  print(
-                                                      "processingUtil.setNotchFilter(50) $temp");
-                                                } else if (notchFilterSettings
-                                                        .filterConfiguration
-                                                        .cutOffFrequency ==
-                                                    60) {
-                                                  processingUtil
-                                                      .setNotchFilter(60);
-                                                  print(
-                                                      "processingUtil.setNotchFilter(60)");
+                                                    .isFilterOn) {
+                                                  final cutOff =
+                                                      notchFilterSettings
+                                                          .filterConfiguration
+                                                          .cutOffFrequency;
+                                                  if (cutOff == 50 ||
+                                                      cutOff == 60) {
+                                                    await processingUtil
+                                                        .setNotchFilter(
+                                                            cutOff.toDouble());
+                                                  }
                                                 } else {
-                                                  processingUtil
+                                                  await processingUtil
                                                       .setNotchFilter(-1);
                                                 }
+                                              } catch (e, st) {
+                                                debugPrint(
+                                                    'setNotchFilter failed: $e\n$st');
                                               }
-
+                                              if (!context.mounted) return;
                                               context
                                                   .read<DataStatusProvider>()
                                                   .setNotchPassFilterSetting(
                                                       notchFilterSettings);
-                                              // localPlugin.initNotchPassFilters(notchFilterSettings);
                                             }),
                                       ),
                                       Divider(
@@ -1814,7 +1814,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.6',
+                                            'SpikeRecorder App ver. 2.1.7',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -3752,7 +3752,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     startValue = filterValues[0];
     endValue = filterValues[1];
     double type = filterValues[2];
-    print("setupFilterValues - END | $startValue --- $endValue | $type");
+    print("setupFilterValues - END");
     List<String> filterTypes = [
       "ECG",
       "EEG",
@@ -7551,10 +7551,10 @@ class NotchPassFilterWidget extends StatefulWidget {
 }
 
 class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
-  bool isNotch50 = false;
-  bool isNotch60 = false;
-  final double _sampleRate = 0;
+  bool _checked50 = false;
+  bool _checked60 = false;
   late FilterSetup _notchPassFilterSettings;
+
   @override
   void initState() {
     super.initState();
@@ -7567,122 +7567,137 @@ class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
         isFilterOn: false);
   }
 
+  void _apply50Hz(bool checked, int sampleRate) {
+    setState(() {
+      _checked50 = checked;
+      if (checked) {
+        _checked60 = false;
+      }
+    });
+    final dataStatus = context.read<DataStatusProvider>();
+    if (checked) {
+      dataStatus.set60HertzStatus(false);
+    }
+    dataStatus.set50HertzStatus(checked);
+    _notchPassFilterSettings = _notchPassFilterSettings.copyWith(
+      filterType: FilterType.notchFilter,
+      isFilterOn: checked,
+      filterConfiguration: FilterConfiguration(
+        cutOffFrequency: 50,
+        sampleRate: sampleRate,
+      ),
+    );
+    widget.onTapNotchFrequency(_notchPassFilterSettings);
+  }
+
+  void _apply60Hz(bool checked, int sampleRate) {
+    setState(() {
+      _checked60 = checked;
+      if (checked) {
+        _checked50 = false;
+      }
+    });
+    final dataStatus = context.read<DataStatusProvider>();
+    if (checked) {
+      dataStatus.set50HertzStatus(false);
+    }
+    dataStatus.set60HertzStatus(checked);
+    _notchPassFilterSettings = _notchPassFilterSettings.copyWith(
+      filterType: FilterType.notchFilter,
+      isFilterOn: checked,
+      filterConfiguration: FilterConfiguration(
+        cutOffFrequency: 60,
+        sampleRate: sampleRate,
+      ),
+    );
+    widget.onTapNotchFrequency(_notchPassFilterSettings);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Consumer2<SampleRateProvider, DataStatusProvider>(
-        builder: (context, sampleRate, dataStatus, snapshot) {
-      return Container(
-        padding: EdgeInsets.all(10),
-        // decoration: BoxDecoration(
-        //   color: Color(0xFF2e2e2e),
-        //   borderRadius: BorderRadius.circular(16),
-        // ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            Icon(
-              const IconData(0xe90b, fontFamily: "IcomoonIcons"),
-              color: Colors.white,
-            ),
-            SizedBox(
-              width: 10,
-            ),
-            Text(
-              "Attenuate frequency (Notch filter) : ",
-              style: SoftwareTextStyle().kWtMediumTextStyle,
-            ),
-            Row(
+    final sampleRate = context.watch<SampleRateProvider>().sampleRate;
+    return Row(
+      mainAxisSize: MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 0, 10),
+          child: const Icon(
+            IconData(0xe90b, fontFamily: "IcomoonIcons"),
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          "Attenuate frequency (Notch filter) : ",
+          style: SoftwareTextStyle().kWtMediumTextStyle,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(0, 10, 10, 10),
+            child: Row(
               children: [
                 Text(
                   "50 Hz",
                   style: SoftwareTextStyle().kWtMediumTextStyle,
                 ),
                 WhiteColorCheckBox(
-                  valueStatus: dataStatus.is50Hertz,
-                  onChanged: (value) {
-                    if (isNotch60) {
-                      dataStatus.set60HertzStatus(false);
-
-                      isNotch50 = value!;
-                    } else {
-                      isNotch50 = value!;
-                    }
-                    dataStatus.set50HertzStatus(value);
-                    _notchPassFilterSettings =
-                        _notchPassFilterSettings.copyWith(
-                            filterType: FilterType.notchFilter,
-                            isFilterOn: value,
-                            filterConfiguration: FilterConfiguration(
-                                cutOffFrequency: 50,
-                                sampleRate: sampleRate.sampleRate));
-                    widget.onTapNotchFrequency(_notchPassFilterSettings);
-                  },
+                  value: _checked50,
+                  onChanged: (checked) => _apply50Hz(checked, sampleRate),
                 ),
-              ],
-            ),
-            const SizedBox(
-              width: 10,
-            ),
-            Row(
-              children: [
+                const SizedBox(width: 16),
                 Text(
                   "60 Hz",
                   style: SoftwareTextStyle().kWtMediumTextStyle,
                 ),
                 WhiteColorCheckBox(
-                  valueStatus: dataStatus.is60Hertz,
-                  onChanged: (value) {
-                    print("value");
-                    print(value);
-
-                    if (isNotch50) {
-                      dataStatus.set50HertzStatus(false);
-                      isNotch60 = value!;
-                    } else {
-                      isNotch60 = value!;
-                    }
-                    dataStatus.set60HertzStatus(value);
-                    _notchPassFilterSettings =
-                        _notchPassFilterSettings.copyWith(
-                            filterType: FilterType.notchFilter,
-                            isFilterOn: value,
-                            filterConfiguration: FilterConfiguration(
-                                cutOffFrequency: 60,
-                                sampleRate: sampleRate.sampleRate));
-                    widget.onTapNotchFrequency(_notchPassFilterSettings);
-                  },
+                  value: _checked60,
+                  onChanged: (checked) => _apply60Hz(checked, sampleRate),
                 ),
               ],
-            )
-          ],
+            ),
+          ),
         ),
-      );
-    });
+      ],
+    );
   }
 }
 
-// ignore: must_be_immutable
-class WhiteColorCheckBox extends StatefulWidget {
-  WhiteColorCheckBox(
-      {required this.valueStatus, super.key, required this.onChanged});
+/// Custom checkbox with explicit green fill — Material [Checkbox] theming is
+/// unreliable on Windows desktop (checked state often stays unstyled).
+class WhiteColorCheckBox extends StatelessWidget {
+  const WhiteColorCheckBox({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
 
-  bool? valueStatus;
-  final Function(bool?) onChanged;
+  final bool value;
+  final ValueChanged<bool> onChanged;
 
-  @override
-  State<WhiteColorCheckBox> createState() => _WhiteColorCheckBoxState();
-}
+  static const double _size = 20;
 
-class _WhiteColorCheckBoxState extends State<WhiteColorCheckBox> {
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: ThemeData(unselectedWidgetColor: Colors.white),
-      child: Checkbox(
-        activeColor: SoftwareColors.kGraphColor,
-        checkColor: Colors.white,
-        onChanged: widget.onChanged,
-        value: widget.valueStatus,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Container(
+          width: _size,
+          height: _size,
+          decoration: BoxDecoration(
+            color: value ? SoftwareColors.kGraphColor : Colors.transparent,
+            border: Border.all(color: Colors.white, width: 1.5),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          alignment: Alignment.center,
+          child: value
+              ? const Icon(Icons.check, size: 14, color: Colors.white)
+              : null,
+        ),
       ),
     );
   }

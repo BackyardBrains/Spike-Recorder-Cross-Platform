@@ -1409,40 +1409,40 @@ class _GraphTemplateState extends State<GraphTemplate> {
                               // bottom:0,
                               child: SizedBox(
                                 height: serialUsageType == "Custom" ? 340 : 220,
-                                child: IgnorePointer(
-                                  ignoring: isDrawerOpened,
-                                  child: TabbedViewTheme(
-                                    data: channelTabTheme!,
-                                    child: TabbedView(
-                                      controller: _channelTabController!,
-                                      contentBuilder: (context, index) {
-                                        return ClipRRect(
-                                          borderRadius: BorderRadius.all(
-                                              Radius.circular(16)),
-                                          clipBehavior: Clip.antiAlias,
-                                          child: Container(
-                                              color: Color(0xFF2e2e2e),
-                                              child: Center(
-                                                  child: getTabbedViewChildren(
-                                                      index))),
-                                        );
-                                      },
-                                      tabCloseInterceptor: (tabIndex, tabData) {
+                                child: TabbedViewTheme(
+                                  data: channelTabTheme!,
+                                  child: TabbedView(
+                                    controller: _channelTabController!,
+                                    contentBuilder: (context, index) {
+                                      return ClipRRect(
+                                        borderRadius: BorderRadius.all(
+                                            Radius.circular(16)),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: Container(
+                                            color: Color(0xFF2e2e2e),
+                                            child: Center(
+                                                child: getTabbedViewChildren(
+                                                    index))),
+                                      );
+                                    },
+                                    tabCloseInterceptor: (tabIndex, tabData) {
+                                      return false;
+                                    },
+                                    tabSelectInterceptor: (int channelIdx) {
+                                      // Keep tab stable while drawer is open, but
+                                      // allow tapping widgets inside current tab.
+                                      if (isDrawerOpened) {
                                         return false;
-                                      },
-                                      tabSelectInterceptor: (int channelIdx) {
-                                        // serialUsageType = filterUsageTypeChannels[channelIdx];
-                                        selectedTabIdx = channelIdx;
-                                        serialUsageType =
-                                            arrFilterUsageTypeChannel[
-                                                channelIdx];
-                                        print(
-                                            "arrFilterUsageTypeChannel: $arrFilterUsageTypeChannel --- $serialUsageType");
-                                        // createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
-                                        setState(() {});
-                                        return true;
-                                      },
-                                    ),
+                                      }
+                                      selectedTabIdx = channelIdx;
+                                      serialUsageType =
+                                          arrFilterUsageTypeChannel[channelIdx];
+                                      print(
+                                          "arrFilterUsageTypeChannel: $arrFilterUsageTypeChannel --- $serialUsageType");
+                                      // createTabBarConfiguration(deviceChannelCount, context.read<ChannelFilterProvider>());
+                                      setState(() {});
+                                      return true;
+                                    },
                                   ),
                                 ),
                               ),
@@ -1814,7 +1814,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.7',
+                                            'SpikeRecorder App ver. 2.1.8',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,

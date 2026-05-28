@@ -38,6 +38,7 @@ import 'package:spikerbox_architecture/widget/darkdropdown_widget.dart';
 import 'package:spikerbox_architecture/widget/hump_custom_painter.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 import 'package:wav/wav.dart';
+import 'package:spikerbox_architecture/functionality/wav_file_loader.dart';
 import 'package:window_manager/window_manager.dart';
 import '../provider/provider_export.dart';
 import '../widget/widget_export.dart';
@@ -4264,7 +4265,27 @@ class _GraphTemplateState extends State<GraphTemplate> {
     print("CURRENT LOADED FILEzzzqqqqq PATH: $currentLoadedFilePath");
     if (currentLoadedFilePath.endsWith(".wav")) {
       String? recordedFilePath = "";
-      final wavReader = await Wav.readFile(currentLoadedFilePath);
+      Wav wavReader;
+      try {
+        wavReader = await readWavFromPath(currentLoadedFilePath);
+      } on FormatException catch (e, st) {
+        debugPrint('Failed to read WAV: $e\n$st');
+        if (context.mounted) {
+          PanaraInfoDialog.show(
+            context,
+            textColor: Colors.red,
+            title: "Error",
+            message:
+                "Could not open this WAV file. It may be corrupted or use an unsupported format.",
+            buttonText: "Okay",
+            onTapDismiss: () => Navigator.pop(context),
+            panaraDialogType: PanaraDialogType.error,
+            barrierDismissible: false,
+          );
+        }
+        isOpeningFile = false;
+        return;
+      }
       final wavChannelCount = wavReader.channels.length;
       final wavSampleRate = wavReader.samplesPerSecond;
       if (wavChannelCount > 1) {

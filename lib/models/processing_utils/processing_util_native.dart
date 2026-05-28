@@ -1157,8 +1157,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
     for (int i = 0; i < thresholdChannelCount; i++) {
       inSampleCountsPtr[i] = (frameCount);
+      // outSamplesPtr[i] = calloc<Int16>(
+      //     (_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS / 2)
+      //         .floor()); // 5x for envelope
       outSamplesPtr[i] = calloc<Int16>(
-          (_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS / 2)
+          (_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS)
               .floor()); // 5x for envelope
     }
     // print("frameCount: $frameCount || SAMPLERATE : ${_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS / 2}");

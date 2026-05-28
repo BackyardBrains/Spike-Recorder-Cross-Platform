@@ -3149,7 +3149,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
             (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
         if (isThresholdingButton) {
           // print("Don't Draw last result for thresholding");
-          return;
+          if (!kIsWeb) {
+            return;
+          }
         }
         processingUtil.prepareDisplayMicrophoneData(
             [Int16List(0)],

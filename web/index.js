@@ -6,6 +6,8 @@
 var mWorker;
 let workerChannel;
 var fileHandle;
+/** Set when user picks .wav for open; START_OPENING runs after NWB_FILE_CREATED. */
+let pendingWavOpen = null;
 
 let recordingVisibleSignalsList = [];
 let recordingVisibleChannelCount = 1;
@@ -104,6 +106,26 @@ function initializeModule() {
     if (event.data.message == "NWB_FILE_CREATED") {
       console.log("NWB_FILE_CREATED PATH: ", event.data.result);
       window.onNwbFileCreated(event.data.result);
+      if (event.data.isWavFile && pendingWavOpen) {
+        const pending = pendingWavOpen;
+        pendingWavOpen = null;
+        console.log("MWORKER START_OPENING after WAV conversion:", event.data.result);
+        mWorker.postMessage({
+          message: "START_OPENING_FILE_WEB",
+          filePath: event.data.result,
+          startIdx: pending.startIdx,
+          endIdx: pending.endIdx,
+          startChannel: pending.startChannel,
+          endChannel: pending.endChannel,
+          isStartOpeningFileWeb: pending.isStartOpeningFileWeb,
+          skipMemfsReinit: true,
+          fromWavConversion: true,
+        });
+      }
+    } else
+    if (event.data.message === "NWB_FILE_CREATE_FAILED") {
+      console.error("NWB_FILE_CREATE_FAILED:", event.data.error);
+      pendingWavOpen = null;
     } else
     if (event.data.message == "SEEK_NWB_FILE_BUFFER_WEB_CALLBACK_PLAYBACK") {
       console.log("SEEK_NWB_FILE_BUFFER_WEB_CALLBACK RESULT: ", event.data.message);
@@ -591,6 +613,13 @@ async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, end
         return "File can't be opened"
       }
       if (fileHandle[0].name.endsWith(".wav")) {
+        pendingWavOpen = {
+          startIdx: startIdx,
+          endIdx: endIdx,
+          startChannel: startChannel,
+          endChannel: endChannel,
+          isStartOpeningFileWeb: isStartOpeningFileWeb,
+        };
         mWorker.postMessage({
           "message": "CREATE_NWB_FILE",
           "isWavFile": true,
@@ -603,19 +632,6 @@ async function startOpeningFileWeb(filePath, startIdx, endIdx, startChannel, end
           "isStartOpeningFileWeb": isStartOpeningFileWeb,
         }, fileHandle[0]);
         window.setOpenedFileName(fileHandle[0].name.replace(".wav", ".nwb"));
-        setTimeout(() => {
-          console.log("MWORKER TRY TO POST MESSAGE (wav): ");
-          mWorker.postMessage({
-            "message": "START_OPENING_FILE_WEB",
-            "filePath": fileHandle[0].name.replace(".wav", ".nwb"),
-            "startIdx": startIdx,
-            "endIdx": endIdx,
-            "startChannel": startChannel,
-            "endChannel": endChannel,
-            "fileHandle": fileHandle[0],
-            "isStartOpeningFileWeb": isStartOpeningFileWeb,
-          });
-        }, 1000);
       } else if (fileHandle[0].name.endsWith(".nwb")) {
         window.setOpenedFileName(fileHandle[0].name);
         console.log("MWORKER TRY TO POST MESSAGE (nwb): ");

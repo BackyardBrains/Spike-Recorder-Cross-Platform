@@ -712,6 +712,8 @@ self.onmessage = async function (eventFromMain) {
                     endPositionIdx,  // int (toSample)
                     drawSurfaceWidth         // int
                 );
+                // console.log("RESULT DRAWING: ", resultDrawing, );
+                
                 if (resultDrawing == 0) {
                     try{
                         if (inTotalEvents > 0) {

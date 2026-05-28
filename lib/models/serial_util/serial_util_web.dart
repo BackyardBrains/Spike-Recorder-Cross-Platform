@@ -88,7 +88,7 @@ class SerialUtilWeb implements SerialUtil {
   static const int _probeAdcSyncHitsRequired = 2;
   static const Duration _probeSettleTime = Duration(milliseconds: 400);
   static const Duration _probeReopenDelay = Duration(milliseconds: 300);
-  static const Duration _probeFrameTimeout = Duration(seconds: 3);
+  static const Duration _probeFrameTimeout = Duration(milliseconds: 3750);
   static const int _probeAttemptsPerBaud = 2;
   static const int _probeBaudScanRounds = 5;
 
@@ -339,7 +339,7 @@ class SerialUtilWeb implements SerialUtil {
         if (attempt > 1) {
           print(
             'SerialUtilWeb: probe @$baud no response in '
-            '${_probeFrameTimeout.inSeconds}s — retry $attempt/$_probeAttemptsPerBaud',
+            '${_probeFrameTimeout.inMilliseconds}ms — retry $attempt/$_probeAttemptsPerBaud',
           );
         }
         success = await _sendQueryAndAwaitFrameProbe();

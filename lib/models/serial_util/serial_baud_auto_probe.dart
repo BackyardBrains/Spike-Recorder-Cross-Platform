@@ -107,7 +107,7 @@ class SerialBaudAutoProbe {
         if (attempt > 1) {
           print(
             '$logTag: probe @$baud no response in '
-            '${probeFrameTimeout.inSeconds}s — retry $attempt/$probeAttemptsPerBaud',
+            '${probeFrameTimeout.inMilliseconds}ms — retry $attempt/$probeAttemptsPerBaud',
           );
         }
         success = await _sendQueryAndAwaitFrame(writeQuery);

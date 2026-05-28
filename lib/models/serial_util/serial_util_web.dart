@@ -88,8 +88,14 @@ class SerialUtilWeb implements SerialUtil {
   static const int _probeAdcSyncHitsRequired = 2;
   static const Duration _probeSettleTime = Duration(milliseconds: 400);
   static const Duration _probeReopenDelay = Duration(milliseconds: 300);
-  static const Duration _probeFrameTimeout = Duration(milliseconds: 3750);
+  static const Duration _probeFrameTimeoutDefault =
+      Duration(milliseconds: 3000);
+  static const Duration _probeFrameTimeout500k =
+      Duration(milliseconds: 4750);
   static const int _probeAttemptsPerBaud = 2;
+
+  Duration _probeFrameTimeoutForBaud(int baud) =>
+      baud == 500000 ? _probeFrameTimeout500k : _probeFrameTimeoutDefault;
   static const int _probeBaudScanRounds = 5;
 
   final SerialDeviceFrameParser _frameParser = SerialDeviceFrameParser();
@@ -226,8 +232,7 @@ class SerialUtilWeb implements SerialUtil {
 
   void _noteProbeAdcStreamSync(Uint8List chunk) {
     if (_probeRxBytes > _probeFrameDetectMaxBytes) {
-      _probeFrameDetect =
-          FrameDetect(channelCount: 1, minimumBytesToCheck: 50);
+      _probeFrameDetect = FrameDetect(channelCount: 1, minimumBytesToCheck: 50);
     }
     final detect = _probeFrameDetect;
     if (detect == null) {
@@ -276,12 +281,13 @@ class SerialUtilWeb implements SerialUtil {
       _startQueryRepeatTimer();
     }
 
+    final frameTimeout = _probeFrameTimeoutForBaud(_baudRate);
     try {
       return await _probeResponseCompleter!.future.timeout(
-        _probeFrameTimeout,
+        frameTimeout,
         onTimeout: () {
           print(
-            'SerialUtilWeb: probe timeout (${_probeFrameTimeout.inSeconds}s) — '
+            'SerialUtilWeb: probe timeout (${frameTimeout.inMilliseconds}ms) — '
             'rawRx=$_probeRxBytes B, buf=${_frameParser.bufferedBytes} B, '
             'start=${_frameParser.hasStartMarker}, end=${_frameParser.hasEndMarker}, '
             'adcSyncs=$_probeAdcFrameHits',
@@ -339,7 +345,7 @@ class SerialUtilWeb implements SerialUtil {
         if (attempt > 1) {
           print(
             'SerialUtilWeb: probe @$baud no response in '
-            '${_probeFrameTimeout.inMilliseconds}ms — retry $attempt/$_probeAttemptsPerBaud',
+            '${_probeFrameTimeoutForBaud(baud).inMilliseconds}ms — retry $attempt/$_probeAttemptsPerBaud',
           );
         }
         success = await _sendQueryAndAwaitFrameProbe();

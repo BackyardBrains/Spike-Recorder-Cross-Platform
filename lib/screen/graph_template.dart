@@ -3150,7 +3150,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         if (isThresholdingButton) {
           // print("Don't Draw last result for thresholding");
           // if (!kIsWeb) {
-            return;
+          return;
           // }
         }
         processingUtil.prepareDisplayMicrophoneData(
@@ -4879,15 +4879,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
         print("VALUE : $value");
         if (value != null) {
           String tempDevices = value.uniqueName ?? "";
-          if (foundDevices != "") {
-            if (foundDevices != tempDevices) {
-              foundDevices = tempDevices;
-            } else {
-              return;
-            }
-          } else {
-            foundDevices = tempDevices;
+          // Ignore duplicate hwType replies only after this device is already selected.
+          if (foundDevices == tempDevices && isDeviceSelected) {
+            return;
           }
+          foundDevices = tempDevices;
           print("foundDevices");
           print(foundDevices);
           isDeviceSelected = true;
@@ -5160,8 +5156,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
           List<Int16List> sublistArray = [];
           for (int i = 0; i < widget.channelCount; i++) {
-            Int16List sublistSamples = loadedArrSamples[i].sublist(
-                playbackStartIdx, playbackEndIdx);
+            Int16List sublistSamples =
+                loadedArrSamples[i].sublist(playbackStartIdx, playbackEndIdx);
             sublistArray.add(sublistSamples);
             if (!_isStreamEnded && loadedFileStreams[i] != null) {
               try {
@@ -5997,7 +5993,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   serialErrorCallback(int channelCount, provider) {
     print("SERIAL ERROR CALLBACK $channelCount");
-    if (channelCount == 2) {
+    if (channelCount >= 1) {
       if (!mounted) return;
       _resetSerialPipelineAfterBaudChange();
       isDeviceConnect = true;
@@ -6009,17 +6005,19 @@ class _GraphTemplateState extends State<GraphTemplate> {
         deviceTimer = null;
       }
       _isDeviceTimerRunning = false;
-      return;
+      // return;
     }
     if (isRecording > 0) {
       resetRecordingState(context);
     }
     print("End Reset Recording State");
-    final provider = Provider.of<GraphDataProvider>(context, listen: false);
-    Future.delayed(Duration(seconds: 1), () {
-      print("Listen To Microphone Serial Error");
-      listenToMicrophone(1, provider);
-    });
+    if (!kIsWeb) {
+      final provider = Provider.of<GraphDataProvider>(context, listen: false);
+      Future.delayed(Duration(seconds: 1), () {
+        print("Listen To Microphone Serial Error");
+        listenToMicrophone(1, provider);
+      });
+    }
   }
 
   void setSerialHpf(bool active) {
@@ -6911,8 +6909,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
     var toSample = (maxSamples + bufferPaddingLeft).toInt();
     toSample = min(maxSamples, toSample);
-    final fromSample =
-        (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
+    final fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
     return (fromSample: fromSample, toSample: toSample);
   }
 
@@ -6959,8 +6956,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
       final range = _serialFileThresholdDisplaySampleRange();
       DraggableGraph.startPositionIdx = range.fromSample;
       DraggableGraph.endPositionIdx = range.toSample;
-      await processingUtil.processDisplaySerialData(displayTimeMs.toInt(),
-          deviceType, drawSurfaceWidth, provider, range.fromSample, range.toSample);
+      await processingUtil.processDisplaySerialData(
+          displayTimeMs.toInt(),
+          deviceType,
+          drawSurfaceWidth,
+          provider,
+          range.fromSample,
+          range.toSample);
       return;
     }
 
@@ -7035,9 +7037,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // if (error is SerialPortError) {
       _cancelSerialStaleWatchdog();
       forceSerialDisconnect = true;
-      print("SERIAL PORT ERROR -- DISCONNECTED");
       _serialUtil.closePort();
-      Future.delayed(Duration(milliseconds: 2500), () {
+      Future.delayed(Duration(milliseconds: 1500), () {
+        print(
+            "SERIAL PORT ERROR -- DISCONNECTED: $error CALLSERIAL DATA SUBSCRIPTION");
         forceSerialDisconnect = false;
         _isSerialWebButtonEnabled = false;
         isDeviceConnect = false;
@@ -7152,8 +7155,26 @@ class _GraphTemplateState extends State<GraphTemplate> {
       isDeviceSelected = false;
       isSerialDeviceFound = false;
       _isDataIdentified = false;
+      foundDevices = "";
+      _isBoardTimerRunning = false;
+      _isDeviceTimerRunning = false;
+      boardTimer?.cancel();
+      boardTimer = null;
+      deviceTimer?.cancel();
+      deviceTimer = null;
+      _resetSerialPipelineAfterBaudChange();
       streamScrubBuilderController.add(Random().nextInt(100000));
       callSerialDataSubscription();
+      // Do not wait for the first ADC chunk (2s delayed path in [serialSubscriptionListener]).
+      Future<void>.delayed(const Duration(milliseconds: 150), () {
+        if (!mounted || _availablePorts.isEmpty || isDeviceSelected) {
+          return;
+        }
+        _serialUtil.writeToPort(
+          bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
+          address: _availablePorts.last,
+        );
+      });
     } catch (e) {
       Debugging.printing("Opening port failed:\n$e");
     }
@@ -7566,16 +7587,18 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
         print(
             "Writing to port b:; : ${UsbCommand.hwTypeInquiry.cmdAsBytes()} ${DateTime.now().millisecondsSinceEpoch}");
-        Future.delayed(Duration(milliseconds: 2000), () {
+        Future.delayed(const Duration(milliseconds: 400), () {
+          if (isDeviceSelected) {
+            return;
+          }
           print("SEND BYTES DELAYED: ${DateTime.now().millisecondsSinceEpoch}");
           if (isMfi) {
             BybAccessory.sendBytes(UsbCommand.hwTypeInquiry.cmdAsBytes());
-          } else {
+          } else if (listOfPort.isNotEmpty) {
             _serialUtil.writeToPort(
                 bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
                 address: listOfPort.last);
           }
-          // isDeviceConnect = false;
         });
       }
       if (_isDataIdentified) {

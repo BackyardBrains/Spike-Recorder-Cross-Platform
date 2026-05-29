@@ -65,7 +65,8 @@ class SerialUtilWeb implements SerialUtil {
   static const List<int> _probeBaudRates = [500000, 230400, 222222];
   static final Uint8List _probeQueryBytes = Uint8List.fromList([
     ...UsbCommand.hwTypeInquiry.cmdAsBytes(),
-    ...utf8.encode('board:;'),
+    // ...utf8.encode('board:;\n'),
+    // ...utf8.encode('h:;\n'),
   ]);
 
   /// Same tokens [GraphTemplate.listOfDevices] accepts from hwTypeInquiry.
@@ -82,16 +83,37 @@ class SerialUtilWeb implements SerialUtil {
     'NEURONSS;',
     'HEARTSS;',
   ];
-  static const int _probeAsciiWindowMax = 16384;
 
-  /// Valid BYB ADC pairs (byte >127 then low byte) — same as [FrameDetect] in graph.
+  static final List<Uint8List> _probeDeviceReplyTokenBytes =
+      _probeDeviceReplyTokens
+          .map((t) => Uint8List.fromList(t.codeUnits))
+          .toList(growable: false);
+
+  /// Replies are often `HWT:HHIBOX;` (graph_template logs).
+  static final List<Uint8List> _probeHwtDeviceReplyTokenBytes =
+      _probeDeviceReplyTokens
+          .map((t) => Uint8List.fromList('HWT:$t'.codeUnits))
+          .toList(growable: false);
+
+  static final List<Uint8List> _probeAllReplyTokenBytes = [
+    ..._probeDeviceReplyTokenBytes,
+    ..._probeHwtDeviceReplyTokenBytes,
+  ];
+
+  static final int _probeMaxDeviceTokenBytes = _probeAllReplyTokenBytes.fold(
+    0,
+    (max, t) => t.length > max ? t.length : max,
+  );
+
+  static const int _probeAdcStreamMinRxBytes = 8192;
+  static const int _probeAsciiWindowMax = 16384;
   static const int _probeAdcSyncHitsRequired = 2;
+
   static const Duration _probeSettleTime = Duration(milliseconds: 400);
   static const Duration _probeReopenDelay = Duration(milliseconds: 300);
   static const Duration _probeFrameTimeoutDefault =
       Duration(milliseconds: 3000);
-  static const Duration _probeFrameTimeout500k =
-      Duration(milliseconds: 4750);
+  static const Duration _probeFrameTimeout500k = Duration(milliseconds: 5050);
   static const int _probeAttemptsPerBaud = 2;
 
   Duration _probeFrameTimeoutForBaud(int baud) =>
@@ -152,7 +174,7 @@ class SerialUtilWeb implements SerialUtil {
     _baudRate = baudRate;
   }
 
-  /// Tries [_probeBaudRates] in order; first baud with a valid escape frame wins.
+  /// Tries [_probeBaudRates] in order; framed reply, ASCII token, or ADC hint.
   /// Repeats the full baud list up to [_probeBaudScanRounds] times if all fail.
   Future<int?> _autoDetectBaudRate() async {
     if (serialPort == null) {
@@ -192,9 +214,9 @@ class SerialUtilWeb implements SerialUtil {
       if (bestAdcBaud != null) {
         print(
           'SerialUtilWeb: strict re-probe @$bestAdcBaud '
-          '(ADC hint score=$bestAdcScore, escape reply required)',
+          '(ADC hint score=$bestAdcScore)',
         );
-        final ok = await _tryProbeBaud(bestAdcBaud, acceptAdcStream: false);
+        final ok = await _tryProbeBaud(bestAdcBaud, acceptAdcStream: true);
         return ok ? bestAdcBaud : null;
       }
       print('SerialUtilWeb: END');
@@ -213,7 +235,6 @@ class SerialUtilWeb implements SerialUtil {
 
   void _startQueryRepeatTimer() {
     _cancelQueryRepeatTimer();
-    print("_startQueryRepeatTimer : $_probing");
     if (!_probing) {
       return;
     }
@@ -224,6 +245,7 @@ class SerialUtilWeb implements SerialUtil {
         _queryRepeatTimer = null;
         return;
       }
+      _probeAsciiWindow.clear();
       unawaited(_sendProbeQueryOnce());
     });
   }
@@ -256,28 +278,47 @@ class SerialUtilWeb implements SerialUtil {
     }
   }
 
-  bool _probeReplyIdentifiesDevice(Uint8List msg) {
-    final raw = String.fromCharCodes(msg);
-    for (final token in _probeDeviceReplyTokens) {
-      if (raw.contains(token)) {
+  bool _probeReplyIdentifiesDevice(Uint8List msg) =>
+      _probeBytesContainDeviceToken(msg);
+
+  bool _probeBytesContainDeviceToken(
+    Uint8List haystack, {
+    int start = 0,
+  }) {
+    if (haystack.isEmpty || start >= haystack.length) {
+      return false;
+    }
+    for (final needle in _probeAllReplyTokenBytes) {
+      if (_probeBytesContains(haystack, needle, start)) {
         return true;
       }
     }
     return false;
   }
 
-  bool _probeAsciiWindowContainsDeviceToken() {
-    if (_probeAsciiWindow.isEmpty) {
+  bool _probeBytesContains(Uint8List haystack, Uint8List needle, int start) {
+    if (needle.isEmpty || haystack.length - start < needle.length) {
       return false;
     }
-    final text = String.fromCharCodes(_probeAsciiWindow.toBytes());
-    for (final token in _probeDeviceReplyTokens) {
-      if (text.contains(token)) {
+    final maxStart = haystack.length - needle.length;
+    for (var i = start; i <= maxStart; i++) {
+      var match = true;
+      for (var j = 0; j < needle.length; j++) {
+        if (haystack[i + j] != needle[j]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
         return true;
       }
     }
     return false;
   }
+
+  bool _probeAdcStreamLooksLikeDevice() =>
+      _probeRxBytes >= _probeAdcStreamMinRxBytes &&
+      _probeAdcFrameHits >= _probeAdcSyncHitsRequired;
 
   Future<bool> _sendQueryAndAwaitFrameProbe() async {
     if (_probeSawCompleteFrame) {
@@ -371,6 +412,14 @@ class SerialUtilWeb implements SerialUtil {
       final readerToStop = _probeActiveReader ?? probeReader;
       await _stopProbeReadLoop(readerToStop, probePump);
 
+      if (!success && acceptAdcStream && _probeAdcStreamLooksLikeDevice()) {
+        print(
+          'SerialUtilWeb: probe @$baud accepted via ADC stream '
+          '(rawRx=$_probeRxBytes B, adcSyncs=$_probeAdcFrameHits)',
+        );
+        success = true;
+      }
+
       if (success) {
         _probing = false;
         await _fullyReleasePortStreams();
@@ -408,7 +457,6 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   Future<void> _sendProbeQueryOnce() async {
-    print("_sendProbeQueryOnce : $_probeWriteInFlight");
     while (_probeWriteInFlight != null) {
       await _probeWriteInFlight;
     }
@@ -471,18 +519,34 @@ class SerialUtilWeb implements SerialUtil {
     // Same path as graph_template [_preEscapeSequenceBuffer] → MessageIdentifier.
     _probeMessageId.addPacket(chunk);
 
+    if (!_probeSawCompleteFrame && _probeBytesContainDeviceToken(chunk)) {
+      print('SerialUtilWeb: probe ASCII token in chunk @ $_baudRate');
+      _onProbeCompleteFrame();
+      return;
+    }
+
+    final asciiLenBefore = _probeAsciiWindow.length;
     _probeAsciiWindow.add(chunk);
+    var asciiTrimmed = false;
     if (_probeAsciiWindow.length > _probeAsciiWindowMax) {
+      asciiTrimmed = true;
       final all = _probeAsciiWindow.toBytes();
       _probeAsciiWindow.clear();
       _probeAsciiWindow.add(
         Uint8List.sublistView(all, all.length - _probeAsciiWindowMax),
       );
     }
-    if (!_probeSawCompleteFrame && _probeAsciiWindowContainsDeviceToken()) {
-      print('SerialUtilWeb: probe ASCII token in stream @ $_baudRate');
-      _onProbeCompleteFrame();
-      return;
+    if (!_probeSawCompleteFrame && _probeAsciiWindow.isNotEmpty) {
+      final haystack = _probeAsciiWindow.toBytes();
+      final searchFrom = asciiTrimmed
+          ? 0
+          : (asciiLenBefore - _probeMaxDeviceTokenBytes + 1)
+              .clamp(0, haystack.length);
+      if (_probeBytesContainDeviceToken(haystack, start: searchFrom)) {
+        print('SerialUtilWeb: probe ASCII token in stream @ $_baudRate');
+        _onProbeCompleteFrame();
+        return;
+      }
     }
 
     if (_frameParser.feed(chunk)) {

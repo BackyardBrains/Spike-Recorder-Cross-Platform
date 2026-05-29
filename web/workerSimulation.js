@@ -375,6 +375,87 @@ function postSerialLivePlaybackChunk(inSamplesBuffer, outSampleCountsBuffer, ser
         });
     }
 }
+
+/// Planar channel layout (NWB / file playback): ch0 block, ch1 block, … with per-channel counts.
+function runPlanarSerialThreshold(
+    inSamplesPtr,
+    inSampleCountsPtr,
+    channelCount,
+    frameCount,
+    eventLabels,
+    eventPositions
+) {
+    if (!isThresholding || frameCount <= 0 || channelCount <= 0) {
+        return;
+    }
+
+    const thresholdSlotLen = Math.max(
+        (drawSurfaceWidth * 5 * 20) | 0,
+        (frameCount * 20) | 0
+    );
+
+    const outThresholdSamplesPtr = Module._malloc(
+        thresholdSlotLen * channelCount * Module.HEAP16.BYTES_PER_ELEMENT
+    );
+    const outThresholdSampleCountsPtr = Module._malloc(
+        channelCount * Module.HEAP32.BYTES_PER_ELEMENT
+    );
+    const outThresholdSampleCountsPtrStart =
+        outThresholdSampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+    const outThresholdSampleCountsBuffer = Module.HEAP32.subarray(
+        outThresholdSampleCountsPtrStart,
+        outThresholdSampleCountsPtrStart + channelCount
+    );
+    outThresholdSampleCountsBuffer.fill(thresholdSlotLen, 0, channelCount);
+
+    const inEventIndicesPtr = Module._malloc(
+        eventLabels.length * Module.HEAP32.BYTES_PER_ELEMENT
+    );
+    const inEventIndicesPtrStart = inEventIndicesPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+    const inEventIndicesBuffer = Module.HEAP32.subarray(
+        inEventIndicesPtrStart,
+        inEventIndicesPtrStart + eventLabels.length
+    );
+    for (let i = 0; i < eventLabels.length; i++) {
+        inEventIndicesBuffer[i] =
+            MAX_DISPLAY_SECONDS * sampleRate - eventPositions[i] - frameCount;
+    }
+
+    const inEventLabelsPtr = Module._malloc(
+        eventLabels.length * Module.HEAP32.BYTES_PER_ELEMENT
+    );
+    const inEventLabelsPtrStart = inEventLabelsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+    const inEventLabelsBuffer = Module.HEAP32.subarray(
+        inEventLabelsPtrStart,
+        inEventLabelsPtrStart + eventLabels.length
+    );
+    inEventLabelsBuffer.set(eventLabels);
+
+    const thresholdResult = Module._processing_process_threshold(
+        outThresholdSamplesPtr,
+        outThresholdSampleCountsPtr,
+        inSamplesPtr,
+        inSampleCountsPtr,
+        inEventIndicesPtr,
+        inEventLabelsPtr,
+        eventLabels.length,
+        true
+    );
+
+    if (thresholdResult === 0) {
+        thresholdArrayLength = outThresholdSampleCountsBuffer[0];
+        postMessage({
+            message: "THRESHOLD_PROCESSED_ARRAY_LENGTH",
+            thresholdArrayLength: outThresholdSampleCountsBuffer[0],
+        });
+    }
+
+    Module._free(outThresholdSamplesPtr);
+    Module._free(outThresholdSampleCountsPtr);
+    Module._free(inEventIndicesPtr);
+    Module._free(inEventLabelsPtr);
+}
+
 let thresholdArrayLength = 0;
 
 /* FFT */
@@ -1242,6 +1323,8 @@ self.onmessage = async function (eventFromMain) {
                         bufferedSerialEmptyCount[i] = 0;
                     }
                 }
+                console.log("PROCESSING THRESHOLD - SEND_SERIAL_DATA_WEB : ", isThresholding);
+
                 if (isThresholding) {
                     let eventLabels = JSON.parse(eventFromMain.data.eventLabels);
                     let eventPositions = JSON.parse(eventFromMain.data.eventPositions);
@@ -1274,7 +1357,6 @@ self.onmessage = async function (eventFromMain) {
                     inEventLabelsBuffer.set(eventLabels);
 
                     // inSamplesBuffer.fill(100, 0, serialPacketLen * totalChannel);
-
 
                     let thresholdResult = Module._processing_process_threshold(
                         outThresholdSamplesPtr, outThresholdSampleCountsPtr, 
@@ -1809,8 +1891,22 @@ self.onmessage = async function (eventFromMain) {
                 'number',
                 ['number', 'number', 'number'],
                 [sampleDataPtr, sampleCountsPtr, serialChannelCount]
-            );            
-            // console.log("PROCESSING SERIAL DATA RESULT: ", resultSerialInject, sampleData, sampleCounts, serialChannelCount);
+            );
+
+            const frameCount = sampleCountsBuffer[0] | 0;
+            if (resultSerialInject >= 0) {
+                runPlanarSerialThreshold(
+                    sampleDataPtr,
+                    sampleCountsPtr,
+                    serialChannelCount,
+                    frameCount,
+                    serialEventLabels,
+                    serialEventPositions
+                );
+            }
+
+            Module._free(sampleDataPtr);
+            Module._free(sampleCountsPtr);
         break;
         case "SEEK_OPENING_FILE_WEB":
             try {

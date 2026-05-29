@@ -1815,7 +1815,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.8',
+                                            'SpikeRecorder App ver. 2.1.10',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -3149,9 +3149,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
             (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
         if (isThresholdingButton) {
           // print("Don't Draw last result for thresholding");
-          if (!kIsWeb) {
+          // if (!kIsWeb) {
             return;
-          }
+          // }
         }
         processingUtil.prepareDisplayMicrophoneData(
             [Int16List(0)],
@@ -4546,14 +4546,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     if (GraphTemplate.isLoadingFile == 2 || GraphTemplate.isLoadingFile == 4) {
       // print("Graph Template isLoadingFile 2/4: ${GraphTemplate.isLoadingFile}");
-      int maxSamples =
-          (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
-      int toSample = (maxSamples + bufferPaddingLeft).toInt();
-      toSample = min(maxSamples, toSample);
-      int fromSample = (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
-
-      await processingUtil.processDisplaySerialData(displayTimeMs.toInt(),
-          deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+      await _paintSerialFileGraph(provider, drawSurfaceWidth);
       setState(() {});
     } else if (GraphTemplate.isLoadingFile == 1) {
       // print("Graph Template isLoadingFile 1: ${GraphTemplate.isLoadingFile}");
@@ -4573,6 +4566,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // processingUtil.processingNwbFileInjectData(flattenedList, samplesCount, 0, widget.channelCount);
       processingUtil.processingSerialDataResult(
           flattenedList, samplesCount, widget.channelCount);
+      if (kIsWeb) {
+        totalSampleCount += loadedArrSamples[0].length;
+        _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
+      }
     } else if (GraphTemplate.isLoadingFile == 3) {
       // print("Graph Template isLoadingFile 3: ${GraphTemplate.isLoadingFile}");
       // SERIAL FILE CHANGES
@@ -5155,11 +5152,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
           // check if the sublist array is not empty
           // insert data into c++
 
+          final playbackStartIdx = timerPlaybackLoadedStartIndex.floor();
+          final playbackEndIdx = timerPlaybackLoadedEndIndex.floor();
+          if (playbackEndIdx <= playbackStartIdx) {
+            return;
+          }
+
           List<Int16List> sublistArray = [];
           for (int i = 0; i < widget.channelCount; i++) {
             Int16List sublistSamples = loadedArrSamples[i].sublist(
-                timerPlaybackLoadedStartIndex.floor(),
-                timerPlaybackLoadedEndIndex.floor());
+                playbackStartIdx, playbackEndIdx);
             sublistArray.add(sublistSamples);
             if (!_isStreamEnded && loadedFileStreams[i] != null) {
               try {
@@ -5265,16 +5267,31 @@ class _GraphTemplateState extends State<GraphTemplate> {
             }
           } else {
             GraphTemplate.isLoadingFile = 4;
-            int channelIdx = 0;
-            Int32List samplesCount = Int32List(sublistArray.length);
-            Int16List flattenedList =
-                Int16List.fromList(sublistArray.expand((list) {
-              samplesCount[channelIdx] = sublistArray[channelIdx].length;
-              channelIdx++;
-              return list;
-            }).toList());
-            processingUtil.processingSerialDataResult(
-                flattenedList, samplesCount, widget.channelCount);
+            if (kIsWeb) {
+              if (context.mounted) {
+                final provider =
+                    Provider.of<GraphDataProvider>(context, listen: false);
+                final drawSurfaceWidth =
+                    MediaQuery.of(context).size.width.toInt();
+                _enqueueSerialIngest(
+                  Uint8List(0),
+                  provider,
+                  drawSurfaceWidth,
+                  decodedChannels: sublistArray,
+                );
+              }
+            } else {
+              int channelIdx = 0;
+              Int32List samplesCount = Int32List(sublistArray.length);
+              Int16List flattenedList =
+                  Int16List.fromList(sublistArray.expand((list) {
+                samplesCount[channelIdx] = sublistArray[channelIdx].length;
+                channelIdx++;
+                return list;
+              }).toList());
+              processingUtil.processingSerialDataResult(
+                  flattenedList, samplesCount, widget.channelCount);
+            }
             List<Int16List> tempData = sublistArray;
             if (!kIsWeb && isThresholdingButton) {
               print("Process Threshold Data");
@@ -5653,6 +5670,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
               processingUtil.processingSerialDataResult(
                   flattenedList, samplesCount, widget.channelCount);
+              if (kIsWeb && mounted) {
+                totalSampleCount += sublistArray[0].length;
+                final provider =
+                    Provider.of<GraphDataProvider>(context, listen: false);
+                final drawSurfaceWidth =
+                    MediaQuery.of(context).size.width.toInt();
+                _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
+              }
             }
           } else {
             GraphTemplate.isLoadingFile = 4;
@@ -6642,12 +6667,54 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _processedSamplePlayer?.enqueueProcessedChunk(samples);
   }
 
+  void _injectSerialSamples(List<Int16List> channels) {
+    var channelIdx = 0;
+    final samplesCount = Int32List(channels.length);
+    final flattenedList = Int16List.fromList(channels.expand((list) {
+      samplesCount[channelIdx] = channels[channelIdx].length;
+      channelIdx++;
+      return list;
+    }).toList());
+    processingUtil.processingSerialDataResult(
+        flattenedList, samplesCount, widget.channelCount);
+  }
+
+  /// Loaded NWB playback: samples are already decoded (not raw UART bytes).
+  void _enqueueSerialDecodedIngest(
+    List<Int16List> channels,
+    GraphDataProvider provider,
+    int drawSurfaceWidth,
+  ) {
+    if (!mounted || channels.isEmpty || channels[0].isEmpty) return;
+    _injectSerialSamples(channels);
+    if (isThresholdingButton && kIsWeb) {
+      arr = [_effectiveSerialThresholdSpan()];
+    }
+    totalSampleCount += channels[0].length;
+    _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
+  }
+
+  int _effectiveSerialThresholdSpan() {
+    if (kIsWeb && processingUtil.thresholdingArraylength > 0) {
+      return processingUtil.thresholdingArraylength;
+    }
+    if (arr.isNotEmpty && arr[0] > 0) {
+      return arr[0];
+    }
+    return (displayTimeMs * 0.001 * _sampleRate).floor().clamp(1, 1 << 30);
+  }
+
   void _enqueueSerialIngest(
     Uint8List event,
     GraphDataProvider provider,
     int drawSurfaceWidth, {
     bool paintFromZero = false,
+    List<Int16List>? decodedChannels,
   }) {
+    if (decodedChannels != null) {
+      _enqueueSerialDecodedIngest(decodedChannels, provider, drawSurfaceWidth);
+      return;
+    }
     if (event.isEmpty) return;
     _serialPaintFromZero = paintFromZero;
     _serialIngestQueue.add(event);
@@ -6825,21 +6892,61 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
   }
 
+  ({int fromSample, int toSample}) _serialFileDisplaySampleRange() {
+    final maxSamples =
+        (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+    var toSample = (maxSamples + bufferPaddingLeft).toInt();
+    toSample = min(maxSamples, toSample);
+    final fromSample =
+        (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
+    return (fromSample: fromSample, toSample: toSample);
+  }
+
+  ({int fromSample, int toSample}) _serialFileThresholdDisplaySampleRange() {
+    final span = _effectiveSerialThresholdSpan();
+    final displayTimeDivision = (displayTimeMs / 10000);
+    final gap = (span * (1 - displayTimeDivision));
+    final maxSamples =
+        (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+    final toSample = maxSamples - (gap / 2).floor();
+    final fromSample = toSample - span + (gap).floor();
+    return (fromSample: fromSample, toSample: toSample);
+  }
+
+  Future<void> _paintSerialFileGraph(
+    GraphDataProvider provider,
+    int drawSurfaceWidth,
+  ) async {
+    final range = isThresholdingButton
+        ? _serialFileThresholdDisplaySampleRange()
+        : _serialFileDisplaySampleRange();
+    DraggableGraph.startPositionIdx = range.fromSample;
+    DraggableGraph.endPositionIdx = range.toSample;
+    await processingUtil.processDisplaySerialData(
+      displayTimeMs.toInt(),
+      deviceType,
+      drawSurfaceWidth,
+      provider,
+      range.fromSample,
+      range.toSample,
+    );
+  }
+
   Future<void> _paintLiveSerialGraph(
     GraphDataProvider provider,
     int drawSurfaceWidth,
   ) async {
+    if (isOpeningFile) {
+      await _paintSerialFileGraph(provider, drawSurfaceWidth);
+      return;
+    }
+
     if (isThresholdingButton) {
-      final displayTimeDivision = (displayTimeMs / 10000);
-      final gap = (arr[0] * (1 - displayTimeDivision));
-      final maxSamples =
-          (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
-      final toSample = maxSamples - (gap / 2).floor();
-      final fromSample = toSample - arr[0] + (gap).floor();
-      DraggableGraph.startPositionIdx = fromSample;
-      DraggableGraph.endPositionIdx = toSample;
+      final range = _serialFileThresholdDisplaySampleRange();
+      DraggableGraph.startPositionIdx = range.fromSample;
+      DraggableGraph.endPositionIdx = range.toSample;
       await processingUtil.processDisplaySerialData(displayTimeMs.toInt(),
-          deviceType, drawSurfaceWidth, provider, fromSample, toSample);
+          deviceType, drawSurfaceWidth, provider, range.fromSample, range.toSample);
       return;
     }
 

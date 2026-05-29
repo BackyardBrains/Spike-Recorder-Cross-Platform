@@ -98,6 +98,19 @@ class SerialUtilWeb implements SerialUtil {
       baud == 500000 ? _probeFrameTimeout500k : _probeFrameTimeoutDefault;
   static const int _probeBaudScanRounds = 5;
 
+  /// After this many UART line errors inside [_lineErrorRecoveryWindow], re-probe baud.
+  static const int _lineErrorsBeforeBaudRecovery = 8;
+  static const Duration _lineErrorRecoveryWindow = Duration(seconds: 4);
+  static const int _maxListenBaudRecoveryAttempts = 2;
+  static const Duration _reacquireBackoffBase = Duration(milliseconds: 60);
+  static const Duration _reacquireBackoffMax = Duration(milliseconds: 1000);
+
+  int _consecutiveLineErrors = 0;
+  DateTime? _lineErrorWindowStart;
+  int _reacquireBackoffStep = 0;
+  int _listenBaudRecoveryRounds = 0;
+  bool _listenBaudRecoveryInProgress = false;
+
   final SerialDeviceFrameParser _frameParser = SerialDeviceFrameParser();
   final BytesBuilder _probeAsciiWindow = BytesBuilder(copy: false);
   late final MessageIdentifier _probeMessageId = MessageIdentifier(
@@ -178,10 +191,10 @@ class SerialUtilWeb implements SerialUtil {
       }
       if (bestAdcBaud != null) {
         print(
-          'SerialUtilWeb: using $bestAdcBaud (score=$bestAdcScore, '
-          'no escape reply)',
+          'SerialUtilWeb: strict re-probe @$bestAdcBaud '
+          '(ADC hint score=$bestAdcScore, escape reply required)',
         );
-        final ok = await _tryProbeBaud(bestAdcBaud, acceptAdcStream: true);
+        final ok = await _tryProbeBaud(bestAdcBaud, acceptAdcStream: false);
         return ok ? bestAdcBaud : null;
       }
       print('SerialUtilWeb: END');
@@ -301,7 +314,7 @@ class SerialUtilWeb implements SerialUtil {
     }
   }
 
-  Future<bool> _tryProbeBaud(int baud, {bool acceptAdcStream = true}) async {
+  Future<bool> _tryProbeBaud(int baud, {bool acceptAdcStream = false}) async {
     final port = serialPort;
     if (port == null) {
       return false;
@@ -357,16 +370,6 @@ class SerialUtilWeb implements SerialUtil {
       // prefer the latest reader, then fall back to the one we started with.
       final readerToStop = _probeActiveReader ?? probeReader;
       await _stopProbeReadLoop(readerToStop, probePump);
-
-      if (acceptAdcStream &&
-          !success &&
-          _probeAdcFrameHits >= _probeAdcSyncHitsRequired) {
-        print(
-          'SerialUtilWeb: probe @$baud OK via ADC stream '
-          '($_probeAdcFrameHits syncs, no escape reply)',
-        );
-        success = true;
-      }
 
       if (success) {
         _probing = false;
@@ -651,6 +654,8 @@ class SerialUtilWeb implements SerialUtil {
             'No device response at supported baud rates (500000, 230400, 222222)');
       }
       _baudRate = detectedBaud;
+      _listenBaudRecoveryRounds = 0;
+      _resetLineErrorTracking();
       print("baudRate serial web (auto-detected): $_baudRate");
       await openPortToListen(" ", _baudRate);
     } catch (e) {
@@ -799,7 +804,10 @@ class SerialUtilWeb implements SerialUtil {
   Future<void>? _readPumpFuture;
   @override
   Future<Stream<Uint8List>?> openPortToListen(
-      String? name, int baudRate) async {
+    String? name,
+    int baudRate, {
+    bool replaceDataStream = true,
+  }) async {
     _baudRate = baudRate;
     if (!_portOpen) {
       await _openSerialPortWithRetry();
@@ -825,7 +833,9 @@ class SerialUtilWeb implements SerialUtil {
         reader = readable.reader;
       }
       print("READER2");
-      _replaceDataStream();
+      if (replaceDataStream) {
+        _replaceDataStream();
+      }
       print("READER3");
       print("READER4");
 
@@ -857,6 +867,7 @@ class SerialUtilWeb implements SerialUtil {
     StreamController<Uint8List> outbound,
   ) async {
     var activeReader = localReader;
+    var scheduleBaudRecovery = false;
     try {
       while (reader == activeReader && !outbound.isClosed) {
         try {
@@ -866,6 +877,7 @@ class SerialUtilWeb implements SerialUtil {
             print("RESULT DONEZ");
             break;
           }
+          _resetLineErrorTracking();
           if (!outbound.isClosed) {
             outbound.add(result.value);
           }
@@ -878,8 +890,21 @@ class SerialUtilWeb implements SerialUtil {
           if (isSerialRecoverableLineError(e) &&
               reader == activeReader &&
               serialPort != null) {
+            if (_shouldScheduleListenBaudRecovery()) {
+              print(
+                'SerialUtilWeb: sustained ${serialLineErrorLabel(e)} — '
+                'scheduling baud recovery',
+              );
+              scheduleBaudRecovery = true;
+              await _stopActiveReaderForRecovery(activeReader);
+              break;
+            }
+            final backoff = _nextReacquireBackoff();
             print(
-                'SerialUtilWeb: ${serialLineErrorLabel(e)} — re-acquiring reader');
+              'SerialUtilWeb: ${serialLineErrorLabel(e)} — '
+              're-acquiring reader (${backoff.inMilliseconds}ms backoff)',
+            );
+            await Future<void>.delayed(backoff);
             await _reacquireReaderAfterLineError(activeReader);
             if (reader == null) {
               break;
@@ -910,6 +935,145 @@ class SerialUtilWeb implements SerialUtil {
           }
         }));
       }
+    } finally {
+      if (scheduleBaudRecovery &&
+          serialPort != null &&
+          !_listenBaudRecoveryInProgress &&
+          _listenBaudRecoveryRounds < _maxListenBaudRecoveryAttempts) {
+        unawaited(_runListenBaudRecovery());
+      }
+    }
+  }
+
+  void _resetLineErrorTracking() {
+    _consecutiveLineErrors = 0;
+    _lineErrorWindowStart = null;
+    _reacquireBackoffStep = 0;
+  }
+
+  bool _shouldScheduleListenBaudRecovery() {
+    if (_probing || _listenBaudRecoveryInProgress) {
+      return false;
+    }
+    if (_listenBaudRecoveryRounds >= _maxListenBaudRecoveryAttempts) {
+      return false;
+    }
+    final now = DateTime.now();
+    _lineErrorWindowStart ??= now;
+    if (now.difference(_lineErrorWindowStart!) > _lineErrorRecoveryWindow) {
+      _consecutiveLineErrors = 0;
+      _lineErrorWindowStart = now;
+    }
+    _consecutiveLineErrors++;
+    return _consecutiveLineErrors >= _lineErrorsBeforeBaudRecovery;
+  }
+
+  Duration _nextReacquireBackoff() {
+    final scaled =
+        _reacquireBackoffBase.inMilliseconds * (1 << _reacquireBackoffStep);
+    _reacquireBackoffStep++;
+    final capped = scaled > _reacquireBackoffMax.inMilliseconds
+        ? _reacquireBackoffMax.inMilliseconds
+        : scaled;
+    return Duration(milliseconds: capped);
+  }
+
+  List<int> _listenBaudRecoveryCandidates() {
+    final current = _baudRate;
+    final others =
+        _probeBaudRates.where((b) => b != current).toList(growable: true);
+    if (vendorId == 0x0403 && productId == 0x6015) {
+      others.sort((a, b) {
+        if (a == 500000) return -1;
+        if (b == 500000) return 1;
+        return _probeBaudRates.indexOf(a).compareTo(_probeBaudRates.indexOf(b));
+      });
+    }
+    return [...others, current];
+  }
+
+  Future<void> _stopActiveReaderForRecovery(
+      ReadableStreamReader activeReader) async {
+    _intentionalReaderStop = true;
+    if (identical(reader, activeReader)) {
+      reader = null;
+    }
+    try {
+      final cancelResult = (activeReader as dynamic).cancel();
+      if (cancelResult is Future) {
+        await cancelResult.timeout(_readCancelTimeout, onTimeout: () {});
+      }
+    } catch (_) {}
+    await _releaseReaderLock(activeReader);
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+  }
+
+  Future<void> _runListenBaudRecovery() async {
+    if (_listenBaudRecoveryInProgress || serialPort == null) {
+      return;
+    }
+    _listenBaudRecoveryInProgress = true;
+    _listenBaudRecoveryRounds++;
+    try {
+      try {
+        await (_readPumpFuture ?? Future<void>.value())
+            .timeout(_readPumpJoinTimeout, onTimeout: () {});
+      } catch (_) {}
+      _readPumpFuture = null;
+      final recovered = await _runSerialLifecycle(_recoverListenBaudBody);
+      if (!recovered) {
+        print('SerialUtilWeb: listen baud recovery exhausted');
+        unawaited(_teardownSerialPortAfterReadFailure().then((_) {
+          final cb = audioCallback;
+          if (cb != null && !isOpeningFile) {
+            try {
+              cb(1, null);
+            } catch (_) {}
+          }
+        }));
+      }
+    } finally {
+      _listenBaudRecoveryInProgress = false;
+      _intentionalReaderStop = false;
+      _resetLineErrorTracking();
+    }
+  }
+
+  Future<bool> _recoverListenBaudBody() async {
+    if (serialPort == null) {
+      return false;
+    }
+    print(
+      'SerialUtilWeb: listen baud recovery (was $_baudRate, '
+      'round $_listenBaudRecoveryRounds/$_maxListenBaudRecoveryAttempts)',
+    );
+    _writableSession++;
+    await _fullyReleasePortStreams();
+
+    for (final baud in _listenBaudRecoveryCandidates()) {
+      print('SerialUtilWeb: listen recovery trying $baud');
+      final ok = await _tryProbeBaud(baud, acceptAdcStream: false);
+      if (!ok) {
+        continue;
+      }
+      _baudRate = baud;
+      await openPortToListen(' ', _baudRate, replaceDataStream: false);
+      _notifyBaudRecovered();
+      print('SerialUtilWeb: listen recovery OK @$_baudRate');
+      return true;
+    }
+    return false;
+  }
+
+  void _notifyBaudRecovered() {
+    final cb = audioCallback;
+    if (cb == null || isOpeningFile) {
+      return;
+    }
+    try {
+      cb(2, null);
+    } catch (e) {
+      print('SerialUtilWeb: baud recovery callback error: $e');
     }
   }
 
@@ -1314,6 +1478,5 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   @override
-  // TODO: implement detectedBaudRate
-  int get detectedBaudRate => throw UnimplementedError();
+  int get detectedBaudRate => _baudRate;
 }

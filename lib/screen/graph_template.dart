@@ -5996,7 +5996,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   serialErrorCallback(int channelCount, provider) {
-    print("SERIAL ERROR CALLBACK");
+    print("SERIAL ERROR CALLBACK $channelCount");
+    if (channelCount == 2) {
+      if (!mounted) return;
+      _resetSerialPipelineAfterBaudChange();
+      isDeviceConnect = true;
+      isDeviceSelected = false;
+      _isDataIdentified = false;
+      isSerialDeviceFound = false;
+      if (deviceTimer != null) {
+        deviceTimer?.cancel();
+        deviceTimer = null;
+      }
+      _isDeviceTimerRunning = false;
+      return;
+    }
     if (isRecording > 0) {
       resetRecordingState(context);
     }
@@ -7641,7 +7655,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             provider.inputListener(Uint8List(0));
           }
         } else {
-          if (!_isDeviceTimerRunning) {
+          if (!_isDeviceTimerRunning && event.isNotEmpty) {
             _isDeviceTimerRunning = true;
             if (deviceTimer != null) {
               deviceTimer?.cancel();

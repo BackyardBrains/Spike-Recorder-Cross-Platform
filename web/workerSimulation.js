@@ -1323,7 +1323,7 @@ self.onmessage = async function (eventFromMain) {
                         bufferedSerialEmptyCount[i] = 0;
                     }
                 }
-                console.log("PROCESSING THRESHOLD - SEND_SERIAL_DATA_WEB : ", isThresholding);
+                // console.log("PROCESSING THRESHOLD - SEND_SERIAL_DATA_WEB : ", isThresholding);
 
                 if (isThresholding) {
                     let eventLabels = JSON.parse(eventFromMain.data.eventLabels);

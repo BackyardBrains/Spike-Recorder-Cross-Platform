@@ -26,9 +26,9 @@ class DataStatusProvider extends ChangeNotifier {
 
   FilterSetup _notchPassFilterSettings = FilterSetup(
       isFilterOn: false,
-      filterType: FilterType.lowPassFilter,
+      filterType: FilterType.notchFilter,
       filterConfiguration:
-          FilterConfiguration(cutOffFrequency: 500, sampleRate: 10000),
+          FilterConfiguration(cutOffFrequency: 50, sampleRate: 10000),
       channelCount: channelCountBuffer);
 
   bool get isDeviceDataOn => _isDeviceDataOn;
@@ -38,6 +38,7 @@ class DataStatusProvider extends ChangeNotifier {
   bool get isMicrophoneData => _isEnableAudio;
   FilterSetup get lowPassFilterSettings => _lowPassFilterSettings;
   FilterSetup get highPassFilterSettings => _highPassFilterSettings;
+  FilterSetup get notchPassFilterSettings => _notchPassFilterSettings;
 
   setSampleDataStatus(bool sampleDataStatus) {
     _isSampleDataOn = sampleDataStatus;

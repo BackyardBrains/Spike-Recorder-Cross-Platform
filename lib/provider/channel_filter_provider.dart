@@ -5,13 +5,13 @@ class ChannelFilterProvider extends ChangeNotifier {
   List<bool> serialFilters = [];
 
   void setAudioChannelCount(int count) {
-    audioFilters = List<bool>.filled(count, false);
+    audioFilters = List<bool>.filled(count, true);
     notifyListeners();
   }
 
   void setSerialChannelCount(int count) {
     print("setSerialChannelCount: $count");
-    serialFilters = List<bool>.filled(count, false);
+    serialFilters = List<bool>.filled(count, true);
     notifyListeners();
   }
 

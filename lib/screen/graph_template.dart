@@ -491,6 +491,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void initState() {
     super.initState();
     print("BYB IOS LOG - INIT STATE - GRAPH TEMPLATE");
+
     // BybAccessory.initWithProtocol("com.backyardbrains.spikerbox").then((value) {
     //   isMfiInitialized = true;
     //   // print("BYB iOS accessory init protocol: $value");
@@ -1267,6 +1268,27 @@ class _GraphTemplateState extends State<GraphTemplate> {
   String configTitle = "Channels";
   bool isDrawerOpened = false;
 
+  Future<void> _onNotchFilterChanged(FilterSetup notchFilterSettings) async {
+    notchFilterSettings.filterConfiguration.sampleRate = _sampleRate;
+    try {
+      if (notchFilterSettings.isFilterOn) {
+        final cutOff =
+            notchFilterSettings.filterConfiguration.cutOffFrequency;
+        if (cutOff == 50 || cutOff == 60) {
+          await processingUtil.setNotchFilter(cutOff.toDouble());
+        }
+      } else {
+        await processingUtil.setNotchFilter(-1);
+      }
+    } catch (e, st) {
+      debugPrint('setNotchFilter failed: $e\n$st');
+    }
+    if (!context.mounted) return;
+    context
+        .read<DataStatusProvider>()
+        .setNotchPassFilterSetting(notchFilterSettings);
+  }
+
   @override
   Widget build(BuildContext widgetContext) {
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
@@ -1618,40 +1640,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                           ),
                                         ),
                                         child: NotchPassFilterWidget(
-                                            sampleRateParam:
-                                                _sampleRate.toDouble(),
-                                            onTapNotchFrequency:
-                                                (notchFilterSettings) async {
-                                              notchFilterSettings
-                                                  .filterConfiguration
-                                                  .sampleRate = _sampleRate;
-                                              try {
-                                                if (notchFilterSettings
-                                                    .isFilterOn) {
-                                                  final cutOff =
-                                                      notchFilterSettings
-                                                          .filterConfiguration
-                                                          .cutOffFrequency;
-                                                  if (cutOff == 50 ||
-                                                      cutOff == 60) {
-                                                    await processingUtil
-                                                        .setNotchFilter(
-                                                            cutOff.toDouble());
-                                                  }
-                                                } else {
-                                                  await processingUtil
-                                                      .setNotchFilter(-1);
-                                                }
-                                              } catch (e, st) {
-                                                debugPrint(
-                                                    'setNotchFilter failed: $e\n$st');
-                                              }
-                                              if (!context.mounted) return;
-                                              context
-                                                  .read<DataStatusProvider>()
-                                                  .setNotchPassFilterSetting(
-                                                      notchFilterSettings);
-                                            }),
+                                          onTapNotchFrequency:
+                                              _onNotchFilterChanged,
+                                        )
                                       ),
                                       Divider(
                                         height: 1,
@@ -1815,7 +1806,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.10',
+                                            'SpikeRecorder App ver. 2.1.13',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -4990,14 +4981,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
                             .floor();
                   } else if (_sampleRate >= 10000 &&
                       defaultDeviceChannelCount < 2) {
-                    sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2).floor();
+                    sampleCountToDisplay = (_sampleRate / 5000 * 8).floor();
                   } else if (_sampleRate >= 10000 &&
                       defaultDeviceChannelCount > 1) {
                     sampleCountToDisplay =
                         (_sampleRate / 5000 * 8 * defaultDeviceChannelCount)
                             .floor();
                   } else {
-                    sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2).floor();
+                    sampleCountToDisplay = (_sampleRate / 5000 * 8).floor();
                   }
 
                   context.read<ChannelColorProvider>().setSerialChannelCount(
@@ -5117,6 +5108,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   int counterThreshold = 0;
 
   DateTime? lastDateTimeSerialDataArrival = DateTime.now();
+
   void _startPlaybackTimer() {
     print("START PLAYBACK TIMER");
     _isStreamEnded = false; // Reset flag when starting playback
@@ -6893,14 +6885,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
     int drawSurfaceWidth,
   ) async {
     if (!mounted || !_serialDisplayDeferred) return;
-    if (!_shouldPaintSerialGraphNow()) return;
+    // if (!_shouldPaintSerialGraphNow()) return;
 
     totalSampleCount = 0;
     _serialDisplayDeferred = false;
     _lastSerialDisplayAt = DateTime.now();
     await _paintLiveSerialGraph(provider, drawSurfaceWidth);
     if (mounted) {
-      provider.inputListener(Uint8List(0));
+      // provider.inputListener(Uint8List(0));
+      setState(() {});
     }
   }
 
@@ -7703,85 +7696,55 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 }
 
-class NotchPassFilterWidget extends StatefulWidget {
+class NotchPassFilterWidget extends StatelessWidget {
   const NotchPassFilterWidget({
     super.key,
     required this.onTapNotchFrequency,
-    required this.sampleRateParam,
   });
 
-  final double sampleRateParam;
   final Function(FilterSetup) onTapNotchFrequency;
 
-  @override
-  State<NotchPassFilterWidget> createState() => _NotchPassFilterWidgetState();
-}
-
-class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
-  bool _checked50 = false;
-  bool _checked60 = false;
-  late FilterSetup _notchPassFilterSettings;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _notchPassFilterSettings = FilterSetup(
-        filterConfiguration: FilterConfiguration(
-            cutOffFrequency: 50, sampleRate: widget.sampleRateParam.toInt()),
-        filterType: FilterType.notchFilter,
-        channelCount: channelCountBuffer,
-        isFilterOn: false);
+  FilterSetup _buildSettings(int cutOffFrequency, int sampleRate, bool isOn) {
+    return FilterSetup(
+      filterConfiguration: FilterConfiguration(
+        cutOffFrequency: cutOffFrequency,
+        sampleRate: sampleRate,
+      ),
+      filterType: FilterType.notchFilter,
+      channelCount: channelCountBuffer,
+      isFilterOn: isOn,
+    );
   }
 
-  void _apply50Hz(bool checked, int sampleRate) {
-    setState(() {
-      _checked50 = checked;
-      if (checked) {
-        _checked60 = false;
-      }
-    });
+  void _apply50Hz(
+    BuildContext context,
+    bool checked,
+    int sampleRate,
+  ) {
     final dataStatus = context.read<DataStatusProvider>();
     if (checked) {
       dataStatus.set60HertzStatus(false);
     }
     dataStatus.set50HertzStatus(checked);
-    _notchPassFilterSettings = _notchPassFilterSettings.copyWith(
-      filterType: FilterType.notchFilter,
-      isFilterOn: checked,
-      filterConfiguration: FilterConfiguration(
-        cutOffFrequency: 50,
-        sampleRate: sampleRate,
-      ),
-    );
-    widget.onTapNotchFrequency(_notchPassFilterSettings);
+    onTapNotchFrequency(_buildSettings(50, sampleRate, checked));
   }
 
-  void _apply60Hz(bool checked, int sampleRate) {
-    setState(() {
-      _checked60 = checked;
-      if (checked) {
-        _checked50 = false;
-      }
-    });
+  void _apply60Hz(
+    BuildContext context,
+    bool checked,
+    int sampleRate,
+  ) {
     final dataStatus = context.read<DataStatusProvider>();
     if (checked) {
       dataStatus.set50HertzStatus(false);
     }
     dataStatus.set60HertzStatus(checked);
-    _notchPassFilterSettings = _notchPassFilterSettings.copyWith(
-      filterType: FilterType.notchFilter,
-      isFilterOn: checked,
-      filterConfiguration: FilterConfiguration(
-        cutOffFrequency: 60,
-        sampleRate: sampleRate,
-      ),
-    );
-    widget.onTapNotchFrequency(_notchPassFilterSettings);
+    onTapNotchFrequency(_buildSettings(60, sampleRate, checked));
   }
 
   @override
   Widget build(BuildContext context) {
+    final dataStatus = context.watch<DataStatusProvider>();
     final sampleRate = context.watch<SampleRateProvider>().sampleRate;
     return Row(
       mainAxisSize: MainAxisSize.max,
@@ -7810,8 +7773,9 @@ class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
                   style: SoftwareTextStyle().kWtMediumTextStyle,
                 ),
                 WhiteColorCheckBox(
-                  value: _checked50,
-                  onChanged: (checked) => _apply50Hz(checked, sampleRate),
+                  value: dataStatus.is50Hertz,
+                  onChanged: (checked) =>
+                      _apply50Hz(context, checked, sampleRate),
                 ),
                 const SizedBox(width: 16),
                 Text(
@@ -7819,8 +7783,9 @@ class _NotchPassFilterWidgetState extends State<NotchPassFilterWidget> {
                   style: SoftwareTextStyle().kWtMediumTextStyle,
                 ),
                 WhiteColorCheckBox(
-                  value: _checked60,
-                  onChanged: (checked) => _apply60Hz(checked, sampleRate),
+                  value: dataStatus.is60Hertz,
+                  onChanged: (checked) =>
+                      _apply60Hz(context, checked, sampleRate),
                 ),
               ],
             ),

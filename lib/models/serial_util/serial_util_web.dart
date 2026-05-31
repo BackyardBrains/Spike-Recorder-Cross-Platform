@@ -113,7 +113,7 @@ class SerialUtilWeb implements SerialUtil {
   static const Duration _probeReopenDelay = Duration(milliseconds: 300);
   static const Duration _probeFrameTimeoutDefault =
       Duration(milliseconds: 3000);
-  static const Duration _probeFrameTimeout500k = Duration(milliseconds: 5050);
+  static const Duration _probeFrameTimeout500k = Duration(milliseconds: 3000);
   static const int _probeAttemptsPerBaud = 2;
 
   Duration _probeFrameTimeoutForBaud(int baud) =>

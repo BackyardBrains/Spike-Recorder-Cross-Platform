@@ -185,10 +185,14 @@ class LocalPluginWeb implements LocalPlugin {
       if (GraphTemplate.selectedBoard!.expansionBoards != null) {
         // print("setExpansionBoardTypeDart2 ${GraphTemplate.selectedBoard!.expansionBoards!}");
         for (var expBoard in GraphTemplate.selectedBoard!.expansionBoards!) {
-          // print("setExpansionBoardTypeDart3 ==${expBoardType.toString()}");
+          print("setExpansionBoardTypeDart3 currentExpansionBoardString ==${expBoardType.toString()}");
           if (expBoard.boardType == expBoardType.toString()) {
             // print("setExpansionBoardTypeDart4 || $currentExpansionBoardString == ${expBoardType.toString()}");
+            if (currentExpansionBoardString == "0" && expBoardType == 0) {
+              return;
+            } else
             if (currentExpansionBoardString == "" && expBoardType == 0) {
+              currentExpansionBoardString = expBoardType.toString();
               return;
             } else if (currentExpansionBoardString != expBoardType.toString()) {
               currentExpansionBoardString = expBoardType.toString();

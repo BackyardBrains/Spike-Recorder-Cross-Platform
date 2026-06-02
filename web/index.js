@@ -106,22 +106,8 @@ function initializeModule() {
     if (event.data.message == "NWB_FILE_CREATED") {
       console.log("NWB_FILE_CREATED PATH: ", event.data.result);
       window.onNwbFileCreated(event.data.result);
-      if (event.data.isWavFile && pendingWavOpen) {
-        const pending = pendingWavOpen;
-        pendingWavOpen = null;
-        console.log("MWORKER START_OPENING after WAV conversion:", event.data.result);
-        mWorker.postMessage({
-          message: "START_OPENING_FILE_WEB",
-          filePath: event.data.result,
-          startIdx: pending.startIdx,
-          endIdx: pending.endIdx,
-          startChannel: pending.startChannel,
-          endChannel: pending.endChannel,
-          isStartOpeningFileWeb: pending.isStartOpeningFileWeb,
-          skipMemfsReinit: true,
-          fromWavConversion: true,
-        });
-      }
+      // WAV first-open is handled inside the worker after conversion (skipMemfsReinit).
+      pendingWavOpen = null;
     } else
     if (event.data.message === "NWB_FILE_CREATE_FAILED") {
       console.error("NWB_FILE_CREATE_FAILED:", event.data.error);

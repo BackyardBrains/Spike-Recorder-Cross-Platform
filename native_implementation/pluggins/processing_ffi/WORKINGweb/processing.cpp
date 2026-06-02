@@ -616,8 +616,8 @@ int32_t processing_process_sample_stream(int16_t* _out_samples, int32_t* out_sam
         }
         // CHECKING IF THE DATA FROM serial is the same with this current buffer data ==> THE SAME
         // EM_ASM({
-        //     console.log("Buffer 0 ptr : ", $0, $1, $2, $3);
-        // }, in_data[0], in_data[1], in_data[2], in_data[3]);
+        //     console.log("current_channel_count : ", $0);
+        // }, current_channel_count);
 
         int* event_indices = new int[PROCESSING_MAX_EVENTS];
         std::string* event_labels = new std::string[PROCESSING_MAX_EVENTS];

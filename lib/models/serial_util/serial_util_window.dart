@@ -243,4 +243,9 @@ class SerialUtilWindow implements SerialUtil {
   Stream<String?> deviceStatusStreamListener() {
     return Stream.empty();
   }
+  
+  @override
+  Future<void> resetPort() {
+    return Future.value();
+  }
 }

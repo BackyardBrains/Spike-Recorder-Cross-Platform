@@ -114,11 +114,14 @@ class SerialUtilWeb implements SerialUtil {
   static const Duration _probeFrameTimeoutDefault =
       Duration(milliseconds: 3000);
   static const Duration _probeFrameTimeout500k = Duration(milliseconds: 3000);
+  /// Shorter hwType wait when the device is likely off (no RX on first baud).
+  static const Duration _probeFrameTimeoutDeadDevice =
+      Duration(milliseconds: 700);
   static const int _probeAttemptsPerBaud = 2;
 
   Duration _probeFrameTimeoutForBaud(int baud) =>
       baud == 500000 ? _probeFrameTimeout500k : _probeFrameTimeoutDefault;
-  static const int _probeBaudScanRounds = 5;
+  static const int _probeBaudScanRounds = 3;
 
   /// After this many UART line errors inside [_lineErrorRecoveryWindow], re-probe baud.
   static const int _lineErrorsBeforeBaudRecovery = 8;
@@ -193,9 +196,24 @@ class SerialUtilWeb implements SerialUtil {
         }
         for (final baud in _probeBaudRates) {
           print('SerialUtilWeb: probing baud $baud (round $round)');
-          final ok = await _tryProbeBaud(baud, acceptAdcStream: false);
-          if (ok) {
-            return baud;
+          final fastScan = round == 1 && identical(baud, _probeBaudRates.first);
+          try {
+            final ok = await _tryProbeBaud(
+              baud,
+              acceptAdcStream: false,
+              fastScan: fastScan,
+            );
+            if (ok) {
+              return baud;
+            }
+            if (fastScan && _probeRxBytes == 0) {
+              print(
+                'SerialUtilWeb: no RX on first baud — aborting scan (device off?)',
+              );
+              return null;
+            }
+          } on SerialConnectAborted {
+            rethrow;
           }
           final score =
               _probeRxBytes > 0 ? _probeAdcFrameHits / _probeRxBytes : 0.0;
@@ -320,7 +338,17 @@ class SerialUtilWeb implements SerialUtil {
       _probeRxBytes >= _probeAdcStreamMinRxBytes &&
       _probeAdcFrameHits >= _probeAdcSyncHitsRequired;
 
-  Future<bool> _sendQueryAndAwaitFrameProbe() async {
+  Duration _probeQueryTimeout(int attempt, {required bool fastScan}) {
+    if (fastScan && attempt == 1) {
+      return _probeFrameTimeoutDeadDevice;
+    }
+    return _probeFrameTimeoutForBaud(_baudRate);
+  }
+
+  Future<bool> _sendQueryAndAwaitFrameProbe({
+    bool fastScan = false,
+    int attempt = 1,
+  }) async {
     if (_probeSawCompleteFrame) {
       return true;
     }
@@ -335,7 +363,7 @@ class SerialUtilWeb implements SerialUtil {
       _startQueryRepeatTimer();
     }
 
-    final frameTimeout = _probeFrameTimeoutForBaud(_baudRate);
+    final frameTimeout = _probeQueryTimeout(attempt, fastScan: fastScan);
     try {
       return await _probeResponseCompleter!.future.timeout(
         frameTimeout,
@@ -355,7 +383,11 @@ class SerialUtilWeb implements SerialUtil {
     }
   }
 
-  Future<bool> _tryProbeBaud(int baud, {bool acceptAdcStream = false}) async {
+  Future<bool> _tryProbeBaud(
+    int baud, {
+    bool acceptAdcStream = false,
+    bool fastScan = false,
+  }) async {
     final port = serialPort;
     if (port == null) {
       return false;
@@ -364,7 +396,9 @@ class SerialUtilWeb implements SerialUtil {
     if (_portOpen) {
       await _stopProbeReading();
       await _closeSerialPortWithSettle();
-      await Future<void>.delayed(_probeReopenDelay);
+      if (!fastScan) {
+        await Future<void>.delayed(_probeReopenDelay);
+      }
     }
 
     _writableSession++;
@@ -377,6 +411,9 @@ class SerialUtilWeb implements SerialUtil {
       await _openSerialPortWithRetry(probing: true);
     } catch (e) {
       print('SerialUtilWeb: probe open @$baud failed: $e');
+      if (isSerialPortUnavailableError(e)) {
+        throw SerialConnectAborted(e);
+      }
       return false;
     }
 
@@ -386,12 +423,22 @@ class SerialUtilWeb implements SerialUtil {
     // Windows Chromium + FTDI often delivers very large read chunks when bufferSize
     // is high; macOS web tends to be less aggressive, so this hang was mainly Windows.
     _probeAcceptRx = false;
-    final probeReader = port.readable.reader;
+    final ReadableStreamReader probeReader;
+    try {
+      probeReader = port.readable.reader;
+    } catch (e) {
+      print('SerialUtilWeb: probe getReader @$baud failed: $e');
+      await _releaseProbeReaderLock();
+      await _closeSerialPortWithSettle();
+      throw SerialConnectAborted(e);
+    }
     _probeActiveReader = probeReader;
     final probePump = _probeReadLoop(port, probeReader);
 
     try {
-      await Future<void>.delayed(_probeSettleTime);
+      await Future<void>.delayed(
+        fastScan ? const Duration(milliseconds: 150) : _probeSettleTime,
+      );
       _probeAcceptRx = true;
 
       var success = false;
@@ -399,11 +446,17 @@ class SerialUtilWeb implements SerialUtil {
         if (attempt > 1) {
           print(
             'SerialUtilWeb: probe @$baud no response in '
-            '${_probeFrameTimeoutForBaud(baud).inMilliseconds}ms — retry $attempt/$_probeAttemptsPerBaud',
+            '${_probeQueryTimeout(attempt - 1, fastScan: fastScan).inMilliseconds}ms — retry $attempt/$_probeAttemptsPerBaud',
           );
         }
-        success = await _sendQueryAndAwaitFrameProbe();
+        success = await _sendQueryAndAwaitFrameProbe(
+          fastScan: fastScan,
+          attempt: attempt,
+        );
         if (success) {
+          break;
+        }
+        if (fastScan && attempt == 1 && _probeRxBytes == 0) {
           break;
         }
       }
@@ -428,10 +481,17 @@ class SerialUtilWeb implements SerialUtil {
         await _closeSerialPortWithSettle();
       }
       return success;
+    } on SerialConnectAborted {
+      await _releaseProbeReaderLock();
+      await _closeSerialPortWithSettle();
+      rethrow;
     } catch (e, st) {
       print('SerialUtilWeb: probe @$baud error: $e\n$st');
       await _stopProbeReading();
       await _closeSerialPortWithSettle();
+      if (isSerialPortUnavailableError(e)) {
+        throw SerialConnectAborted(e);
+      }
       return false;
     } finally {
       _probeAcceptRx = false;
@@ -440,20 +500,36 @@ class SerialUtilWeb implements SerialUtil {
     }
   }
 
-  Future<void> _stopProbeReading() async {
-    if (!_probeReading) {
+  /// Baud probe uses [_probeActiveReader]; cancel + [releaseLock] before [SerialPort.close].
+  Future<void> _releaseProbeReaderLock() async {
+    _cancelQueryRepeatTimer();
+    _probing = false;
+    _completeProbeResponse(false);
+    if (!_probeReading && _probeActiveReader == null) {
       return;
     }
     _intentionalProbeStop = true;
+    final probeReader = _probeActiveReader;
     try {
-      final cancelResult = (_probeActiveReader as dynamic)?.cancel();
-      if (cancelResult is Future) {
-        await cancelResult.timeout(_readCancelTimeout, onTimeout: () {});
+      if (probeReader != null) {
+        try {
+          final cancelResult = (probeReader as dynamic).cancel();
+          if (cancelResult is Future) {
+            await cancelResult.timeout(_readCancelTimeout, onTimeout: () {});
+          }
+        } catch (_) {}
+        await _releaseReaderLock(probeReader);
       }
-    } catch (_) {}
-    _probeReading = false;
-    await Future<void>.delayed(const Duration(milliseconds: 80));
-    _intentionalProbeStop = false;
+    } finally {
+      _probeReading = false;
+      _probeActiveReader = null;
+      _intentionalProbeStop = false;
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+    }
+  }
+
+  Future<void> _stopProbeReading() async {
+    await _releaseProbeReaderLock();
   }
 
   Future<void> _sendProbeQueryOnce() async {
@@ -581,9 +657,16 @@ class SerialUtilWeb implements SerialUtil {
     if (!_probing) {
       await Future<void>.delayed(const Duration(milliseconds: 30));
     }
-    final reader = port.readable.reader;
-    _probeActiveReader = reader;
-    return reader;
+    try {
+      final reader = port.readable.reader;
+      _probeActiveReader = reader;
+      return reader;
+    } catch (e) {
+      if (isSerialPortUnavailableError(e)) {
+        throw SerialConnectAborted(e);
+      }
+      rethrow;
+    }
   }
 
   Future<void> _probeReadLoop(
@@ -622,6 +705,9 @@ class SerialUtilWeb implements SerialUtil {
             }
             activeReader = await _freshProbeReader(port, activeReader);
             continue;
+          }
+          if (isSerialPortUnavailableError(e)) {
+            throw SerialConnectAborted(e);
           }
           rethrow;
         }
@@ -679,8 +765,11 @@ class SerialUtilWeb implements SerialUtil {
     final previous = _serialLifecycle;
     final gate = Completer<void>();
     _serialLifecycle = gate.future;
+    print("RUN SERIAL LIFECYCLE 1000: $previous");
     await previous;
+    print("RUN PREVIOUS FIN");
     try {
+      print("RUN AWAIT ACTION");
       return await action();
     } finally {
       gate.complete();
@@ -700,8 +789,9 @@ class SerialUtilWeb implements SerialUtil {
       // while the previous [closePort] is still running; [requestPort] then overwrites
       // [serialPort] before [SerialPort.close] finishes, so the browser still has an
       // open handle and [open] throws InvalidStateError: The port is already open.
+      // Already inside _runSerialLifecycle — use _closePortBody, not closePort().
       if (serialPort != null) {
-        await closePort();
+        await _closePortBody();
       }
       serialPort = await window.navigator.serial.requestPort();
       // Brief settle after picker — some drivers reject immediate open().
@@ -711,30 +801,48 @@ class SerialUtilWeb implements SerialUtil {
       vendorId = portInfo?.usbVendorId ?? 0;
       productId = portInfo?.usbProductId ?? 0;
 
-      final detectedBaud = await _autoDetectBaudRate();
+      int? detectedBaud;
+      try {
+        detectedBaud = await _autoDetectBaudRate();
+      } on SerialConnectAborted catch (e) {
+        print('SerialUtilWeb: baud scan aborted: $e');
+        await _closePortBody();
+        throw Exception('device unavailable');
+      }
       if (detectedBaud == null) {
-        await closePort();
-        throw Exception(
-            'No device response at supported baud rates (500000, 230400, 222222)');
+        await _closePortBody();
+        throw Exception('device unavailable');
       }
       _baudRate = detectedBaud;
       _listenBaudRecoveryRounds = 0;
       _resetLineErrorTracking();
       print("baudRate serial web (auto-detected): $_baudRate");
-      await openPortToListen(" ", _baudRate);
+      if (await openPortToListen(" ", _baudRate) == null) {
+        await _closePortBody();
+        throw Exception("getReader failed");
+      }
     } catch (e) {
-      print(
-          "Port cancelled: $e --- ${e.toString().contains("NotFoundError: Failed to execute 'requestPort'")}");
-      if (e
-          .toString()
-          .contains("NotFoundError: Failed to execute 'requestPort'")) {
+      print("Port cancelled: $e");
+      final msg = e.toString();
+      if (msg.contains("NotFoundError: Failed to execute 'requestPort'")) {
         return;
       }
-      print("Port opening failed: $e");
+      if (e is SerialConnectAborted ||
+          msg.contains('device unavailable') ||
+          msg.contains("Failed to execute 'getReader'")) {
+        try {
+          await _closePortBody();
+        } catch (_) {}
+        if (msg.contains('device unavailable') || e is SerialConnectAborted) {
+          throw Exception('device unavailable');
+        }
+        throw Exception('getReader failed');
+      }
       try {
-        await closePort();
+        await _closePortBody();
       } catch (_) {}
-      throw Exception("Serial connections require Chrome, or Edge");
+      print("Port opening failed: $e");
+      throw Exception("Serial connections require Chrome, or Edge..");
     }
   }
 
@@ -744,15 +852,11 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   Future<void> _closePortBody() async {
-    _cancelQueryRepeatTimer();
-    _probing = false;
-    _completeProbeResponse(false);
     final portToClose = serialPort;
     print("closePort 1000 start: $portToClose");
     // Drop in-flight writes that might still touch the writer while we tear down.
     _writableSession++;
-    await _disposeReader();
-    await _disposeWriterForClose();
+    await _fullyReleasePortStreams();
     _replaceDataStream();
     print("closePort 1000 MIDDLE: $portToClose");
 
@@ -891,8 +995,8 @@ class SerialUtilWeb implements SerialUtil {
       try {
         reader = readable.reader;
       } catch (e) {
-        // Readable may still be locked briefly after cancel(); wait and retry once.
         print("readable.reader first attempt failed: $e");
+        await _fullyReleasePortStreams();
         await Future<void>.delayed(const Duration(milliseconds: 60));
         reader = readable.reader;
       }
@@ -1153,11 +1257,14 @@ class SerialUtilWeb implements SerialUtil {
     } catch (_) {}
     writer = null;
     reader = null;
+    _probeActiveReader = null;
+    _probeReading = false;
     portInfo = null;
     // After "device lost", the underlying handle is typically invalid; force a fresh
     // requestPort() next time instead of repeatedly failing open().
     serialPort = null;
     _portOpen = false;
+    _replaceDataStream();
   }
 
   /// Connection is directly established with the selected port
@@ -1168,7 +1275,7 @@ class SerialUtilWeb implements SerialUtil {
     try {
       await connectToPort();
     } catch (err) {
-      throw Exception("Serial connections require Chrome, or Edge");
+      throw Exception("Serial connections require Chrome, or Edge...");
     }
 
     if (serialPort == null) {
@@ -1189,7 +1296,7 @@ class SerialUtilWeb implements SerialUtil {
       try {
         await connectToPort();
       } catch (err) {
-        throw Exception("Serial connections require Chrome, or Edge");
+        throw Exception(err.toString());
       }
       if (serialPort == null) {
         return [];
@@ -1202,8 +1309,13 @@ class SerialUtilWeb implements SerialUtil {
           "error in getAvailablePortsWeb: ${err.toString()} --- ${err.toString().contains("Null check operator used on a null value")}");
       if (err.toString().contains("Null check operator used on a null value")) {
         throw Exception("BYPASS");
+      } else
+      if (err.toString().contains("getReader failed")) {
+        throw Exception("getReader failed");
+      } else if (err.toString().contains("device unavailable")) {
+        throw Exception("device unavailable");
       } else {
-        throw Exception("Serial connections require Chrome, or Edge");
+        throw Exception("Serial connections require Chrome, or Edge....");
       }
     }
 
@@ -1314,7 +1426,7 @@ class SerialUtilWeb implements SerialUtil {
 
   Future<void> _fullyReleasePortStreams() async {
     // Web Serial requires readable + writable unlocked before port.close().
-    // Release the reader side first (stops the read loop), then the writer.
+    await _releaseProbeReaderLock();
     await _disposeReader();
     await _disposeWriterForClose();
   }
@@ -1543,4 +1655,10 @@ class SerialUtilWeb implements SerialUtil {
 
   @override
   int get detectedBaudRate => _baudRate;
+  
+  /// Full unlock + close — use after getReader failures or USB disconnect.
+  @override
+  Future<void> resetPort() async {
+    return _runSerialLifecycle(_closePortBody);
+  }
 }

@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:native_add/model/model.dart';
 import 'package:provider/provider.dart';
+import 'package:spikerbox_architecture/functionality/debouncer.dart';
 import 'package:spikerbox_architecture/provider/custom_slider_provider.dart';
 import 'package:spikerbox_architecture/provider/provider_export.dart';
 
@@ -655,6 +656,7 @@ class SetFrequencyWidget extends StatefulWidget {
 class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
   late TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
+  Debouncer debouncer = Debouncer(milliseconds: 777);
 
   @override
   void initState() {
@@ -682,7 +684,9 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
 
   void _onFocusChange() {
     if (!_focusNode.hasFocus) {
-      _validateAndUpdate();
+      debouncer.run(() {
+        _validateAndUpdate();
+      });
     }
   }
 
@@ -695,12 +699,13 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
 
     // Clamp the value between 0 and maxFrequency
     value = value.clamp(0, widget.maxFrequency.toInt());
-
-    // Update the controller text to show the clamped value
-    _controller.text = value.toString();
+    debouncer.run(() {
+      // Update the controller text to show the clamped value
+      _controller.text = value.toString();
+      // Notify parent about the change
+      widget.onFrequencyChanged(value!);
+    });
     
-    // Notify parent about the change
-    widget.onFrequencyChanged(value);
   }
 
   @override
@@ -731,6 +736,7 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             ),
+
             onTap: () {
               _controller.selection = TextSelection(
                 baseOffset: 0,

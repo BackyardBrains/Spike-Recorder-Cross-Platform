@@ -252,4 +252,10 @@ class SerialUtilAndroid implements SerialUtil {
     return UsbSerial.usbEventStream?.map((event) => event.event) ??
         Stream.empty();
   }
+  
+  @override
+  Future<void> resetPort() {
+    // TODO: implement resetPort
+    throw UnimplementedError();
+  }
 }

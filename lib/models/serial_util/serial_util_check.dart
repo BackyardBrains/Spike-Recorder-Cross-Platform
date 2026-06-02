@@ -25,6 +25,7 @@ abstract class SerialUtil {
   Future<void> changePortBaudRate(int baudRate) async {}
   Future<void> connectToPort() async {}
   Future<void> closePort() async {}
+  Future<void> resetPort() async {}
 
   void setConfig() {}
   void setBaudRate(int baudRate) {}

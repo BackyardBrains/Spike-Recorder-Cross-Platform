@@ -24,6 +24,7 @@ import 'package:spikerbox_architecture/constant/const_export.dart';
 import 'package:spikerbox_architecture/functionality/debouncer.dart';
 import 'package:spikerbox_architecture/functionality/utils.dart';
 import 'package:spikerbox_architecture/message_identifier.dart';
+import 'package:spikerbox_architecture/models/local_plugins/local_plugins_web.dart';
 import 'package:spikerbox_architecture/models/models.dart';
 import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
 import 'package:spikerbox_architecture/models/audio/processed_sample_player.dart';
@@ -44,6 +45,7 @@ import '../provider/provider_export.dart';
 import '../widget/widget_export.dart';
 import 'graph_page_widget/sound_wave_view.dart';
 import 'package:spikerbox_architecture/models/microphone_stream/microphone_stream_check.dart';
+// import 'package:spikerbox_architecture/models/serial_stale_recovery.dart';
 
 import 'package:another_xlider/another_xlider.dart';
 import 'package:file_picker/file_picker.dart';
@@ -1806,7 +1808,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.13',
+                                            'SpikeRecorder App ver. 2.1.16',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -2738,7 +2740,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   DateTime? _lastSerialDisplayAt;
   bool _serialDisplayDeferred = false;
   bool _serialGraphPaintInFlight = false;
-  static const Duration _minSerialDisplayInterval = Duration(milliseconds: 16);
+  // static const Duration _minSerialDisplayInterval = Duration(milliseconds: 16);
+  static const Duration _minSerialDisplayInterval = Duration(milliseconds: 4);
 
   /// [rollingWindow] vs [rollingFromZero] display window for live serial.
   bool _serialPaintFromZero = false;
@@ -4058,10 +4061,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // STEVE: FIX THIS HARDCODED STUFF
     // config[6] might not be set if device detection fails, default to 0 (audio)
     int isSerialDevice = (config.length > 6) ? config[6] : 0;
+    print("IS SERIAL DEVICE CONFIG : $config");
     // int isSerialDevice = 0;
     print(
         "IS SERIAL DEVICE : $isSerialDevice | CHANNEL COUNT: ${widget.channelCount}");
-    if (isSerialDevice == 1) {
+    // if (isSerialDevice == 1) {
+    if (isSerialDevice != 10000) {
       context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
       Provider.of<ConstantProvider>(context, listen: false)
           .setChannelCount(widget.channelCount);
@@ -4878,6 +4883,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           print("foundDevices");
           print(foundDevices);
           isDeviceSelected = true;
+          lastDateTimeSerialDataArrival = DateTime.now();
           // HARDCODE
           // if (foundDevices == "MUSCLESS") {
           //   foundDevices = "HEARTSS";
@@ -5353,6 +5359,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     // 2. SoLoud initialization (shared with live monitor — live streams paused above when playing)
     soloud ??= SoLoud.SoLoud.instance;
+    print("SOLoud IS PLAYINGBACK: ${soloud!.isInitialized}");
     if (!soloud!.isInitialized) {
       await soloud!.init(
         bufferSize: 512,
@@ -5431,7 +5438,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             // maxBufferSizeBytes: 1024 * 1024 * 10,
             // {Size} = {Sample Rate} * {Bytes per Sample} * {MONO CHANNEL} * {Desired Seconds} * {100  constant}
             maxBufferSizeBytes: _sampleRate * 2 * 1 * 10,
-            bufferingTimeNeeds: 0.05,
+            bufferingTimeNeeds: 0.01,
             bufferingType: SoLoud.BufferingType.released,
             sampleRate: _sampleRate,
             channels: SoLoud.Channels.mono,
@@ -6885,7 +6892,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     int drawSurfaceWidth,
   ) async {
     if (!mounted || !_serialDisplayDeferred) return;
-    // if (!_shouldPaintSerialGraphNow()) return;
+    if (GraphTemplate.selectedBoard?.uniqueName == "HBLEOSB" || GraphTemplate.selectedBoard?.uniqueName == "HHIBOX" || GraphTemplate.selectedBoard?.uniqueName == "MUSCUSB1") {
+    } else 
+    if (!_shouldPaintSerialGraphNow()) return;
 
     totalSampleCount = 0;
     _serialDisplayDeferred = false;
@@ -7011,6 +7020,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   void callSerialDataSubscription() {
+    print("callSerialDataSubscription : ");
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
     serialDataSubscription?.cancel();
     _cancelSerialStaleWatchdog();
@@ -7070,7 +7080,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void serialWebButtonPressed(List<int> _baudRate) async {
     lastEstablishingConnectionTime = DateTime.now();
     try {
-      await _serialUtil.closePort();
+      await _serialUtil.resetPort();
     } catch (err) {
       print("ERROR IN SERIAL WEB BUTTON PRESSED: $err");
     }
@@ -7089,6 +7099,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
         if (err.toString().contains("BYPASS")) {
           _isSerialWebButtonEnabled = false;
           setState(() {});
+          return;
+        } else 
+        if (err.toString().contains("getReader failed") ||
+            err.toString().contains("device unavailable")) {
+          _isSerialWebButtonEnabled = false;
+          setState(() {});
+          await _serialUtil.resetPort();
           return;
         }
         PanaraInfoDialog.show(
@@ -7517,10 +7534,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void _ensureSerialStaleWatchdog(GraphDataProvider provider) {
     if (_serialStaleWatchdogTimer != null) return;
     _serialStaleWatchdogTimer =
-        Timer.periodic(const Duration(seconds: 1), (timer) {
+        Timer.periodic(const Duration(seconds: 3), (timer) {
       if (!mounted || isRecording == 1 || isOpeningFile) return;
       final lastArrival = lastDateTimeSerialDataArrival;
       if (lastArrival == null) return;
+
+      print("lastArrival: ${DateTime.now().difference(lastArrival).inSeconds}");
       if (DateTime.now().difference(lastArrival).inSeconds >
           _serialDataStaleTimeoutSeconds) {
         _recoverFromSerialDataTimeout(provider);
@@ -7623,6 +7642,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   GraphTemplate.selectedBoard!.expansionBoards != null &&
                   GraphTemplate.selectedBoard!.expansionBoards!.isEmpty) return;
 
+              print("localPlugin.currentExpansionBoardString: ${localPlugin.currentExpansionBoardString}");
+              if (localPlugin.currentExpansionBoardString != "") {
+                return;
+              }
               _isBoardTimerRunning = false;
               print("Writing to port board:;");
               Uint8List commandBytes =

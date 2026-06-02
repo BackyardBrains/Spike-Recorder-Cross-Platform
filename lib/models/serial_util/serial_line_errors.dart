@@ -59,3 +59,25 @@ bool isSerialPortAlreadyClosedError(Object error) {
           message.contains("'close'") &&
           message.contains('SerialPort'));
 }
+
+/// Port missing, powered off, or Web Serial stream not usable — do not keep probing.
+bool isSerialPortUnavailableError(Object error) {
+  final message = error.toString();
+  return message.contains('NetworkError') ||
+      message.contains('device has been lost') ||
+      message.contains('device was disconnected') ||
+      message.contains('Failed to execute \'getReader\'') ||
+      message.contains('locked stream') ||
+      message.contains('Cannot cancel a locked stream');
+}
+
+/// Thrown to stop baud scan immediately and reset to initial state.
+final class SerialConnectAborted implements Exception {
+  SerialConnectAborted([this.cause]);
+  final Object? cause;
+
+  @override
+  String toString() => cause == null
+      ? 'SerialConnectAborted'
+      : 'SerialConnectAborted: $cause';
+}

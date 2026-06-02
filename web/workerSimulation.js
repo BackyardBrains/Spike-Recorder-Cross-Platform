@@ -83,20 +83,39 @@ function nwbExistsInMemfs(fileName) {
     const bare = normalizeNwbFileName(fileName);
     for (const path of [bare, '/' + bare]) {
         try {
-            FS.readFile(path);
-            return bare;
+            if (typeof FS.analyzePath === 'function') {
+                const info = FS.analyzePath(path);
+                if (info.exists && info.object && !info.object.isFolder) {
+                    return bare;
+                }
+            } else {
+                FS.readFile(path);
+                return bare;
+            }
         } catch (_) {}
     }
     return null;
 }
 
 /** Load a disk-picked .nwb into WASM MEMFS so nwbfile_seek_electrical_series can open it. */
-async function ensureNwbInMemfs(fileName, fileHandle) {
+async function ensureNwbInMemfs(fileName, fileHandle, options = {}) {
     const bare = normalizeNwbFileName(fileName);
     const existing = nwbExistsInMemfs(bare);
     if (existing) {
         console.log("NWB already in MEMFS:", existing);
         return existing;
+    }
+    const fromWavConversion = options.fromWavConversion === true;
+    const handleIsWav =
+        fileHandle &&
+        typeof fileHandle.name === 'string' &&
+        fileHandle.name.toLowerCase().endsWith('.wav');
+    if (fromWavConversion || handleIsWav) {
+        console.error(
+            "ensureNwbInMemfs: converted NWB missing from MEMFS (will not load .wav as .nwb):",
+            bare
+        );
+        return null;
     }
     if (!fileHandle || typeof fileHandle.getFile !== 'function') {
         console.error("NWB not in MEMFS and no fileHandle:", bare);
@@ -123,11 +142,19 @@ async function ensureNwbInMemfs(fileName, fileHandle) {
     }
 }
 
-async function prepareNwbFileForOpening(fileName, fileHandle, isStartOpeningFileWeb) {
-    if (isStartOpeningFileWeb) {
+async function prepareNwbFileForOpening(
+    fileName,
+    fileHandle,
+    isStartOpeningFileWeb,
+    options = {}
+) {
+    const skipMemfsReinit = options.skipMemfsReinit === true;
+    if (isStartOpeningFileWeb && !skipMemfsReinit) {
         await reinitializeNwbModule();
     }
-    return await ensureNwbInMemfs(fileName, fileHandle);
+    return await ensureNwbInMemfs(fileName, fileHandle, {
+        fromWavConversion: options.fromWavConversion === true,
+    });
 }
 
 function postSeekOpenFailed(isStartOpeningFileWeb, isPlayback) {
@@ -156,7 +183,11 @@ async function handleOpenNwbFileWeb(eventFromMain, isPlayback) {
     const readyPath = await prepareNwbFileForOpening(
         fileName,
         fileHandle,
-        isStartOpeningFileWeb
+        isStartOpeningFileWeb,
+        {
+            skipMemfsReinit: eventFromMain.data.skipMemfsReinit === true,
+            fromWavConversion: eventFromMain.data.fromWavConversion === true,
+        }
     );
     if (!readyPath) {
         postSeekOpenFailed(isStartOpeningFileWeb, isPlayback);
@@ -1188,7 +1219,7 @@ self.onmessage = async function (eventFromMain) {
 
             // Slot stride expected by WASM (see processing_process_sample_stream).
             for (let i = 0; i < totalChannel; i++) {
-                outSampleCountsBuffer[i] = serialPacketLen;
+                outSampleCountsBuffer[i] = data.length;
             }
             inDataArr.set(data);
             // console.log("inDataArr:::: ", inDataArr.subarray(0,5));
@@ -1645,7 +1676,7 @@ self.onmessage = async function (eventFromMain) {
                         deviceManufacturer = "SpikeRecorder Systems";
                     }
 
-                    let nwbFilePath = fileHandle.name.replace(".wav", ".nwb");
+                    let nwbFilePath = normalizeNwbFileName(fileHandle.name);
                     console.log("NWB FILE PATHzzz: ", nwbFilePath);
                     console.log("WAV metadata:", { wavSampleRate, wavChannelCount });
                     const result = callProcessingInit(
@@ -1705,6 +1736,28 @@ self.onmessage = async function (eventFromMain) {
                         result: nwbFilePath,
                         isWavFile: true,
                     });
+
+                    if (eventFromMain.data.isStartOpeningFileWeb) {
+                        console.log(
+                            "Opening converted WAV NWB in worker (skip MEMFS reinit):",
+                            nwbFilePath
+                        );
+                        await handleOpenNwbFileWeb(
+                            {
+                                data: {
+                                    filePath: nwbFilePath,
+                                    startIdx: eventFromMain.data.startIdx,
+                                    endIdx: eventFromMain.data.endIdx,
+                                    startChannel: eventFromMain.data.startChannel,
+                                    endChannel: eventFromMain.data.endChannel,
+                                    isStartOpeningFileWeb: true,
+                                    skipMemfsReinit: true,
+                                    fromWavConversion: true,
+                                },
+                            },
+                            false
+                        );
+                    }
                 }
                 return;
             } else {

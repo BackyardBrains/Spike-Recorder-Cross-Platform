@@ -1808,7 +1808,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.16',
+                                            'SpikeRecorder App ver. 2.1.17',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -2963,8 +2963,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
       await processingUtil.setBandFilter(-1, -1, -1);
 
       print("listenToMicrophone5");
-      await _ensureLiveMonitorPlayer(channelCount: channelCount);
-
       microphoneUtil.micStream.addListener(micListener);
       isDeviceConnect = true;
       isDeviceSelected = false;
@@ -2983,6 +2981,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       _isSerialWebButtonEnabled = false;
       setState(() => {});
     }
+    print("LISTEN TO MICROPHONE COMPLETED : ${DateTime.now().millisecondsSinceEpoch}");
   }
 
   List<int> arr = [];
@@ -5885,6 +5884,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 onPressed: () async {
                   if (_isSerialWebButtonEnabled) {
+                    print("SERIAL DATETIME CLOSED : ${DateTime.now().millisecondsSinceEpoch}");
                     _isSerialWebButtonEnabled = false;
                     _serialUtil.closePort();
                     isDeviceConnect = true;
@@ -5894,7 +5894,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
                     GraphDataProvider graphDataProvider =
                         Provider.of<GraphDataProvider>(context, listen: false);
-                    listenToMicrophone(1, graphDataProvider);
+                    // listenToMicrophone(1, graphDataProvider);
+                    _recoverFromSerialDataTimeout(graphDataProvider);
                     streamScrubBuilderController.add(Random().nextInt(100000));
                     isSerialDeviceFound = false;
                     return;
@@ -5963,9 +5964,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 duration: Duration(seconds: 7),
               ));
             } else {
-              String recordedFilePathProcessed = "~/Downloads/" +
+              String recordedFilePathProcessed = 
                   recordedFilePath!
                       .substring(recordedFilePath!.lastIndexOf("/") + 1);
+              if (!kIsWeb) {
+                if(Platform.isWindows) {
+                  recordedFilePathProcessed = "~/Downloads/$recordedFilePathProcessed";
+                }
+              }
 
               ScaffoldMessenger.of(widgetContext).showSnackBar(SnackBar(
                 // content: Text("File recorded successfully: $recordedFilePath"),
@@ -7539,7 +7545,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       final lastArrival = lastDateTimeSerialDataArrival;
       if (lastArrival == null) return;
 
-      print("lastArrival: ${DateTime.now().difference(lastArrival).inSeconds}");
+      // print("lastArrival: ${DateTime.now().difference(lastArrival).inSeconds}");
       if (DateTime.now().difference(lastArrival).inSeconds >
           _serialDataStaleTimeoutSeconds) {
         _recoverFromSerialDataTimeout(provider);

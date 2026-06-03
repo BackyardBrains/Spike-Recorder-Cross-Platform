@@ -341,7 +341,7 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
                   stream: graphDataProvider.displayTimeStream,
                   initialData: 10000.0,
                   builder: (context, snapshot) {
-                    print("Stream builder: Display Time: ${snapshot.data}");
+                    // print("Stream builder: Display Time: ${snapshot.data}");
                     if (snapshot.data != null && snapshot.data!.toDouble() == 10000.0) {
                       TimeCalculateWidget.displayTimeMsLabel = 2000;
                       double samplesPerMs = sampleRate / 1000;
@@ -404,7 +404,7 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
                 ValueListenableBuilder<double>(
                   valueListenable: lineWidthScaleNotifier, 
                   builder: (context, value, child) {
-                    print("Value: $value");
+                    // print("Value: $value");
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

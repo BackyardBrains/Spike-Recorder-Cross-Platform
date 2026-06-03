@@ -822,10 +822,11 @@ class SerialUtilWeb implements SerialUtil {
         throw Exception("getReader failed");
       }
     } catch (e) {
-      print("Port cancelled: $e");
+      print("Port cancelled1: $e");
       final msg = e.toString();
-      if (msg.contains("NotFoundError: Failed to execute 'requestPort'")) {
-        return;
+      if (msg.contains("Null check operator used on a null value") || msg.contains("NotFoundError: Failed to execute 'requestPort'")) {
+        print('bypass');
+        throw Exception(msg);
       }
       if (e is SerialConnectAborted ||
           msg.contains('device unavailable') ||
@@ -843,6 +844,7 @@ class SerialUtilWeb implements SerialUtil {
       } catch (_) {}
       print("Port opening failed: $e");
       throw Exception("Serial connections require Chrome, or Edge..");
+      
     }
   }
 
@@ -1307,7 +1309,7 @@ class SerialUtilWeb implements SerialUtil {
     } catch (err) {
       print(
           "error in getAvailablePortsWeb: ${err.toString()} --- ${err.toString().contains("Null check operator used on a null value")}");
-      if (err.toString().contains("Null check operator used on a null value")) {
+      if (err.toString().contains("Null check operator used on a null value") || err.toString().contains("NotFoundError: Failed to execute 'requestPort'")) {
         throw Exception("BYPASS");
       } else
       if (err.toString().contains("getReader failed")) {

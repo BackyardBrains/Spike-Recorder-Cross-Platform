@@ -28,6 +28,8 @@ import 'package:spikerbox_architecture/models/local_plugins/local_plugins_web.da
 import 'package:spikerbox_architecture/models/models.dart';
 import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
 import 'package:spikerbox_architecture/models/audio/processed_sample_player.dart';
+import 'package:spikerbox_architecture/models/audio/web_loaded_file_player_stub.dart'
+    if (dart.library.html) 'package:spikerbox_architecture/models/audio/web_loaded_file_player.dart';
 import 'package:spikerbox_architecture/models/processing_utils/processing_util.dart';
 import 'package:spikerbox_architecture/provider/fft_status_provider.dart';
 import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
@@ -1151,6 +1153,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _dummyDataTimer?.cancel();
     periodicTimerSerial?.cancel();
     timerPlaybackLoadedFile?.cancel();
+    _stopWebPlaybackAudioFeed();
+    _stopWebLoadedFileAudioPlayback();
 
     // Remove listeners
     if (_graphDataProviderListener != null) {
@@ -3000,6 +3004,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
   int isRecording = 0;
 
   Timer? timerPlaybackLoadedFile;
+  /// Web-only: optional streaming feed when PCM does not fit in one buffer (#55).
+  Timer? _timerPlaybackWebAudio;
+  Stopwatch? _webPlaybackAudioClock;
+  int _webPlaybackFedSampleIndex = 0;
+  bool _webPlaybackUsesStreamFeed = false;
+  DateTime? _lastWebPlaybackUiUpdate;
+  static const double _webPlaybackAheadSeconds = 2.0;
+  static const int _webPlaybackFeedChunkSamples = 8192;
+  static const int _webPlaybackMaxBufferBytes = 80 * 1024 * 1024;
   double timerPlaybackLoadedStartIndex = 0;
   double timerPlaybackLoadedEndIndex = 0;
   double loadedMaxSamples = 0;
@@ -5114,10 +5127,243 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   DateTime? lastDateTimeSerialDataArrival = DateTime.now();
 
+  int _totalLoadedFilePcmBytes() {
+    var bytes = 0;
+    for (final channel in loadedArrSamples) {
+      bytes += channel.lengthInBytes;
+    }
+    return bytes;
+  }
+
+  void _stopWebPlaybackAudioFeed() {
+    _timerPlaybackWebAudio?.cancel();
+    _timerPlaybackWebAudio = null;
+    _webPlaybackAudioClock?.stop();
+    _webPlaybackAudioClock = null;
+    _webPlaybackUsesStreamFeed = false;
+  }
+
+  int _loadedFileSpeakerChannelIndex() {
+    return WebLoadedFilePlayer.speakerChannelIndex(
+      channelCount: widget.channelCount,
+      isMicrophoneRecording:
+          context.read<DataStatusProvider>().isMicrophoneData,
+      speakerChannelMuted: isSpeakerChannelMuted,
+    );
+  }
+
+  void _onWebLoadedFilePlaybackEnded() {
+    if (!mounted) return;
+    WebLoadedFilePlayer.instance.registerEndedCallback(null);
+    if (loadedArrSamples.isNotEmpty) {
+      timerPlaybackLoadedStartIndex = loadedArrSamples[0].length.toDouble();
+      startPlaybackSeekSampleIdx += timerPlaybackLoadedStartIndex;
+      startSeekSampleIdx = startPlaybackSeekSampleIdx;
+    }
+    Provider.of<GraphResumePlayProvider>(context, listen: false)
+        .setGraphResumePlay(false);
+    GraphTemplate.isPlayerPaused = true;
+    GraphTemplate.isLoadingFile = 2;
+    _isStreamEnded = true;
+    timerPlaybackLoadedFile?.cancel();
+    _stopWebPlaybackAudioFeed();
+    if (mounted) setState(() {});
+  }
+
+  bool _startWebLoadedFileAudioPlayback() {
+    if (!kIsWeb || loadedArrSamples.isEmpty) return false;
+    final ch = _loadedFileSpeakerChannelIndex();
+    if (ch >= loadedArrSamples.length) return false;
+
+    final samples = loadedArrSamples[ch];
+    final startIdx = timerPlaybackLoadedStartIndex
+        .floor()
+        .clamp(0, samples.length > 0 ? samples.length - 1 : 0);
+
+    WebLoadedFilePlayer.instance
+        .registerEndedCallback(_onWebLoadedFilePlaybackEnded);
+    return WebLoadedFilePlayer.instance.play(
+      samples: samples,
+      sampleRate: _sampleRate,
+      startSampleIndex: startIdx,
+    );
+  }
+
+  void _stopWebLoadedFileAudioPlayback() {
+    if (!kIsWeb) return;
+    WebLoadedFilePlayer.instance.stop();
+    WebLoadedFilePlayer.instance.registerEndedCallback(null);
+  }
+
+  /// Native-style playback: push all decoded PCM into SoLoud before [play].
+  /// Returns true when every channel was fully queued.
+  Future<bool> _enqueueWebLoadedFilePcmToStreams({required bool markEnded}) async {
+    if (!kIsWeb || soloud == null || loadedArrSamples.isEmpty) return false;
+
+    _webPlaybackFedSampleIndex = 0;
+    var chunkCount = 0;
+
+    for (var ch = 0; ch < widget.channelCount; ch++) {
+      if (ch >= loadedFileStreams.length || ch >= loadedArrSamples.length) {
+        continue;
+      }
+      final stream = loadedFileStreams[ch];
+      if (stream == null) continue;
+
+      final samples = loadedArrSamples[ch];
+      var offset = 0;
+      while (offset < samples.length) {
+        final chunkEnd = min(
+          offset + _webPlaybackFeedChunkSamples,
+          samples.length,
+        );
+        try {
+          soloud!.addAudioDataStream(
+            stream,
+            _loadedFilePcmBytes(samples.sublist(offset, chunkEnd)),
+          );
+        } catch (e) {
+          _webPlaybackFedSampleIndex = offset;
+          debugPrint('Web playback enqueue stalled at $offset: $e');
+          return false;
+        }
+        offset = chunkEnd;
+        _webPlaybackFedSampleIndex = offset;
+        chunkCount++;
+        if (chunkCount % 32 == 0) {
+          await Future<void>.delayed(Duration.zero);
+        }
+      }
+
+      if (markEnded) {
+        try {
+          soloud!.setDataIsEnded(stream);
+        } catch (e) {
+          debugPrint('setDataIsEnded failed for channel $ch: $e');
+        }
+      }
+    }
+
+    if (loadedArrSamples.isNotEmpty) {
+      _webPlaybackFedSampleIndex = loadedArrSamples[0].length;
+    }
+    return true;
+  }
+
+  /// Fallback for files larger than [_webPlaybackMaxBufferBytes]: wall-clock feed.
+  void _feedWebPlaybackAudioIfNeeded() {
+    if (!_webPlaybackUsesStreamFeed ||
+        !kIsWeb ||
+        _isStreamEnded ||
+        soloud == null ||
+        loadedFileStreams.isEmpty ||
+        loadedArrSamples.isEmpty) {
+      return;
+    }
+
+    final clock = _webPlaybackAudioClock;
+    if (clock == null || !clock.isRunning) return;
+
+    final consumedSamples =
+        (clock.elapsedMicroseconds * _sampleRate / 1000000).round();
+    final targetFed = consumedSamples +
+        (_sampleRate * _webPlaybackAheadSeconds).round();
+    final maxSamples = loadedArrSamples[0].length;
+
+    while (_webPlaybackFedSampleIndex < targetFed &&
+        _webPlaybackFedSampleIndex < maxSamples) {
+      final chunkEnd = min(
+        _webPlaybackFedSampleIndex + _webPlaybackFeedChunkSamples,
+        maxSamples,
+      );
+      if (chunkEnd <= _webPlaybackFedSampleIndex) break;
+
+      for (var ch = 0; ch < widget.channelCount; ch++) {
+        if (ch >= loadedFileStreams.length || ch >= loadedArrSamples.length) {
+          continue;
+        }
+        final stream = loadedFileStreams[ch];
+        if (stream == null) continue;
+        try {
+          soloud!.addAudioDataStream(
+            stream,
+            _loadedFilePcmBytes(
+              loadedArrSamples[ch].sublist(_webPlaybackFedSampleIndex, chunkEnd),
+            ),
+          );
+        } catch (e) {
+          return;
+        }
+      }
+      _webPlaybackFedSampleIndex = chunkEnd;
+    }
+
+    if (_webPlaybackFedSampleIndex >= maxSamples) {
+      _markLoadedFilePlaybackStreamsEnded();
+    }
+  }
+
+  void _markLoadedFilePlaybackStreamsEnded() {
+    if (_isStreamEnded || soloud == null) return;
+    for (final stream in loadedFileStreams) {
+      if (stream == null) continue;
+      try {
+        soloud!.setDataIsEnded(stream);
+      } catch (e) {
+        debugPrint('setDataIsEnded failed: $e');
+      }
+    }
+  }
+
+  void _ensureWebLoadedFileStreams() {
+    if (!kIsWeb || soloud == null) return;
+
+    loadedFileStreams.clear();
+    final totalPcmBytes = _totalLoadedFilePcmBytes();
+    final fitsEntireFile =
+        totalPcmBytes > 0 && totalPcmBytes <= _webPlaybackMaxBufferBytes;
+    final bufferBytes = fitsEntireFile
+        ? (totalPcmBytes + 8192).clamp(_sampleRate * 2 * 2, _webPlaybackMaxBufferBytes)
+        : _sampleRate * 2 * 30;
+
+    for (var i = 0; i < widget.channelCount; i++) {
+      loadedFileStreams.add(soloud!.setBufferStream(
+        maxBufferSizeBytes: bufferBytes,
+        bufferingTimeNeeds: fitsEntireFile ? 0.05 : 0.5,
+        bufferingType: fitsEntireFile
+            ? SoLoud.BufferingType.preserved
+            : SoLoud.BufferingType.released,
+        sampleRate: _sampleRate,
+        channels: SoLoud.Channels.mono,
+        format: SoLoud.BufferType.s16le,
+      ));
+    }
+  }
+
+  Future<void> _prepareWebLoadedFileAudioBeforePlay() async {
+    if (!kIsWeb || soloud == null || loadedArrSamples.isEmpty) return;
+
+    _stopWebPlaybackAudioFeed();
+    final fullyBuffered =
+        await _enqueueWebLoadedFilePcmToStreams(markEnded: true);
+    if (fullyBuffered) return;
+
+    _webPlaybackUsesStreamFeed = true;
+    _webPlaybackAudioClock = Stopwatch()..start();
+    _timerPlaybackWebAudio =
+        Timer.periodic(const Duration(milliseconds: 15), (_) {
+      _feedWebPlaybackAudioIfNeeded();
+    });
+    _feedWebPlaybackAudioIfNeeded();
+  }
+
   void _startPlaybackTimer() {
     print("START PLAYBACK TIMER");
     _isStreamEnded = false; // Reset flag when starting playback
     timerPlaybackLoadedFile?.cancel();
+    if (!kIsWeb) {
+      _stopWebPlaybackAudioFeed();
+    }
     timerPlaybackLoadedStartIndex = 0;
     timerPlaybackLoadedEndIndex = 0;
     double playbackFactor = _sampleRate / 1000;
@@ -5134,21 +5380,29 @@ class _GraphTemplateState extends State<GraphTemplate> {
         prevTime = DateTime.now().millisecondsSinceEpoch;
 
         try {
-          timerPlaybackLoadedEndIndex =
-              timerPlaybackLoadedStartIndex + sampleDivider;
-          if (startPlaybackSeekSampleIdx + timerPlaybackLoadedEndIndex >
-              loadedMaxSamples) {
-            timerPlaybackLoadedEndIndex = loadedArrSamples[0].length - 1;
-          }
+          final int playbackStartIdx;
+          final int playbackEndIdx;
 
-          // create sublist array based on the start and end timer index
-          // check if the sublist array is not empty
-          // insert data into c++
-
-          final playbackStartIdx = timerPlaybackLoadedStartIndex.floor();
-          final playbackEndIdx = timerPlaybackLoadedEndIndex.floor();
-          if (playbackEndIdx <= playbackStartIdx) {
-            return;
+          if (kIsWeb && WebLoadedFilePlayer.instance.isActive) {
+            playbackStartIdx = timerPlaybackLoadedStartIndex.floor();
+            playbackEndIdx =
+                WebLoadedFilePlayer.instance.currentSamplePosition();
+            timerPlaybackLoadedEndIndex = playbackEndIdx.toDouble();
+            if (playbackEndIdx <= playbackStartIdx) {
+              return;
+            }
+          } else {
+            timerPlaybackLoadedEndIndex =
+                timerPlaybackLoadedStartIndex + sampleDivider;
+            if (startPlaybackSeekSampleIdx + timerPlaybackLoadedEndIndex >
+                loadedMaxSamples) {
+              timerPlaybackLoadedEndIndex = loadedArrSamples[0].length - 1;
+            }
+            playbackStartIdx = timerPlaybackLoadedStartIndex.floor();
+            playbackEndIdx = timerPlaybackLoadedEndIndex.floor();
+            if (playbackEndIdx <= playbackStartIdx) {
+              return;
+            }
           }
 
           List<Int16List> sublistArray = [];
@@ -5156,27 +5410,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
             Int16List sublistSamples =
                 loadedArrSamples[i].sublist(playbackStartIdx, playbackEndIdx);
             sublistArray.add(sublistSamples);
-            if (!_isStreamEnded && loadedFileStreams[i] != null) {
-              try {
-                if (kIsWeb) {
-                  soloud!.addAudioDataStream(
-                    loadedFileStreams[i]!,
-                    _loadedFilePcmBytes(sublistSamples),
-                  );
-                }
-              } catch (e) {
-                // Stream may have been ended, stop trying to add data
-                print("Error adding audio data to stream (may be ended): $e");
-                _isStreamEnded = true;
-                timerPlaybackLoadedFile?.cancel();
-                return;
-              }
-            }
           }
-          // print(
-          //     "loadedArrSamples: Channel: ${widget.channelCount} --- LENGTH: ${timerPlaybackLoadedEndIndex - timerPlaybackLoadedStartIndex}");
-          timerPlaybackLoadedStartIndex =
-              (timerPlaybackLoadedStartIndex + sampleDivider);
+
+          if (kIsWeb && WebLoadedFilePlayer.instance.isActive) {
+            timerPlaybackLoadedStartIndex = playbackEndIdx.toDouble();
+          } else {
+            timerPlaybackLoadedStartIndex =
+                (timerPlaybackLoadedStartIndex + sampleDivider);
+          }
 
           if (startPlaybackSeekSampleIdx + timerPlaybackLoadedStartIndex >
               loadedMaxSamples) {
@@ -5226,6 +5467,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 "AdaptiveAreaState.horizontalDragX :  ${AdaptiveAreaState.horizontalDragX}");
 
             timerPlaybackLoadedFile?.cancel();
+            _stopWebPlaybackAudioFeed();
+            _stopWebLoadedFileAudioPlayback();
             setState(() {});
             return;
           }
@@ -5330,7 +5573,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
           AdaptiveAreaState.horizontalDragX =
               playbackPercentage * AdaptiveAreaState.horizontalDragXFix;
 
-          setState(() {});
+          if (kIsWeb && GraphTemplate.isLoadingFile == 4) {
+            final now = DateTime.now();
+            if (_lastWebPlaybackUiUpdate == null ||
+                now.difference(_lastWebPlaybackUiUpdate!).inMilliseconds >=
+                    200) {
+              _lastWebPlaybackUiUpdate = now;
+              setState(() {});
+            }
+          } else {
+            setState(() {});
+          }
         } catch (err) {
           print(
               "ERR: $err ||| $timerPlaybackLoadedEndIndex | $timerPlaybackLoadedStartIndex ");
@@ -5373,32 +5626,40 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // Mark streams as ended before cancelling timer to prevent race conditions
       _isStreamEnded = true;
       timerPlaybackLoadedFile?.cancel();
+      _stopWebPlaybackAudioFeed();
 
-      // Wait a brief moment to ensure any pending timer callbacks complete
-      await Future.delayed(Duration(milliseconds: 100));
+      if (kIsWeb) {
+        if (WebLoadedFilePlayer.instance.isActive) {
+          startPlaybackSeekSampleIdx +=
+              WebLoadedFilePlayer.instance.currentSamplePosition().toDouble();
+        }
+        _stopWebLoadedFileAudioPlayback();
+      } else {
+        // Wait a brief moment to ensure any pending timer callbacks complete
+        await Future.delayed(Duration(milliseconds: 100));
 
-      if (soloud != null) {
-        // double maxSamplesTime = loadedMaxSamples / _sampleRate * 1000;
-        double sampleConsumed =
-            (soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!
-                    .inMilliseconds /
-                2 *
-                _sampleRate /
-                1000;
-        startPlaybackSeekSampleIdx += timerPlaybackLoadedStartIndex;
-        startSeekSampleIdx = startPlaybackSeekSampleIdx;
-        // startPlaybackSeekSampleIdx -= sampleDivider;
-        print(
-            "STOP SOUND | ${widget.channelCount} | ${(soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!.inMilliseconds} | ::: $sampleConsumed ::: $timerPlaybackLoadedStartIndex");
-      }
-      for (int i = 0; i < widget.channelCount; i++) {
-        try {
+        if (soloud != null && loadedFileStreams.isNotEmpty) {
+          double sampleConsumed =
+              (soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!
+                      .inMilliseconds /
+                  2 *
+                  _sampleRate /
+                  1000;
+          startPlaybackSeekSampleIdx += timerPlaybackLoadedStartIndex;
+          startSeekSampleIdx = startPlaybackSeekSampleIdx;
           print(
-              "STOP SOUND -- $i --| ${widget.channelCount} | ${(soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!.inMilliseconds} | :::");
-          soloud?.setDataIsEnded(loadedFileStreams[i]!);
-          soloud?.stop(loadedSoundHandles[i]!);
-        } catch (e) {
-          print("Error ending stream: $e");
+              "STOP SOUND | ${widget.channelCount} | ${(soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!.inMilliseconds} | ::: $sampleConsumed ::: $timerPlaybackLoadedStartIndex");
+        }
+        for (int i = 0; i < widget.channelCount; i++) {
+          try {
+            if (i >= loadedFileStreams.length || i >= loadedSoundHandles.length) {
+              continue;
+            }
+            soloud?.setDataIsEnded(loadedFileStreams[i]!);
+            soloud?.stop(loadedSoundHandles[i]!);
+          } catch (e) {
+            print("Error ending stream: $e");
+          }
         }
       }
       GraphTemplate.isLoadingFile = 2;
@@ -5428,26 +5689,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
             channels: SoLoud.Channels.mono,
             format: SoLoud.BufferType.s16le,
             onBuffering: (isBuffering, handle, time) async {
-              print("IS BUFFERING $isBuffering $handle $time");
+              // print("IS BUFFERING $isBuffering $handle $time");
               if (context.mounted) {}
             },
           ));
-        } else {
+        } else if (!kIsWeb) {
           loadedFileStreams.add(soloud!.setBufferStream(
-            // maxBufferSizeBytes: 1024 * 1024 * 10,
-            // {Size} = {Sample Rate} * {Bytes per Sample} * {MONO CHANNEL} * {Desired Seconds} * {100  constant}
-            maxBufferSizeBytes: _sampleRate * 2 * 1 * 10,
-            bufferingTimeNeeds: 0.01,
             bufferingType: SoLoud.BufferingType.released,
             sampleRate: _sampleRate,
             channels: SoLoud.Channels.mono,
             format: SoLoud.BufferType.s16le,
             onBuffering: (isBuffering, handle, time) async {
-              print("IS BUFFERING $isBuffering $handle $time");
               if (context.mounted) {}
             },
           ));
         }
+        // Web streams are created in [_ensureWebLoadedFileStreams] after PCM is loaded.
       }
 
       // insert old samples, if samplesLength == 0 return null,
@@ -5539,35 +5796,28 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
           print("ADDED DATA STREAM Channel Count: ${widget.channelCount}");
 
-          // Start playback timer (non-web path)
-
           loadedSoundHandles.clear();
-          if (isAudioListen) {
-            for (int i = 0; i < widget.channelCount; i++) {
+          if (kIsWeb) {
+            _stopWebLoadedFileAudioPlayback();
+            if (!_startWebLoadedFileAudioPlayback()) {
+              debugPrint('Web Audio playback failed to start');
+            }
+            print(
+                "Start WEB AUDIO PLAY ${DateTime.now().millisecondsSinceEpoch}");
+          } else {
+            final playFutures = <Future<SoLoud.SoundHandle>>[];
+            for (var i = 0; i < widget.channelCount; i++) {
               print(
                   "Initialize PLAY SOUND ${DateTime.now().millisecondsSinceEpoch}");
-              soloud!.play(loadedFileStreams[i]!).then((soundHandle) {
-                print(
-                    "Start PLAY SOUND ${DateTime.now().millisecondsSinceEpoch}");
-                loadedSoundHandles.add(soundHandle);
-                _startPlaybackTimer();
-
-                // loadedSoundHandles[i] = soundHandle;
-              });
+              playFutures.add(soloud!.play(loadedFileStreams[i]!));
             }
-            // Future.delayed(Duration(milliseconds: 100), () {
-            // });
-          } else {
-            for (int i = 0; i < widget.channelCount; i++) {
-              soloud!.play(loadedFileStreams[i]!).then((soundHandle) {
-                loadedSoundHandles.add(soundHandle);
-                // loadedSoundHandles[i] = soundHandle;
-              });
-            }
-            Future.delayed(Duration(milliseconds: 100), () {
-              _startPlaybackTimer();
-            });
+            final handles = await Future.wait(playFutures);
+            loadedSoundHandles.addAll(handles);
+            print(
+                "Start PLAY SOUND ${DateTime.now().millisecondsSinceEpoch}");
           }
+          _lastWebPlaybackUiUpdate = null;
+          _startPlaybackTimer();
 
           print("ADDED DATA STREAM2");
 
@@ -5640,8 +5890,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               arrSampleCountInitial = map['arrSampleCount'];
               var loadedConfigLocal = map['loadedConfig'];
 
-              print(
-                  "FIX TOMORROW: arrSamplesInitial: Widget Channel Length: ${widget.channelCount} ||| arrSamplesInitial: ${arrSamplesInitial.length} ||| arrSampleCountInitial: ${arrSampleCountInitial} ||| endInitialIndex: ${arrSampleCountInitial[0]}");
+              // print(
+              //     "FIX TOMORROW: arrSamplesInitial: Widget Channel Length: ${widget.channelCount} ||| arrSamplesInitial: ${arrSamplesInitial.length} ||| arrSampleCountInitial: ${arrSampleCountInitial} ||| endInitialIndex: ${arrSampleCountInitial[0]}");
               List<Int16List> sublistArray = [];
               for (int i = 0; i < widget.channelCount; i++) {
                 // HARDCODE!
@@ -5797,8 +6047,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               endInitialIndex,
               0,
               widget.channelCount - 1);
-          print(
-              "FIX TOMORROW: arrSamplesInitial: ${arrSamplesInitial.length} ||| arrSampleCountInitial: ${arrSampleCountInitial} ||| endInitialIndex: ${arrSampleCountInitial[0]}");
+          // print(
+          //     "FIX TOMORROW: arrSamplesInitial: ${arrSamplesInitial.length} ||| arrSampleCountInitial: ${arrSampleCountInitial} ||| endInitialIndex: ${arrSampleCountInitial[0]}");
           List<Int16List> sublistArray = [];
           for (int i = 0; i < widget.channelCount; i++) {
             int samplesPerChannelLength = arrSampleCountInitial[i].floor();
@@ -5845,6 +6095,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // isSpeakerChannelMuted.fillRange(0, isSpeakerChannelMuted.length, true);
       timerPlaybackLoadedFile?.cancel();
       timerPlaybackLoadedFile = null;
+      _stopWebPlaybackAudioFeed();
+      _stopWebLoadedFileAudioPlayback();
       timerPlaybackLoadedStartIndex = 0;
       timerPlaybackLoadedEndIndex = 0;
       loadedMaxSamples = 0;

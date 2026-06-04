@@ -24,7 +24,7 @@ import 'package:spikerbox_architecture/constant/const_export.dart';
 import 'package:spikerbox_architecture/functionality/debouncer.dart';
 import 'package:spikerbox_architecture/functionality/utils.dart';
 import 'package:spikerbox_architecture/message_identifier.dart';
-import 'package:spikerbox_architecture/models/local_plugins/local_plugins_web.dart';
+import 'package:spikerbox_architecture/models/local_plugins/local_plugins_check.dart';
 import 'package:spikerbox_architecture/models/models.dart';
 import 'package:spikerbox_architecture/models/nwbfile_utils/nwbfile_utils.dart';
 import 'package:spikerbox_architecture/models/audio/processed_sample_player.dart';
@@ -2935,10 +2935,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
         print("WEB SAMPLE RATE : ${microphoneUtil.sampleRate}");
         _sampleRate = microphoneUtil.sampleRate.toInt();
       } else {
-        print("NATIVE SAMPLE RATE : ${microphoneUtil.sampleRate}");
         double? tempSampleRate = await MicStream.sampleRate;
+        print("NATIVE SAMPLE RATE : ${microphoneUtil.sampleRate} tempSampleRate : $tempSampleRate");
         if (tempSampleRate != null) {
           _sampleRate = tempSampleRate.toInt();
+        } else {
+          _sampleRate = microphoneUtil.sampleRate.toInt();
         }
       }
 

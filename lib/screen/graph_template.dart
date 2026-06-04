@@ -1812,7 +1812,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.17',
+                                            'SpikeRecorder App ver. 2.1.18',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,
@@ -2967,6 +2967,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
       await processingUtil.setBandFilter(-1, -1, -1);
 
       print("listenToMicrophone5");
+      if (kIsWeb && _shouldRunLiveMonitor()) {
+        unawaited(_ensureLiveMonitorPlayer(channelCount: channelCount));
+      }
       microphoneUtil.micStream.addListener(micListener);
       isDeviceConnect = true;
       isDeviceSelected = false;
@@ -3040,6 +3043,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   int? _liveMonitorSampleRate;
   int? _liveMonitorChannelCount;
+
+  /// Serializes concurrent [_ensureLiveMonitorPlayer] calls (web live chunks).
+  Future<void>? _liveMonitorSetupChain;
 
   bool isOpeningFile = false;
 
@@ -6849,6 +6855,19 @@ class _GraphTemplateState extends State<GraphTemplate> {
     if (_processedSamplePlayer?.isActive ?? false) {
       await _processedSamplePlayer!.stop();
     }
+    _liveMonitorSampleRate = null;
+    _liveMonitorChannelCount = null;
+  }
+
+  void _resetLiveMonitorConfig() {
+    _liveMonitorSampleRate = null;
+    _liveMonitorChannelCount = null;
+  }
+
+  bool _liveMonitorReadyFor({required int channelCount}) {
+    return _liveMonitorSampleRate == _sampleRate &&
+        _liveMonitorChannelCount == channelCount &&
+        (_processedSamplePlayer?.isActive ?? false);
   }
 
   /// PCM for opened-file playback (ignores "Mute Speakers" — that applies to live monitor only).
@@ -7364,6 +7383,19 @@ class _GraphTemplateState extends State<GraphTemplate> {
           _isSerialWebButtonEnabled = false;
           setState(() {});
           await _serialUtil.resetPort();
+
+          isDeviceConnect = true;
+          isDeviceSelected = false;
+          isSerialDeviceFound = false;
+          _isDataIdentified = false;
+
+          // GraphDataProvider graphDataProvider =
+          //     Provider.of<GraphDataProvider>(context, listen: false);
+          // listenToMicrophone(1, graphDataProvider);
+          _recoverFromSerialDataTimeout(null, forceMicrophone: false);
+          streamScrubBuilderController.add(Random().nextInt(100000));
+          isSerialDeviceFound = false;
+
           return;
         }
         PanaraInfoDialog.show(
@@ -7805,7 +7837,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     });
   }
 
-  void _recoverFromSerialDataTimeout(GraphDataProvider provider) {
+  void _recoverFromSerialDataTimeout(GraphDataProvider? provider, {forceMicrophone = true}) {
     _cancelSerialStaleWatchdog();
     boardTimer?.cancel();
     boardTimer = null;
@@ -7831,7 +7863,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
     print(
         "SERIAL DATA STALE (>${_serialDataStaleTimeoutSeconds}s), falling back to microphone");
-    listenToMicrophone(1, provider);
+    if (forceMicrophone) {
+      print("Call Microphone");
+      listenToMicrophone(1, provider);
+    }
   }
 
   void serialSubscriptionListener(

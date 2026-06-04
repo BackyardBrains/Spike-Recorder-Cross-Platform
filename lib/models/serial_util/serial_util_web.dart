@@ -208,7 +208,7 @@ class SerialUtilWeb implements SerialUtil {
             }
             if (fastScan && _probeRxBytes == 0) {
               print(
-                'SerialUtilWeb: no RX on first baud — aborting scan (device off?)',
+                'SerialUtilWeb: no RX on first baud — aborting scan (device off?) -- $fastScan && $_probeRxBytes',
               );
               return null;
             }
@@ -585,10 +585,11 @@ class SerialUtilWeb implements SerialUtil {
   }
 
   void _onProbeRxChunk(Uint8List chunk) {
+    _probeRxBytes += chunk.length;
     if (_probing && !_probeAcceptRx) {
       return;
     }
-    _probeRxBytes += chunk.length;
+    // _probeRxBytes += chunk.length;
 
     _noteProbeAdcStreamSync(chunk);
 
@@ -678,7 +679,7 @@ class SerialUtilWeb implements SerialUtil {
       while (_probeReading) {
         try {
           final result = await activeReader.read();
-          if (result.done) {
+          if (result.done) {  
             if (!_probeReading || _intentionalProbeStop) {
               break;
             }
@@ -793,9 +794,12 @@ class SerialUtilWeb implements SerialUtil {
       if (serialPort != null) {
         await _closePortBody();
       }
+      print("REQUEST SERIAL PORT");
+      
       serialPort = await window.navigator.serial.requestPort();
       // Brief settle after picker — some drivers reject immediate open().
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      print("DELAY SERIAL PORT: $serialPort");
       portInfo = serialPort?.getInfo();
       print("portInfo: ${portInfo?.usbVendorId} ${portInfo?.usbProductId}");
       vendorId = portInfo?.usbVendorId ?? 0;
@@ -810,6 +814,7 @@ class SerialUtilWeb implements SerialUtil {
         throw Exception('device unavailable');
       }
       if (detectedBaud == null) {
+        print("detected baud == null");
         await _closePortBody();
         throw Exception('device unavailable');
       }

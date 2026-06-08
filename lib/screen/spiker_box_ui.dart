@@ -564,6 +564,8 @@ class DraggableGraph extends StatefulWidget {
 }
 // https://github.com/BackyardBrains/Spike-Recorder-Cross-Platform/commit/102ad25925eca57e1a40203be249e3e91ce03d42
 class _DraggableGraphState extends State<DraggableGraph> {
+  StreamSubscription<List<double>>? _graphDataSubscription;
+  int _chartRebuildLogCounter = 0;
   int channelCount = 1;
   List<double> gainChannel = [];
   List<double> topChartY = [];
@@ -579,6 +581,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
 
   @override
   void dispose() {
+    _graphDataSubscription?.cancel();
+    _graphDataSubscription = null;
     keyboardFocusNode.dispose();
     ProcessingUtil.initializeDevice.removeListener(initializeDeviceListener);
     super.dispose();
@@ -602,32 +606,46 @@ class _DraggableGraphState extends State<DraggableGraph> {
     keyboardFocusNode.requestFocus();
   }
 
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
+
+  void _attachGraphDataStream() {
+    final dataStream =
+        Provider.of<GraphDataProvider>(context, listen: false)
+                .outputGraphStream ??
+            const Stream<List<double>>.empty();
+    _graphDataSubscription?.cancel();
+    _graphDataSubscription = dataStream.listen((data) {
+      if (!mounted) return;
+      _safeSetState(() {
+        isLoading = false;
+      });
+      if (_chartRebuildLogCounter++ % 30 == 0) {
+        final counts = ProcessingUtil.drawingBufferCounts.isEmpty
+            ? 'none'
+            : ProcessingUtil.drawingBufferCounts.join(',');
+        // print(
+        //     'BYB SERIAL PAINT: chart setState buffers=${ProcessingUtil.drawingBuffers.length} '
+        //     'counts=[$counts] channelCount=$channelCount dataLen=${data.length}');
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
-    Stream<List<double>> dataStream =
-        Provider.of<GraphDataProvider>(context, listen: false)
-                .outputGraphStream ??
-            const Stream.empty();
-    dataStream.listen((data) {
-      isLoading = false;
-      setState(() {});
-
-      // prevRefreshTime = DateTime.now().millisecondsSinceEpoch;
-      // // print("--------------------------------");
-      // if (DateTime.now().millisecondsSinceEpoch - prevRefreshTime > 10) {
-      //   // print(DateTime.now().millisecondsSinceEpoch);
-      //   prevRefreshTime = DateTime.now().millisecondsSinceEpoch;
-      //   setState(() {});
-      // }
-
-    });
-    Future.delayed(Duration(seconds: 1), () {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       initializeGraph();
+      _safeSetState(() {
+        isLoading = false;
+      });
+      _attachGraphDataStream();
       _requestGraphKeyboardFocusIfAppropriate();
-      // init Threshold Value
     });
-    
+
     ProcessingUtil.initializeDevice.removeListener(initializeDeviceListener);
     ProcessingUtil.initializeDevice.addListener(initializeDeviceListener);
     selectedThresholdIdx = context.read<ThresholdStatusProvider>().selectedThresholdChannel;
@@ -1138,19 +1156,19 @@ class _DraggableGraphState extends State<DraggableGraph> {
     final colorProvider = context.watch<ChannelColorProvider>();
     final dataStatus = context.watch<DataStatusProvider>();
 
-    // if (!isInitializedGraph) {
-    //   return const SizedBox();
-    // }
-
-    // // If we are initialized but dimensions are zero (common in background cold launches),
-    // // or if topChartY is empty/contains only zeros, re-initialize to pick up correct sizes.
-    // bool isDimensionZero = widthChart == 0 || heightChart == 0;
-    // bool isInvalidTopY =
-    //     topChartY.isEmpty || (topChartY.length > 1 && topChartY.every((y) => y == 0));
-
-    // if (isInitializedGraph && (isDimensionZero || isInvalidTopY)) {
-    //   initializeGraph();
-    // }
+    // Cold accessory launch can mount before MediaQuery has non-zero size.
+    final bool isDimensionZero = widthChart == 0 || heightChart == 0;
+    final bool isInvalidTopY = topChartY.isEmpty ||
+        (topChartY.length > 1 && topChartY.every((y) => y == 0));
+    if (isInitializedGraph && (isDimensionZero || isInvalidTopY)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        initializeGraph();
+        _safeSetState(() {
+          isLoading = false;
+        });
+      });
+    }
     
     // final thresholdStatus = context.watch<ThresholdStatusProvider>();
     if (isThresholding != context.read<ThresholdStatusProvider>().isThresholding) {
@@ -1199,7 +1217,10 @@ class _DraggableGraphState extends State<DraggableGraph> {
       // channelCount = context.read<ConstantProvider>().getChannelCount();      
       // int tempChannelCount = context.read<ConstantProvider>().getChannelCount();      
       try{
-        for (idx = 0; idx < channelCount; idx++) {
+        final channelsToRender = channelCount < ProcessingUtil.drawingBuffers.length
+            ? channelCount
+            : ProcessingUtil.drawingBuffers.length;
+        for (idx = 0; idx < channelsToRender; idx++) {
           Int16List curBuffer =
               Int16List.fromList(ProcessingUtil.drawingBuffers[idx]);
           temp.add(curBuffer);
@@ -1207,11 +1228,12 @@ class _DraggableGraphState extends State<DraggableGraph> {
           // sampleCounts.add(curBuffer.length);
         }
       }catch(err){
+        print("chart buffer read failed: $err");
         return SizedBox();
       }
 
 
-      for (idx = 0; idx < channelCount; idx++) {
+      for (idx = 0; idx < temp.length; idx++) {
         Int16List curBuffer = temp[idx];
         Color channelColor = isAudio
             ? (idx < colorProvider.audioColors.length
@@ -1400,6 +1422,74 @@ class _DraggableGraphState extends State<DraggableGraph> {
     // // print("thresholdValue: $thresholdValue");
     // // print("Threshold Value : ${thresholdValue[c]} = ${thresholdMarkerTop[c] + thresholdIconTopDifference - calculatedMedian }");    
     // context.read<ThresholdStatusProvider>().setThresholdParams(thresholdParams);
+
+    double scaleRatio = 1;
+    bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
+    if (isAudioListen) {
+      scaleRatio = gainChannel[c];
+    } else {
+      scaleRatio = gainChannel[c];
+    }
+    // if (isAudioListen) {
+    //   scaleRatio = listChannelAudio[listDefaultIndex[c]] / curVal;
+    // } else {
+    //   scaleRatio = listChannelSerial[listDefaultIndex[c]] / curVal;
+    // }
+
+  int iconMarkerTop = 18;
+    if (scaleRatio == 1){
+      // tempMarkerTop = median + medianDistance * scaleRatio - iconMarkerTop;
+    }
+      // tempMarkerTop = median + medianDistance * scaleRatio - iconMarkerTop; m  
+    else if (scaleRatio < 1) {
+      if (excessiveTopGain - 1 > 0) {
+        excessiveTopGain--;
+        return;
+      } else {
+        excessiveTopGain = 0;
+      }
+
+      print(tempMarkerTop);
+      scaleRatio = scaleRatio;
+      // tempMarkerTop = median + medianDistance * scaleRatio - iconMarkerTop;
+      print(tempMarkerTop);
+      print("-----------");
+      // scaleRatio = scaleRatio * -1;
+    } else {
+      //UP or +
+      if (excessiveBottomGain - 1 > 0) {
+        excessiveBottomGain--;
+        print('excessiveBottomGain return');
+        print(excessiveBottomGain);
+
+        return;
+      } else {
+        excessiveBottomGain = 0;
+      }
+
+      // tempMarkerTop = median + medianDistance * scaleRatio - iconMarkerTop;
+
+      // print(tempMarkerTop);
+      // print("-----------");
+    }
+
+    if (tempMarkerTop < 50) {
+      excessiveTopGain++;
+      markerOutOfRange = 1;
+      thresholdMarkerTop[c] = tempMarkerTop;
+    } else if (tempMarkerTop > MediaQuery.of(context).size.height * 0.95) {
+      excessiveBottomGain++;
+
+      markerOutOfRange = 2;
+      thresholdMarkerTop[c] = tempMarkerTop;
+      // listIndexAudio[c] = listChannelAudio.indexOf(prevVal).toDouble();
+      // channelGains[c] = prevVal;
+    } else {
+      excessiveTopGain = 0;
+      excessiveBottomGain = 0;
+      markerOutOfRange = 0;
+      thresholdMarkerTop[c] = tempMarkerTop;
+    }
   }
   // setThresholdMarker(int c, List<double> thresholdMarkerTop,
   //   List<int> thresholdValue, double prevVal, double curVal) {
@@ -1549,7 +1639,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
       initLevelMedian(1, 0);
 
     } else {
-      Future.delayed(Duration(seconds: 1), (){
+      Future.delayed(Duration(seconds: 1), () {
+        if (!mounted) return;
         channelCount = context.read<ConstantProvider>().getChannelCount();
         print("DECREASE GAINNNNN");
         print("initializeDeviceListener channelCount: $channelCount");
@@ -1732,23 +1823,33 @@ class FftSection extends StatefulWidget {
   State<FftSection> createState() => _FftSectionState();
 }
 class _FftSectionState extends State<FftSection> {
+  StreamSubscription<List<double>>? _fftDataSubscription;
   int prevRefreshTime = 0;
+
+  @override
+  void dispose() {
+    _fftDataSubscription?.cancel();
+    _fftDataSubscription = null;
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
-    Stream<List<double>> dataStream =
-        Provider.of<GraphDataProvider>(context, listen: false)
-                .outputGraphStream ??
-            const Stream.empty();
-    dataStream.listen((data) {
-      // print("data: $data");
-      prevRefreshTime = DateTime.now().millisecondsSinceEpoch;
-      // print("--------------------------------");
-      if (DateTime.now().millisecondsSinceEpoch - prevRefreshTime > 300) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final dataStream =
+          Provider.of<GraphDataProvider>(context, listen: false)
+                  .outputGraphStream ??
+              const Stream<List<double>>.empty();
+      _fftDataSubscription = dataStream.listen((data) {
+        if (!mounted) return;
         prevRefreshTime = DateTime.now().millisecondsSinceEpoch;
-        setState(() {});
-      }
+        if (DateTime.now().millisecondsSinceEpoch - prevRefreshTime > 300) {
+          prevRefreshTime = DateTime.now().millisecondsSinceEpoch;
+          setState(() {});
+        }
+      });
     });
   }
   

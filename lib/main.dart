@@ -1,20 +1,16 @@
+import 'dart:async';
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-// import 'package:flutter_native_splash/flutter_native_splash.dart';
-
+import 'ios_startup_bridge.dart';
 import 'app_shell.dart' deferred as app_shell;
 
-const MethodChannel _startupChannel = MethodChannel('byb/startup');
-
-/// iOS keeps `UILaunchStoryboardName` until Flutter’s **first raster frame**. This file must stay
-/// tiny (SDK imports + deferred `app_shell`) so that frame compiles and paints before the heavy
-/// app graph is loaded from the deferred part.
 Future<void> main() async {
-  // WidgetsFlutterBinding.ensureInitialized();
-  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-  // FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-  
+  WidgetsFlutterBinding.ensureInitialized();
+  resetIosStartupBridgeForNewLaunch();
+  installIosStartupChannelHandler();
+
   if (kIsWeb) {
     await app_shell.loadLibrary();
     app_shell.registerDeferredStartupTasks();
@@ -22,61 +18,89 @@ Future<void> main() async {
     return;
   }
 
-  runApp(const _IosFastFirstFrame());
+  if (Platform.isIOS) {
+    await waitForNativeIosUIKitReady(timeout: const Duration(seconds: 5));
+    runApp(const _IosMetalBootstrap());
+    return;
+  }
+
+  await app_shell.loadLibrary();
+  await app_shell.preloadGraphModule();
+  app_shell.registerDeferredStartupTasks();
+  runApp(app_shell.buildRootApp());
 }
 
-class _IosFastFirstFrame extends StatefulWidget {
-  const _IosFastFirstFrame();
+/// Mount a trivial tree first so Metal can present before [GraphTemplate] loads.
+class _IosMetalBootstrap extends StatefulWidget {
+  const _IosMetalBootstrap();
 
   @override
-  State<_IosFastFirstFrame> createState() => _IosFastFirstFrameState();
+  State<_IosMetalBootstrap> createState() => _IosMetalBootstrapState();
 }
 
-class _IosFastFirstFrameState extends State<_IosFastFirstFrame> {
-  bool _isReady = false;
+class _IosMetalBootstrapState extends State<_IosMetalBootstrap> {
+  bool _showFullApp = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      debugPrint('BYB DART FIRST FRAME (bootstrap)');
-      _notifyNativeFirstFrameReady('bootstrap');
+      unawaited(_warmMetalThenMountFullApp());
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _mountFullApp());
   }
 
-  Future<void> _notifyNativeFirstFrameReady(String phase) async {
-    if (kIsWeb) return;
-    try {
-      debugPrint('BYB startup channel send begin ($phase)');
-      await _startupChannel
-          .invokeMethod('firstFrameReady', {'phase': phase})
-          .timeout(const Duration(seconds: 2));
-      debugPrint('BYB startup channel send success ($phase)');
-    } catch (e) {
-      debugPrint('BYB startup channel invoke failed ($phase): $e');
+  Future<void> _waitForFrames(int count) async {
+    for (var i = 0; i < count; i++) {
+      final gate = Completer<void>();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!gate.isCompleted) gate.complete();
+      });
+      nudgeIosDartFrameScheduling();
+      await gate.future;
     }
   }
 
-  Future<void> _mountFullApp() async {
+  Future<void> _warmMetalThenMountFullApp() async {
+    forceIosDartLifecycleResumedForColdLaunch();
+    await _waitForFrames(2);
+    if (!mounted) return;
+
+    await notifyNativeDartFrameScheduled();
+    await notifyNativeFirstFrameReady('bootstrap');
+    nudgeIosDartFrameScheduling();
+    await _waitForFrames(1);
+
+    var gotGpu = await waitForIosNativeGpuFrame(
+      timeout: const Duration(seconds: 8),
+    );
+    if (!gotGpu) {
+      debugPrint('BYB DART bootstrap GPU wait timed out — recycling surface');
+      await notifyNativeSurfaceRecycle();
+      nudgeIosDartFrameScheduling();
+      await _waitForFrames(2);
+      gotGpu = await waitForIosNativeGpuFrame(
+        timeout: const Duration(seconds: 8),
+      );
+    }
+    debugPrint('BYB DART bootstrap GPU ready=$gotGpu');
+
     await app_shell.loadLibrary();
     app_shell.registerDeferredStartupTasks();
     if (!mounted) return;
     setState(() {
-      _isReady = true;
-      // FlutterNativeSplash.remove();
+      _showFullApp = true;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isReady) {
+    if (_showFullApp) {
       return app_shell.buildRootApp();
     }
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: Color(0xFF222222),
         body: Center(
           child: Text(
             'Starting Spike Recorder…',

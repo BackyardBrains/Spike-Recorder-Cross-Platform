@@ -371,6 +371,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     }
 
     ProcessingUtil.drawingBuffers.clear();
+    ProcessingUtil.drawingBufferCounts.clear();
     for (int i = 0; i < channelCount; i++) {
       ProcessingUtil.drawingBuffers
           .add(Int16List(drawSurfaceWidth.toInt() * 5));
@@ -816,6 +817,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
     // print("Initialize Serial === $result $channelCount $sampleRate -- PACKET LEN : $packetLen");
     ProcessingUtil.drawingBuffers.clear();
+    ProcessingUtil.drawingBufferCounts.clear();
     for (int i = 0; i < channelCount; i++) {
       ProcessingUtil.drawingBuffers
           .add(Int16List(drawSurfaceWidth.toInt() * 5));
@@ -868,14 +870,29 @@ class ProcessingUtilImpl implements ProcessingUtil {
     }
     int res = pb.processingBindings.processSampleStream(outSamplesPtr,
         outSampleCountsPtr, inDataPtr, samples.length, deviceType);
-    // return [Int16List(0), Int16List(0)];
+    if (res < 0) {
+      print(
+          'BYB SERIAL PAINT: processSampleStream error res=$res '
+          'bytes=${samples.length} deviceType=$deviceType channels=$channelCount');
+      calloc.free(inDataPtr);
+      for (int i = 0; i < channelCount; i++) {
+        calloc.free(outSamplesPtr[i]);
+      }
+      calloc.free(outSamplesPtr);
+      calloc.free(outSampleCountsPtr);
+      return List.generate(channelCount, (_) => Int16List(0));
+    }
     int minCounter = 100000;
     List<Int16List> buffer = [];
-    // if (res != 0) {
     for (int i = 0; i < channelCount; i++) {
-      minCounter = min(outSampleCountsPtr[i], minCounter);
-      Int16List temp = outSamplesPtr[i].asTypedList(outSampleCountsPtr[i]);
-      Int16List arr = Int16List(outSampleCountsPtr[i]);
+      final count = outSampleCountsPtr[i];
+      if (count <= 0) {
+        buffer.add(Int16List(0));
+        continue;
+      }
+      minCounter = min(count, minCounter);
+      Int16List temp = outSamplesPtr[i].asTypedList(count);
+      Int16List arr = Int16List(count);
       arr.setAll(0, temp);
       buffer.add(arr);
     }
@@ -984,10 +1001,21 @@ class ProcessingUtilImpl implements ProcessingUtil {
           drawSurfaceWidth // int
           );
 
+      // if (result != 0) {
+      //   print(
+      //       'BYB SERIAL PAINT: prepareForSignalDrawing failed result=$result '
+      //       'from=$startPositionIdx to=$endPositionIdx '
+      //       'channels=$channelCount width=$drawSurfaceWidth');
+      // }
+
       if (result == 0) {
         // print("startPositionIdx : $startPositionIdx");
         int sampleCount = outSampleCountsPtr.value;
         int eventCount = outEventCountPtr.value;
+        // print(
+        //     'BYB SERIAL PAINT: prepareForSignalDrawing ok sampleCount=$sampleCount '
+        //     'events=$eventCount from=${ProcessingUtil.fromDrawingIdx} '
+        //     'to=${ProcessingUtil.toDrawingIdx} channels=$channelCount');
         if (eventCount > 0) {
           // Float32List eventIndices = outEventIndicesPtr.asTypedList(eventCount);
         }

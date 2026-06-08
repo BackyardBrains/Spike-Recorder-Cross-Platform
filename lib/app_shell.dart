@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:byb_accessory/byb_accessory.dart';
 // import 'package:firebase_core/firebase_core.dart';
@@ -7,13 +8,14 @@ import 'package:byb_accessory/byb_accessory.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart' show SystemChrome, SystemUiMode;
 import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/provider/custom_slider_provider.dart';
 import 'package:spikerbox_architecture/provider/fft_status_provider.dart';
 import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
 import 'package:spikerbox_architecture/screen/page_route_screen.dart';
 import 'firebase_options.dart';
+import 'ios_startup_bridge.dart';
 import 'provider/provider_export.dart';
 import 'screen/graph_template.dart' deferred as deferred_graph;
 
@@ -24,16 +26,6 @@ enum Command {
 }
 
 int screenWidth = 0;
-const MethodChannel _startupChannel = MethodChannel('byb/startup');
-
-Future<void> notifyNativeFirstFrameReady(String phase) async {
-  if (kIsWeb) return;
-  try {
-    await _startupChannel.invokeMethod('firstFrameReady', {'phase': phase});
-  } catch (e) {
-    debugPrint('BYB startup channel invoke failed ($phase): $e');
-  }
-}
 
 /// Full app root (providers + [MyApp]). Loaded from a **deferred** library so iOS can raster a
 /// tiny [main.dart] frame first and dismiss the system launch storyboard.
@@ -65,6 +57,8 @@ void registerDeferredStartupTasks() {
     unawaited(_initializeFirebaseAndCrashlytics());
   });
 }
+
+Future<void> preloadGraphModule() => deferred_graph.loadLibrary();
 
 Future<void> _initializeFirebaseAndCrashlytics() async {
   try {
@@ -100,8 +94,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final number = ValueNotifier(0);
   bool _didLogFirstFrame = false;
   bool _didStartAccessoryInit = false;
+  bool _iosUiPaintReadyForAccessory = false;
   Timer? _accessoryInitRetryTimer;
-  int _iosHomeEpoch = 0;
+  Timer? _iosAccessoryFallbackTimer;
 
   @override
   void initState() {
@@ -112,39 +107,36 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         SystemUiMode.immersiveSticky,
         overlays: [],
       );
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _startAccessoryInitIfNeeded();
-        // if (SchedulerBinding.instance.hasScheduledFrame) return;
-        SchedulerBinding.instance.scheduleFrame();
-      });
-      /*
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Future.delayed(const Duration(milliseconds: 350), () {
-          if (mounted) {
-            setState(() {});
-          }
+      if (Platform.isIOS) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _iosUiPaintReadyForAccessory = true;
+          _startAccessoryInitIfNeeded();
         });
-      });
+        registerIosUiPaintReadyForAccessoryCallback(() {
+          _iosUiPaintReadyForAccessory = true;
+          _startAccessoryInitIfNeeded();
+        });
+        _iosAccessoryFallbackTimer = Timer(const Duration(seconds: 4), () {
+          if (!mounted || _didStartAccessoryInit) return;
+          debugPrint('BYB iOS accessory init fallback');
+          _iosUiPaintReadyForAccessory = true;
+          _startAccessoryInitIfNeeded();
+        });
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _startAccessoryInitIfNeeded();
+          SchedulerBinding.instance.scheduleFrame();
+        });
+      }
       _armAccessoryInitRetryLoop();
-      */
-      // Accessory cold launch can complete first-frame callbacks while UI composition stays stale.
-      // Force one remount shortly after startup to guarantee GraphTemplate paints.
-      // Future.delayed(const Duration(milliseconds: 900), () {
-      Future.delayed(const Duration(milliseconds: 900), () {
-        if (!mounted) return;
-        if (SchedulerBinding.instance.hasScheduledFrame) return;
-        SchedulerBinding.instance.scheduleFrame();
-
-        setState(() {
-          // _iosHomeEpoch++;
-        });
-      });
     }
   }
 
   @override
   void dispose() {
     _accessoryInitRetryTimer?.cancel();
+    _iosAccessoryFallbackTimer?.cancel();
+    disposeIosColdLaunchRepaintBurst();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -153,17 +145,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!kIsWeb && state == AppLifecycleState.resumed) {
       _startAccessoryInitIfNeeded();
-      setState(() {
-        // _iosHomeEpoch++;
-      });
-    }
-    if (state == AppLifecycleState.resumed && mounted) {
-      setState(() {});
+      if (!SchedulerBinding.instance.hasScheduledFrame) {
+        SchedulerBinding.instance.scheduleFrame();
+      }
+      if (Platform.isIOS) {
+        unawaited(completeIosGraphStartupIfReady());
+      }
     }
   }
 
   void _startAccessoryInitIfNeeded() {
     if (_didStartAccessoryInit || kIsWeb) return;
+    if (Platform.isIOS && !_iosUiPaintReadyForAccessory) {
+      return;
+    }
     final state = WidgetsBinding.instance.lifecycleState;
     debugPrint('BYB accessory init gate lifecycleState=$state');
     // Accessory cold-launch can bounce through transient states; only skip if detached.
@@ -226,10 +221,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ),
         home: kIsWeb
             ? const DashBoardPageRoute()
-            : KeyedSubtree(
-                key: ValueKey('ios-home-$_iosHomeEpoch'),
-                child: const _MobileDeferredGraphHome(),
-              ));
+            : const _MobileDeferredGraphHome());
   }
 }
 
@@ -287,7 +279,7 @@ class _StartupPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const ColoredBox(
-      color: Colors.black,
+      color: Color(0xFF222222),
       child: Center(
         child: CircularProgressIndicator(),
         // child: Text(

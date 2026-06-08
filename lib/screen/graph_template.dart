@@ -13,6 +13,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:spikerbox_architecture/ios_startup_bridge.dart';
 import 'package:flutter_soloud/flutter_soloud.dart' as SoLoud;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:panara_dialogs/panara_dialogs.dart';
@@ -56,6 +57,16 @@ import 'package:flutter/cupertino.dart';
 
 import 'package:carousel_slider/carousel_slider.dart';
 import '../functionality/IosConnectorDetector.dart';
+
+class _ReconfigureLiveMonitorRequest {
+  const _ReconfigureLiveMonitorRequest({
+    required this.sampleRate,
+    required this.channelCount,
+  });
+
+  final int sampleRate;
+  final int channelCount;
+}
 
 class GraphTemplate extends StatefulWidget {
   static int isLoadingFile = 0;
@@ -196,7 +207,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   Future<void> _startPortCheck() async {
     _portCheckTimer?.cancel();
-    _portCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+    unawaited(_runPortCheckTick());
+    _portCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      unawaited(_runPortCheckTick());
+    });
+  }
+
+  Future<void> _runPortCheckTick() async {
       // print("PORT CHECK TIMER forceSerialDisconnect: $forceSerialDisconnect -- isSerialDeviceFound $isSerialDeviceFound --- isOpeningFile $isOpeningFile");
       if (forceSerialDisconnect) return;
       if (isOpeningFile) return;
@@ -209,7 +226,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       // print("START PORT CHECK");
       int baudRate = context.read<ConstantProvider>().getBaudRate();
-      _serialUtil.getAvailablePorts(baudRate, serialErrorCallback);
+      if (!kIsWeb) {
+        if (!Platform.isIOS || _isIosUsbCSerialPath()) {
+          await _serialUtil.getAvailablePorts(baudRate, serialErrorCallback);
+        }
+      }
       allDevices.clear();
 
       List<String> filteredPorts = [];
@@ -231,40 +252,19 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   port.contains('usbmodem') || port.contains('usbserial'))
               .toList();
         } else {
-          if (!isMfiInitialized) {
-            print(
-                "BYB iOS accessory init protocol: com.backyardbrains.spikerbox");
-            await BybAccessory.initWithProtocol("com.backyardbrains.spikerbox");
-            _rxSub?.cancel();
-            _rxSub = null;
-            try {
-              _rxSub = BybAccessory.rxBytesStream.listen((event) async {
-                serialSubscriptionListener(event, true, listOfPort);
-              }, onError: (e) {
-                print('RX stream error: $e');
-                forceSerialDisconnect = true;
-                print("SERIAL PORT ERROR -- DISCONNECTED");
-                _serialUtil.closePort();
-                final provider =
-                    Provider.of<GraphDataProvider>(context, listen: false);
-                isMfiInitialized = false;
-                _mfiMicListenerDetached = false;
-                Future.delayed(Duration(milliseconds: 2500), () {
-                  forceSerialDisconnect = false;
-                  listenToMicrophone(1, provider);
-                });
-              });
-            } catch (e) {
-              print("Error setting up MFi RX: $e");
-            }
-            isMfiInitialized = true;
-          }
+          // _attachMfiRxStream(listOfPort);
 
-          final accessories = await BybAccessory.getConnectedAccessories();
-          print(
-              "BYB IOS --- ACCESSORIES ---@--- accessories: ${accessories.isNotEmpty}");
+      // print(
+                //     "BYB IOS --- ACCESSORIES ---@--- accessories: ${accessories.isNotEmpty}");          
+          final accessories = await _resolveMfiAccessoryPorts();
           if (accessories.isNotEmpty) {
+            print('BYB iOS accessories found: $accessories');
+            _mfiEmptyAccessoryPolls = 0;
+            _attachMfiRxStream(
+              accessories.isNotEmpty ? accessories : listOfPort,
+            );
             if (!_mfiMicListenerDetached) {
+              print("BYB iOS -- MIC LISTENER DETACHED");
               _mfiMicListenerDetached = true;
               try {
                 // print("BYB iOS -- REMOVE MIC LISTENER");
@@ -283,8 +283,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
             }
             final alreadyConnected = await BybAccessory.isConnected();
             context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
-            print(
-                "BYB IOS --- DEVICE STATUZZZ ---@--- isMfiDeviceConnect: $isMfiDeviceConnect @@ alreadyConnected: $alreadyConnected");
+            // print(
+            //     "BYB IOS --- DEVICE STATUZZZ ---@--- isMfiDeviceConnect: $isMfiDeviceConnect @@ alreadyConnected: $alreadyConnected");
             // if (isMfiDeviceConnect && isMfiDeviceConnect != alreadyConnected) {
             //   isMfiDeviceConnect = false;
             //   print(" BYB IOS - DISCONNECT 2222");
@@ -302,21 +302,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
             //   }
 
             // }
-            print("BYB iOS accessory alreadyConnected : $alreadyConnected");
+            // print("BYB iOS accessory alreadyConnected : $alreadyConnected");
+
+            accessoryLabel = accessories.first;
+            filteredPorts = [accessories.first];
 
             if (!alreadyConnected) {
               isDeviceConnect = true;
               isDeviceSelected = false;
-              accessoryLabel = accessories.first;
-              filteredPorts = [accessories.first];
 
               final isConnected =
                   await BybAccessory.connect(name: accessories.first);
               isMfiDeviceConnect = true;
               if (isConnected) {
                 print("BYB iOS accessory connected: $accessoryLabel");
-                // final info = await BybAccessory.getAccessoryInfo();
-                // print(info);
+                // await _printMfiAccessoryInfo();
               } else {
                 print("BYB iOS accessory not connected: $accessoryLabel");
                 // print('RX stream error: $e');
@@ -339,49 +339,37 @@ class _GraphTemplateState extends State<GraphTemplate> {
               }
             } else {
               isMfiDeviceConnect = true;
-              print("BYB iOS accessory connected: $accessoryLabel");
-              // final info = await BybAccessory.getAccessoryInfo();
-              // print(info);
-
-              print(
-                  "BYB IOS --- DEVICE ALREADY CONNECTED ---@--- isMfiDeviceConnect: $isMfiDeviceConnect @@ alreadyConnected: $alreadyConnected");
+              isDeviceConnect = true;
+              isDeviceSelected = false;
+              // print('BYB iOS accessory already connected: $accessoryLabel');
             }
+            unawaited(_triggerMfiConnectOnce());
           } else {
             accessoryLabel = "";
             filteredPorts = [];
-            // debugPrint(
-            //     "BYB iOS accessory list is empty. Check UISupportedExternalAccessoryProtocols in Info.plist.");
             print(
-                " BYB IOS - DISCONNECT --- isMfiDeviceConnect : $isMfiDeviceConnect");
-            // if (isMfiInitialized) {
-            //   isMfiInitialized = false;
-            //   _mfiMicListenerDetached = false;
-            //   isDeviceConnect = false;
-            //   isDeviceSelected = true;
-            //   final provider =
-            //       Provider.of<GraphDataProvider>(context, listen: true);
-            //   Future.delayed(Duration(milliseconds: 2500), () {
-            //     forceSerialDisconnect = false;
-            //     listenToMicrophone(1, provider);
-            //   });
-            // }
-            if (isMfiDeviceConnect) {
+                'BYB iOS no MFi accessories (isMfiDeviceConnect: $isMfiDeviceConnect, polls: $_mfiEmptyAccessoryPolls)');
+            _mfiEmptyAccessoryPolls++;
+            if (isMfiDeviceConnect &&
+                _mfiEmptyAccessoryPolls >= _mfiDisconnectDebouncePolls) {
               isMfiDeviceConnect = false;
-              print(" BYB IOS - DISCONNECT 2222");
-              if (isMfiInitialized) {
-                isMfiInitialized = false;
-                _mfiMicListenerDetached = false;
-                isDeviceConnect = false;
-                isDeviceSelected = true;
-                final provider =
-                    Provider.of<GraphDataProvider>(context, listen: true);
-                Future.delayed(Duration(milliseconds: 2500), () {
-                  forceSerialDisconnect = false;
-                  listenToMicrophone(1, provider);
-                });
-                try {
-                  BybAccessory.disconnect();
-                } catch (er) {}
+              _mfiLastHandshakeAccessory = null;
+              print(" BYB IOS - DISCONNECT 2222 (debounced)");
+              _rxSub?.cancel();
+              _rxSub = null;
+              _mfiMicListenerDetached = false;
+              isDeviceConnect = false;
+              isDeviceSelected = false;
+              final provider =
+                  Provider.of<GraphDataProvider>(context, listen: true);
+              Future.delayed(Duration(milliseconds: 2500), () {
+                forceSerialDisconnect = false;
+                listenToMicrophone(1, provider);
+              });
+              try {
+                BybAccessory.disconnect();
+              } catch (er) {
+                print("ERROR DISCONNECTING BYB ACCESSORY: $er");
               }
             }
           }
@@ -403,7 +391,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
         return;
       }
 
-      // print("SET MICROPHONE DATA STATUS: ${_availablePorts.isEmpty}");
       if (!Platform.isIOS) {
         // context
         //     .read<DataStatusProvider>()
@@ -411,6 +398,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
 
       if (!isComMatch) {
+        print("isComMatch: $isComMatch");
         // isDeviceConnect = true;
         // isDeviceSelected = false;
 
@@ -421,36 +409,31 @@ class _GraphTemplateState extends State<GraphTemplate> {
             .setBaudRate(baudRate);
         allDevices = context.read<SerialDataProvider>().getAllPortDetail;
         if (isDeviceConnect) {
-          // if (blacklistSerialPortIds.contains(_availablePorts.last)) {
-          //   isSerialDeviceFound = false;
-          //   return;
-          // }
           isSerialDeviceFound = true;
           serialPortId = _availablePorts.last;
           print("isSerialDeviceFound: $isSerialDeviceFound");
           lastEstablishingConnectionTime = DateTime.now();
-          await portListOnConnect(_baudRate);
-          try {
-            Future.delayed(Duration(milliseconds: 2000), () async {
-              final provider =
-                  Provider.of<GraphDataProvider>(context, listen: false);
-              _serialUtil.writeToPort(
-                  bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
-                  address: _availablePorts.last);
-              print(
-                  "isDeviceSelected: $isDeviceSelected -- isDataIdentified: $_isDataIdentified");
-              // if (isDeviceSelected){
-              //   context
-              //       .read<DataStatusProvider>()
-              //       .setMicrophoneDataStatus(_availablePorts.isEmpty);
-              // }
-            });
-          } catch (err) {
-            print("ERROR PORT LIST ON WRITE: $err");
+          if (_isIosMfiPath() && isMfiDeviceConnect) {
+            lastDateTimeSerialDataArrival = DateTime.now();
+            // Baud scan is started in the MFi accessories-found branch.
+          } else if (_availablePorts.isNotEmpty) {
+            await portListOnConnect(_effectiveBaudProbeOrder());
+            try {
+              Future.delayed(Duration(milliseconds: 2000), () async {
+                final provider =
+                    Provider.of<GraphDataProvider>(context, listen: false);
+                _serialUtil.writeToPort(
+                    bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
+                    address: _availablePorts.last);
+                print(
+                    "isDeviceSelected: $isDeviceSelected -- isDataIdentified: $_isDataIdentified");
+              });
+            } catch (err) {
+              print("ERROR PORT LIST ON WRITE: $err");
+            }
           }
         }
       }
-    });
   }
 
   bool areListsEqual(List<String> list1, List<String> list2) {
@@ -496,10 +479,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
     super.initState();
     print("BYB IOS LOG - INIT STATE - GRAPH TEMPLATE");
 
-    // BybAccessory.initWithProtocol("com.backyardbrains.spikerbox").then((value) {
-    //   isMfiInitialized = true;
-    //   // print("BYB iOS accessory init protocol: $value");
-    // });
+    if (!kIsWeb && Platform.isIOS) {
+      // Protocol init is owned by app_shell; RX attaches on first port check.
+      print("BYB iOS GraphTemplate ready for MFi port check");
+      markIosGraphTemplateMounted();
+    }
     _deviceListStreamController =
         StreamController<List<ComDataWithBoard>>.broadcast();
     deviceListStream = _deviceListStreamController!.stream;
@@ -2053,7 +2037,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               if (isDeviceConnect) {
                                                 isSerialDeviceFound = true;
                                                 lastEstablishingConnectionTime = DateTime.now();
-                                                await portListOnConnect();
+                                                await portListOnConnect(
+                                                    _effectiveBaudProbeOrder());
                                               }
 
                                               forceSerialDisconnect = true;
@@ -2362,45 +2347,71 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   List<int> serialBuffer = [];
-  Future<void> portListOnConnect(List<int> _rawbaudRate) async {
+  Future<void> portListOnConnect(List<int> rawBaudRates) async {
     try {
-      List<int> _baudRate = List<int>.from(_rawbaudRate);
+      final baudCandidates = _normalizeBaudProbeOrder(rawBaudRates);
       DataStatusProvider dataStatus = context.read<DataStatusProvider>();
       List<String> listOfPort =
           Provider.of<PortScanProvider>(context, listen: false).availablePorts;
-      // int baudRate = context.read<ConstantProvider>().getBaudRate();
-      if (listOfPort.isEmpty) {
+      print("listOfPort: $listOfPort baudCandidates: $baudCandidates");
+      if (listOfPort.isEmpty || baudCandidates.isEmpty) {
         return;
       }
 
-      // for (int baudRate in _baudRate) {
-      if (_baudRate.isEmpty) {
-        return;
-      }
-      int baudRate = _baudRate.removeAt(0);
-      {
+      Stream<Uint8List>? connectedStream;
+      int? connectedBaud;
+      for (final baudRate in baudCandidates) {
         print(
             "portListOnConnect listOfPort: $listOfPort --- baudRate: $baudRate");
         try {
-          getData =
-              (await _serialUtil.openPortToListen(listOfPort.last, baudRate))
-                  ?.asBroadcastStream();
-          try {
-            _serialUtil.writeToPort(
-                bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes());
-          } catch (e) {
-            print("Error $baudRate: $e");
+          final stream =
+              await _serialUtil.openPortToListen(listOfPort.last, baudRate);
+          if (stream == null) {
+            continue;
           }
+          connectedStream = stream.asBroadcastStream();
+          connectedBaud = baudRate;
+          break;
         } catch (err) {
           print("Error $baudRate: $err");
         }
       }
 
-      // Only proceed if connection was successful
-      if (getData == null) {
+      if (connectedStream == null) {
+        print("portListOnConnect trying auto-detect baud");
+        try {
+          final stream =
+              await _serialUtil.openPortToListen(listOfPort.last, 0);
+          if (stream != null) {
+            connectedStream = stream.asBroadcastStream();
+            connectedBaud = _serialUtil.detectedBaudRate;
+          }
+        } catch (err) {
+          print("Error auto-detect baud: $err");
+        }
+      }
+
+      if (connectedStream == null) {
         print("Failed to connect to port: ${listOfPort.last}");
         dataStatus.setDeviceDataStatus(false);
         return;
+      }
+
+      if (connectedBaud != null && connectedBaud > 0) {
+        Provider.of<ConstantProvider>(context, listen: false)
+            .setBaudRate(connectedBaud);
+        _serialUtil.setBaudRate(connectedBaud);
+        if (connectedBaud != baudCandidates.first) {
+          _resetSerialPipelineAfterBaudChange();
+        }
+      }
+
+      getData = connectedStream;
+      try {
+        _serialUtil.writeToPort(
+            bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes());
+      } catch (e) {
+        print("Error hwType inquiry after connect: $e");
       }
 
       bool dummyDataStatus = dataStatus.isSampleDataOn;
@@ -2430,7 +2441,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
         deviceStatusStreamSubscription?.cancel();
         deviceStatusStreamSubscription =
             _serialUtil.deviceStatusStreamListener().listen((event) {
-          print("DEVICE STATUS STREAM: $event");
           if (event == "android.hardware.usb.action.USB_DEVICE_DETACHED") {
             forceSerialDisconnect = true;
             bool isMicrophoneActive =
@@ -2465,8 +2475,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
         });
       }
       serialDataSubscription?.cancel();
-      serialDataSubscription = getData?.listen((event) async {
-        serialSubscriptionListener(event, false, listOfPort);
+      serialDataSubscription = getData?.listen((event) {
+        unawaited(serialSubscriptionListener(event, false, listOfPort));
         return;
         isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
         // print("IS AUDIO LISTEN | Writing to port b:; : ${isAudioListen}");
@@ -2511,7 +2521,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     return;
 
                   _isBoardTimerRunning = false;
-                  print("Writing to port board:;");
+                  // print("Writing to port board:;");
                   Uint8List commandBytes =
                       Uint8List.fromList(utf8.encode("board:;"));
                   _serialUtil.writeToPort(
@@ -2542,7 +2552,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 // return;
 
                 // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
-                await processingUtil.processDisplaySerialData(
+                 processingUtil.processDisplaySerialData(
                     displayTimeMs.toInt(),
                     deviceType,
                     drawSurfaceWidth,
@@ -2561,7 +2571,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 }
                 deviceTimer = Timer.periodic(Duration(seconds: 7), (timer) {
                   if (isRecording == 1) return;
-                  print("Writing to port device:;");
+                  // print("Writing to port device:;");
                   _serialUtil.writeToPort(
                       bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
                       address: _availablePorts.last);
@@ -2657,7 +2667,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       Future.delayed(Duration(milliseconds: 5500)).then((v) {
         if (_isDataIdentified && isDeviceSelected) {
         } else {
-          portListOnConnect(_baudRate);
+          portListOnConnect(_effectiveBaudProbeOrder());
         }
       });
     } catch (e) {
@@ -2747,6 +2757,146 @@ class _GraphTemplateState extends State<GraphTemplate> {
   // static const Duration _minSerialDisplayInterval = Duration(milliseconds: 16);
   static const Duration _minSerialDisplayInterval = Duration(milliseconds: 4);
 
+  static const String _serialPaintLogTag = 'BYB SERIAL PAINT';
+  static const Duration _serialPaintDebugLogInterval = Duration(seconds: 2);
+  static const Duration _serialPaintStallThreshold = Duration(seconds: 2);
+  static const Duration _serialPaintWatchdogInterval = Duration(seconds: 3);
+  DateTime? _lastSerialPaintDebugLogAt;
+  DateTime? _lastSuccessfulSerialPaintAt;
+  int _serialChunksDrainedSinceLastPaint = 0;
+  Timer? _serialPaintWatchdogTimer;
+
+  void _logSerialPaint(String message, {bool force = false}) {
+    final now = DateTime.now();
+    if (!force &&
+        _lastSerialPaintDebugLogAt != null &&
+        now.difference(_lastSerialPaintDebugLogAt!) <
+            _serialPaintDebugLogInterval) {
+      return;
+    }
+    _lastSerialPaintDebugLogAt = now;
+    print('$_serialPaintLogTag: $message');
+  }
+
+  String _serialPaintPipelineSnapshot() {
+    final bufferCounts = ProcessingUtil.drawingBufferCounts.isEmpty
+        ? 'none'
+        : ProcessingUtil.drawingBufferCounts.join(',');
+    return 'totalSampleCount=$totalSampleCount '
+        'sampleCountToDisplay=$sampleCountToDisplay '
+        'deferred=$_serialDisplayDeferred '
+        'inFlight=$_serialGraphPaintInFlight '
+        'queue=${_serialIngestQueue.length} '
+        'draining=$_serialIngestDraining '
+        'paused=${GraphTemplate.isPlayerPaused} '
+        'loadingFile=${GraphTemplate.isLoadingFile} '
+        'deviceType=$deviceType '
+        'sampleRate=$_sampleRate '
+        'drawBuffers=${ProcessingUtil.drawingBuffers.length} '
+        'drawCounts=[$bufferCounts] '
+        'chunksSincePaint=$_serialChunksDrainedSinceLastPaint '
+        'lastPaint=${_lastSuccessfulSerialPaintAt?.toIso8601String() ?? "never"}';
+  }
+
+  String? _serialPaintGateReason() {
+    if (totalSampleCount <= sampleCountToDisplay) {
+      return 'sample batch ($totalSampleCount <= $sampleCountToDisplay)';
+    }
+    final last = _lastSerialDisplayAt;
+    if (last != null &&
+        DateTime.now().difference(last) < _minSerialDisplayInterval) {
+      return 'min interval (${DateTime.now().difference(last).inMilliseconds}ms)';
+    }
+    return null;
+  }
+
+  void _markSerialPaintSuccess(String source) {
+    _lastSuccessfulSerialPaintAt = DateTime.now();
+    _serialChunksDrainedSinceLastPaint = 0;
+    // _logSerialPaint(
+    //   'paint ok ($source) drawCounts=${ProcessingUtil.drawingBufferCounts.join(",")}',
+    // );
+  }
+
+  void _ensureSerialPaintWatchdog(GraphDataProvider provider) {
+    if (_serialPaintWatchdogTimer != null) return;
+    _serialPaintWatchdogTimer =
+        Timer.periodic(_serialPaintWatchdogInterval, (_) {
+      if (!mounted) return;
+      unawaited(_checkSerialPaintPipelineHealth(provider));
+    });
+  }
+
+  Future<void> _checkSerialPaintPipelineHealth(
+    GraphDataProvider provider,
+  ) async {
+    if (GraphTemplate.isLoadingFile != 0 || GraphTemplate.isPlayerPaused) {
+      return;
+    }
+    if (context.read<DataStatusProvider>().isMicrophoneData) {
+      return;
+    }
+
+    final lastPaint = _lastSuccessfulSerialPaintAt;
+    final stalled = lastPaint == null ||
+        DateTime.now().difference(lastPaint) > _serialPaintStallThreshold;
+    final hasActivity = _serialChunksDrainedSinceLastPaint > 0 ||
+        _serialIngestQueue.isNotEmpty ||
+        _serialIngestDraining;
+
+    if (!stalled || !hasActivity) return;
+
+    // _logSerialPaint(
+    //   'STALL DETECTED ${_serialPaintPipelineSnapshot()}',
+    //   force: true,
+    // );
+
+    if (_serialGraphPaintInFlight) {
+      // _logSerialPaint('recover: clearing inFlight paint lock', force: true);
+      _serialGraphPaintInFlight = false;
+    }
+
+    final drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+    await _forceSerialGraphPaint(provider, drawSurfaceWidth, 'watchdog');
+  }
+
+  Future<void> _forceSerialGraphPaint(
+    GraphDataProvider provider,
+    int drawSurfaceWidth,
+    String source,
+  ) async {
+    // _logSerialPaint('force paint ($source) ${_serialPaintPipelineSnapshot()}',
+    //     force: true);
+    _serialDisplayDeferred = false;
+    _serialGraphPaintInFlight = false;
+    if (totalSampleCount <= sampleCountToDisplay) {
+      totalSampleCount = sampleCountToDisplay + 1;
+    }
+    _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
+    if (_serialDisplayDeferred || _serialGraphPaintInFlight) {
+      await _flushDeferredSerialDisplay(provider, drawSurfaceWidth);
+    }
+    if (mounted &&
+        (_serialDisplayDeferred ||
+            DateTime.now().difference(_lastSuccessfulSerialPaintAt ??
+                    DateTime.fromMillisecondsSinceEpoch(0)) >
+                _serialPaintStallThreshold)) {
+      _serialGraphPaintInFlight = true;
+      try {
+        totalSampleCount = 0;
+        _serialDisplayDeferred = false;
+        _lastSerialDisplayAt = DateTime.now();
+        await _paintLiveSerialGraph(provider, drawSurfaceWidth);
+        if (mounted) {
+          provider.inputListener(Uint8List(0));
+          _markSerialPaintSuccess('force-$source');
+        }
+      } finally {
+        _serialGraphPaintInFlight = false;
+      }
+    }
+  }
+
   /// [rollingWindow] vs [rollingFromZero] display window for live serial.
   bool _serialPaintFromZero = false;
 
@@ -2815,6 +2965,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   void listenToMicrophone(channelCount, provider) async {
+    GraphTemplate.selectedBoard = null;
     print("listenToMicrophone");
     stopCurrentPlaying();
     _registerWebLivePlaybackListener();
@@ -3863,14 +4014,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
         String usageType = arrFilterUsageTypeChannel[channelIdx];
         int pageIdx = predefinedFiltersChannel[channelIdx].indexOf(usageType);
 
+        if (channelIdx >= carouselSliderControllerChannel.length) {
+          _syncCarouselSliderControllers(channelIdx + 1);
+        }
         try {
-          if (carouselSliderControllerChannel != null) {
-            Future.delayed(Duration(milliseconds: 50), () {
+          Future.delayed(Duration(milliseconds: 50), () {
+            if (!mounted ||
+                channelIdx >= carouselSliderControllerChannel.length) {
+              return;
+            }
+            try {
               carouselSliderControllerChannel[channelIdx].jumpToPage(pageIdx);
-            });
-          } else {
-            print("carouselSliderControllerChannel NULLL");
-          }
+            } catch (err) {
+              print("err carousel slider jumpToPage");
+              print(err);
+            }
+          });
         } catch (err) {
           print("err carousel slider");
           print(err);
@@ -3972,7 +4131,257 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   String? accessoryLabel;
 
-  static bool isMfiInitialized = false;
+  /// Consecutive empty [getConnectedAccessories] polls before MFi disconnect.
+  int _mfiEmptyAccessoryPolls = 0;
+  static const int _mfiDisconnectDebouncePolls = 3;
+
+  /// Avoid re-running connect handshake every port-check tick for the same accessory.
+  String? _mfiLastHandshakeAccessory;
+  bool _mfiConnectInProgress = false;
+
+  bool _isIosMfiPath() {
+    if (kIsWeb || !Platform.isIOS) return false;
+    return connectorType != ConnectorType.usbC;
+  }
+
+  bool _isIosUsbCSerialPath() {
+    if (kIsWeb || !Platform.isIOS) return false;
+    return connectorType == ConnectorType.usbC;
+  }
+
+  /// Preferred board baud first, then standard BYB probe list (matches Android/Web).
+  List<int> _effectiveBaudProbeOrder() {
+    final preferred = context.read<ConstantProvider>().getBaudRate();
+    final ordered = <int>[];
+    if (preferred > 0) {
+      ordered.add(preferred);
+    }
+    for (final baud in _baudRate) {
+      if (!ordered.contains(baud)) {
+        ordered.add(baud);
+      }
+    }
+    return ordered;
+  }
+
+  List<int> _normalizeBaudProbeOrder(List<int> rawRates) {
+    if (rawRates.isEmpty) {
+      return _effectiveBaudProbeOrder();
+    }
+    final ordered = <int>[];
+    for (final baud in rawRates) {
+      if (baud > 0 && !ordered.contains(baud)) {
+        ordered.add(baud);
+      }
+    }
+    for (final baud in _baudRate) {
+      if (!ordered.contains(baud)) {
+        ordered.add(baud);
+      }
+    }
+    return ordered;
+  }
+
+  /// [getConnectedAccessories] can be empty while an EA session is already open.
+  Future<List<String>> _resolveMfiAccessoryPorts() async {
+    final accessories = await BybAccessory.getConnectedAccessories();
+    print(
+        "BYB IOS --- ACCESSORIES ---@--- accessories: ${accessories.isNotEmpty}");          
+    if (accessories.isNotEmpty) {
+      return accessories;
+    }
+    if (!await BybAccessory.isConnected()) {
+      return const [];
+    }
+    try {
+      final info = await BybAccessory.getAccessoryInfo();
+      final match = RegExp(r'Name\.\.\.\.\s*(.+)\r?\n').firstMatch(info);
+      final name = match?.group(1)?.trim();
+      if (name != null && name.isNotEmpty) {
+        print(
+            'BYB iOS: accessory list empty but EA session active ($name)');
+        return [name];
+      }
+    } catch (e) {
+      print('BYB iOS getAccessoryInfo fallback failed: $e');
+    }
+    print('BYB iOS: EA session active but accessory name unknown');
+    return const ['mfi-session'];
+  }
+
+  Future<void> _triggerMfiConnectOnce({bool force = false}) async {
+    if (!mounted || !_isIosMfiPath() || !isMfiDeviceConnect) {
+      return;
+    }
+    final label = accessoryLabel ?? '';
+    if (label.isEmpty) {
+      print('BYB iOS MFi connect skipped: no accessory label');
+      return;
+    }
+    if (_mfiConnectInProgress) {
+      return;
+    }
+    if (!force && _mfiLastHandshakeAccessory == label) {
+      return;
+    }
+    _mfiConnectInProgress = true;
+    try {
+      await _recoverMfiSerialStream(runHandshake: true);
+      _mfiLastHandshakeAccessory = label;
+    } finally {
+      _mfiConnectInProgress = false;
+    }
+  }
+
+  /// MFi connect — no UART baud on ExternalAccessory; identify via hwType only.
+  Future<void> _mfiConnectHandshake() async {
+    if (!mounted || !_isIosMfiPath() || !isMfiDeviceConnect) {
+      return;
+    }
+    try {
+      final dataStatus = context.read<DataStatusProvider>();
+      print('MFi connect handshake ports: $_availablePorts');
+      if (_availablePorts.isEmpty) {
+        return;
+      }
+      if (!await BybAccessory.isConnected()) {
+        print('MFi connect handshake: accessory not connected');
+        dataStatus.setDeviceDataStatus(false);
+        return;
+      }
+
+      isDeviceConnect = true;
+      isDeviceSelected = false;
+      isSerialDeviceFound = true;
+      _isDataIdentified = false;
+      foundDevices = "";
+      _isBoardTimerRunning = false;
+      _isDeviceTimerRunning = false;
+      boardTimer?.cancel();
+      boardTimer = null;
+      deviceTimer?.cancel();
+      deviceTimer = null;
+      _resetSerialPipelineAfterBaudChange();
+      streamScrubBuilderController.add(Random().nextInt(100000));
+
+      dataStatus.setDeviceDataStatus(true);
+      dataStatus.setMicrophoneDataStatus(false);
+
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      if (!mounted || !isMfiDeviceConnect) {
+        return;
+      }
+      await BybAccessory.sendBytes(UsbCommand.hwTypeInquiry.cmdAsBytes());
+      print('MFi connect handshake: hwType inquiry sent');
+    } catch (e) {
+      print('MFi connect handshake error: $e');
+      if (mounted) {
+        context.read<DataStatusProvider>().setDeviceDataStatus(false);
+      }
+    }
+  }
+
+  Future<void> _cancelMfiRxSub() async {
+    final sub = _rxSub;
+    _rxSub = null;
+    if (sub == null) {
+      return;
+    }
+    try {
+      await sub.cancel();
+    } catch (e) {
+      print('BYB iOS MFi RX cancel: $e');
+    }
+  }
+
+  void _attachMfiRxStream(List<String> listOfPort) {
+    if (_rxSub != null) return;
+    final ports = listOfPort.isNotEmpty ? listOfPort : _availablePorts;
+    try {
+      _rxSub = BybAccessory.rxBytesStream.listen(
+        (event) {
+          // unawaited(serialSubscriptionListener(event, true, ports));
+
+          serialSubscriptionListener(event, true, ports);
+        },
+        onError: (e) {
+          print('RX stream error: $e');
+          forceSerialDisconnect = true;
+          print("SERIAL PORT ERROR -- DISCONNECTED");
+          _serialUtil.closePort();
+          final provider =
+              Provider.of<GraphDataProvider>(context, listen: false);
+          _rxSub?.cancel();
+          _rxSub = null;
+          _mfiMicListenerDetached = false;
+          Future.delayed(Duration(milliseconds: 1000), () {
+            forceSerialDisconnect = false;
+            if (_isIosMfiPath() && isMfiDeviceConnect) {
+              // unawaited(_recoverMfiSerialStream());
+            } else {
+              listenToMicrophone(1, provider);
+            }
+          });
+        },
+      );
+      print('BYB iOS MFi RX stream attached');
+    } catch (e) {
+      print("Error setting up MFi RX: $e");
+    }
+  }
+
+  Future<void> _recoverMfiSerialStream({
+    bool restoreIdentification = false,
+    bool runHandshake = false,
+  }) async {
+    if (!mounted || !_isIosMfiPath()) return;
+    try {
+      final accessories = await _resolveMfiAccessoryPorts();
+      if (accessories.isEmpty) {
+        print('BYB iOS MFi recovery: no accessories visible');
+        return;
+      }
+      accessoryLabel = accessories.first;
+      _availablePorts = [accessories.first];
+      await _cancelMfiRxSub();
+      _attachMfiRxStream(_availablePorts);
+      final alreadyConnected = await BybAccessory.isConnected();
+      if (!alreadyConnected) {
+        await BybAccessory.connect(name: accessories.first);
+      }
+      isMfiDeviceConnect = true;
+      isDeviceConnect = true;
+      if (restoreIdentification && GraphTemplate.selectedBoard != null) {
+        _restoreIdentifiedSerialDevice(
+          GraphTemplate.selectedBoard!.uniqueName ?? foundDevices,
+        );
+      } else {
+        isDeviceSelected = false;
+      }
+      if (mounted) {
+        context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
+      }
+      lastDateTimeSerialDataArrival = DateTime.now();
+      final provider = Provider.of<GraphDataProvider>(context, listen: false);
+      _ensureSerialStaleWatchdog(provider);
+      _ensureSerialPaintWatchdog(provider);
+      print('BYB iOS MFi recovery: session and RX re-established');
+      if (runHandshake && !restoreIdentification) {
+        await _mfiConnectHandshake();
+      }
+    } catch (e) {
+      print('BYB iOS MFi recovery failed: $e');
+    }
+  }
+
+  Future<void> _printMfiAccessoryInfo() async {
+    try {
+      final info = await BybAccessory.getAccessoryInfo();
+      print(info);
+    } catch (e) {
+      print("BYB iOS getAccessoryInfo failed: $e");
+    }
+  }
 
   /// Mic is only detached once when switching to MFi; avoids skipping setup on hot-plug.
   bool _mfiMicListenerDetached = false;
@@ -4607,6 +5016,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         _registerWebLivePlaybackListener();
         unawaited(_ensureLiveMonitorPlayer());
       }
+
       if (!GraphTemplate.isPlayerPaused) {
         if (event.isNotEmpty) {
           _enqueueSerialIngest(event, provider, drawSurfaceWidth);
@@ -4653,6 +5063,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         }
         // provider.inputListener(Uint8List(0));
       }
+
     }
     provider.inputListener(Uint8List(0));
   }
@@ -4895,10 +5306,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
         print("VALUE : $value");
         if (value != null) {
           String tempDevices = value.uniqueName ?? "";
-          // Ignore duplicate hwType replies only after this device is already selected.
-          if (foundDevices == tempDevices && isDeviceSelected) {
+          if (tempDevices.isEmpty) return;
+
+          // Already fully identified — ignore duplicate HWT replies.
+          if (foundDevices == tempDevices &&
+              isDeviceSelected &&
+              _isDataIdentified) {
             return;
           }
+
+          // After MFi recovery selectedBoard survives but flags were cleared.
+          if (GraphTemplate.selectedBoard?.uniqueName == tempDevices) {
+            _restoreIdentifiedSerialDevice(tempDevices);
+            return;
+          }
+
           foundDevices = tempDevices;
           print("foundDevices");
           print(foundDevices);
@@ -5080,6 +5502,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       serialUsageType = "";
                     }
 
+                    _syncCarouselSliderControllers(deviceChannelCount);
                     customSliderBarArray.clear();
                     for (int idxChannel = 0;
                         idxChannel < deviceChannelCount;
@@ -5134,6 +5557,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
   int counterThreshold = 0;
 
   DateTime? lastDateTimeSerialDataArrival = DateTime.now();
+  
+  DateTime? mfiPreviousDateTime  = DateTime.now();
+  DateTime? mfiPreviousDateTime1  = DateTime.now();
+  DateTime? mfiPreviousDateTime2  = DateTime.now();
 
   int _totalLoadedFilePcmBytes() {
     var bytes = 0;
@@ -5538,7 +5965,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             }
             List<Int16List> tempData = sublistArray;
             if (!kIsWeb && isThresholdingButton) {
-              print("Process Threshold Data");
+              // print("Process Threshold Data");
               int selectedThresholdChannelIdx = context
                   .read<ThresholdStatusProvider>()
                   .selectedThresholdChannel;
@@ -5585,7 +6012,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             final now = DateTime.now();
             if (_lastWebPlaybackUiUpdate == null ||
                 now.difference(_lastWebPlaybackUiUpdate!).inMilliseconds >=
-                    200) {
+                  200) {
               _lastWebPlaybackUiUpdate = now;
               setState(() {});
             }
@@ -6845,6 +7272,34 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _serialDisplayDeferred = false;
     _serialGraphPaintInFlight = false;
     _lastSerialDisplayAt = null;
+    totalSampleCount = 0;
+    _serialChunksDrainedSinceLastPaint = 0;
+    _serialPaintWatchdogTimer?.cancel();
+    _serialPaintWatchdogTimer = null;
+  }
+
+  void _syncCarouselSliderControllers(int channelCount) {
+    carouselSliderControllerChannel.clear();
+    for (var i = 0; i < channelCount; i++) {
+      carouselSliderControllerChannel.add(CarouselSliderController());
+    }
+  }
+
+  /// Re-arm live serial ingest after MFi recovery or duplicate HWT replies.
+  void _restoreIdentifiedSerialDevice(String deviceName) {
+    if (deviceName.isEmpty) return;
+    foundDevices = deviceName;
+    isDeviceSelected = true;
+    _isDataIdentified = true;
+    isSerialDeviceFound = true;
+    lastDateTimeSerialDataArrival = DateTime.now();
+    if (!mounted) return;
+    final provider = Provider.of<GraphDataProvider>(context, listen: false);
+    _ensureSerialStaleWatchdog(provider);
+    _ensureSerialPaintWatchdog(provider);
+    // print(
+    //     'BYB SERIAL: restored identified device $deviceName '
+    //     '(selected=${GraphTemplate.selectedBoard?.uniqueName})');
   }
 
   void _registerWebLivePlaybackListener() {
@@ -6905,6 +7360,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     return true;
   }
 
+  Future<void> _liveMonitorInitChain = Future<void>.value();
+
   /// Starts or reconfigures SoLoud for live mic or serial monitoring.
   Future<void> _ensureLiveMonitorPlayer({int? channelCount}) async {
     if (!mounted) return;
@@ -6912,12 +7369,27 @@ class _GraphTemplateState extends State<GraphTemplate> {
     final channels = channelCount ?? widget.channelCount;
     if (channels < 1 || _sampleRate < 1) return;
 
+    final configRequest = _ReconfigureLiveMonitorRequest(
+      sampleRate: _sampleRate,
+      channelCount: channels,
+    );
+    final initFuture = _liveMonitorInitChain
+        .then((_) => _reconfigureLiveMonitorPlayer(configRequest));
+    _liveMonitorInitChain = initFuture.catchError((_) {});
+    await initFuture;
+  }
+
+  Future<void> _reconfigureLiveMonitorPlayer(
+    _ReconfigureLiveMonitorRequest request,
+  ) async {
+    if (!mounted) return;
+
     _processedSamplePlayer ??= ProcessedSamplePlayer(
       lowLatencyBufferSeconds: 0.01,
     );
 
-    final sameConfig = _liveMonitorSampleRate == _sampleRate &&
-        _liveMonitorChannelCount == channels &&
+    final sameConfig = _liveMonitorSampleRate == request.sampleRate &&
+        _liveMonitorChannelCount == request.channelCount &&
         _processedSamplePlayer!.isActive;
     if (sameConfig) {
       _syncLiveMonitorSpeakerMutes();
@@ -6928,12 +7400,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
       await _processedSamplePlayer!.stop();
     }
     await _processedSamplePlayer!.init(
-      sampleRate: _sampleRate,
-      channelCount: channels,
+      sampleRate: request.sampleRate,
+      channelCount: request.channelCount,
     );
     await _processedSamplePlayer!.start();
-    _liveMonitorSampleRate = _sampleRate;
-    _liveMonitorChannelCount = channels;
+    _liveMonitorSampleRate = request.sampleRate;
+    _liveMonitorChannelCount = request.channelCount;
     _syncLiveMonitorSpeakerMutes();
   }
 
@@ -7001,6 +7473,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     bool paintFromZero = false,
     List<Int16List>? decodedChannels,
   }) {
+
     if (decodedChannels != null) {
       _enqueueSerialDecodedIngest(decodedChannels, provider, drawSurfaceWidth);
       return;
@@ -7010,6 +7483,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _serialIngestQueue.add(event);
     if (_serialIngestDraining) return;
     _serialIngestDraining = true;
+    // print("_drainSerialIngestQueue");
     unawaited(_drainSerialIngestQueue(provider, drawSurfaceWidth));
   }
 
@@ -7036,6 +7510,19 @@ class _GraphTemplateState extends State<GraphTemplate> {
           drawSurfaceWidth,
           provider,
         );
+        _serialChunksDrainedSinceLastPaint++;
+        if (DateTime.now().difference(mfiPreviousDateTime1!).inSeconds >
+            _serialDataStaleTimeoutSeconds) {
+          mfiPreviousDateTime1 = DateTime.now();
+          print("LOG: ENQUEUE SERIAL INGEST Start ${batch.length} | _serialIngestQueue.isNotEmpty : ${_serialIngestQueue.isNotEmpty} | SAMPLES PROCESSED : ${samples}");
+        }
+        // final sampleLens = samples.isEmpty
+        //     ? 'empty'
+        //     : samples.map((s) => s.length).join(',');
+        // _logSerialPaint(
+        //   'drain batch=${batch.length}B samples=[$sampleLens] '
+        //   'totalSampleCount=$totalSampleCount',
+        // );
         // Audio first; do not await graph paint (that was blocking the next chunk).
         _enqueueLiveSerialAudio(samples);
         _accumulateSerialSamplesForDisplay(samples, drawSurfaceWidth);
@@ -7043,6 +7530,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
     } finally {
       _serialIngestDraining = false;
+      // _logSerialPaint(
+      //   'drain done deferred=$_serialDisplayDeferred queue=${_serialIngestQueue.length} '
+      //   '${_serialPaintPipelineSnapshot()}',
+      // );
       if (mounted && _serialDisplayDeferred) {
         await _flushDeferredSerialDisplay(provider, drawSurfaceWidth);
       }
@@ -7110,15 +7601,19 @@ class _GraphTemplateState extends State<GraphTemplate> {
     int drawSurfaceWidth,
   ) {
     if (!mounted) return;
-    if (!_shouldPaintSerialGraphNow()) {
+    final gateReason = _serialPaintGateReason();
+    if (gateReason != null) {
       _serialDisplayDeferred = true;
+      // _logSerialPaint('schedule deferred ($gateReason)');
       return;
     }
     if (_serialGraphPaintInFlight) {
       _serialDisplayDeferred = true;
+      // _logSerialPaint('schedule deferred (paint in flight)');
       return;
     }
     _serialGraphPaintInFlight = true;
+    // _logSerialPaint('schedule paint now');
     unawaited(_runSerialGraphPaint(provider, drawSurfaceWidth));
   }
 
@@ -7129,16 +7624,20 @@ class _GraphTemplateState extends State<GraphTemplate> {
     try {
       do {
         if (!mounted) return;
-        if (!_shouldPaintSerialGraphNow()) {
+        final gateReason = _serialPaintGateReason();
+        if (gateReason != null) {
           _serialDisplayDeferred = true;
+          // _logSerialPaint('run deferred ($gateReason)');
           return;
         }
         totalSampleCount = 0;
         _serialDisplayDeferred = false;
         _lastSerialDisplayAt = DateTime.now();
+        // _logSerialPaint('run paint begin width=$drawSurfaceWidth');
         await _paintLiveSerialGraph(provider, drawSurfaceWidth);
         if (mounted) {
           provider.inputListener(Uint8List(0));
+          _markSerialPaintSuccess('run');
         }
       } while (
           mounted && _serialDisplayDeferred && _shouldPaintSerialGraphNow());
@@ -7171,17 +7670,36 @@ class _GraphTemplateState extends State<GraphTemplate> {
     int drawSurfaceWidth,
   ) async {
     if (!mounted || !_serialDisplayDeferred) return;
-    if (GraphTemplate.selectedBoard?.uniqueName == "HBLEOSB" || GraphTemplate.selectedBoard?.uniqueName == "HHIBOX" || GraphTemplate.selectedBoard?.uniqueName == "MUSCUSB1") {
-    } else 
-    if (!_shouldPaintSerialGraphNow()) return;
+    final ingestIdle =
+        _serialIngestQueue.isEmpty && !_serialIngestDraining;
+    if (GraphTemplate.selectedBoard?.uniqueName == "HBLEOSB" ||
+        GraphTemplate.selectedBoard?.uniqueName == "HHIBOX" ||
+        GraphTemplate.selectedBoard?.uniqueName == "MUSCUSB1") {
+    } else if (!_shouldPaintSerialGraphNow() &&
+        !(ingestIdle && totalSampleCount > 0)) {
+      // _logSerialPaint(
+      //   'flush skipped ingestIdle=$ingestIdle totalSampleCount=$totalSampleCount '
+      //   '${_serialPaintPipelineSnapshot()}',
+      // );
+      return;
+    }
 
+    // _logSerialPaint('flush paint begin totalSampleCount=$totalSampleCount');
     totalSampleCount = 0;
     _serialDisplayDeferred = false;
     _lastSerialDisplayAt = DateTime.now();
     await _paintLiveSerialGraph(provider, drawSurfaceWidth);
     if (mounted) {
-      // provider.inputListener(Uint8List(0));
-      setState(() {});
+      if (!kIsWeb) {
+        if (Platform.isIOS) {
+          provider.inputListener(Uint8List(0));
+        } else {
+          setState(() {});
+        }
+      } else {
+        setState(() {});
+      }
+      _markSerialPaintSuccess('flush');
     }
   }
 
@@ -7250,14 +7768,27 @@ class _GraphTemplateState extends State<GraphTemplate> {
     final maxSamples =
         (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
     final maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
+    if (DateTime.now().difference(mfiPreviousDateTime2!).inSeconds >
+        _serialDataStaleTimeoutSeconds) {
+      mfiPreviousDateTime2 = DateTime.now();
+      print("LOG: ENQUE SERIAL INGEST FIN | _serialPaintFromZero : $_serialPaintFromZero");
+    }
+
     if (_serialPaintFromZero) {
       DraggableGraph.startPositionIdx = 0;
       DraggableGraph.endPositionIdx = maxDisplaySamples;
+      // _logSerialPaint(
+      //   'live paint fromZero 0..$maxDisplaySamples maxSamples=$maxSamples',
+      // );
       await processingUtil.processDisplaySerialData(displayTimeMs.toInt(),
           deviceType, drawSurfaceWidth, provider, 0, maxDisplaySamples);
     } else {
       DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
       DraggableGraph.endPositionIdx = maxSamples;
+      // _logSerialPaint(
+      //   'live paint rolling ${DraggableGraph.startPositionIdx}..${DraggableGraph.endPositionIdx} '
+      //   'nativeArgs=0..$maxDisplaySamples maxSamples=$maxSamples',
+      // );
       await processingUtil.processDisplaySerialData(displayTimeMs.toInt(),
           deviceType, drawSurfaceWidth, provider, 0, maxDisplaySamples);
     }
@@ -7306,7 +7837,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _resetSerialIngestPipeline();
     lastDateTimeSerialDataArrival = DateTime.now();
     _ensureSerialStaleWatchdog(provider);
-    serialDataSubscription = _serialUtil.dataStream?.listen((event) async {
+    serialDataSubscription = _serialUtil.dataStream?.listen((event) {
       if (isOpeningFile) {
         _refreshSerialDataArrivalWhileOpeningFile();
         return;
@@ -7314,7 +7845,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       lastDateTimeSerialDataArrival = DateTime.now();
       context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
       arr = [processingUtil.thresholdingArraylength];
-      serialSubscriptionListener(event, false, _availablePorts);
+      unawaited(serialSubscriptionListener(event, false, _availablePorts));
     }, onError: (error) {
       // if (error is SerialPortError) {
       _cancelSerialStaleWatchdog();
@@ -7840,6 +8371,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   void _recoverFromSerialDataTimeout(GraphDataProvider? provider, {forceMicrophone = true}) {
+    final providerRef = provider ??
+        (mounted
+            ? Provider.of<GraphDataProvider>(context, listen: false)
+            : null);
+    final boardName = GraphTemplate.selectedBoard?.uniqueName;
+    final keepIdentifiedDevice = _isIosMfiPath() &&
+        isMfiDeviceConnect &&
+        boardName != null &&
+        boardName.isNotEmpty;
+
     _cancelSerialStaleWatchdog();
     boardTimer?.cancel();
     boardTimer = null;
@@ -7847,31 +8388,63 @@ class _GraphTemplateState extends State<GraphTemplate> {
     deviceTimer = null;
     _isBoardTimerRunning = false;
     _isDeviceTimerRunning = false;
+    _resetSerialIngestPipeline();
+
+    if (keepIdentifiedDevice) {
+      print(
+          "SERIAL DATA STALE (>${_serialDataStaleTimeoutSeconds}s), soft MFi recovery "
+          "for ${GraphTemplate.selectedBoard!.uniqueName}");
+      serialDataSubscription?.cancel();
+      serialDataSubscription = null;
+      unawaited(_cancelMfiRxSub());
+      lastDateTimeSerialDataArrival = DateTime.now();
+      unawaited(_recoverMfiSerialStream(restoreIdentification: true));
+      if (providerRef != null && mounted) {
+        _ensureSerialStaleWatchdog(providerRef);
+        _ensureSerialPaintWatchdog(providerRef);
+      }
+      return;
+    }
+
     serialDataSubscription?.cancel();
     serialDataSubscription = null;
-    _rxSub?.cancel();
-    _rxSub = null;
+    unawaited(_cancelMfiRxSub());
     isDeviceConnect = true;
     isDeviceSelected = false;
     isSerialDeviceFound = false;
     _isDataIdentified = false;
     GraphTemplate.isLoadingFile = 0;
     foundDevices = "";
-    _resetSerialIngestPipeline();
-    try {
-      _serialUtil.closePort();
-    } catch (err) {
-      print("ERROR CLOSING PORT ON SERIAL STALE: $err");
+    if (!_isIosMfiPath() || !isMfiDeviceConnect) {
+      try {
+        _serialUtil.closePort();
+      } catch (err) {
+        print("ERROR CLOSING PORT ON SERIAL STALE: $err");
+      }
     }
+
+    if (_isIosMfiPath() && isMfiDeviceConnect) {
+      print(
+          "SERIAL DATA STALE (>${_serialDataStaleTimeoutSeconds}s), soft MFi recovery");
+      _mfiLastHandshakeAccessory = null;
+      lastDateTimeSerialDataArrival = DateTime.now();
+      unawaited(_recoverMfiSerialStream(runHandshake: true));
+      if (providerRef != null && mounted) {
+        _ensureSerialStaleWatchdog(providerRef);
+        _ensureSerialPaintWatchdog(providerRef);
+      }
+      return;
+    }
+
     print(
         "SERIAL DATA STALE (>${_serialDataStaleTimeoutSeconds}s), falling back to microphone");
     if (forceMicrophone) {
       print("Call Microphone");
-      listenToMicrophone(1, provider);
+      listenToMicrophone(1, providerRef);
     }
   }
 
-  void serialSubscriptionListener(
+  Future<void> serialSubscriptionListener(
       Uint8List event, bool isMfi, listOfPort) async {
     // _recordSerialRxThroughput(event.length);
 
@@ -7882,23 +8455,30 @@ class _GraphTemplateState extends State<GraphTemplate> {
     lastDateTimeSerialDataArrival = DateTime.now();
     final provider = Provider.of<GraphDataProvider>(context, listen: false);
     _ensureSerialStaleWatchdog(provider);
+    _ensureSerialPaintWatchdog(provider);
 
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     // print("IS AUDIO LISTEN | Writing to port b:; : ${isAudioListen} --- bytes : ${event.length}");
     // if (!isAudioListen) {
     if (true) {
       int drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
-      if (isDeviceConnect) {
-        if (isRecording == 1) return;
+      if (isDeviceConnect && isRecording != 1) {
         isDeviceConnect = false;
 
-        print(
-            "Writing to port b:; : ${UsbCommand.hwTypeInquiry.cmdAsBytes()} ${DateTime.now().millisecondsSinceEpoch}");
+        // print(
+        //     "Writing to port b:; : ${UsbCommand.hwTypeInquiry.cmdAsBytes()} ${DateTime.now().millisecondsSinceEpoch}");
         Future.delayed(const Duration(milliseconds: 400), () {
+          if (!mounted) return;
+          if (isDeviceSelected && _isDataIdentified) return;
+          final boardName = GraphTemplate.selectedBoard?.uniqueName;
+          if (boardName != null && boardName.isNotEmpty) {
+            // _restoreIdentifiedSerialDevice(boardName);
+            return;
+          }
           if (isDeviceSelected) {
             return;
           }
-          print("SEND BYTES DELAYED: ${DateTime.now().millisecondsSinceEpoch}");
+          // print("SEND BYTES DELAYED: ${DateTime.now().millisecondsSinceEpoch}");
           if (isMfi) {
             BybAccessory.sendBytes(UsbCommand.hwTypeInquiry.cmdAsBytes());
           } else if (listOfPort.isNotEmpty) {
@@ -7913,6 +8493,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
           _registerWebLivePlaybackListener();
           unawaited(_ensureLiveMonitorPlayer());
         }
+        if (DateTime.now().difference(mfiPreviousDateTime!).inSeconds >
+            _serialDataStaleTimeoutSeconds) {
+          mfiPreviousDateTime = DateTime.now();
+          // print("LOG: SERIAL NATIVEZ DATA SUBSCRIPTION START : ${GraphTemplate.isLoadingFile}");
+        }
+
         serialNativeDataSubscription(event, isAudioListen);
       } else {
         if (!isDeviceConnect && !isDeviceSelected) {
@@ -7942,7 +8528,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 return;
               }
               _isBoardTimerRunning = false;
-              print("Writing to port board:;");
+              // print("Writing to port board:;");
               Uint8List commandBytes =
                   Uint8List.fromList(utf8.encode("board:;"));
               if (isMfi) {
@@ -7983,10 +8569,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
             // return;
 
             // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
-            await processingUtil.processDisplaySerialData(displayTimeMs.toInt(),
-                deviceType, drawSurfaceWidth, provider, fromSample, toSample);
-
-            provider.inputListener(Uint8List(0));
+            unawaited(processingUtil
+                .processDisplaySerialData(displayTimeMs.toInt(), deviceType,
+                    drawSurfaceWidth, provider, fromSample, toSample)
+                .then((_) {
+              if (mounted) provider.inputListener(Uint8List(0));
+            }));
           }
         } else {
           if (!_isDeviceTimerRunning && event.isNotEmpty) {
@@ -7997,7 +8585,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             }
             deviceTimer = Timer.periodic(Duration(seconds: 4), (timer) {
               if (isRecording == 1) return;
-              print("Writing to port device:;");
+              // print("Writing to port device:;");
               if (isMfi) {
                 BybAccessory.sendBytes(UsbCommand.hwTypeInquiry.cmdAsBytes());
               } else {

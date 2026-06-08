@@ -161,7 +161,8 @@ https://devanlai.github.io/webdfu/dfu-util/
 dart pub cache clean
 flutter pub get
 
-
+Threshold fix:
+increase the buffer
 
 rm -f web/main.dart.js web/main.dart.js_1.part.js web/main.dart.js_2.part.js web/main.dart.js_3.part.js
 rm -rf .dart_tool/flutter_build build/web

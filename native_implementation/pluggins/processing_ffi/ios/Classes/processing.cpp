@@ -645,12 +645,14 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
                                        const uint8_t* in_data, int32_t length,
                                        int32_t hardware_type) {
     if (!initialized || !out_samples || !out_sample_counts || !in_data || length <= 0) {
+        platform_log_processing("PROCESS SAMPLE STREAM ERROR\n");
         return -1;
     }
     // isProcessThresholding = false;
     
     // Check if sampleStreamProcessor is initialized
     if (sampleStreamProcessor == nullptr) {
+        platform_log_processing("PROCESS SAMPLE STREAM NULL\n");
         return -2; // Return error code indicating processor not initialized
     }
     
@@ -667,6 +669,7 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
             // if (out_sample_counts[0]>0) {
                 circularBuffer->addData(out_samples, out_sample_counts);
             // }
+
         } else {
             delete[] event_indices;
             delete[] event_labels;
@@ -679,7 +682,17 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
         delete[] event_indices;
         delete[] event_labels;
         return out_sample_counts[0];
+    } catch (const std::exception &e) {
+        platform_log_processing("PROCESS SAMPLE STREAM EXCEPTION: %s\n", e.what());
+        for (int i = 0; i < current_channel_count; i++) {
+            out_sample_counts[i] = 0;
+        }
+        return -3;
     } catch (...) {
+        platform_log_processing("PROCESS SAMPLE STREAM UNKNOWN EXCEPTION\n");
+        for (int i = 0; i < current_channel_count; i++) {
+            out_sample_counts[i] = 0;
+        }
         return -3;
     }
 }

@@ -94,14 +94,10 @@ namespace backyardbrains {
                     // (int)insideEscapeSequence, 
                     // insideEscapeSequence ? "YES" : "NO");
                 // and next byte to custom message sent by SpikerBox
-                // Bounds check before writing to prevent buffer overflow
-                if (escapeSequenceIndex < MAX_SEQUENCE_LENGTH) {
-                    escapeSequence[escapeSequenceIndex++] = uc;
-                } else {
-                    // Buffer overflow - reset to prevent corruption
+                if (escapeSequenceIndex >= MAX_SEQUENCE_LENGTH) {
                     reset();
-                    continue;
                 }
+                escapeSequence[escapeSequenceIndex++] = uc;
 
                 if (insideEscapeSequence) { // we are inside escape sequence
                     sampleIndex = sampleCounters[currentChannel] == 0 ? 0 :
@@ -112,12 +108,7 @@ namespace backyardbrains {
                         std::copy(eventMessage, eventMessage + eventMessageIndex, copy);
                         copy[eventMessageIndex] = 0;
                         // let's process incoming message
-                        // processEscapeSequenceMessage(copy, sampleIndex, hardwareType, eventMessageIndex);
-                        // #ifdef __ANDROID__
-                        //  __android_log_print(ANDROID_LOG_DEBUG, TAG, "ESCAPE SEQUENCE MESSAGE %d AT %d", length, eventMessageIndex);
-                        // // __android_log_print(ANDROID_LOG_VERBOSE, "ndk", ANDROID_LOG_DEBUG, TAG, "ESCAPE SEQUENCE MESSAGE %s AT %d", "copy",eventMessageIndex);
-                        // #endif
-
+                        processEscapeSequenceMessage(copy, sampleIndex, hardwareType, eventMessageIndex);
 
                         delete[] copy;
                         reset();
@@ -191,9 +182,9 @@ namespace backyardbrains {
                                     // use average to remove offset
                                     sample = (short) (sample - average);
 
-                                    // STEVANUS TEMPORARY HIDE
-                                    // Bounds check to prevent buffer overflow
-                                    if (currentChannel < MAX_CHANNELS && sampleCounters[currentChannel] < MAX_SAMPLES) {
+                                    if (currentChannel >= 0 && currentChannel < channelCount &&
+                                        currentChannel < MAX_CHANNELS &&
+                                        sampleCounters[currentChannel] < MAX_SAMPLES) {
                                         channels[currentChannel][sampleCounters[currentChannel]++] = sample;
                                     } else {
                                         // Buffer overflow - drop frame to prevent corruption
@@ -286,8 +277,11 @@ namespace backyardbrains {
 
                 // STEVANUS FIX
                 // outSamples[i] = new short[sampleCounters[i]];
-                std::copy(channels[i], channels[i] + sampleCounters[i], outSamples[i]);
-                outSampleCounts[i] = sampleCounters[i];
+                const int copyCount = std::min(sampleCounters[i], MAX_SAMPLES);
+                if (outSamples[i] != nullptr && copyCount > 0) {
+                    std::copy(channels[i], channels[i] + copyCount, outSamples[i]);
+                }
+                outSampleCounts[i] = copyCount;
             }
             // DEBUG STEVE
             // std::copy(eventIndices, eventIndices + eventCounter, outEventIndices);
@@ -314,6 +308,7 @@ namespace backyardbrains {
             std::string logMessage =
                     "ESCAPE SEQUENCE MESSAGE " + message + " AT " + std::to_string(sampleIndex);
 
+            try {
             if (backyardbrains::utils::SampleStreamUtils::isHardwareTypeMsg(message)) {
                 int type = backyardbrains::utils::SampleStreamUtils::getHardwareType(message);
                 //__android_log_print(ANDROID_LOG_DEBUG, "HARD_CPP", "Hardware typpe %d ",type);
@@ -363,6 +358,9 @@ namespace backyardbrains {
                 const int audioState = backyardbrains::utils::SampleStreamUtils::getHumanSpikerBoxType300Audio(
                         message);
                 listener->onHumanSpikerBoardAudioState(audioState);
+            }
+            } catch (const std::exception &) {
+                // Malformed escape payload — drop message, keep stream alive.
             }
             return hardwareType;
         }

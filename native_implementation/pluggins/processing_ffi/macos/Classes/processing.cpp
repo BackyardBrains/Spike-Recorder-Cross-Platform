@@ -687,7 +687,15 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
         delete[] event_indices;
         delete[] event_labels;
         return out_sample_counts[0];
+    } catch (const std::exception &e) {
+        for (int i = 0; i < current_channel_count; i++) {
+            out_sample_counts[i] = 0;
+        }
+        return -3;
     } catch (...) {
+        for (int i = 0; i < current_channel_count; i++) {
+            out_sample_counts[i] = 0;
+        }
         return -3;
     }
 }

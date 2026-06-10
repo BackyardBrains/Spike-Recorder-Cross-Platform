@@ -5459,7 +5459,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         (_sampleRate / 5000 * 8 * defaultDeviceChannelCount)
                             .floor();
                   } else {
-                    sampleCountToDisplay = (_sampleRate / 5000 * 8).floor();
+                    sampleCountToDisplay = (_sampleRate / 5000 * 8 * 2).floor();
                   }
 
                   context.read<ChannelColorProvider>().setSerialChannelCount(

@@ -4,6 +4,7 @@
 
 #include "SampleStreamProcessor.h"
 #include "SampleStreamUtils.h"
+#include <cstring>
 #include <iostream>
 #include <fstream>
 
@@ -62,14 +63,10 @@ namespace backyardbrains {
                 uc = inData[i];
 
                 // and next byte to custom message sent by SpikerBox
-                // Bounds check before writing to prevent buffer overflow
-                if (escapeSequenceIndex < MAX_SEQUENCE_LENGTH) {
-                    escapeSequence[escapeSequenceIndex++] = uc;
-                } else {
-                    // Buffer overflow - reset to prevent corruption
+                if (escapeSequenceIndex >= MAX_SEQUENCE_LENGTH) {
                     reset();
-                    continue;
                 }
+                escapeSequence[escapeSequenceIndex++] = uc;
 
                 if (insideEscapeSequence) { // we are inside escape sequence
                     sampleIndex = sampleCounters[currentChannel] == 0 ? 0 :
@@ -151,17 +148,9 @@ namespace backyardbrains {
                                 // use average to remove offset
                                 sample = (short) (sample - average);
 
-                                // STEVANUS TEMPORARY HIDE
-                                // Bounds check to prevent buffer overflow
-                                if (currentChannel < MAX_CHANNELS && sampleCounters[currentChannel] < MAX_SAMPLES) {
-                                    // if (currentExpansionBoardType == 4) {
-                                    //     if (currentExpansionBoardAdjustedChannel == currentChannel) {
-                                    //         channels[currentChannel][sampleCounters[currentChannel]++] = sample + 3572;
-                                    //     } else {
-                                    //     }
-                                    // } else {
-                                    //     channels[currentChannel][sampleCounters[currentChannel]++] = sample;
-                                    // }
+                                if (currentChannel >= 0 && currentChannel < channelCount &&
+                                    currentChannel < MAX_CHANNELS &&
+                                    sampleCounters[currentChannel] < MAX_SAMPLES) {
                                     channels[currentChannel][sampleCounters[currentChannel]++] = sample;
                                 } else {
                                     // Buffer overflow - drop frame to prevent corruption
@@ -258,12 +247,11 @@ namespace backyardbrains {
                 // STEVANUS
                 // we lost the address if using below code, just create another one.
                 // outSamples[i] = new short[sampleCounters[i]];
-                std::copy(channels[i], channels[i] + sampleCounters[i], outSamples[i]);
-                // EM_ASM({
-                //     console.log("SAMPLE : ", $0, $1, $2, $3);
-                // }, i, sampleCounters[i], channels[i][0], outSamples[i][0]);
-
-                outSampleCounts[i] = sampleCounters[i];
+                const int copyCount = std::min(sampleCounters[i], MAX_SAMPLES);
+                if (outSamples[i] != nullptr && copyCount > 0) {
+                    std::copy(channels[i], channels[i] + copyCount, outSamples[i]);
+                }
+                outSampleCounts[i] = copyCount;
             }
             std::copy(eventIndices, eventIndices + eventCounter, outEventIndices);
             std::copy(eventLabels, eventLabels + eventCounter, outEventLabels);
@@ -274,13 +262,17 @@ namespace backyardbrains {
 
         int SampleStreamProcessor::processEscapeSequenceMessage(unsigned char *messageBytes,
                                                                 int sampleIndex, int hardwareType) {
-            // check if it's board type message
-            std::string message = reinterpret_cast<char *>(messageBytes);
+            if (messageBytes == nullptr) {
+                return hardwareType;
+            }
+            size_t len = strnlen(reinterpret_cast<const char *>(messageBytes), EVENT_MESSAGE_LENGTH);
+            std::string message(reinterpret_cast<const char *>(messageBytes), len);
             //__android_log_print(ANDROID_LOG_DEBUG, TAG, "ESCAPE SEQUENCE MESSAGE %s AT %d",message.c_str(),sampleIndex);
 
             std::string logMessage =
                     "ESCAPE SEQUENCE MESSAGE " + message + " AT " + std::to_string(sampleIndex);
 
+            try {
             if (backyardbrains::utils::SampleStreamUtils::isHardwareTypeMsg(message)) {
                 int type = backyardbrains::utils::SampleStreamUtils::getHardwareType(message);
                 //__android_log_print(ANDROID_LOG_DEBUG, "HARD_CPP", "Hardware typpe %d ",type);
@@ -295,17 +287,19 @@ namespace backyardbrains {
                 listener->onMaxSampleRateAndNumOfChannelsReply(sampleRate, channelCount);
                 setSampleRateAndChannelCount(sampleRate, channelCount);
             } else if (backyardbrains::utils::SampleStreamUtils::isEventMsg(message)) {
+                if (eventCounter >= MAX_EVENTS) {
+                    return hardwareType;
+                }
                 eventIndices[eventCounter] = sampleIndex;
                 eventLabels[eventCounter] = backyardbrains::utils::SampleStreamUtils::getEventNumber(
                         message);
-                int num = std::stoi(eventLabels[eventCounter]);    
-                listener->onEventFound(sampleIndex, num);
-                // listener->onEventFound(1, 1);
-                // EM_ASM({
-                //     console.log("ON EVENT FOUND0000", $0, $1);
-                // }, sampleIndex, num);
-
-                eventCounter++;
+                try {
+                    int num = std::stoi(eventLabels[eventCounter]);
+                    listener->onEventFound(sampleIndex, num);
+                    eventCounter++;
+                } catch (const std::exception&) {
+                    return hardwareType;
+                }
             } else if (backyardbrains::utils::SampleStreamUtils::isExpansionBoardTypeMsg(message)) {
                 const int expansionBoardType = backyardbrains::utils::SampleStreamUtils::getExpansionBoardType(
                         message);
@@ -340,6 +334,9 @@ namespace backyardbrains {
                 const int audioState = backyardbrains::utils::SampleStreamUtils::getHumanSpikerBoxType300Audio(
                         message);
                 listener->onHumanSpikerBoardAudioState(audioState);
+            }
+            } catch (const std::exception &) {
+                // Malformed escape payload — drop message, keep stream alive.
             }
             return hardwareType;
         }

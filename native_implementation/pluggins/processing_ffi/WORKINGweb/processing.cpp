@@ -607,61 +607,37 @@ int32_t processing_process_sample_stream(int16_t* _out_samples, int32_t* out_sam
         return -1;
     }
 
+    int16_t** out_samples = nullptr;
+    int* event_indices = nullptr;
+    std::string* event_labels = nullptr;
+
     try {
         // Process data using SampleStreamProcessor
-        int16_t** out_samples = new int16_t*[current_channel_count];
-        int32_t sampleCount = out_sample_counts[0];
+        out_samples = new int16_t*[current_channel_count];
         for (int cu = 0; cu < current_channel_count; cu++) {
             out_samples[cu] = &_out_samples[cu * out_sample_counts[cu]];
         }
-        // CHECKING IF THE DATA FROM serial is the same with this current buffer data ==> THE SAME
-        // EM_ASM({
-        //     console.log("current_channel_count : ", $0);
-        // }, current_channel_count);
 
-        int* event_indices = new int[PROCESSING_MAX_EVENTS];
-        std::string* event_labels = new std::string[PROCESSING_MAX_EVENTS];
+        event_indices = new int[PROCESSING_MAX_EVENTS];
+        event_labels = new std::string[PROCESSING_MAX_EVENTS];
         int event_count = 0;
-
-        // STEVE NEED TO FIX THIS
-        // create new outsamples variable, copy it to the real out_samples, with out_sample_counts
-        // int16_t** tempSamples = new int16_t*[channelCount];
-        // for (int i = 0; i < channelCount; i++) {
-        //       tempSamples[i] = new int16_t[length];              
-        //       for (int j = 0; j < length; j++) {
-        //             tempSamples[i][j] = 0;
-        //       }
-        // }
 
         sampleStreamProcessor->process(in_data, length, (out_samples), out_sample_counts,
                                      event_indices, event_labels, event_count,
                                      current_channel_count, hardware_type);       
         // Add processed data to circular buffer
         if (circularBuffer != nullptr) {
-            // if (out_sample_counts[0]>0 || ) {
-            // indicating that the serial data 
-                // totalSamples1 += out_sample_counts[0];
-                // totalSamples2 += out_sample_counts[1];
-
-                // std::fill(out_samples[1], out_samples[1] + out_sample_counts[1], 307);
                 circularBuffer->addData(out_samples, out_sample_counts);
-                // EM_ASM({
-                //     // if ($0 !== $1) {
-                //         console.log("Sample Countz : ", $0, $1, $2, $3);
-                //     // }
-                // }, out_samples[0][0], out_samples[0][1], out_sample_counts[0], out_sample_counts[1]);
-
-            // }
         } else {
             delete[] event_indices;
             delete[] event_labels;
+            delete[] out_samples;
             return -100;
         }
-        
-
 
         delete[] event_indices;
         delete[] event_labels;
+        delete[] out_samples;
         return out_sample_counts[0];
         // int16_t** samples = new int16_t*[current_channel_count];
         // for (int i = 0; i < current_channel_count; i++) {
@@ -707,7 +683,21 @@ int32_t processing_process_sample_stream(int16_t* _out_samples, int32_t* out_sam
         // delete[] event_indices;
         // delete[] event_labels;
         // return 0;
+    } catch (const std::exception &) {
+        if (event_indices != nullptr) delete[] event_indices;
+        if (event_labels != nullptr) delete[] event_labels;
+        if (out_samples != nullptr) delete[] out_samples;
+        for (int i = 0; i < current_channel_count; i++) {
+            out_sample_counts[i] = 0;
+        }
+        return -3;
     } catch (...) {
+        if (event_indices != nullptr) delete[] event_indices;
+        if (event_labels != nullptr) delete[] event_labels;
+        if (out_samples != nullptr) delete[] out_samples;
+        for (int i = 0; i < current_channel_count; i++) {
+            out_sample_counts[i] = 0;
+        }
         return -3;
     }
 }

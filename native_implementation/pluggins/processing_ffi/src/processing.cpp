@@ -674,10 +674,20 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
         delete[] event_labels;
         
         return 0; // Success
+    } catch (const std::exception &) {
+        if (event_indices != nullptr) delete[] event_indices;
+        if (event_labels != nullptr) delete[] event_labels;
+        for (int i = 0; i < current_channel_count; i++) {
+            out_sample_counts[i] = 0;
+        }
+        return -3;
     } catch (...) {
         // Free memory in case of exception
         if (event_indices != nullptr) delete[] event_indices;
         if (event_labels != nullptr) delete[] event_labels;
+        for (int i = 0; i < current_channel_count; i++) {
+            out_sample_counts[i] = 0;
+        }
         return -3;
     }
 }

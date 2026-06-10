@@ -49,6 +49,7 @@ namespace backyardbrains {
                                                                               0x01, 0x80, 0xFF};
         const unsigned char SampleStreamProcessor::ESCAPE_SEQUENCE_END[] = {0xFF, 0xFF, 0x01, 0x01,
                                                                             0x81, 0xFF};
+        constexpr int SampleStreamProcessor::MAX_SAMPLES;
 
         SampleStreamProcessor::SampleStreamProcessor(
                 backyardbrains::utils::OnEventListenerListener *listener)

@@ -1765,28 +1765,28 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                         mainAxisSize: MainAxisSize.max,
                                         children: [
                                           // 1. The Custom Switch
-                                          // Switch(
-                                          //   value: isDarkMode,
-                                          //   activeColor: Colors.white,
-                                          //   activeTrackColor: Color(
-                                          //       0xFFFF7A5C), // The orange/coral color in your image
-                                          //   onChanged: (value) {
-                                          //     setState(() {
-                                          //       isDarkMode = value;
-                                          //     });
-                                          //   },
-                                          // ),
+                                          Switch(
+                                            value: isDarkMode,
+                                            activeColor: Colors.white,
+                                            activeTrackColor: Color(
+                                                0xFFFF7A5C), // The orange/coral color in your image
+                                            onChanged: (value) {
+                                              setState(() {
+                                                isDarkMode = value;
+                                              });
+                                            },
+                                          ),
                                           // SizedBox(width: 8),
 
                                           // 2. The Main Label
-                                          // Text(
-                                          //   'Dark Mode',
-                                          //   style: TextStyle(
-                                          //     color: Colors.white,
-                                          //     fontWeight: FontWeight.bold,
-                                          //     fontSize: 14,
-                                          //   ),
-                                          // ),
+                                          Text(
+                                            'Dark Mode',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
 
                                           // 3. Spacing to push version info to the right
                                           Spacer(),
@@ -1796,7 +1796,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               color: Colors.grey, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.18',
+                                            'SpikeRecorder App ver. 2.1.19',
                                             style: TextStyle(
                                               color: Colors.grey,
                                               fontSize: 14,

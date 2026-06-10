@@ -98,6 +98,19 @@ class MicStream {
     await _microphoneMethodChannel.invokeMethod("stopListening");
   }
 
+  /// Clears cached stream config so the next [microphone] call re-binds native capture.
+  static void resetCachedStream() {
+    _microphone = null;
+    __audioSource = null;
+    __sampleRate = null;
+    __channelConfig = null;
+    __audioFormat = null;
+    _sampleRate = null;
+    _bitDepth = null;
+    _bufferSize = null;
+    _channelCount = null;
+  }
+
   /// This function initializes a connection to the native backend (if not already available).
   /// Returns a Uint8List stream representing the captured audio.
   /// IMPORTANT - on iOS, there is no guarantee that captured audio will be encoded with the requested sampleRate/bitDepth.

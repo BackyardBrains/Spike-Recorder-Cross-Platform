@@ -273,8 +273,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     .setMicrophoneDataStatus(false);
                 microphoneUtil.micStream.removeListener(micListener);
                 if (!kIsWeb) {
-                  print("microphoneUtil.micStatus?.cancel()");
-                  microphoneUtil.micStatus?.cancel();
+                  unawaited(microphoneUtil.stopListeningToMicrophone());
                 }
                 ProcessingUtil.initializeDevice.value = 0;
               } catch (e) {
@@ -364,7 +363,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   Provider.of<GraphDataProvider>(context, listen: true);
               Future.delayed(Duration(milliseconds: 2500), () {
                 forceSerialDisconnect = false;
-                listenToMicrophone(1, provider);
+                // listenToMicrophone(1, provider);
+                print("BYB iOS - FORCE MICROPHONE RECOVERY");
+                _recoverFromSerialDataTimeout(provider, forceMicrophone: true);
               });
               try {
                 BybAccessory.disconnect();
@@ -1165,8 +1166,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     try {
       microphoneUtil.micStream.removeListener(micListener);
       if (!kIsWeb) {
-        print("microphoneUtil.micStatus?.cancel()");
-        microphoneUtil.micStatus?.cancel();
+        unawaited(microphoneUtil.stopListeningToMicrophone());
       }
     } catch (e) {
       print("Error removing micListener: $e");
@@ -2964,7 +2964,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     return path;
   }
 
-  void listenToMicrophone(channelCount, provider) async {
+  void listenToMicrophone(channelCount, provider,
+      {bool restartMicCapture = false}) async {
     GraphTemplate.selectedBoard = null;
     print("listenToMicrophone");
     stopCurrentPlaying();
@@ -3060,8 +3061,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
         widget.channelCount = channelCount;
         Provider.of<ConstantProvider>(context, listen: false)
             .setChannelCount(channelCount);
-        Provider.of<SampleRateProvider>(context, listen: false)
-            .setSampleRate(microphoneUtil.sampleRate.floor());
 
         microphoneUtil.micStream.removeListener(micListener);
         microphoneUtil.micStream = ValueNotifier(Uint8List(0));
@@ -3072,13 +3071,26 @@ class _GraphTemplateState extends State<GraphTemplate> {
         print(err);
       }
 
+      if (restartMicCapture) {
+        _cancelSerialStaleWatchdog();
+        _serialPaintWatchdogTimer?.cancel();
+        _serialPaintWatchdogTimer = null;
+        _resetSerialIngestPipeline();
+        if (!kIsWeb) {
+          await _pauseLiveMonitorForFilePlayback();
+          _resetLiveMonitorConfig();
+          await microphoneUtil.stopListeningToMicrophone(resetStream: true);
+        }
+      }
+
       await Future.delayed(const Duration(microseconds: 10));
 
       print("_messageIdentifier.messageState");
       print(_messageIdentifier.messageState);
       // Initialize both utils
 
-      await Future.wait([microphoneUtil.init()]);
+      await Future.wait(
+          [microphoneUtil.init(forceRestart: restartMicCapture)]);
 
       await processingUtil.init();
       //init microphone stream
@@ -3094,6 +3106,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
           _sampleRate = microphoneUtil.sampleRate.toInt();
         }
       }
+
+      Provider.of<SampleRateProvider>(context, listen: false)
+          .setSampleRate(_sampleRate);
 
       int NUMBER_OF_SEGMENTS = 10;
       int SEGMENT_SIZE = _sampleRate;
@@ -3123,6 +3138,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (kIsWeb && _shouldRunLiveMonitor()) {
         unawaited(_ensureLiveMonitorPlayer(channelCount: channelCount));
       }
+      final maxSamples =
+          (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+      final maxDisplaySamples =
+          (displayTimeMs * 0.001 * _sampleRate).floor();
+      DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
+      DraggableGraph.endPositionIdx = maxSamples;
+      ProcessingUtil.fromDrawingIdx = DraggableGraph.startPositionIdx;
+      ProcessingUtil.toDrawingIdx = DraggableGraph.endPositionIdx;
+
       microphoneUtil.micStream.addListener(micListener);
       isDeviceConnect = true;
       isDeviceSelected = false;
@@ -3514,8 +3538,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 channelCount,
                 displayTimeMs,
                 provider,
-                0,
-                maxDisplaySamples);
+                DraggableGraph.startPositionIdx,
+                DraggableGraph.endPositionIdx);
             if (isFftButton) {
               Size screenSize = MediaQuery.of(context).size;
               // int windowCount = processingUtil.window_count[0];
@@ -5407,8 +5431,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   processingUtil.defaultSampleRateNoExpansionBoard =
                       int.parse(board.maxSampleRate!);
                   if (!kIsWeb) {
-                    print("microphoneUtil.micStatus?.cancel()");
-                    microphoneUtil.micStatus?.cancel();
+                    unawaited(microphoneUtil.stopListeningToMicrophone());
                   }
 
                   deviceChannelCount = int.parse(board.maxNumberOfChannels!);
@@ -8440,7 +8463,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         "SERIAL DATA STALE (>${_serialDataStaleTimeoutSeconds}s), falling back to microphone");
     if (forceMicrophone) {
       print("Call Microphone");
-      listenToMicrophone(1, providerRef);
+      listenToMicrophone(1, providerRef, restartMicCapture: true);
     }
   }
 

@@ -26,7 +26,17 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
   var mediaStream;
 
   @override
-  Future<void> init() async {
+  Future<void> stopListeningToMicrophone({bool resetStream = false}) async {
+    js.context.callMethod('stopListeningToMicrophone', []);
+    micStream.value = Uint8List(0);
+    addListenAudioStreamController.value = Uint8List(0);
+  }
+
+  @override
+  Future<void> init({bool forceRestart = false}) async {
+    if (forceRestart) {
+      await stopListeningToMicrophone();
+    }
     try {
       print("INITTIALLLIIIZZZEEE");
       if (mediaStream == null) {
@@ -103,9 +113,4 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
 
   @override
   StreamSubscription? micStatus;
-
-  @override
-  void stopListeningToMicrophone() {
-    js.context.callMethod('stopListeningToMicrophone', []);
-  }
 }

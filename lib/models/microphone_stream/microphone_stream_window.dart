@@ -33,7 +33,21 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
   */
 
   @override
-  Future<void> init() async {
+  Future<void> stopListeningToMicrophone({bool resetStream = false}) async {
+    await micStatus?.cancel();
+    micStatus = null;
+    micStream.value = Uint8List(0);
+    addListenAudioStreamController.value = Uint8List(0);
+    if (resetStream) {
+      MicStream.resetCachedStream();
+    }
+  }
+
+  @override
+  Future<void> init({bool forceRestart = false}) async {
+    if (forceRestart) {
+      await stopListeningToMicrophone(resetStream: true);
+    }
     if (Platform.isWindows) {
       micStatus?.cancel();
       sampleRate = 48000;
@@ -95,6 +109,4 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
 
   @override
   StreamSubscription? micStatus;
-
-  void stopListeningToMicrophone(){}
 }

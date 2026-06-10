@@ -16,11 +16,12 @@ abstract class MicrophoneUtil {
   final ValueNotifier<Uint8List> addListenAudioStreamController =
       ValueNotifier(Uint8List(0));
   double sampleRate = 48000;
-  Future<void> init() async {}
+  Future<void> init({bool forceRestart = false}) async {}
 
   StreamSubscription? micStatus;
 
   Future<void> checkPointerValue() async {}
 
-  void stopListeningToMicrophone();
+  /// Stops the mic subscription. Set [resetStream] to force a native re-bind on next [init].
+  Future<void> stopListeningToMicrophone({bool resetStream = false});
 }

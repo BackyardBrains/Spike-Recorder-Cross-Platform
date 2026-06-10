@@ -45,6 +45,10 @@ public class SwiftMicStreamPlugin: NSObject, FlutterStreamHandler, FlutterPlugin
     
     public func onCancel(withArguments arguments:Any?) -> FlutterError?  {
         self.session?.stopRunning()
+        self.session = nil
+        self.eventSink = nil
+        self.actualSampleRate = nil
+        self.actualBitDepth = nil
         return nil
     }
 
@@ -90,11 +94,21 @@ public class SwiftMicStreamPlugin: NSObject, FlutterStreamHandler, FlutterPlugin
     }
     
     func startCapture() {
-    
+        self.session?.stopRunning()
+        self.session = nil
+
         if let audioCaptureDevice : AVCaptureDevice = AVCaptureDevice.default(for:AVMediaType.audio) {
 
             self.session = AVCaptureSession()
             do {
+                let audioSession = AVAudioSession.sharedInstance()
+                try audioSession.setCategory(
+                    .playAndRecord,
+                    mode: .measurement,
+                    options: [.defaultToSpeaker, .allowBluetooth]
+                )
+                try audioSession.setActive(true)
+
                 try audioCaptureDevice.lockForConfiguration()
                 
                 let audioInput = try AVCaptureDeviceInput(device: audioCaptureDevice)

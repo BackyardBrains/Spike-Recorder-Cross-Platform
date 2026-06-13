@@ -1100,24 +1100,28 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 bufferPos);
 
             double gapStateElement = prevStartElementIdx - startElementIdx;
-            // if (isOpeningFile) {
-            //   List<double> timeScrub = scrubNotifier.value;
-            //   if (timeScrub.isEmpty) return;
-            //   double percentage = timeScrub[0] / timeScrub[1];
-            //   double currentSamples = percentage * loadedMaxSamples;
-            //   // currentSamples += bufferPaddingLeft;
-            //   // currentSamples = currentSamples.clamp(0, loadedMaxSamples);
-            //   percentage = (currentSamples - gapStateElement) / loadedMaxSamples;
-            //   // double dx = gapStateElement / timeScrub[1];
-            //   double scrubValue = percentage * timeScrub[1];
-            //   print("currentSamples: $currentSamples + $gapStateElement = ${currentSamples + gapStateElement} || scrubValue: $scrubValue");
-            //   // print("currentSamples: $currentSamples + $bufferPaddingLeft = $percentage || gapStateElement: $gapStateElement || scrubValue: $scrubValue");
+            if (isOpeningFile) {
+              List<double> timeScrub = scrubNotifier.value;
+              if (timeScrub.isEmpty) return;
+              double percentage = timeScrub[0] / timeScrub[1];
+              double currentSamples = percentage * loadedMaxSamples;
+              currentSamples += bufferPaddingLeft;
+              // currentSamples = currentSamples.clamp(0, loadedMaxSamples);
+              if (currentSamples < 0) {
+                currentSamples = 0;
+              }
+              percentage = (currentSamples) / loadedMaxSamples;
+              // double dx = gapStateElement / timeScrub[1];
+              double scrubValue = percentage * timeScrub[1];
+              AdaptiveAreaState.horizontalDragX = scrubValue;            
+              startPlaybackSeekSampleIdx = currentSamples.toDouble();
+              streamScrubBuilderController.add(Random().nextInt(100000));
+              print("currentSamples: $currentSamples + $gapStateElement = ${currentSamples + gapStateElement} || scrubValue: $scrubValue");
+              // print("currentSamples: $currentSamples + $bufferPaddingLeft = $percentage || gapStateElement: $gapStateElement || scrubValue: $scrubValue");
       
-            //   AdaptiveAreaState.horizontalDragX = scrubValue;            
-            //   streamScrubBuilderController.add(Random().nextInt(100000));
-            //   print(
-            //       "DIFFERENCES = $prevStartElementIdx - $startElementIdx = ${gapStateElement} | ${ProcessingUtil.positionIndex}");
-            // }
+              print(
+                  "DIFFERENCES = $prevStartElementIdx - $startElementIdx = ${gapStateElement} | ${ProcessingUtil.positionIndex}");
+            }
             // print("LABELS: ${DraggableGraph.eventMarkersPosition} ${DraggableGraph.eventMarkersLabels} ||| ${ProcessingUtil.eventLabels.sublist(0, ProcessingUtil.currentEventMarkers)} - Sublist: ${ProcessingUtil.eventPosition.sublist(0, ProcessingUtil.currentEventMarkers)}");
 // main.dart.js:25928 DIFFERENCES = NaN - 524989.0625 = NaN | 0
             if (prevStartElementIdx.isNaN) {
@@ -6699,7 +6703,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   recordedFilePath!
                       .substring(recordedFilePath!.lastIndexOf("/") + 1);
               if (!kIsWeb) {
-                if(Platform.isWindows) {
+                if(Platform.isWindows || Platform.isMacOS) {
                   recordedFilePathProcessed = "~/Downloads/$recordedFilePathProcessed";
                 }
               }

@@ -280,7 +280,7 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
       widthOfScreen = MediaQuery.of(context).size.width;
       if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
         return Positioned(
-          top: 10,
+          top: 0,
           left: 0,
           right: 0,
           child: Container(

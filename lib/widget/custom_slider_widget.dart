@@ -113,9 +113,12 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
 
   double _clampEndFrequency(double value, double currentStart) {
     double clamped = value.clamp(0.0, maxFreq);
+    print("ZZclamped: $clamped");
+    print("ZZcurrentStart: $currentStart");
     if (clamped <= currentStart) {
-      clamped = min(maxFreq, currentStart + 1);
+      clamped = max(maxFreq, currentStart + 1);
     }
+    print("ZZFIN clamped: $clamped");
     return clamped;
   }
 
@@ -229,7 +232,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   key: ValueKey('low-${widget.channelIdx}'),
                   frequencyType: "Low",
                   frequencyValue: start.toInt(),
-                  maxFrequency: maxFreq,
+                  maxFrequency: maxFreq - 1,
                   onFrequencyChanged: (value) {
                     start = _clampStartFrequency(value.toDouble(), end);
                     Provider.of<CustomRangeSliderProvider>(context, listen: false)
@@ -246,8 +249,10 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
 
                     widget.startValue = start;
                     print("START VALUE startValue CUSTOMIZing: ${widget.startValue}");
+                    settingBandFilter(start, end, maxFreq, widget);
 
                     setState(() {});
+                    return start;
                   },
                 ),
               ],
@@ -282,7 +287,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                         rangeSlider: true,
                         min: minLog, // Fixed minimum in log space
                         max: maxLog, // Fixed maximum in log space
-                        step: FlutterSliderStep(step: 0.01),                      
+                        step: FlutterSliderStep(step: 0.01),
                         
                         // Styling to match the "ruler" image
                         trackBar: FlutterSliderTrackBar(
@@ -329,6 +334,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                         ),
                       
                         onDragging: (handlerIndex, lowerValue, upperValue) {
+                          print("onDragging: $lowerValue, $upperValue");
                           setState(() {
                             // Convert from custom log space back to linear frequency space
                             const double minFreqForLog = 0.1;
@@ -412,7 +418,9 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   frequencyValue: end.toInt(),
                   maxFrequency: maxFreq,
                   onFrequencyChanged: (value) {
+                    print("end: $end");
                     end = _clampEndFrequency(value.toDouble(), start);
+                    print("end after clamp: $end");
                     Provider.of<CustomRangeSliderProvider>(context, listen: false)
                         .setEndValue(end, widget.channelIdx);
                     double lowFreq = start; // Allow 0 value
@@ -427,8 +435,10 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                     // }
                     widget.endValue = end;
                     print("endValue CUSTOMIZing: ${widget.endValue}");
+                    settingBandFilter(start, end, maxFreq, widget);
 
                     setState(() {});
+                    return end;
                   },
                 ),
               ],
@@ -660,6 +670,21 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
       ),
     );
   }
+  
+  void settingBandFilter(double start, double end, double maxFreq, CustomSliderBarButton widget) {
+    double lowFreq = start; // Allow 0 value
+    // double highFreq = end >= maxFreq ? -1 : end;
+    double highFreq = end >= maxFreq ? maxFreq : end;
+    print("widget.channelIdx: ${widget.channelIdx} | end : $end | maxFreq: $maxFreq");
+    if (widget.channelIdx == -1) {
+      for (int i = 0; i < widget.channelCount; i++) {
+        widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+      }
+    } else {
+      print("setBandFilter: ${widget.channelIdx}, lowFreq: $lowFreq, highFreq: $highFreq");
+      widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+    }
+  }
 
 }
 
@@ -721,6 +746,7 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
 
   void _validateAndUpdate() {
     // Parse the input, defaulting to 0 if invalid
+    print("validateAndUpdate: ${_controller.text}");
     int? value = int.tryParse(_controller.text);
     if (value == null) {
       value = 0;
@@ -729,12 +755,17 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
     // Clamp the value between 0 and maxFrequency
     value = value.clamp(0, widget.maxFrequency.toInt());
     debouncer.run(() {
+      print("debouncer: $value");
       // Update the controller text to show the clamped value
-      _controller.text = value.toString();
       // Notify parent about the change
-      widget.onFrequencyChanged(value!);
+      double newFrequency = widget.onFrequencyChanged(value!);
+      _controller.text = newFrequency.floor().toString();
     });
     
+  }
+
+  updateFrequencyController(int value) {
+    _controller.text = value.toString();
   }
 
   @override
@@ -781,7 +812,7 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
         ),
       ],
     );
-  }
+  }  
 }
 
 

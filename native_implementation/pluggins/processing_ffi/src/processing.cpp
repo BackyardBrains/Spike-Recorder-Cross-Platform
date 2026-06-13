@@ -54,7 +54,7 @@ using namespace backyardbrains::utils;
 // Constants
 static constexpr int32_t PROCESSING_MAX_EVENTS = 100;  // Same as MAX_EVENTS in SampleStreamProcessor
 static constexpr int32_t MAX_NUMBER_OF_SECONDS = 10;  // 10 seconds of buffer
-static constexpr int32_t BUFFER_MULTIPLIER = 1;
+static constexpr int32_t BUFFER_MULTIPLIER = 2;
 static constexpr int32_t MAX_DRAW_SURFACE_WIDTH = 4096;  // Cap to prevent OOM on high-DPI devices
 
 // Internal state variables

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'ios_startup_bridge.dart';
 import 'app_shell.dart' deferred as app_shell;
+import 'package:window_manager/window_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,11 +17,31 @@ Future<void> main() async {
     app_shell.registerDeferredStartupTasks();
     runApp(app_shell.buildRootApp());
     return;
-  }
-
+  } else
   if (Platform.isIOS) {
     await waitForNativeIosUIKitReady(timeout: const Duration(seconds: 5));
     runApp(const _IosMetalBootstrap());
+    return;
+  } else
+  if (Platform.isWindows || Platform.isMacOS) {
+    await windowManager.ensureInitialized();
+
+    WindowOptions windowOptions = WindowOptions(
+      size: Size(800, 600),
+      center: true,
+      backgroundColor: Colors.transparent,
+      skipTaskbar: false,
+      titleBarStyle: TitleBarStyle.hidden,
+    );
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+
+    await app_shell.loadLibrary();
+    await app_shell.preloadGraphModule();
+    app_shell.registerDeferredStartupTasks();
+    runApp(app_shell.buildRootApp());
     return;
   }
 

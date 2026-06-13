@@ -17,6 +17,7 @@ import 'package:spikerbox_architecture/functionality/debouncer.dart';
 import 'package:spikerbox_architecture/provider/custom_slider_provider.dart';
 import 'package:spikerbox_architecture/provider/provider_export.dart';
 
+import '../constant/app_theme.dart';
 import '../constant/const_export.dart';
 import '../models/constant.dart';
 import '../models/microphone_stream/microphone_stream_check.dart';
@@ -127,6 +128,8 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
 
     sampleRate = context.read<SampleRateProvider>().sampleRate.toDouble();
     maxFreq = sampleRate / 2;
+    final appColors =
+        AppThemeColors.of(context.watch<ThemeModeProvider>().isDarkMode);
     final sliderProvider = context.watch<CustomRangeSliderProvider>();
     start = sliderProvider.startValue[widget.channelIdx];
     final double endValue = sliderProvider.endValue[widget.channelIdx];
@@ -237,7 +240,10 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                       children: [
                         // Icon(const IconData(0xe90d, fontFamily: "IcomoonIcons"), color: Colors.white),
                         // SizedBox(width: 10),
-                        Text("Set band-pass filter cutoff frequencies", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text("Set band-pass filter cutoff frequencies",
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: appColors.textPrimary)),
                         // Spacer(),
                         // GestureDetector(
                         //   onTap: () {
@@ -263,7 +269,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                             border: Border.all(color: Colors.grey.shade400, width: 0.5),
                           ),
                           inactiveTrackBar: BoxDecoration(
-                            color: Colors.grey.shade700,
+                            color: appColors.sliderInactiveTrack,
                             border: Border.all(color: Colors.grey.shade400, width: 0.5),
                           ),
                           activeTrackBarHeight: 20, // Match the thick bar in the image
@@ -277,7 +283,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                         // The "Ruler" markings
                         hatchMark: FlutterSliderHatchMark(
                           displayLines: false, // We turn off default lines to use our own
-                          labels: _generateRulerItems(minLog, maxLog),
+                          labels: _generateRulerItems(minLog, maxLog, appColors),
                         ),             
                       
                         tooltip: FlutterSliderTooltip(
@@ -510,7 +516,8 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
   }
 
 
-  List<FlutterSliderHatchMarkLabel> _generateRulerItems(double minL, double maxL) {
+  List<FlutterSliderHatchMarkLabel> _generateRulerItems(
+      double minL, double maxL, AppThemeColors appColors) {
     List<FlutterSliderHatchMarkLabel> items = [];
 
     // Add 0 label at the leftmost position (minL represents 0 via 0.1Hz mapping)
@@ -527,11 +534,11 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
               Container(
                 width: 1,
                 height: 10, // Major tick height
-                color: Colors.white,
+                color: appColors.sliderTick,
               ),
               Text(
                 "0",
-                style: TextStyle(color: Colors.white, fontSize: 10),
+                style: TextStyle(color: appColors.textPrimary, fontSize: 10),
               ),
             ],
           ),
@@ -559,11 +566,11 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
               Container(
                 width: 1,
                 height: 10, // Major tick height
-                color: Colors.white,
+                color: appColors.sliderTick,
               ),
               Text(
                 _formatLabel(majorVal.toDouble()),
-                style: TextStyle(color: Colors.white, fontSize: 10),
+                style: TextStyle(color: appColors.textPrimary, fontSize: 10),
               ),
             ],
           ),
@@ -587,7 +594,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                 margin: EdgeInsets.only(top: 24),
                 width: 1,
                 height: 6, // Minor tick height
-                color: Colors.white,
+                color: appColors.sliderTick,
               ),
             ),
           );
@@ -710,13 +717,15 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // SoftwareTextStyle().kWtMediumTextStyle..color = Color(0xFF707070);
+    final appColors =
+        AppThemeColors.of(context.watch<ThemeModeProvider>().isDarkMode);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           "${widget.frequencyType}",
-          style: SoftwareTextStyle().kWtMediumTextStyle.copyWith(color: Color(0xFF707070), fontWeight: FontWeight.w500),
+          style: SoftwareTextStyle().kWtMediumTextStyle.copyWith(
+              color: appColors.textSecondary, fontWeight: FontWeight.w500),
           textAlign: TextAlign.left,
         ),
         SizedBox(height: 4),
@@ -730,7 +739,7 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
               filled: true,
-              fillColor: Colors.grey[800],
+              fillColor: appColors.inputBackground,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
               ),

@@ -1,5 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:spikerbox_architecture/constant/app_theme.dart';
+import 'package:spikerbox_architecture/provider/theme_mode_provider.dart';
 
 class DarkDropdown extends StatefulWidget {
   DarkDropdown({super.key, required this.kIsWeb, required this.availablePorts, required this.onPortSelected, required this.valueListenable});
@@ -51,6 +54,8 @@ class _DarkDropdownState extends State<DarkDropdown> {
 
   @override
   Widget build(BuildContext context) {
+    final appColors =
+        AppThemeColors.of(context.watch<ThemeModeProvider>().isDarkMode);
 // widget.availablePorts}");
     if (widget.kIsWeb) {
       return GestureDetector(
@@ -61,14 +66,15 @@ class _DarkDropdownState extends State<DarkDropdown> {
           margin: const EdgeInsets.only(left: 0, right: 10),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF2C2C2C), // Dark background
-            borderRadius: BorderRadius.circular(20), // Highly rounded corners
+            color: appColors.buttonBackground,
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: Colors.white10, // Subtle grey/white border
+              color: appColors.dropdownBorder,
               width: 1,
             ),
           ),
-          child: Text("Choose the serial port device", style: TextStyle(color: Colors.white)),
+          child: Text("Choose the serial port device",
+              style: TextStyle(color: appColors.textPrimary)),
         ),
       );
     }
@@ -77,10 +83,10 @@ class _DarkDropdownState extends State<DarkDropdown> {
       // 1. Styling the outer box
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF2C2C2C), // Dark background
-        borderRadius: BorderRadius.circular(20), // Highly rounded corners
+        color: appColors.buttonBackground,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Colors.white10, // Subtle grey/white border
+          color: appColors.dropdownBorder,
           width: 1,
         ),
       ),
@@ -90,17 +96,16 @@ class _DarkDropdownState extends State<DarkDropdown> {
           hint: Text(
             "NO DETECTED PORTS ${selectedValue ?? ""}",
             style: TextStyle(
-              color: Colors.white38, // Muted text color
+              color: appColors.dropdownHint,
               fontWeight: FontWeight.bold,
               fontSize: 14,
               letterSpacing: 0.5,
             ),
           ),
-          dropdownColor: const Color(0xFF2C2C2C),
-          // 2. Customizing the arrow icons to match your image
-          icon: const Icon(
-            Icons.unfold_more, // This gives the up/down arrow look
-            color: Colors.white70,
+          dropdownColor: appColors.buttonBackground,
+          icon: Icon(
+            Icons.unfold_more,
+            color: appColors.textPrimary.withOpacity(0.7),
             size: 20,
           ),
           isExpanded: true, // Takes up full container width

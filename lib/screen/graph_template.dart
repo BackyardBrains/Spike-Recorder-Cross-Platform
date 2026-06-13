@@ -21,6 +21,7 @@ import 'package:mic_stream/mic_stream.dart';
 // import 'package:flutter_libserialport/flutter_libserialport.dart';
 import 'package:native_add/model/model.dart';
 import 'package:provider/provider.dart';
+import 'package:spikerbox_architecture/constant/app_theme.dart';
 import 'package:spikerbox_architecture/constant/const_export.dart';
 import 'package:spikerbox_architecture/functionality/debouncer.dart';
 import 'package:spikerbox_architecture/functionality/utils.dart';
@@ -622,7 +623,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       int sampleRateConfig = loadedConfig[0].round();
       double maxScreenSamples =
           ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRateConfig;
-      double arrSamplesLength = maxScreenSamples;
+      double arrSamplesLength = maxScreenSamples; 
       double startSeekSample = 0;
 
       double currentSamples = percentage * loadedMaxSamples;
@@ -1097,15 +1098,33 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 TimeCalculateWidget.widthOfScale,
                 MediaQuery.of(context).size.width,
                 bufferPos);
-            print(
-                "DIFFERENCES = $prevStartElementIdx - $startElementIdx = ${prevStartElementIdx - startElementIdx} | ${ProcessingUtil.positionIndex}");
+
+            double gapStateElement = prevStartElementIdx - startElementIdx;
+            // if (isOpeningFile) {
+            //   List<double> timeScrub = scrubNotifier.value;
+            //   if (timeScrub.isEmpty) return;
+            //   double percentage = timeScrub[0] / timeScrub[1];
+            //   double currentSamples = percentage * loadedMaxSamples;
+            //   // currentSamples += bufferPaddingLeft;
+            //   // currentSamples = currentSamples.clamp(0, loadedMaxSamples);
+            //   percentage = (currentSamples - gapStateElement) / loadedMaxSamples;
+            //   // double dx = gapStateElement / timeScrub[1];
+            //   double scrubValue = percentage * timeScrub[1];
+            //   print("currentSamples: $currentSamples + $gapStateElement = ${currentSamples + gapStateElement} || scrubValue: $scrubValue");
+            //   // print("currentSamples: $currentSamples + $bufferPaddingLeft = $percentage || gapStateElement: $gapStateElement || scrubValue: $scrubValue");
+      
+            //   AdaptiveAreaState.horizontalDragX = scrubValue;            
+            //   streamScrubBuilderController.add(Random().nextInt(100000));
+            //   print(
+            //       "DIFFERENCES = $prevStartElementIdx - $startElementIdx = ${gapStateElement} | ${ProcessingUtil.positionIndex}");
+            // }
             // print("LABELS: ${DraggableGraph.eventMarkersPosition} ${DraggableGraph.eventMarkersLabels} ||| ${ProcessingUtil.eventLabels.sublist(0, ProcessingUtil.currentEventMarkers)} - Sublist: ${ProcessingUtil.eventPosition.sublist(0, ProcessingUtil.currentEventMarkers)}");
 // main.dart.js:25928 DIFFERENCES = NaN - 524989.0625 = NaN | 0
             if (prevStartElementIdx.isNaN) {
               bufferPaddingLeft = bufferPaddingLeft;
             } else {
               bufferPaddingLeft =
-                  bufferPaddingLeft - (prevStartElementIdx - startElementIdx);
+                  bufferPaddingLeft - (gapStateElement);
             }
             if (displayTimeMs == 10000) {
               bufferPaddingLeft = 0;
@@ -1281,6 +1300,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   @override
   Widget build(BuildContext widgetContext) {
+    final isDarkMode = context.watch<ThemeModeProvider>().isDarkMode;
+    final appColors = AppThemeColors.of(isDarkMode);
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     String openedFilePath = "";
     if (currentLoadedFilePath.isNotEmpty) {
@@ -1301,7 +1322,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
 
     return Scaffold(
-      backgroundColor: SoftwareColors.kBackGroundColor,
+      backgroundColor: appColors.scaffoldBackground,
       body: StreamBuilder<int>(
           stream: streamScrubBuilder,
           builder: (context, snapshot) {
@@ -1312,7 +1333,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               child1: const _GraphArea(),
               child3: Container(
                 decoration: BoxDecoration(
-                  color: Color(0xFF222222),
+                  color: appColors.panelBackground,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(
@@ -1341,8 +1362,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                             setState(() {});
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2C2C2C),
-                            foregroundColor: Colors.white,
+                            backgroundColor: appColors.buttonBackground,
+                            foregroundColor: appColors.textPrimary,
                             elevation: 0,
                             shape: const CircleBorder(),
                             padding: EdgeInsets
@@ -1367,7 +1388,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           configTitle,
                           style: TextStyle(
                               fontSize: 24,
-                              color: Colors.white,
+                              color: appColors.textPrimary,
                               fontWeight: FontWeight.bold),
                         ),
                       ]),
@@ -1376,7 +1397,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                       Container(
                         margin: EdgeInsets.fromLTRB(10, 0, 10, 0),
                         decoration: BoxDecoration(
-                          color: Color(0xFF222222),
+                          color: appColors.panelBackground,
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Column(children: [
@@ -1432,7 +1453,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                             Radius.circular(16)),
                                         clipBehavior: Clip.antiAlias,
                                         child: Container(
-                                            color: Color(0xFF2e2e2e),
+                                            color: appColors.cardBackground,
                                             child: Center(
                                                 child: getTabbedViewChildren(
                                                     index))),
@@ -1467,7 +1488,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                   data: MenuThemeData(
                                     style: MenuStyle(
                                       backgroundColor: WidgetStateProperty.all(
-                                          Color(0xFF222222)),
+                                          appColors.panelBackground),
                                       shape: WidgetStateProperty.all(
                                         RoundedRectangleBorder(
                                             borderRadius:
@@ -1566,7 +1587,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                         },
                                         child: Container(
                                             decoration: BoxDecoration(
-                                              color: Color(0x14D9D9D9),
+                                              color: appColors.surfaceTint,
                                               borderRadius: BorderRadius.only(
                                                 topLeft: Radius.circular(16),
                                                 bottomLeft: Radius.circular(0),
@@ -1575,10 +1596,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                                 bottomRight: Radius.circular(0),
                                               ),
                                             ),
-                                            // color: Color(0xFF2e2e2e),
                                             child: Center(
                                                 child: Icon(drawerIconData,
-                                                    color: Colors.white))),
+                                                    color: appColors
+                                                        .iconPrimary))),
                                       ),
                                     ),
 
@@ -1620,7 +1641,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       Container(
                                         width: double.infinity,
                                         decoration: BoxDecoration(
-                                          color: Color(0x14D9D9D9),
+                                          color: appColors.surfaceTint,
                                           borderRadius: BorderRadius.only(
                                             topLeft: Radius.circular(16),
                                             bottomLeft: Radius.circular(0),
@@ -1637,11 +1658,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       Divider(
                                         height: 1,
                                         thickness: 1,
-                                        color: Color(0x70707070),
+                                        color: appColors.divider,
                                       ),
                                       Container(
                                           decoration: BoxDecoration(
-                                            color: Color(0x14D9D9D9),
+                                            color: appColors.surfaceTint,
                                             borderRadius: BorderRadius.only(
                                               topLeft: Radius.circular(0),
                                               bottomLeft: Radius.circular(0),
@@ -1659,12 +1680,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                                   child: Icon(
                                                       CupertinoIcons
                                                           .speedometer,
-                                                      color: Colors.white),
+                                                      color: appColors
+                                                          .iconPrimary),
                                                 ),
                                                 SizedBox(width: 10),
                                                 Text("Channel width",
                                                     style: TextStyle(
-                                                        color: Colors.white)),
+                                                        color: appColors
+                                                            .textPrimary)),
                                                 SizedBox(width: 10),
                                                 Expanded(
                                                   child: Container(
@@ -1709,11 +1732,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       Divider(
                                         height: 1,
                                         thickness: 1,
-                                        color: Color(0x70707070),
+                                        color: appColors.divider,
                                       ),
                                       Container(
                                         decoration: BoxDecoration(
-                                          color: Color(0x14D9D9D9),
+                                          color: appColors.surfaceTint,
                                           borderRadius: BorderRadius.only(
                                             topLeft: Radius.circular(0),
                                             bottomLeft: Radius.circular(0),
@@ -1747,9 +1770,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       padding: const EdgeInsets.fromLTRB(
                                           5, 10, 10, 10),
                                       decoration: BoxDecoration(
-                                        // borderRadius: BorderRadius.circular(16),
-                                        // color: Color(0xFF2e2e2e),
-                                        color: Color(0x14D9D9D9),
+                                        color: appColors.surfaceTint,
                                         borderRadius: BorderRadius.only(
                                           topLeft: isDrawerOpened
                                               ? Radius.circular(0)
@@ -1764,41 +1785,43 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.max,
                                         children: [
-                                          // 1. The Custom Switch
                                           Switch(
                                             value: isDarkMode,
                                             activeColor: Colors.white,
-                                            activeTrackColor: Color(
-                                                0xFFFF7A5C), // The orange/coral color in your image
+                                            activeTrackColor:
+                                                const Color(0xFFFF7A5C),
                                             onChanged: (value) {
-                                              setState(() {
-                                                isDarkMode = value;
-                                              });
+                                              context
+                                                  .read<ThemeModeProvider>()
+                                                  .setDarkMode(value);
+                                              createTabBarConfiguration(
+                                                widget.channelCount,
+                                                context.read<
+                                                    ChannelFilterProvider>(),
+                                              );
+                                              setState(() {});
                                             },
                                           ),
-                                          // SizedBox(width: 8),
 
-                                          // 2. The Main Label
                                           Text(
                                             'Dark Mode',
                                             style: TextStyle(
-                                              color: Colors.white,
+                                              color: appColors.textPrimary,
                                               fontWeight: FontWeight.bold,
                                               fontSize: 14,
                                             ),
                                           ),
 
-                                          // 3. Spacing to push version info to the right
                                           Spacer(),
 
-                                          // 4. App Version Info
                                           Icon(Icons.info_outline,
-                                              color: Colors.grey, size: 16),
+                                              color: appColors.textSecondary,
+                                              size: 16),
                                           SizedBox(width: 6),
                                           Text(
                                             'SpikeRecorder App ver. 2.1.19',
                                             style: TextStyle(
-                                              color: Colors.grey,
+                                              color: appColors.textSecondary,
                                               fontSize: 14,
                                             ),
                                           ),
@@ -3336,6 +3359,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         toSample = min(maxSamples, toSample);
         int fromSample =
             (toSample - displayTimeMs * 0.001 * _sampleRate).toInt();
+        // print("zFROM SAMPLE: $fromSample TO SAMPLE: $toSample bufferPaddingLeft: $bufferPaddingLeft -- ${displayTimeMs * 0.001 * _sampleRate}");
         if (isThresholdingButton) {
           // print("Don't Draw last result for thresholding");
           // if (!kIsWeb) {
@@ -4018,9 +4042,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   //https://github.com/BackyardBrains/Spike-Recorder/blob/cdb9686947776ab522027b2078c844b009cb0a33/src/engine/RecordingManager.cpp#L795
   Widget _predefinedFilterSettings(int channelIdx) {
-    // startValue: startValue,
-    // endValue: endValue,
-    // sliderValue: _sliderValue,
+    final appColors =
+        AppThemeColors.of(context.read<ThemeModeProvider>().isDarkMode);
     print(
         "_predefinedFilterSettings222 -- filterUsageTypeChannels: $filterUsageTypeChannels -- arrFilterUsageTypeChannel: ${arrFilterUsageTypeChannel[channelIdx]}");
     Widget predefinedFilterWidget = SizedBox();
@@ -4089,7 +4112,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       margin: EdgeInsets.only(top: 20),
       padding: EdgeInsets.fromLTRB(0, 10, 0, 0),
       decoration: BoxDecoration(
-        color: Color(0xFF2e2e2e),
+        color: appColors.cardBackground,
         // borderRadius: BorderRadius.circular(16),
         borderRadius: serialUsageType == "Custom"
             ? BorderRadius.only(
@@ -4130,8 +4153,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   List<int> visibleSignalsList = [1];
   int visibleChannelCount = 1;
-
-  bool isDarkMode = true;
 
   bool isDetailConfiguration = false;
   int customizeDetailChannelIdx = 0;
@@ -6761,6 +6782,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   buildSerialUsageTypeButton(String s, int channelIdx) {
+    final appColors =
+        AppThemeColors.of(context.read<ThemeModeProvider>().isDarkMode);
     bool isSelected = serialUsageType.contains(s);
     print(
         "SELECTED Serial usage type : $serialUsageType --VS-- $s == $isSelected");
@@ -6785,7 +6808,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             decoration: BoxDecoration(
               // color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
               color: isSelected
-                  ? Color.fromARGB(255, 70, 70, 70)
+                  ? appColors.selectionHighlight
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),
@@ -6827,7 +6850,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 Text(
                   "ECG",
-                  style: TextStyle(fontSize: 14, color: Colors.white),
+                  style: TextStyle(
+                      fontSize: 14, color: appColors.textPrimary),
                 ),
                 SizedBox(
                   height: 3,
@@ -6835,7 +6859,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 Text(
                   "Heartbeats",
                   style: TextStyle(
-                      color: Color(0xFF707070), fontSize: sublabelFontSize),
+                      color: appColors.textSecondary,
+                      fontSize: sublabelFontSize),
                 ),
                 getSelectedNotchWidget(isSelected, iconColor),
               ],
@@ -6847,7 +6872,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
             padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
             margin: EdgeInsets.fromLTRB(10, 0, 10, 20),
             decoration: BoxDecoration(
-              color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+              color: isSelected
+                  ? appColors.selectionHighlight
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -6887,14 +6914,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   height: 5,
                 ),
                 Text("EEG",
-                    style: TextStyle(fontSize: 14, color: Colors.white)),
+                    style: TextStyle(
+                        fontSize: 14, color: appColors.textPrimary)),
                 SizedBox(
                   height: 3,
                 ),
                 Text(
                   "Brainwaves",
                   style: TextStyle(
-                      color: Color(0xFF707070), fontSize: sublabelFontSize),
+                      color: appColors.textSecondary,
+                      fontSize: sublabelFontSize),
                 ),
                 getSelectedNotchWidget(isSelected, iconColor),
               ],
@@ -6908,7 +6937,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
             padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
             margin: EdgeInsets.fromLTRB(10, 0, 10, 10),
             decoration: BoxDecoration(
-              color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+              color: isSelected
+                  ? appColors.selectionHighlight
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -6949,7 +6980,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 Text(
                   "EMG",
-                  style: TextStyle(fontSize: 16, color: Colors.white),
+                  style: TextStyle(
+                      fontSize: 16, color: appColors.textPrimary),
                 ),
                 SizedBox(
                   height: 3,
@@ -6957,7 +6989,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 Text(
                   "Muscle signals",
                   style: TextStyle(
-                      fontSize: sublabelFontSize, color: Color(0xFF707070)),
+                      fontSize: sublabelFontSize,
+                      color: appColors.textSecondary),
                 ),
                 getSelectedNotchWidget(isSelected, iconColor),
               ],
@@ -6969,7 +7002,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
             padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
             margin: EdgeInsets.fromLTRB(10, 0, 10, 20),
             decoration: BoxDecoration(
-              color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+              color: isSelected
+                  ? appColors.selectionHighlight
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -7010,7 +7045,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 Text(
                   "Plant",
-                  style: TextStyle(fontSize: 16, color: Colors.white),
+                  style: TextStyle(
+                      fontSize: 16, color: appColors.textPrimary),
                 ),
                 SizedBox(
                   height: 3,
@@ -7018,7 +7054,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 Text(
                   "Plant signals",
                   style: TextStyle(
-                      fontSize: sublabelFontSize, color: Color(0xFF707070)),
+                      fontSize: sublabelFontSize,
+                      color: appColors.textSecondary),
                 ),
                 getSelectedNotchWidget(isSelected, iconColor),
               ],
@@ -7031,7 +7068,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
             padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
             margin: EdgeInsets.fromLTRB(10, 0, 10, 20),
             decoration: BoxDecoration(
-              color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+              color: isSelected
+                  ? appColors.selectionHighlight
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -7072,7 +7111,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 Text(
                   "Neuron",
-                  style: TextStyle(fontSize: 16, color: Colors.white),
+                  style: TextStyle(
+                      fontSize: 16, color: appColors.textPrimary),
                 ),
                 SizedBox(
                   height: 3,
@@ -7080,7 +7120,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 Text(
                   "Neuron signals",
                   style: TextStyle(
-                      fontSize: sublabelFontSize, color: Color(0xFF707070)),
+                      fontSize: sublabelFontSize,
+                      color: appColors.textSecondary),
                 ),
                 getSelectedNotchWidget(isSelected, iconColor),
               ],
@@ -7092,7 +7133,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
             padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
             margin: EdgeInsets.fromLTRB(10, 0, 10, 20),
             decoration: BoxDecoration(
-              color: isSelected ? Color(0xFF3c3c3c) : Colors.transparent,
+              color: isSelected
+                  ? appColors.selectionHighlight
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -7133,7 +7176,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 Text(
                   "Custom",
-                  style: TextStyle(fontSize: 16, color: Colors.white),
+                  style: TextStyle(
+                      fontSize: 16, color: appColors.textPrimary),
                 ),
                 SizedBox(
                   height: 3,
@@ -7141,7 +7185,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 Text(
                   "Set Range",
                   style: TextStyle(
-                      fontSize: sublabelFontSize, color: Color(0xFF707070)),
+                      fontSize: sublabelFontSize,
+                      color: appColors.textSecondary),
                 ),
                 getSelectedNotchWidget(isSelected, iconColor),
               ],
@@ -8065,6 +8110,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   getTabbedViewChildren(int idx) {
+    final appColors =
+        AppThemeColors.of(context.read<ThemeModeProvider>().isDarkMode);
     print(
         "customSliderBarArray.length -1 >= idx : ${customSliderBarArray.length} >= $idx");
     double? maxBoxWidth = kIsWeb
@@ -8096,16 +8143,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 if (serialUsageType == "Custom") ...[
                   // Text("ABCDEFGHIJ --- $idx"),
                   Container(
-                    color: Color(0xFF2e2e2e),
+                    color: appColors.cardBackground,
                     padding: EdgeInsets.fromLTRB(10, 0, 10, 0),
                     child: Divider(
                       thickness: 1,
-                      color: Color(0x28707070),
+                      color: appColors.divider.withOpacity(0.16),
                     ),
                   ),
                   Container(
                     decoration: BoxDecoration(
-                      color: Color(0xFF2e2e2e),
+                      color: appColors.cardBackground,
                       borderRadius: BorderRadius.only(
                         bottomLeft: Radius.circular(16),
                         bottomRight: Radius.circular(16),
@@ -8139,20 +8186,23 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void createTabBarConfiguration(channelCount, provider) {
     print("CreateTabBarConfiguration : $channelCount");
+    final appColors = AppThemeColors.of(
+      context.read<ThemeModeProvider>().isDarkMode,
+    );
     channelTabTheme =
-        TabbedViewThemeData.classic(borderColor: Color(0xFF222222));
+        TabbedViewThemeData.classic(borderColor: appColors.tabBorderColor);
     // channelTabTheme?.tab.closeIcon = IconProvider.data(IconData(0x0000, fontFamily: "IcomoonIcons"));
     // channelTabTheme?.tab.hoverButtonColor = Colors.transparent;
     channelTabTheme?.contentArea.decoration =
-        BoxDecoration(color: Color(0xFF222222));
+        BoxDecoration(color: appColors.panelBackground);
 
     // channelTabTheme?.tab.buttonPadding = EdgeInsets.zero;
     TabStatusThemeData selectedStatusTheme = TabStatusThemeData(
       decoration: BoxDecoration(
           borderRadius: BorderRadius.only(
               topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-          color: Color(0xFF2e2e2e)),
-      fontColor: Colors.white,
+          color: appColors.tabSelectedBackground),
+      fontColor: appColors.textPrimary,
       margin: EdgeInsets.only(left: 30, right: 10),
       padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       paddingWithoutButton: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -8165,8 +8215,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       decoration: BoxDecoration(
           borderRadius: BorderRadius.only(
               topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-          color: Color(0xFF181818)),
-      fontColor: Colors.white,
+          color: appColors.tabNormalBackground),
+      fontColor: appColors.textPrimary,
       margin: EdgeInsets.only(left: 30, right: 10),
       padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       paddingWithoutButton: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -8202,7 +8252,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             clipBehavior: Clip.antiAlias,
             // child: Container(color: Color(0xFF2e2e2e), child: Center(child: getTabbedViewChildren(idx))),
             child: Container(
-                color: Color(0xFF2e2e2e),
+                color: appColors.cardBackground,
                 child: Center(child: getTabbedViewChildren(idx))),
           )));
     }
@@ -8774,6 +8824,9 @@ class SetFrequencyWidget extends StatelessWidget {
   final String frequencyType;
   @override
   Widget build(BuildContext context) {
+    final appColors = AppThemeColors.of(
+      context.watch<ThemeModeProvider>().isDarkMode,
+    );
     return Column(
       children: [
         Text(
@@ -8782,7 +8835,7 @@ class SetFrequencyWidget extends StatelessWidget {
         ),
         DecoratedBox(
             decoration: BoxDecoration(
-                border: Border.all(width: 1, color: Colors.white)),
+                border: Border.all(width: 1, color: appColors.textPrimary)),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 2),
               child: Text(
@@ -8831,6 +8884,9 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
   static double maxTime = 0;
   @override
   Widget build(BuildContext context) {
+    final appColors = AppThemeColors.of(
+      context.watch<ThemeModeProvider>().isDarkMode,
+    );
     return Consumer<SoftwareConfigProvider>(
         builder: (context, softwareSetting, snapshot) {
       return SizedBox.expand(
@@ -8912,7 +8968,7 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
                           : const EdgeInsets.fromLTRB(0, 0, 0, 0),
                   child: Text(strMinTime,
                       textAlign: TextAlign.left,
-                      style: TextStyle(color: Colors.white)),
+                      style: TextStyle(color: appColors.textPrimary)),
                 ),
               ),
               Positioned(
@@ -8927,7 +8983,7 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
                     width: 150,
                     child: Text(strMaxTime,
                         textAlign: TextAlign.right,
-                        style: TextStyle(color: Colors.white))),
+                        style: TextStyle(color: appColors.textPrimary))),
               )
             },
 
@@ -8935,7 +8991,7 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
             softwareSetting.isSettingEnable
                 ? Positioned.fill(
                     child: Container(
-                      color: Colors.black54.withOpacity(0.9),
+                      color: appColors.overlayScrim,
                       // color: Colors.red,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -8992,12 +9048,12 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
                 ? const EdgeInsets.fromLTRB(0, 0, 0, 40)
                 : const EdgeInsets.fromLTRB(0, 0, 0, 0),
         child: GestureDetector(
-          onTapDown: (onTapDownDetails) {
+          onTapUp: (onTapUpDetails) {
             if (!GraphTemplate.isPlayerPaused) {
               return;
             }
 
-            horizontalDragX = onTapDownDetails.localPosition.dx - 50;
+            horizontalDragX = onTapUpDetails.localPosition.dx - 50;
             if (horizontalDragX < 0) {
               horizontalDragX = 0;
             }
@@ -9012,7 +9068,10 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
             setState(() {});
 
             debouncerScrollTimeline.run(() {
+              widget.notifier.value = [horizontalDragX, horizontalDragXFix];
+
               if (kIsWeb) {
+
                 // js.context.callMethod(
                 //     'setScrollValue', [horizontalDragX, horizontalDragXFix]);
               } else {}
@@ -9123,12 +9182,15 @@ class _GraphAreaState extends State<_GraphArea> {
   List<String> listOfFrequency = ["40 Hz", "30 Hz", "20 Hz", "10 Hz"];
   @override
   Widget build(BuildContext context) {
+    final appColors = AppThemeColors.of(
+      context.watch<ThemeModeProvider>().isDarkMode,
+    );
     return Column(
       children: [
         Expanded(
           flex: 6,
           child: Container(
-            color: Color(0xFF222222),
+            color: appColors.graphBackground,
             child: SoundWaveView(),
           ),
         ),

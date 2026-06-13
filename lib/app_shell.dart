@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import 'package:spikerbox_architecture/provider/custom_slider_provider.dart';
 import 'package:spikerbox_architecture/provider/fft_status_provider.dart';
 import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
+import 'package:spikerbox_architecture/constant/app_theme.dart';
 import 'package:spikerbox_architecture/screen/page_route_screen.dart';
 import 'firebase_options.dart';
 import 'ios_startup_bridge.dart';
@@ -47,6 +48,7 @@ Widget buildRootApp() {
       ChangeNotifierProvider(create: (_) => CustomRangeSliderProvider()),
       ChangeNotifierProvider(create: (_) => FftStatusProvider()),
       ChangeNotifierProvider(create: (_) => ThresholdStatusProvider()),
+      ChangeNotifierProvider(create: (_) => ThemeModeProvider()),
     ],
     child: const MyApp(),
   );
@@ -209,19 +211,21 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         unawaited(notifyNativeFirstFrameReady('app_shell'));
       });
     }
-    return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Spike Recorder',
-        theme: ThemeData(
-          // brightness: Brightness.dark,
-          primarySwatch: Colors.blue,
-          // scaffoldBackgroundColor: Colors.black,
-          // canvasColor: Colors.black,
-          textTheme: const TextTheme(),
-        ),
-        home: kIsWeb
-            ? const DashBoardPageRoute()
-            : const _MobileDeferredGraphHome());
+    return Consumer<ThemeModeProvider>(
+      builder: (context, themeMode, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Spike Recorder',
+          theme: buildAppTheme(isDark: false),
+          darkTheme: buildAppTheme(isDark: true),
+          themeMode:
+              themeMode.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          home: kIsWeb
+              ? const DashBoardPageRoute()
+              : const _MobileDeferredGraphHome(),
+        );
+      },
+    );
   }
 }
 
@@ -278,15 +282,19 @@ class _StartupPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ColoredBox(
-      color: Color(0xFF222222),
-      child: Center(
-        child: CircularProgressIndicator(),
+    return Consumer<ThemeModeProvider>(
+      builder: (context, themeMode, _) {
+        return ColoredBox(
+          color: AppThemeColors.of(themeMode.isDarkMode).graphBackground,
+          child: const Center(
+            child: CircularProgressIndicator(),
         // child: Text(
         //   'Starting Spike Recorder...',
         //   style: TextStyle(color: Colors.white, fontSize: 16),
         // ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

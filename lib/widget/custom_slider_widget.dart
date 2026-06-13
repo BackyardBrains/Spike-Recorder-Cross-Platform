@@ -103,6 +103,22 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
     }
   }
 
+  double _clampStartFrequency(double value, double currentEnd) {
+    double clamped = value.clamp(0.0, maxFreq);
+    if (clamped >= currentEnd) {
+      clamped = max(0, currentEnd - 1).toDouble();
+    }
+    return clamped;
+  }
+
+  double _clampEndFrequency(double value, double currentStart) {
+    double clamped = value.clamp(0.0, maxFreq);
+    if (clamped <= currentStart) {
+      clamped = min(maxFreq, currentStart + 1);
+    }
+    return clamped;
+  }
+
   // Convert custom log space back to linear frequency
   double _customLogSpaceToLinear(double logVal, double minLog, double log1) {
     // Use a threshold halfway between minLog and log1 to determine if we're closer to 0 or 1
@@ -165,6 +181,12 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
     if (start < 0) start = 0;
     if (end < 0) end = 0;
     if (end > maxFreq) end = maxFreq;
+    if (start >= end) {
+      end = min(maxFreq, start + 1);
+      if (start >= end) {
+        start = max(0, end - 1);
+      }
+    }
     
     // Use 0.1Hz as the minimum for logarithmic calculation (represents 0 in linear space)
     const double minFreqForLog = 0.1;
@@ -209,7 +231,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   frequencyValue: start.toInt(),
                   maxFrequency: maxFreq,
                   onFrequencyChanged: (value) {
-                    start = value.toDouble();
+                    start = _clampStartFrequency(value.toDouble(), end);
                     Provider.of<CustomRangeSliderProvider>(context, listen: false)
                         .setStartValue(start, widget.channelIdx);
                     double lowFreq = start; // Allow 0 value
@@ -390,7 +412,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   frequencyValue: end.toInt(),
                   maxFrequency: maxFreq,
                   onFrequencyChanged: (value) {
-                    end = value.toDouble();
+                    end = _clampEndFrequency(value.toDouble(), start);
                     Provider.of<CustomRangeSliderProvider>(context, listen: false)
                         .setEndValue(end, widget.channelIdx);
                     double lowFreq = start; // Allow 0 value
@@ -425,7 +447,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   frequencyValue: start.toInt(),
                   maxFrequency: maxFreq,
                   onFrequencyChanged: (value) {
-                    start = value.toDouble();
+                    start = _clampStartFrequency(value.toDouble(), end);
                     Provider.of<CustomRangeSliderProvider>(context, listen: false)
                         .setStartValue(start, widget.channelIdx);
                     double lowFreq = start; // Allow 0 value
@@ -454,7 +476,7 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                   frequencyValue: end.toInt(),
                   maxFrequency: maxFreq,
                   onFrequencyChanged: (value) {
-                    end = value.toDouble();
+                    end = _clampEndFrequency(value.toDouble(), start);
                     Provider.of<CustomRangeSliderProvider>(context, listen: false)
                         .setEndValue(end, widget.channelIdx);
                     double lowFreq = start; // Allow 0 value

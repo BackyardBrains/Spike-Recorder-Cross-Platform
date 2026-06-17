@@ -169,3 +169,11 @@ rm -rf .dart_tool/flutter_build build/web
 rm -f ~/.pub-cache/hosted/pub.dev/.cache/*-advisories.json   # if pub get fails
 flutter pub get
 flutter build web --no-tree-shake-icons
+
+
+flutter build ios --no-tree-shake-icons
+
+com.backyardbrains.srflutterios
+
+
+com.backyardbrains.Backyard-Brains

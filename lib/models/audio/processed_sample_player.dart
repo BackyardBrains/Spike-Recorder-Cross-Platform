@@ -34,7 +34,8 @@ class ProcessedSamplePlayer {
 
   bool get isActive => _initialized && _playing;
 
-  Future<void> init({
+  /// Returns false if SoLoud setup failed (caller can retry on a later chunk).
+  Future<bool> init({
     required int sampleRate,
     required int channelCount,
   }) async {
@@ -48,21 +49,28 @@ class ProcessedSamplePlayer {
     _channelCount = channelCount;
     _channelMuted.fillRange(0, _channelMuted.length, false);
 
-    if (!_engine.isInitialized) {
-      await _engine.init(
-        bufferSize: _engineBufferSize,
-        sampleRate: _sampleRate,
-        channels: soloud.Channels.mono,
-      );
-    }
+    try {
+      if (!_engine.isInitialized) {
+        await _engine.init(
+          bufferSize: _engineBufferSize,
+          sampleRate: _sampleRate,
+          channels: soloud.Channels.mono,
+        );
+      }
 
-    _streams.clear();
-    for (var i = 0; i < _channelCount; i++) {
-      _streams.add(_createBufferStream());
-    }
+      _streams.clear();
+      for (var i = 0; i < _channelCount; i++) {
+        _streams.add(_createBufferStream());
+      }
 
-    _initialized = true;
-    _playing = false;
+      _initialized = true;
+      _playing = false;
+      return true;
+    } catch (e, st) {
+      debugPrint('ProcessedSamplePlayer: init failed: $e\n$st');
+      await stop();
+      return false;
+    }
   }
 
   soloud.AudioSource _createBufferStream() {
@@ -89,20 +97,29 @@ class ProcessedSamplePlayer {
     );
   }
 
-  Future<void> start() async {
+  /// Returns false if playback could not be started.
+  Future<bool> start() async {
     if (!_initialized) {
-      throw StateError('ProcessedSamplePlayer.init() must be called first');
+      debugPrint('ProcessedSamplePlayer: start() called before init()');
+      return false;
     }
-    if (_playing) return;
+    if (_playing) return true;
 
-    _handles.clear();
-    for (var i = 0; i < _channelCount; i++) {
-      final stream = _streams[i];
-      if (stream == null) continue;
-      final handle = await _engine.play(stream);
-      _handles.add(handle);
+    try {
+      _handles.clear();
+      for (var i = 0; i < _channelCount; i++) {
+        final stream = _streams[i];
+        if (stream == null) continue;
+        final handle = await _engine.play(stream);
+        _handles.add(handle);
+      }
+      _playing = _handles.isNotEmpty;
+      return _playing;
+    } catch (e, st) {
+      debugPrint('ProcessedSamplePlayer: start failed: $e\n$st');
+      _playing = false;
+      return false;
     }
-    _playing = _handles.isNotEmpty;
   }
 
   void setChannelMuted(int channelIndex, bool muted) {

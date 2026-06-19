@@ -347,30 +347,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
           filteredPorts = [];
           print(
               'BYB iOS no MFi accessories (isMfiDeviceConnect: $isMfiDeviceConnect, polls: $_mfiEmptyAccessoryPolls)');
-          _mfiEmptyAccessoryPolls++;
-          if (isMfiDeviceConnect &&
-              _mfiEmptyAccessoryPolls >= _mfiDisconnectDebouncePolls) {
-            isMfiDeviceConnect = false;
-            _mfiLastHandshakeAccessory = null;
-            print(" BYB IOS - DISCONNECT 2222 (debounced)");
-            _rxSub?.cancel();
-            _rxSub = null;
-            _mfiMicListenerDetached = false;
-            isDeviceConnect = false;
-            isDeviceSelected = false;
-            final provider =
-                Provider.of<GraphDataProvider>(context, listen: true);
-            Future.delayed(Duration(milliseconds: 2500), () {
-              forceSerialDisconnect = false;
-              // listenToMicrophone(1, provider);
-              print("BYB iOS - FORCE MICROPHONE RECOVERY");
-              _recoverFromSerialDataTimeout(provider, forceMicrophone: true);
-            });
-            try {
-              BybAccessory.disconnect();
-            } catch (er) {
-              print("ERROR DISCONNECTING BYB ACCESSORY: $er");
+          if (_iosMfiLiveSessionActive()) {
+            _mfiEmptyAccessoryPolls++;
+            if (_mfiEmptyAccessoryPolls >= _mfiDisconnectDebouncePolls) {
+              print('BYB iOS MFi disconnect (debounced accessory poll)');
+              final provider =
+                  Provider.of<GraphDataProvider>(context, listen: false);
+              unawaited(_fallbackToMicrophoneAfterMfiDisconnect(provider));
             }
+          } else {
+            _mfiEmptyAccessoryPolls = 0;
           }
         }
         if (mounted) setState(() {});
@@ -3138,14 +3124,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
         print("WEB SAMPLE RATE : ${microphoneUtil.sampleRate}");
         _sampleRate = microphoneUtil.sampleRate.toInt();
       } else {
-        double? tempSampleRate = await MicStream.sampleRate;
+        _sampleRate = await _resolveNativeMicSampleRate();
         print(
-            "NATIVE SAMPLE RATE : ${microphoneUtil.sampleRate} tempSampleRate : $tempSampleRate");
-        if (tempSampleRate != null) {
-          _sampleRate = tempSampleRate.toInt();
-        } else {
-          _sampleRate = microphoneUtil.sampleRate.toInt();
-        }
+            "NATIVE SAMPLE RATE : ${microphoneUtil.sampleRate} resolvedMicRate : $_sampleRate");
       }
 
       Provider.of<SampleRateProvider>(context, listen: false)
@@ -3179,13 +3160,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (kIsWeb && _shouldRunLiveMonitor()) {
         unawaited(_ensureLiveMonitorPlayer(channelCount: channelCount));
       }
-      final maxSamples =
-          (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
-      final maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
-      DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
-      DraggableGraph.endPositionIdx = maxSamples;
-      ProcessingUtil.fromDrawingIdx = DraggableGraph.startPositionIdx;
-      ProcessingUtil.toDrawingIdx = DraggableGraph.endPositionIdx;
+      _resetGraphScrollIndicesForSampleRate(_sampleRate);
 
       microphoneUtil.micStream.addListener(micListener);
       isDeviceConnect = true;
@@ -4202,6 +4177,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   /// Avoid re-running connect handshake every port-check tick for the same accessory.
   String? _mfiLastHandshakeAccessory;
   bool _mfiConnectInProgress = false;
+  bool _mfiDisconnectInProgress = false;
 
   bool _isIosMfiPath() {
     if (kIsWeb || !Platform.isIOS) return false;
@@ -4211,6 +4187,109 @@ class _GraphTemplateState extends State<GraphTemplate> {
   bool _isIosUsbCSerialPath() {
     if (kIsWeb || !Platform.isIOS) return false;
     return connectorType == ConnectorType.usbC;
+  }
+
+  bool _iosMfiLiveSessionActive() {
+    if (!_isIosMfiPath()) return false;
+    return isMfiDeviceConnect ||
+        _isDataIdentified ||
+        isDeviceSelected ||
+        (GraphTemplate.selectedBoard?.uniqueName?.isNotEmpty ?? false);
+  }
+
+  void _resetGraphScrollIndicesForSampleRate(int sampleRate) {
+    final maxSamples =
+        (ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRate).floor();
+    final maxDisplaySamples = (displayTimeMs * 0.001 * sampleRate).floor();
+    DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
+    DraggableGraph.endPositionIdx = maxSamples;
+    ProcessingUtil.fromDrawingIdx = DraggableGraph.startPositionIdx;
+    ProcessingUtil.toDrawingIdx = DraggableGraph.endPositionIdx;
+  }
+
+  /// Clear serial/MFi ingest state before switching to microphone.
+  void _prepareForMicFallbackAfterMfiDisconnect() {
+    _mfiEmptyAccessoryPolls = 0;
+    _mfiLastHandshakeAccessory = null;
+    isMfiDeviceConnect = false;
+    isDeviceConnect = true;
+    isDeviceSelected = false;
+    isSerialDeviceFound = false;
+    _isDataIdentified = false;
+    GraphTemplate.isLoadingFile = 0;
+    foundDevices = "";
+    forceSerialDisconnect = false;
+    _mfiMicListenerDetached = false;
+
+    _cancelSerialStaleWatchdog();
+    _serialPaintWatchdogTimer?.cancel();
+    _serialPaintWatchdogTimer = null;
+    boardTimer?.cancel();
+    boardTimer = null;
+    deviceTimer?.cancel();
+    deviceTimer = null;
+    _isBoardTimerRunning = false;
+    _isDeviceTimerRunning = false;
+    _resetSerialIngestPipeline();
+    serialDataSubscription?.cancel();
+    serialDataSubscription = null;
+    unawaited(_cancelMfiRxSub());
+    _rxSub?.cancel();
+    _rxSub = null;
+
+    _sampleRate = webMicSampleRate;
+    _resetGraphScrollIndicesForSampleRate(_sampleRate);
+    streamScrubBuilderController.add(Random().nextInt(100000));
+
+    if (mounted) {
+      context.read<DataStatusProvider>().setDeviceDataStatus(false);
+    }
+  }
+
+  Future<void> _fallbackToMicrophoneAfterMfiDisconnect(
+      GraphDataProvider? provider) async {
+    if (!mounted || !_isIosMfiPath() || _mfiDisconnectInProgress) return;
+    _mfiDisconnectInProgress = true;
+    try {
+      _prepareForMicFallbackAfterMfiDisconnect();
+      try {
+        await BybAccessory.disconnect();
+      } catch (er) {
+        print('ERROR DISCONNECTING BYB ACCESSORY: $er');
+      }
+      // Let ExternalAccessory release AVAudioSession before mic capture starts.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (!mounted) return;
+      final providerRef = provider ??
+          Provider.of<GraphDataProvider>(context, listen: false);
+      print('BYB iOS MFi disconnect — falling back to microphone');
+      listenToMicrophone(1, providerRef, restartMicCapture: true);
+    } finally {
+      _mfiDisconnectInProgress = false;
+    }
+  }
+
+  Future<bool> _mfiAccessoryStillPresent() async {
+    if (!_isIosMfiPath()) return false;
+    final accessories = await BybAccessory.getConnectedAccessories();
+    if (accessories.isNotEmpty) return true;
+    return BybAccessory.isConnected();
+  }
+
+  Future<int> _resolveNativeMicSampleRate() async {
+    try {
+      final rateFuture = MicStream.sampleRate;
+      if (rateFuture == null) return webMicSampleRate;
+      final rate = await rateFuture.timeout(const Duration(seconds: 2));
+      if (rate > 0) {
+        return rate.round();
+      }
+    } on TimeoutException {
+      print('MicStream.sampleRate timed out');
+    } catch (e) {
+      print('MicStream.sampleRate failed: $e');
+    }
+    return webMicSampleRate;
   }
 
   /// Preferred board baud first, then standard BYB probe list (matches Android/Web).
@@ -4402,6 +4481,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
       final accessories = await _resolveMfiAccessoryPorts();
       if (accessories.isEmpty) {
         print('BYB iOS MFi recovery: no accessories visible');
+        if (_iosMfiLiveSessionActive() && mounted) {
+          final provider =
+              Provider.of<GraphDataProvider>(context, listen: false);
+          unawaited(_fallbackToMicrophoneAfterMfiDisconnect(provider));
+        }
         return;
       }
       accessoryLabel = accessories.first;
@@ -8479,18 +8563,26 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _resetSerialIngestPipeline();
 
     if (keepIdentifiedDevice) {
-      print(
-          "SERIAL DATA STALE (>${_serialDataStaleTimeoutSeconds}s), soft MFi recovery "
-          "for ${GraphTemplate.selectedBoard!.uniqueName}");
-      serialDataSubscription?.cancel();
-      serialDataSubscription = null;
-      unawaited(_cancelMfiRxSub());
-      lastDateTimeSerialDataArrival = DateTime.now();
-      unawaited(_recoverMfiSerialStream(restoreIdentification: true));
-      if (providerRef != null && mounted) {
-        _ensureSerialStaleWatchdog(providerRef);
-        _ensureSerialPaintWatchdog(providerRef);
-      }
+      unawaited(() async {
+        if (_isIosMfiPath() && !await _mfiAccessoryStillPresent()) {
+          print('BYB iOS stale: accessory gone, mic fallback');
+          await _fallbackToMicrophoneAfterMfiDisconnect(providerRef);
+          return;
+        }
+        if (!mounted) return;
+        print(
+            "SERIAL DATA STALE (>${_serialDataStaleTimeoutSeconds}s), soft MFi recovery "
+            "for ${GraphTemplate.selectedBoard!.uniqueName}");
+        serialDataSubscription?.cancel();
+        serialDataSubscription = null;
+        await _cancelMfiRxSub();
+        lastDateTimeSerialDataArrival = DateTime.now();
+        await _recoverMfiSerialStream(restoreIdentification: true);
+        if (providerRef != null && mounted) {
+          _ensureSerialStaleWatchdog(providerRef);
+          _ensureSerialPaintWatchdog(providerRef);
+        }
+      }());
       return;
     }
 
@@ -8512,15 +8604,23 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
 
     if (_isIosMfiPath() && isMfiDeviceConnect) {
-      print(
-          "SERIAL DATA STALE (>${_serialDataStaleTimeoutSeconds}s), soft MFi recovery");
-      _mfiLastHandshakeAccessory = null;
-      lastDateTimeSerialDataArrival = DateTime.now();
-      unawaited(_recoverMfiSerialStream(runHandshake: true));
-      if (providerRef != null && mounted) {
-        _ensureSerialStaleWatchdog(providerRef);
-        _ensureSerialPaintWatchdog(providerRef);
-      }
+      unawaited(() async {
+        if (!await _mfiAccessoryStillPresent()) {
+          print('BYB iOS stale: accessory gone, mic fallback');
+          await _fallbackToMicrophoneAfterMfiDisconnect(providerRef);
+          return;
+        }
+        if (!mounted) return;
+        print(
+            "SERIAL DATA STALE (>${_serialDataStaleTimeoutSeconds}s), soft MFi recovery");
+        _mfiLastHandshakeAccessory = null;
+        lastDateTimeSerialDataArrival = DateTime.now();
+        await _recoverMfiSerialStream(runHandshake: true);
+        if (providerRef != null && mounted) {
+          _ensureSerialStaleWatchdog(providerRef);
+          _ensureSerialPaintWatchdog(providerRef);
+        }
+      }());
       return;
     }
 

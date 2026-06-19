@@ -111,6 +111,41 @@ class MicStream {
     _channelCount = null;
   }
 
+  static Future<double> _resolveNativeSampleRate(int requestedSampleRate) async {
+    for (var attempt = 0; attempt < 12; attempt++) {
+      final nativeRate =
+          await _microphoneMethodChannel.invokeMethod('getSampleRate');
+      final rate = (nativeRate as num?)?.toDouble();
+      if (rate != null && rate > 0) {
+        return rate;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    print(
+        'MicStream: hardware sample rate unavailable, using requested $requestedSampleRate');
+    return requestedSampleRate.toDouble();
+  }
+
+  static Future<int> _resolveNativeBitDepth(AudioFormat audioFormat) async {
+    for (var attempt = 0; attempt < 4; attempt++) {
+      final nativeDepth =
+          await _microphoneMethodChannel.invokeMethod('getBitDepth');
+      final depth = (nativeDepth as num?)?.toInt();
+      if (depth != null && depth > 0) {
+        return depth;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    return audioFormat == AudioFormat.ENCODING_PCM_16BIT ? 16 : 8;
+  }
+
+  static Future<int> _resolveNativeBufferSize() async {
+    final nativeBuffer =
+        await _microphoneMethodChannel.invokeMethod('getBufferSize');
+    final size = (nativeBuffer as num?)?.toInt();
+    return (size != null && size > 0) ? size : 4096;
+  }
+
   /// This function initializes a connection to the native backend (if not already available).
   /// Returns a Uint8List stream representing the captured audio.
   /// IMPORTANT - on iOS, there is no guarantee that captured audio will be encoded with the requested sampleRate/bitDepth.
@@ -168,14 +203,22 @@ class MicStream {
     listener = _microphone!.listen((x) async {
       await listener!.cancel();
       listener = null;
-      sampleRateCompleter.complete(await _microphoneMethodChannel
-          .invokeMethod("getSampleRate") as double?);
-      bitDepthCompleter.complete(
-          await _microphoneMethodChannel.invokeMethod("getBitDepth") as int?);
-      bufferSizeCompleter.complete(
-          await _microphoneMethodChannel.invokeMethod("getBufferSize") as int?);
-      // channelCompleter.complete(await _microphoneMethodChannel
-      //     .invokeMethod("getChannelCount") as int?);
+      if (!sampleRateCompleter.isCompleted) {
+        sampleRateCompleter.complete(
+          await _resolveNativeSampleRate(sampleRate),
+        );
+      }
+      if (!bitDepthCompleter.isCompleted) {
+        bitDepthCompleter.complete(await _resolveNativeBitDepth(audioFormat));
+      }
+      if (!bufferSizeCompleter.isCompleted) {
+        bufferSizeCompleter.complete(await _resolveNativeBufferSize());
+      }
+      if (!channelCompleter.isCompleted) {
+        channelCompleter.complete(
+          channelConfig == ChannelConfig.CHANNEL_IN_MONO ? 1 : 2,
+        );
+      }
     });
 
     return _microphone;

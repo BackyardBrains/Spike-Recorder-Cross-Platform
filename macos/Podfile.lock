@@ -136,6 +136,8 @@ PODS:
     - Flutter
     - FlutterMacOS
   - libserialport (0.1.1)
+  - libserialport_plus (0.0.1):
+    - FlutterMacOS
   - mic_stream (0.5.2):
     - FlutterMacOS
   - nanopb (3.30910.0):
@@ -176,6 +178,7 @@ DEPENDENCIES:
   - flutter_soloud (from `Flutter/ephemeral/.symlinks/plugins/flutter_soloud/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
   - just_audio (from `Flutter/ephemeral/.symlinks/plugins/just_audio/darwin`)
+  - libserialport_plus (from `Flutter/ephemeral/.symlinks/plugins/libserialport_plus/macos`)
   - mic_stream (from `Flutter/ephemeral/.symlinks/plugins/mic_stream/macos`)
   - native_add (from `Flutter/ephemeral/.symlinks/plugins/native_add/macos`)
   - nwbfile_plugin (from `Flutter/ephemeral/.symlinks/plugins/nwbfile_plugin/macos`)
@@ -228,6 +231,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral
   just_audio:
     :path: Flutter/ephemeral/.symlinks/plugins/just_audio/darwin
+  libserialport_plus:
+    :path: Flutter/ephemeral/.symlinks/plugins/libserialport_plus/macos
   mic_stream:
     :path: Flutter/ephemeral/.symlinks/plugins/mic_stream/macos
   native_add:
@@ -266,12 +271,13 @@ SPEC CHECKSUMS:
   flutter_file_manager_macos: 11df72b919a6e010c8e03ec6adf7439f0319032b
   flutter_libserialport: d1a505fd4b05785f7b50cc7c93b361937ea1c5bd
   flutter_soloud: 6487a1bee397951f3f15f4a855d4da3812e1c3a8
-  FlutterMacOS: 8f6f14fa908a6fb3fba0cd85dbd81ec4b251fb24
+  FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   GoogleAppMeasurement: 3b4687de50ab25ee2d4d541849f10ca8df862a12
   GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   just_audio: a42c63806f16995daf5b219ae1d679deb76e6a79
   libserialport: 1cb25e66ef3c92a8e59c2ea3820302c3fa2268cd
+  libserialport_plus: 98117008d9ec908cd8b6f495d4c425e79296323e
   mic_stream: 3cf878a5923acdf190d7503a7a93173c1bc1c5b8
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   native_add: 54703c7242d3e9d29f7d47f1a3a886cd22e5be48

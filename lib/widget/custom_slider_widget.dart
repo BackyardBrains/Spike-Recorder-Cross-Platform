@@ -78,6 +78,20 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
   double maxFreq = 0;
   
   bool isMobileDevice = false;
+
+  static const double _rulerSnapThresholdHz = 10;
+
+  /// Snaps frequencies below 10 Hz to integer ruler ticks (0–9).
+  double _snapToRulerFrequency(double freq) {
+    if (freq <= 0) {
+      return 0;
+    }
+    if (freq < _rulerSnapThresholdHz) {
+      return freq.round().clamp(0, 9).toDouble();
+    }
+    return freq;
+  }
+
   @override
   void dispose() {
     _lowSampleRateController.dispose();
@@ -89,36 +103,29 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
 
   // Convert linear frequency to custom log space where 0-1 has step size of 1
   double _linearToCustomLogSpace(double freq, double minLog, double log1) {
+    freq = _snapToRulerFrequency(freq);
     if (freq == 0) {
       return minLog; // 0 maps to minimum log position
     } else if (freq <= 1) {
-      // For 0-1 range, snap to integer (0 or 1) and map accordingly
-      // Since step size is 1, we map to log1 (which is 0) for any value 0-1
-      // This creates a single step position for the entire 0-1 range
-      int snapped = freq.round().clamp(0, 1);
-      return snapped == 0 ? minLog : log1;
+      return log1;
     } else {
-      // Values > 1 use normal logarithmic mapping
       return log(freq) / ln10;
     }
   }
 
   double _clampStartFrequency(double value, double currentEnd) {
-    double clamped = value.clamp(0.0, maxFreq);
+    double clamped = _snapToRulerFrequency(value.clamp(0.0, maxFreq));
     if (clamped >= currentEnd) {
-      clamped = max(0, currentEnd - 1).toDouble();
+      clamped = _snapToRulerFrequency(max(0, currentEnd - 1).toDouble());
     }
     return clamped;
   }
 
   double _clampEndFrequency(double value, double currentStart) {
-    double clamped = value.clamp(0.0, maxFreq);
-    print("ZZclamped: $clamped");
-    print("ZZcurrentStart: $currentStart");
+    double clamped = _snapToRulerFrequency(value.clamp(0.0, maxFreq));
     if (clamped <= currentStart) {
-      clamped = max(maxFreq, currentStart + 1);
+      clamped = _snapToRulerFrequency(min(maxFreq, currentStart + 1));
     }
-    print("ZZFIN clamped: $clamped");
     return clamped;
   }
 
@@ -126,15 +133,15 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
   double _customLogSpaceToLinear(double logVal, double minLog, double log1) {
     // Use a threshold halfway between minLog and log1 to determine if we're closer to 0 or 1
     double threshold = (minLog + log1) / 2;
-    
+    final double freq;
     if (logVal <= threshold) {
-      return 0; // Closer to minLog, return 0
+      freq = 0;
     } else if (logVal <= log1) {
-      return 1; // Closer to log1, return 1 (single step for 0-1 range)
+      freq = 1;
     } else {
-      // Values > log1 use normal exponential conversion
-      return pow(10, logVal).toDouble();
+      freq = pow(10, logVal).toDouble();
     }
+    return _snapToRulerFrequency(freq);
   }
 
   @override
@@ -344,19 +351,20 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                             // Use custom conversion function
                             start = _customLogSpaceToLinear(lowerValue, minLog, log1);
                             end = _customLogSpaceToLinear(upperValue, minLog, log1);
-                            
-                            // Snap values in 0-1 range to discrete steps (step size = 1)
-                            // This ensures 0-1 range has only integer values (0 or 1)
-                            if (start >= 0 && start <= 1) {
-                              start = start.round().clamp(0, 1).toDouble();
-                            }
-                            if (end >= 0 && end <= 1) {
-                              end = end.round().clamp(0, 1).toDouble();
-                            }
-                            
-                            // Clamp values to valid range (allow 0, max is maxFreq)
+
                             start = start.clamp(0.0, maxFreq);
                             end = end.clamp(0.0, maxFreq);
+                            if (start >= end) {
+                              if (handlerIndex == 0) {
+                                start = _snapToRulerFrequency(
+                                  max(0, end - 1).toDouble(),
+                                );
+                              } else {
+                                end = _snapToRulerFrequency(
+                                  min(maxFreq, start + 1),
+                                );
+                              }
+                            }
                       
                             // 1. Update Provider
                             final provider = Provider.of<CustomRangeSliderProvider>(context, listen: false);
@@ -460,20 +468,10 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                     start = _clampStartFrequency(value.toDouble(), end);
                     Provider.of<CustomRangeSliderProvider>(context, listen: false)
                         .setStartValue(start, widget.channelIdx);
-                    double lowFreq = start; // Allow 0 value
-                    double highFreq = end >= maxFreq ? -1 : end;
-                    // if (widget.channelIdx == -1) {
-                    //   for (int i = 0; i < widget.channelCount; i++) {
-                    //     widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
-                    //   }
-                    // } else {
-                    //   widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
-                    // }
-                
                     widget.startValue = start;
-                    print("START VALUE startValue CUSTOMIZing: ${widget.startValue}");
-                
+                    settingBandFilter(start, end, maxFreq, widget);
                     setState(() {});
+                    return start;
                   },
                 ),
               ),
@@ -489,20 +487,10 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
                     end = _clampEndFrequency(value.toDouble(), start);
                     Provider.of<CustomRangeSliderProvider>(context, listen: false)
                         .setEndValue(end, widget.channelIdx);
-                    double lowFreq = start; // Allow 0 value
-                    double highFreq = end >= maxFreq ? -1 : end;
-                    // widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
-                    // if (widget.channelIdx == -1) {
-                    //   for (int i = 0; i < widget.channelCount; i++) {
-                    //     widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
-                    //   }
-                    // } else {
-                    //   widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
-                    // }
                     widget.endValue = end;
-                    print("endValue CUSTOMIZing: ${widget.endValue}");
-                
+                    settingBandFilter(start, end, maxFreq, widget);
                     setState(() {});
+                    return end;
                   },
                 ),
               ),

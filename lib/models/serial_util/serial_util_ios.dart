@@ -1,210 +1,274 @@
-// import 'dart:async';
-// import 'package:flutter/services.dart';
-// import 'package:spikerbox_architecture/models/serial_util/serial_util_check.dart';
-// import 'package:usb_serial/usb_serial.dart';
-// import 'package:usb_serial/transaction.dart';
+import 'dart:async';
+import 'dart:typed_data';
 
-// // import 'package:serial_communication/serial_communication.dart';
+import 'package:libserialport_plus/libserialport_plus.dart';
+import 'package:spikerbox_architecture/models/serial_util/serial_baud_auto_probe.dart';
 
-// class SerialUtilIos implements SerialUtil {
-//   @override
-//   bool isOpeningFile = false;
-//   UsbPort? _port;
-//   UsbDevice? _device;
-//   StreamSubscription<String>? _subscription;
-//   Transaction<String>? _transaction;
-//   List<UsbDevice> devices = [];
-//   int _baudRate = 0;
-//   @override
-//   int vendorId = 0;
-//   @override
-//   int productId = 0;
+import 'serial_util_check.dart';
 
-//   Future<void> changePortBaudRate(int baudRate) async {}
-//   @override
-//   Future<void> connectToPort() async {
-//     // if (devices.isEmpty) {
-//     //   print("No devices available to connect");
-//     //   return;
-//     // }
-//     // await _connectTo(devices.first);
-//   }
+class SerialUtilIos implements SerialUtil {
+  @override
+  bool isOpeningFile = false;
+  SerialPort? port;
+  int _baudRate = 0;
 
-//   @override
-//   void writeToPort({required Uint8List bytesMessage, String? address}) async {
-//     // try {
-//     //   await _port!.write(Uint8List.fromList(bytesMessage));
-//     // } catch (err, _) {
-//     //   try {
-//     //     await _port!.close();
-//     //   } catch (_) {
-//     //     // Ignore errors during cleanup
-//     //   }
-//     //   _port = null;
-//     // }
-//   }
+  @override
+  int get detectedBaudRate => _baudRate;
 
-//   @override
-//   Stream<Uint8List>? dataStream;
+  @override
+  int vendorId = 0;
+  @override
+  int productId = 0;
 
-//   @override
-//   List<String> availablePorts = [];
+  @override
+  List<String> availablePorts = [];
 
-//   @override
-//   Future<List<String>> startPortCheck(int baudRate) async {
-//     // devices = await UsbSerial.listDevices();
+  @override
+  Stream<Uint8List>? dataStream;
 
-//     // if (!devices.contains(_device)) {
-//     //   await _connectTo(null);
-//     // }
-//     // availablePorts = devices.map((e) {
-//     //   return e.deviceName;
-//     // }).toList();
+  final SerialBaudAutoProbe _baudProbe =
+      SerialBaudAutoProbe(logTag: 'SerialUtilIos');
 
-//     // return availablePorts;
-//     return [];
-//   }
+  SerialPortReader? reader;
+  SerialPortReader? _probeReader;
+  StreamSubscription? serialBufferSubscription;
 
-//   /// Pass the device name to this function
-//   @override
-//   Future<Stream<Uint8List>?> openPortToListen(
-//       String? name, int baudRate) async {
-//     try {
-//       // Refresh device list before attempting connection to ensure we have the latest devices
-//       // devices = await UsbSerial.listDevices();
-      
-//       // for (var element in devices) {
-//       //   print("element.deviceName: ${element.deviceName}");
-//       //   if (element.deviceName == name) {
-//       //     // Update devices list to ensure we're using the latest device reference
-//       //     devices = [element];
-//       //     await connectToPort();
-//       //     break;
-//       //   }
-//       // }
-//       // if (_port == null) {
-//       //   return null;
-//       // } else {
-//       //   // Return the input stream - caller is responsible for cancelling the subscription
-//       //   return _port!.inputStream;
-//       // }
-//       return Stream.empty();
-//     } catch (e) {
-//       print("Error in openPortToListen: $e");
-//       // Clean up on error
-//       _port = null;
-//       _device = null;
-//       throw Exception("Error in openPortToListen: $e");
-//       // return null;
-//     }
-//   }
+  @override
+  Future<List<String>> startPortCheck(int baudRate) async {
+    _baudRate = baudRate;
+    availablePorts = SerialPort.getAvailablePorts();
+    return availablePorts;
+  }
 
-//   @override
-//   Future<void> getAvailablePorts(int baudRate, Function audioCallback) async {
-//     _baudRate = baudRate;
+  @override
+  Future<void> changePortBaudRate(int baudRate) async {}
 
-//     // availablePorts =
-//     //     await startPortCheck(_baudRate); // Adjust baudRate as needed
-//     // print("getAvailablePorts availablePorts: $availablePorts");
-//   }
+  @override
+  Future<void> getAvailablePorts(int baudRate, Function callback) async {
+    availablePorts = await startPortCheck(baudRate);
+  }
 
-//   @override
-//   void setConfig() {
-//     // TODO: implement setConfig
-//   }
+  @override
+  void writeToPort({required Uint8List bytesMessage, String? address}) {
+    if (port == null || !port!.isOpen()) {
+      return;
+    }
+    if (address != null && port!.getInfo().name != address) {
+      return;
+    }
+    try {
+      port!.write(bytesMessage, timeout: 1000);
+    } catch (err, _) {
+      unawaited(closePort());
+      throw Exception('ERROR WRITING TO PORT: $err');
+    }
+  }
 
-//   @override
-//   void setBaudRate(int baudRate) {
-//     _baudRate = baudRate;
-//   }
+  bool _applyConfig(int baudRate) {
+    try {
+      print('SETTING CONFIG FOR BAUD RATE: $baudRate');
+      port!.setConfig(
+        SerialPortConfig(
+          baudRate: baudRate,
+          bits: 8,
+          parity: SerialPortParity.none,
+          stopBits: 1,
+          rts: SerialPortRts.on,
+          dtr: SerialPortDtr.on,
+        ),
+      );
+      _baudRate = baudRate;
+      return true;
+    } catch (e) {
+      print('SerialUtilIos: baud $baudRate rejected: $e');
+      return false;
+    }
+  }
 
-//   @override
-//   void streamListen({required Stream<Uint8List>? getData}) {
-//     // TODO: implement streamListen
-//   }
+  @override
+  void setConfig() {
+    if (!_applyConfig(_baudRate)) {
+      throw StateError('Failed to set baud rate $_baudRate');
+    }
+  }
 
-//   @override
-//   Future<void> closePort() async {
-//     print("closePort!!!");
-//   }
+  bool _openPort(int requestedBaud) {
+    var isOpen = port!.isOpen();
+    if (!isOpen) {
+      port!.open();
+      isOpen = port!.isOpen();
+    }
+    if (!isOpen) {
+      return false;
+    }
+    if (!_applyConfig(requestedBaud)) {
+      try {
+        port!.close();
+      } catch (_) {}
+      return false;
+    }
+    return true;
+  }
 
-//   Future<bool> _connectTo(device) async {
-//     // if (_subscription != null) {
-//     //   await _subscription!.cancel();
-//     //   _subscription = null;
-//     // }
+  Future<void> _stopProbeReader() async {
+    try {
+      await _probeReader?.close();
+    } catch (_) {}
+    _probeReader = null;
+  }
 
-//     // if (_transaction != null) {
-//     //   _transaction!.dispose();
-//     //   _transaction = null;
-//     // }
+  Future<void> _stopListenReader() async {
+    try {
+      await reader?.close();
+    } catch (_) {}
+    reader = null;
+  }
 
-//     // if (_port != null) {
-//     //   try {
-//     //     await _port!.close();
-//     //   } catch (e) {
-//     //     print("Error closing port in _connectTo: $e");
-//     //   }
-//     //   _port = null;
-//     // }
-//     // // print("device ConnectTo: $device");
-//     // if (device == null) {
-//     //   _device = null;
+  Future<void> _stopReaders() async {
+    await _stopProbeReader();
+    await _stopListenReader();
+  }
 
-//     //   return true;
-//     // }
+  Future<void> _releasePortSilently() async {
+    await _stopReaders();
+    try {
+      if (port != null && port!.isOpen()) {
+        port!.close();
+      }
+    } catch (_) {}
+    port = null;
+    dataStream = null;
+  }
 
-//     // try {
-//     //   _port = await device.create();
-//     //   if (_port == null) {
-//     //     print("Failed to create port from device");
-//     //     _device = null;
-//     //     return false;
-//     //   }
-      
-//     //   if (await (_port!.open()) != true) {
-//     //     print("Failed to open port");
-//     //     _port = null;
-//     //     _device = null;
-//     //     return false;
-//     //   }
-//     //   _device = device;
-      
+  @override
+  void setBaudRate(int baudRate) {
+    _baudRate = baudRate;
+  }
 
-//     //   await _port!.setDTR(true);
-//     //   await _port!.setRTS(true);
-//     //   print("the baudRate is $_baudRate");
-//     //   await _port!.setPortParameters(
-//     //       _baudRate, UsbPort.DATABITS_8, UsbPort.STOPBITS_1, UsbPort.PARITY_NONE);
+  @override
+  Future<void> closePort() async {
+    await _releasePortSilently();
+  }
 
-//     //   // _transaction = Transaction.stringTerminated(_port!.inputStream as Stream<Uint8List>, Uint8List.fromList([13, 10]));
-//     //   // _transaction!.stream.listen((line){ });
+  @override
+  Future<void> connectToPort() async {}
 
-//     //   return true;
-//     // } on PlatformException catch (e) {
-//     //   print("PlatformException in _connectTo: ${e.code} - ${e.message}");
-//     //   // Handle "No such device" error gracefully
-//     //   _port = null;
-//     //   _device = null;
-//     //   return false;
-//     // } catch (e) {
-//     //   print("Unexpected error in _connectTo: $e");
-//     //   _port = null;
-//     //   _device = null;
-//     //   return false;
-//     // }
-//     return false;
-//   }
-  
-//   @override
-//   Future<List<String>> getAvailablePortsWeb(int baudRate, Function audioCallback) {
-//     return Future.value([]);
-//   }
-  
-//   @override
-//   Stream<String?> deviceStatusStreamListener() {
-//     return Stream.empty();
-//     // return UsbSerial.usbEventStream?.map((event) => event.event) ?? Stream.empty();
-//   }
+  Stream<Uint8List>? _attachReadPump() {
+    if (port == null || !port!.isOpen()) {
+      return null;
+    }
+    unawaited(_stopProbeReader());
+    _probeReader = SerialPortReader(port!);
+    return _probeReader!.stream;
+  }
 
-// }
+  Future<bool> _probeBaudOnPort(String portName, int baud) {
+    return _baudProbe.probeAtBaud(
+      baud: baud,
+      openAtBaud: (b) async {
+        await _releasePortSilently();
+        port = SerialPort(portName);
+        return _openPort(b);
+      },
+      closePort: _releasePortSilently,
+      writeQuery: () async {
+        writeToPort(bytesMessage: SerialBaudAutoProbe.probeQueryBytes);
+      },
+      rxStream: _attachReadPump,
+      stopRxStream: _stopProbeReader,
+    );
+  }
+
+  Future<int?> _autoDetectBaudRate(
+    String portName, {
+    List<int>? baudProbeCandidates,
+  }) async {
+    final tryProbe = (int baud) => _probeBaudOnPort(portName, baud);
+    if (baudProbeCandidates != null && baudProbeCandidates.isNotEmpty) {
+      return _baudProbe.detectWithCandidates(
+        baudProbeCandidates,
+        tryProbeBaud: tryProbe,
+      );
+    }
+    return _baudProbe.detect(tryProbeBaud: tryProbe);
+  }
+
+  Future<Stream<Uint8List>?> _listenOnOpenPort(int baudRate) async {
+    _baudRate = baudRate;
+    await _stopListenReader();
+
+    if (port == null || !port!.isOpen()) {
+      print('SerialUtilIos: listen aborted — port not open');
+      dataStream = null;
+      return null;
+    }
+
+    await Future<void>.delayed(SerialBaudAutoProbe.probeSettleTime);
+
+    reader = SerialPortReader(port!);
+    dataStream = reader!.stream;
+    return dataStream;
+  }
+
+  @override
+  Future<Stream<Uint8List>?> openPortToListen(
+    String? portName,
+    int baudRate, {
+    List<int>? baudProbeCandidates,
+  }) async {
+    serialBufferSubscription?.cancel();
+
+    if (portName == null) {
+      return null;
+    }
+
+    if (baudRate <= 0) {
+      print(
+        'SerialUtilIos: auto-detect on $portName '
+        'candidates: ${baudProbeCandidates ?? SerialBaudAutoProbe.probeBaudRates}',
+      );
+      final detected = await _autoDetectBaudRate(
+        portName,
+        baudProbeCandidates: baudProbeCandidates,
+      );
+      if (detected == null) {
+        print(
+          'SerialUtilIos: no device response at supported baud rates '
+          '(${SerialBaudAutoProbe.probeBaudRates})',
+        );
+        return null;
+      }
+      print('SerialUtilIos: baud (auto-detected): $detected');
+      return _listenOnOpenPort(detected);
+    }
+
+    print('SerialUtilIos: probing $portName @ $baudRate');
+    if (!await _probeBaudOnPort(portName, baudRate)) {
+      print('SerialUtilIos: no device reply @ $baudRate on $portName');
+      return null;
+    }
+    print('SerialUtilIos: probe OK @ $baudRate on $portName');
+    return _listenOnOpenPort(baudRate);
+  }
+
+  @override
+  void streamListen({required Stream<Uint8List>? getData}) {}
+
+  @override
+  Future<List<String>> getAvailablePortsWeb(
+    int baudRate,
+    Function audioCallback,
+  ) {
+    return Future.value([]);
+  }
+
+  @override
+  Stream<String?> deviceStatusStreamListener() {
+    return Stream.empty();
+  }
+
+  @override
+  Future<void> resetPort() {
+    return Future.value();
+  }
+}

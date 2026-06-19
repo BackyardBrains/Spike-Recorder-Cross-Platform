@@ -215,227 +215,225 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   Future<void> _runPortCheckTick() async {
-      // print("PORT CHECK TIMER forceSerialDisconnect: $forceSerialDisconnect -- isSerialDeviceFound $isSerialDeviceFound --- isOpeningFile $isOpeningFile");
-      if (forceSerialDisconnect) return;
-      if (isOpeningFile) return;
+    // print("PORT CHECK TIMER forceSerialDisconnect: $forceSerialDisconnect -- isSerialDeviceFound $isSerialDeviceFound --- isOpeningFile $isOpeningFile");
+    if (forceSerialDisconnect) return;
+    if (isOpeningFile) return;
 
-      if (kIsWeb) {
-        if (_isDataIdentified) return;
-      } else {
-        if (!Platform.isIOS && _isDataIdentified) return;
+    if (kIsWeb) {
+      if (_isDataIdentified) return;
+    } else {
+      if (!Platform.isIOS && _isDataIdentified) return;
+    }
+
+    // print("START PORT CHECK");
+    int baudRate = context.read<ConstantProvider>().getBaudRate();
+    if (!kIsWeb) {
+      if (!Platform.isIOS || _isIosUsbCSerialPath()) {
+        await _serialUtil.getAvailablePorts(baudRate, serialErrorCallback);
       }
+    }
+    allDevices.clear();
 
-      // print("START PORT CHECK");
-      int baudRate = context.read<ConstantProvider>().getBaudRate();
-      if (!kIsWeb) {
-        if (!Platform.isIOS || _isIosUsbCSerialPath()) {
-          await _serialUtil.getAvailablePorts(baudRate, serialErrorCallback);
-        }
-      }
-      allDevices.clear();
+    List<String> filteredPorts = [];
+    List<String> listOfPort =
+        Provider.of<PortScanProvider>(context, listen: false).availablePorts;
 
-      List<String> filteredPorts = [];
-      List<String> listOfPort =
-          Provider.of<PortScanProvider>(context, listen: false).availablePorts;
-
-      if (kIsWeb) {
-        filteredPorts = _serialUtil.availablePorts;
-      } else if (Platform.isMacOS) {
+    if (kIsWeb) {
+      filteredPorts = _serialUtil.availablePorts;
+    } else if (Platform.isMacOS) {
+      filteredPorts = _serialUtil.availablePorts
+          .where(
+              (port) => port.contains('usbmodem') || port.contains('usbserial'))
+          .toList();
+    } else if (Platform.isIOS) {
+      connectorType ??= await IosConnectorDetector.getConnectorType();
+      if (connectorType == ConnectorType.usbC) {
         filteredPorts = _serialUtil.availablePorts
             .where((port) =>
                 port.contains('usbmodem') || port.contains('usbserial'))
             .toList();
-      } else if (Platform.isIOS) {
-        connectorType ??= await IosConnectorDetector.getConnectorType();
-        if (connectorType == ConnectorType.usbC) {
-          filteredPorts = _serialUtil.availablePorts
-              .where((port) =>
-                  port.contains('usbmodem') || port.contains('usbserial'))
-              .toList();
-        } else {
-          // _attachMfiRxStream(listOfPort);
-
-      // print(
-                //     "BYB IOS --- ACCESSORIES ---@--- accessories: ${accessories.isNotEmpty}");          
-          final accessories = await _resolveMfiAccessoryPorts();
-          if (accessories.isNotEmpty) {
-            print('BYB iOS accessories found: $accessories');
-            _mfiEmptyAccessoryPolls = 0;
-            _attachMfiRxStream(
-              accessories.isNotEmpty ? accessories : listOfPort,
-            );
-            if (!_mfiMicListenerDetached) {
-              print("BYB iOS -- MIC LISTENER DETACHED");
-              _mfiMicListenerDetached = true;
-              try {
-                // print("BYB iOS -- REMOVE MIC LISTENER");
-                context
-                    .read<DataStatusProvider>()
-                    .setMicrophoneDataStatus(false);
-                microphoneUtil.micStream.removeListener(micListener);
-                if (!kIsWeb) {
-                  unawaited(microphoneUtil.stopListeningToMicrophone());
-                }
-                ProcessingUtil.initializeDevice.value = 0;
-              } catch (e) {
-                print("Error removing micListener: $e");
-              }
-            }
-            final alreadyConnected = await BybAccessory.isConnected();
-            context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
-            // print(
-            //     "BYB IOS --- DEVICE STATUZZZ ---@--- isMfiDeviceConnect: $isMfiDeviceConnect @@ alreadyConnected: $alreadyConnected");
-            // if (isMfiDeviceConnect && isMfiDeviceConnect != alreadyConnected) {
-            //   isMfiDeviceConnect = false;
-            //   print(" BYB IOS - DISCONNECT 2222");
-            //   if (isMfiInitialized) {
-            //     isMfiInitialized = false;
-            //     _mfiMicListenerDetached = false;
-            //     isDeviceConnect = false;
-            //     isDeviceSelected = true;
-            //     final provider =
-            //         Provider.of<GraphDataProvider>(context, listen: true);
-            //     Future.delayed(Duration(milliseconds: 2500), () {
-            //       forceSerialDisconnect = false;
-            //       listenToMicrophone(1, provider);
-            //     });
-            //   }
-
-            // }
-            // print("BYB iOS accessory alreadyConnected : $alreadyConnected");
-
-            accessoryLabel = accessories.first;
-            filteredPorts = [accessories.first];
-
-            if (!alreadyConnected) {
-              isDeviceConnect = true;
-              isDeviceSelected = false;
-
-              final isConnected =
-                  await BybAccessory.connect(name: accessories.first);
-              isMfiDeviceConnect = true;
-              if (isConnected) {
-                print("BYB iOS accessory connected: $accessoryLabel");
-                // await _printMfiAccessoryInfo();
-              } else {
-                print("BYB iOS accessory not connected: $accessoryLabel");
-                // print('RX stream error: $e');
-                // forceSerialDisconnect = true;
-                // print("SERIAL PORT ERROR -- DISCONNECTED");
-                // // _serialUtil.closePort();
-                // try{
-                //   BybAccessory.disconnect();
-                // }catch(e){
-                //   print("ERROR DISCONNECTING BYB ACCESSORY: $e");
-                // }
-                // final provider =
-                //     Provider.of<GraphDataProvider>(context, listen: true);
-                // isMfiInitialized = false;
-                // _mfiMicListenerDetached = false;
-                // Future.delayed(Duration(milliseconds: 2500), () {
-                //   forceSerialDisconnect = false;
-                //   listenToMicrophone(1, provider);
-                // });
-              }
-            } else {
-              isMfiDeviceConnect = true;
-              isDeviceConnect = true;
-              isDeviceSelected = false;
-              // print('BYB iOS accessory already connected: $accessoryLabel');
-            }
-            unawaited(_triggerMfiConnectOnce());
-          } else {
-            accessoryLabel = "";
-            filteredPorts = [];
-            print(
-                'BYB iOS no MFi accessories (isMfiDeviceConnect: $isMfiDeviceConnect, polls: $_mfiEmptyAccessoryPolls)');
-            _mfiEmptyAccessoryPolls++;
-            if (isMfiDeviceConnect &&
-                _mfiEmptyAccessoryPolls >= _mfiDisconnectDebouncePolls) {
-              isMfiDeviceConnect = false;
-              _mfiLastHandshakeAccessory = null;
-              print(" BYB IOS - DISCONNECT 2222 (debounced)");
-              _rxSub?.cancel();
-              _rxSub = null;
-              _mfiMicListenerDetached = false;
-              isDeviceConnect = false;
-              isDeviceSelected = false;
-              final provider =
-                  Provider.of<GraphDataProvider>(context, listen: true);
-              Future.delayed(Duration(milliseconds: 2500), () {
-                forceSerialDisconnect = false;
-                // listenToMicrophone(1, provider);
-                print("BYB iOS - FORCE MICROPHONE RECOVERY");
-                _recoverFromSerialDataTimeout(provider, forceMicrophone: true);
-              });
-              try {
-                BybAccessory.disconnect();
-              } catch (er) {
-                print("ERROR DISCONNECTING BYB ACCESSORY: $er");
-              }
-            }
-          }
-          if (mounted) setState(() {});
-        }
       } else {
-        filteredPorts = _serialUtil.availablePorts;
-        // if (Platform.isWindows) {
-        //   filteredPorts = _serialUtil.availablePorts
-        //       .where((port) => port.contains('COM4'))
-        //       .toList();
-        // }
-      }
+        // _attachMfiRxStream(listOfPort);
 
-      bool isComMatch = areListsEqual(_availablePorts, filteredPorts);
-
-      _availablePorts = filteredPorts;
-      if (isOpeningFile) {
-        return;
-      }
-
-      if (!Platform.isIOS) {
-        // context
-        //     .read<DataStatusProvider>()
-        //     .setMicrophoneDataStatus(_availablePorts.isEmpty);
-      }
-
-      if (!isComMatch) {
-        print("isComMatch: $isComMatch");
-        // isDeviceConnect = true;
-        // isDeviceSelected = false;
-
-        Provider.of<PortScanProvider>(context, listen: false)
-            .setPortScanList(_availablePorts);
-
-        Provider.of<ConstantProvider>(context, listen: false)
-            .setBaudRate(baudRate);
-        allDevices = context.read<SerialDataProvider>().getAllPortDetail;
-        if (isDeviceConnect) {
-          isSerialDeviceFound = true;
-          serialPortId = _availablePorts.last;
-          print("isSerialDeviceFound: $isSerialDeviceFound");
-          lastEstablishingConnectionTime = DateTime.now();
-          if (_isIosMfiPath() && isMfiDeviceConnect) {
-            lastDateTimeSerialDataArrival = DateTime.now();
-            // Baud scan is started in the MFi accessories-found branch.
-          } else if (_availablePorts.isNotEmpty) {
-            await portListOnConnect(_effectiveBaudProbeOrder());
+        // print(
+        //     "BYB IOS --- ACCESSORIES ---@--- accessories: ${accessories.isNotEmpty}");
+        final accessories = await _resolveMfiAccessoryPorts();
+        if (accessories.isNotEmpty) {
+          print('BYB iOS accessories found: $accessories');
+          _mfiEmptyAccessoryPolls = 0;
+          _attachMfiRxStream(
+            accessories.isNotEmpty ? accessories : listOfPort,
+          );
+          if (!_mfiMicListenerDetached) {
+            print("BYB iOS -- MIC LISTENER DETACHED");
+            _mfiMicListenerDetached = true;
             try {
-              Future.delayed(Duration(milliseconds: 2000), () async {
-                final provider =
-                    Provider.of<GraphDataProvider>(context, listen: false);
-                _serialUtil.writeToPort(
-                    bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
-                    address: _availablePorts.last);
-                print(
-                    "isDeviceSelected: $isDeviceSelected -- isDataIdentified: $_isDataIdentified");
-              });
-            } catch (err) {
-              print("ERROR PORT LIST ON WRITE: $err");
+              // print("BYB iOS -- REMOVE MIC LISTENER");
+              context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
+              microphoneUtil.micStream.removeListener(micListener);
+              if (!kIsWeb) {
+                unawaited(microphoneUtil.stopListeningToMicrophone());
+              }
+              ProcessingUtil.initializeDevice.value = 0;
+            } catch (e) {
+              print("Error removing micListener: $e");
+            }
+          }
+          final alreadyConnected = await BybAccessory.isConnected();
+          context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
+          // print(
+          //     "BYB IOS --- DEVICE STATUZZZ ---@--- isMfiDeviceConnect: $isMfiDeviceConnect @@ alreadyConnected: $alreadyConnected");
+          // if (isMfiDeviceConnect && isMfiDeviceConnect != alreadyConnected) {
+          //   isMfiDeviceConnect = false;
+          //   print(" BYB IOS - DISCONNECT 2222");
+          //   if (isMfiInitialized) {
+          //     isMfiInitialized = false;
+          //     _mfiMicListenerDetached = false;
+          //     isDeviceConnect = false;
+          //     isDeviceSelected = true;
+          //     final provider =
+          //         Provider.of<GraphDataProvider>(context, listen: true);
+          //     Future.delayed(Duration(milliseconds: 2500), () {
+          //       forceSerialDisconnect = false;
+          //       listenToMicrophone(1, provider);
+          //     });
+          //   }
+
+          // }
+          // print("BYB iOS accessory alreadyConnected : $alreadyConnected");
+
+          accessoryLabel = accessories.first;
+          filteredPorts = [accessories.first];
+
+          if (!alreadyConnected) {
+            isDeviceConnect = true;
+            isDeviceSelected = false;
+
+            final isConnected =
+                await BybAccessory.connect(name: accessories.first);
+            isMfiDeviceConnect = true;
+            if (isConnected) {
+              print("BYB iOS accessory connected: $accessoryLabel");
+              // await _printMfiAccessoryInfo();
+            } else {
+              print("BYB iOS accessory not connected: $accessoryLabel");
+              // print('RX stream error: $e');
+              // forceSerialDisconnect = true;
+              // print("SERIAL PORT ERROR -- DISCONNECTED");
+              // // _serialUtil.closePort();
+              // try{
+              //   BybAccessory.disconnect();
+              // }catch(e){
+              //   print("ERROR DISCONNECTING BYB ACCESSORY: $e");
+              // }
+              // final provider =
+              //     Provider.of<GraphDataProvider>(context, listen: true);
+              // isMfiInitialized = false;
+              // _mfiMicListenerDetached = false;
+              // Future.delayed(Duration(milliseconds: 2500), () {
+              //   forceSerialDisconnect = false;
+              //   listenToMicrophone(1, provider);
+              // });
+            }
+          } else {
+            isMfiDeviceConnect = true;
+            isDeviceConnect = true;
+            isDeviceSelected = false;
+            // print('BYB iOS accessory already connected: $accessoryLabel');
+          }
+          unawaited(_triggerMfiConnectOnce());
+        } else {
+          accessoryLabel = "";
+          filteredPorts = [];
+          print(
+              'BYB iOS no MFi accessories (isMfiDeviceConnect: $isMfiDeviceConnect, polls: $_mfiEmptyAccessoryPolls)');
+          _mfiEmptyAccessoryPolls++;
+          if (isMfiDeviceConnect &&
+              _mfiEmptyAccessoryPolls >= _mfiDisconnectDebouncePolls) {
+            isMfiDeviceConnect = false;
+            _mfiLastHandshakeAccessory = null;
+            print(" BYB IOS - DISCONNECT 2222 (debounced)");
+            _rxSub?.cancel();
+            _rxSub = null;
+            _mfiMicListenerDetached = false;
+            isDeviceConnect = false;
+            isDeviceSelected = false;
+            final provider =
+                Provider.of<GraphDataProvider>(context, listen: true);
+            Future.delayed(Duration(milliseconds: 2500), () {
+              forceSerialDisconnect = false;
+              // listenToMicrophone(1, provider);
+              print("BYB iOS - FORCE MICROPHONE RECOVERY");
+              _recoverFromSerialDataTimeout(provider, forceMicrophone: true);
+            });
+            try {
+              BybAccessory.disconnect();
+            } catch (er) {
+              print("ERROR DISCONNECTING BYB ACCESSORY: $er");
             }
           }
         }
+        if (mounted) setState(() {});
       }
+    } else {
+      filteredPorts = _serialUtil.availablePorts;
+      // if (Platform.isWindows) {
+      //   filteredPorts = _serialUtil.availablePorts
+      //       .where((port) => port.contains('COM4'))
+      //       .toList();
+      // }
+    }
+
+    bool isComMatch = areListsEqual(_availablePorts, filteredPorts);
+
+    _availablePorts = filteredPorts;
+    if (isOpeningFile) {
+      return;
+    }
+
+    if (!Platform.isIOS) {
+      // context
+      //     .read<DataStatusProvider>()
+      //     .setMicrophoneDataStatus(_availablePorts.isEmpty);
+    }
+
+    if (!isComMatch) {
+      print("isComMatch: $isComMatch");
+      // isDeviceConnect = true;
+      // isDeviceSelected = false;
+
+      Provider.of<PortScanProvider>(context, listen: false)
+          .setPortScanList(_availablePorts);
+
+      Provider.of<ConstantProvider>(context, listen: false)
+          .setBaudRate(baudRate);
+      allDevices = context.read<SerialDataProvider>().getAllPortDetail;
+      if (isDeviceConnect) {
+        isSerialDeviceFound = true;
+        serialPortId = _availablePorts.last;
+        print("isSerialDeviceFound: $isSerialDeviceFound");
+        lastEstablishingConnectionTime = DateTime.now();
+        if (_isIosMfiPath() && isMfiDeviceConnect) {
+          lastDateTimeSerialDataArrival = DateTime.now();
+          // Baud scan is started in the MFi accessories-found branch.
+        } else if (_availablePorts.isNotEmpty) {
+          await portListOnConnect(_effectiveBaudProbeOrder());
+          try {
+            Future.delayed(Duration(milliseconds: 2000), () async {
+              final provider =
+                  Provider.of<GraphDataProvider>(context, listen: false);
+              _serialUtil.writeToPort(
+                  bytesMessage: UsbCommand.hwTypeInquiry.cmdAsBytes(),
+                  address: _availablePorts.last);
+              print(
+                  "isDeviceSelected: $isDeviceSelected -- isDataIdentified: $_isDataIdentified");
+            });
+          } catch (err) {
+            print("ERROR PORT LIST ON WRITE: $err");
+          }
+        }
+      }
+    }
   }
 
   bool areListsEqual(List<String> list1, List<String> list2) {
@@ -623,7 +621,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       int sampleRateConfig = loadedConfig[0].round();
       double maxScreenSamples =
           ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRateConfig;
-      double arrSamplesLength = maxScreenSamples; 
+      double arrSamplesLength = maxScreenSamples;
       double startSeekSample = 0;
 
       double currentSamples = percentage * loadedMaxSamples;
@@ -1113,12 +1111,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
               percentage = (currentSamples) / loadedMaxSamples;
               // double dx = gapStateElement / timeScrub[1];
               double scrubValue = percentage * timeScrub[1];
-              AdaptiveAreaState.horizontalDragX = scrubValue;            
+              AdaptiveAreaState.horizontalDragX = scrubValue;
               startPlaybackSeekSampleIdx = currentSamples.toDouble();
               streamScrubBuilderController.add(Random().nextInt(100000));
-              print("currentSamples: $currentSamples + $gapStateElement = ${currentSamples + gapStateElement} || scrubValue: $scrubValue");
+              print(
+                  "currentSamples: $currentSamples + $gapStateElement = ${currentSamples + gapStateElement} || scrubValue: $scrubValue");
               // print("currentSamples: $currentSamples + $bufferPaddingLeft = $percentage || gapStateElement: $gapStateElement || scrubValue: $scrubValue");
-      
+
               print(
                   "DIFFERENCES = $prevStartElementIdx - $startElementIdx = ${gapStateElement} | ${ProcessingUtil.positionIndex}");
             }
@@ -1127,8 +1126,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             if (prevStartElementIdx.isNaN) {
               bufferPaddingLeft = bufferPaddingLeft;
             } else {
-              bufferPaddingLeft =
-                  bufferPaddingLeft - (gapStateElement);
+              bufferPaddingLeft = bufferPaddingLeft - (gapStateElement);
             }
             if (displayTimeMs == 10000) {
               bufferPaddingLeft = 0;
@@ -1285,8 +1283,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     notchFilterSettings.filterConfiguration.sampleRate = _sampleRate;
     try {
       if (notchFilterSettings.isFilterOn) {
-        final cutOff =
-            notchFilterSettings.filterConfiguration.cutOffFrequency;
+        final cutOff = notchFilterSettings.filterConfiguration.cutOffFrequency;
         if (cutOff == 50 || cutOff == 60) {
           await processingUtil.setNotchFilter(cutOff.toDouble());
         }
@@ -1643,22 +1640,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                     // ),
                                     if (isDrawerOpened) ...[
                                       Container(
-                                        width: double.infinity,
-                                        decoration: BoxDecoration(
-                                          color: appColors.surfaceTint,
-                                          borderRadius: BorderRadius.only(
-                                            topLeft: Radius.circular(16),
-                                            bottomLeft: Radius.circular(0),
-                                            topRight: Radius.circular(
-                                                16), // Keeps the right side flat
-                                            bottomRight: Radius.circular(0),
+                                          width: double.infinity,
+                                          decoration: BoxDecoration(
+                                            color: appColors.surfaceTint,
+                                            borderRadius: BorderRadius.only(
+                                              topLeft: Radius.circular(16),
+                                              bottomLeft: Radius.circular(0),
+                                              topRight: Radius.circular(
+                                                  16), // Keeps the right side flat
+                                              bottomRight: Radius.circular(0),
+                                            ),
                                           ),
-                                        ),
-                                        child: NotchPassFilterWidget(
-                                          onTapNotchFrequency:
-                                              _onNotchFilterChanged,
-                                        )
-                                      ),
+                                          child: NotchPassFilterWidget(
+                                            onTapNotchFrequency:
+                                                _onNotchFilterChanged,
+                                          )),
                                       Divider(
                                         height: 1,
                                         thickness: 1,
@@ -1806,7 +1802,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               setState(() {});
                                             },
                                           ),
-
                                           Text(
                                             'Dark Mode',
                                             style: TextStyle(
@@ -1815,15 +1810,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               fontSize: 14,
                                             ),
                                           ),
-
                                           Spacer(),
-
                                           Icon(Icons.info_outline,
                                               color: appColors.textSecondary,
                                               size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.19',
+                                            'SpikeRecorder App ver. 2.1.20',
                                             style: TextStyle(
                                               color: appColors.textSecondary,
                                               fontSize: 14,
@@ -2387,34 +2380,55 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       Stream<Uint8List>? connectedStream;
       int? connectedBaud;
-      for (final baudRate in baudCandidates) {
-        print(
-            "portListOnConnect listOfPort: $listOfPort --- baudRate: $baudRate");
-        try {
-          final stream =
-              await _serialUtil.openPortToListen(listOfPort.last, baudRate);
-          if (stream == null) {
-            continue;
-          }
-          connectedStream = stream.asBroadcastStream();
-          connectedBaud = baudRate;
-          break;
-        } catch (err) {
-          print("Error $baudRate: $err");
-        }
-      }
 
-      if (connectedStream == null) {
-        print("portListOnConnect trying auto-detect baud");
+      if (!kIsWeb) {
+        print(
+          'portListOnConnect: auto-detect on ${listOfPort.last} '
+          'candidates: $baudCandidates',
+        );
         try {
-          final stream =
-              await _serialUtil.openPortToListen(listOfPort.last, 0);
+          final stream = await _serialUtil.openPortToListen(
+            listOfPort.last,
+            0,
+            baudProbeCandidates: baudCandidates,
+          );
           if (stream != null) {
             connectedStream = stream.asBroadcastStream();
             connectedBaud = _serialUtil.detectedBaudRate;
           }
         } catch (err) {
-          print("Error auto-detect baud: $err");
+          print('Error auto-detect baud: $err');
+        }
+      } else {
+        for (final baudRate in baudCandidates) {
+          print(
+              "portListOnConnect listOfPort: $listOfPort --- baudRate: $baudRate");
+          try {
+            final stream =
+                await _serialUtil.openPortToListen(listOfPort.last, baudRate);
+            if (stream == null) {
+              continue;
+            }
+            connectedStream = stream.asBroadcastStream();
+            connectedBaud = baudRate;
+            break;
+          } catch (err) {
+            print("Error $baudRate: $err");
+          }
+        }
+
+        if (connectedStream == null) {
+          print("portListOnConnect trying auto-detect baud");
+          try {
+            final stream =
+                await _serialUtil.openPortToListen(listOfPort.last, 0);
+            if (stream != null) {
+              connectedStream = stream.asBroadcastStream();
+              connectedBaud = _serialUtil.detectedBaudRate;
+            }
+          } catch (err) {
+            print("Error auto-detect baud: $err");
+          }
         }
       }
 
@@ -2579,7 +2593,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 // return;
 
                 // processingUtil.prepareDisplayMicrophoneData([Int16List(0)], drawSurfaceWidth, channelCount, displayTimeMs, provider, fromSample, toSample );
-                 processingUtil.processDisplaySerialData(
+                processingUtil.processDisplaySerialData(
                     displayTimeMs.toInt(),
                     deviceType,
                     drawSurfaceWidth,
@@ -3116,8 +3130,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       print(_messageIdentifier.messageState);
       // Initialize both utils
 
-      await Future.wait(
-          [microphoneUtil.init(forceRestart: restartMicCapture)]);
+      await Future.wait([microphoneUtil.init(forceRestart: restartMicCapture)]);
 
       await processingUtil.init();
       //init microphone stream
@@ -3126,7 +3139,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
         _sampleRate = microphoneUtil.sampleRate.toInt();
       } else {
         double? tempSampleRate = await MicStream.sampleRate;
-        print("NATIVE SAMPLE RATE : ${microphoneUtil.sampleRate} tempSampleRate : $tempSampleRate");
+        print(
+            "NATIVE SAMPLE RATE : ${microphoneUtil.sampleRate} tempSampleRate : $tempSampleRate");
         if (tempSampleRate != null) {
           _sampleRate = tempSampleRate.toInt();
         } else {
@@ -3167,8 +3181,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
       final maxSamples =
           (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
-      final maxDisplaySamples =
-          (displayTimeMs * 0.001 * _sampleRate).floor();
+      final maxDisplaySamples = (displayTimeMs * 0.001 * _sampleRate).floor();
       DraggableGraph.startPositionIdx = maxSamples - maxDisplaySamples;
       DraggableGraph.endPositionIdx = maxSamples;
       ProcessingUtil.fromDrawingIdx = DraggableGraph.startPositionIdx;
@@ -3192,7 +3205,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       _isSerialWebButtonEnabled = false;
       setState(() => {});
     }
-    print("LISTEN TO MICROPHONE COMPLETED : ${DateTime.now().millisecondsSinceEpoch}");
+    print(
+        "LISTEN TO MICROPHONE COMPLETED : ${DateTime.now().millisecondsSinceEpoch}");
   }
 
   List<int> arr = [];
@@ -3211,6 +3225,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   int isRecording = 0;
 
   Timer? timerPlaybackLoadedFile;
+
   /// Web-only: optional streaming feed when PCM does not fit in one buffer (#55).
   Timer? _timerPlaybackWebAudio;
   Stopwatch? _webPlaybackAudioClock;
@@ -4235,7 +4250,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   Future<List<String>> _resolveMfiAccessoryPorts() async {
     final accessories = await BybAccessory.getConnectedAccessories();
     print(
-        "BYB IOS --- ACCESSORIES ---@--- accessories: ${accessories.isNotEmpty}");          
+        "BYB IOS --- ACCESSORIES ---@--- accessories: ${accessories.isNotEmpty}");
     if (accessories.isNotEmpty) {
       return accessories;
     }
@@ -4247,8 +4262,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       final match = RegExp(r'Name\.\.\.\.\s*(.+)\r?\n').firstMatch(info);
       final name = match?.group(1)?.trim();
       if (name != null && name.isNotEmpty) {
-        print(
-            'BYB iOS: accessory list empty but EA session active ($name)');
+        print('BYB iOS: accessory list empty but EA session active ($name)');
         return [name];
       }
     } catch (e) {
@@ -5112,7 +5126,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
         }
         // provider.inputListener(Uint8List(0));
       }
-
     }
     provider.inputListener(Uint8List(0));
   }
@@ -5605,10 +5618,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
   int counterThreshold = 0;
 
   DateTime? lastDateTimeSerialDataArrival = DateTime.now();
-  
-  DateTime? mfiPreviousDateTime  = DateTime.now();
-  DateTime? mfiPreviousDateTime1  = DateTime.now();
-  DateTime? mfiPreviousDateTime2  = DateTime.now();
+
+  DateTime? mfiPreviousDateTime = DateTime.now();
+  DateTime? mfiPreviousDateTime1 = DateTime.now();
+  DateTime? mfiPreviousDateTime2 = DateTime.now();
 
   int _totalLoadedFilePcmBytes() {
     var bytes = 0;
@@ -5680,7 +5693,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   /// Native-style playback: push all decoded PCM into SoLoud before [play].
   /// Returns true when every channel was fully queued.
-  Future<bool> _enqueueWebLoadedFilePcmToStreams({required bool markEnded}) async {
+  Future<bool> _enqueueWebLoadedFilePcmToStreams(
+      {required bool markEnded}) async {
     if (!kIsWeb || soloud == null || loadedArrSamples.isEmpty) return false;
 
     _webPlaybackFedSampleIndex = 0;
@@ -5749,8 +5763,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     final consumedSamples =
         (clock.elapsedMicroseconds * _sampleRate / 1000000).round();
-    final targetFed = consumedSamples +
-        (_sampleRate * _webPlaybackAheadSeconds).round();
+    final targetFed =
+        consumedSamples + (_sampleRate * _webPlaybackAheadSeconds).round();
     final maxSamples = loadedArrSamples[0].length;
 
     while (_webPlaybackFedSampleIndex < targetFed &&
@@ -5771,7 +5785,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
           soloud!.addAudioDataStream(
             stream,
             _loadedFilePcmBytes(
-              loadedArrSamples[ch].sublist(_webPlaybackFedSampleIndex, chunkEnd),
+              loadedArrSamples[ch]
+                  .sublist(_webPlaybackFedSampleIndex, chunkEnd),
             ),
           );
         } catch (e) {
@@ -5806,7 +5821,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     final fitsEntireFile =
         totalPcmBytes > 0 && totalPcmBytes <= _webPlaybackMaxBufferBytes;
     final bufferBytes = fitsEntireFile
-        ? (totalPcmBytes + 8192).clamp(_sampleRate * 2 * 2, _webPlaybackMaxBufferBytes)
+        ? (totalPcmBytes + 8192)
+            .clamp(_sampleRate * 2 * 2, _webPlaybackMaxBufferBytes)
         : _sampleRate * 2 * 30;
 
     for (var i = 0; i < widget.channelCount; i++) {
@@ -6060,7 +6076,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             final now = DateTime.now();
             if (_lastWebPlaybackUiUpdate == null ||
                 now.difference(_lastWebPlaybackUiUpdate!).inMilliseconds >=
-                  200) {
+                    200) {
               _lastWebPlaybackUiUpdate = now;
               setState(() {});
             }
@@ -6135,7 +6151,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
         }
         for (int i = 0; i < widget.channelCount; i++) {
           try {
-            if (i >= loadedFileStreams.length || i >= loadedSoundHandles.length) {
+            if (i >= loadedFileStreams.length ||
+                i >= loadedSoundHandles.length) {
               continue;
             }
             soloud?.setDataIsEnded(loadedFileStreams[i]!);
@@ -6296,8 +6313,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             }
             final handles = await Future.wait(playFutures);
             loadedSoundHandles.addAll(handles);
-            print(
-                "Start PLAY SOUND ${DateTime.now().millisecondsSinceEpoch}");
+            print("Start PLAY SOUND ${DateTime.now().millisecondsSinceEpoch}");
           }
           _lastWebPlaybackUiUpdate = null;
           _startPlaybackTimer();
@@ -6619,7 +6635,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 onPressed: () async {
                   if (_isSerialWebButtonEnabled) {
-                    print("SERIAL DATETIME CLOSED : ${DateTime.now().millisecondsSinceEpoch}");
+                    print(
+                        "SERIAL DATETIME CLOSED : ${DateTime.now().millisecondsSinceEpoch}");
                     _isSerialWebButtonEnabled = false;
                     _serialUtil.closePort();
                     isDeviceConnect = true;
@@ -6699,12 +6716,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 duration: Duration(seconds: 7),
               ));
             } else {
-              String recordedFilePathProcessed = 
-                  recordedFilePath!
-                      .substring(recordedFilePath!.lastIndexOf("/") + 1);
+              String recordedFilePathProcessed = recordedFilePath!
+                  .substring(recordedFilePath!.lastIndexOf("/") + 1);
               if (!kIsWeb) {
-                if(Platform.isWindows || Platform.isMacOS) {
-                  recordedFilePathProcessed = "~/Downloads/$recordedFilePathProcessed";
+                if (Platform.isWindows || Platform.isMacOS) {
+                  recordedFilePathProcessed =
+                      "~/Downloads/$recordedFilePathProcessed";
                 }
               }
 
@@ -6854,8 +6871,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 Text(
                   "ECG",
-                  style: TextStyle(
-                      fontSize: 14, color: appColors.textPrimary),
+                  style: TextStyle(fontSize: 14, color: appColors.textPrimary),
                 ),
                 SizedBox(
                   height: 3,
@@ -6918,8 +6934,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   height: 5,
                 ),
                 Text("EEG",
-                    style: TextStyle(
-                        fontSize: 14, color: appColors.textPrimary)),
+                    style:
+                        TextStyle(fontSize: 14, color: appColors.textPrimary)),
                 SizedBox(
                   height: 3,
                 ),
@@ -6984,8 +7000,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 Text(
                   "EMG",
-                  style: TextStyle(
-                      fontSize: 16, color: appColors.textPrimary),
+                  style: TextStyle(fontSize: 16, color: appColors.textPrimary),
                 ),
                 SizedBox(
                   height: 3,
@@ -7049,8 +7064,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 Text(
                   "Plant",
-                  style: TextStyle(
-                      fontSize: 16, color: appColors.textPrimary),
+                  style: TextStyle(fontSize: 16, color: appColors.textPrimary),
                 ),
                 SizedBox(
                   height: 3,
@@ -7115,8 +7129,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 Text(
                   "Neuron",
-                  style: TextStyle(
-                      fontSize: 16, color: appColors.textPrimary),
+                  style: TextStyle(fontSize: 16, color: appColors.textPrimary),
                 ),
                 SizedBox(
                   height: 3,
@@ -7180,8 +7193,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 ),
                 Text(
                   "Custom",
-                  style: TextStyle(
-                      fontSize: 16, color: appColors.textPrimary),
+                  style: TextStyle(fontSize: 16, color: appColors.textPrimary),
                 ),
                 SizedBox(
                   height: 3,
@@ -7545,7 +7557,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
     bool paintFromZero = false,
     List<Int16List>? decodedChannels,
   }) {
-
     if (decodedChannels != null) {
       _enqueueSerialDecodedIngest(decodedChannels, provider, drawSurfaceWidth);
       return;
@@ -7586,7 +7597,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         if (DateTime.now().difference(mfiPreviousDateTime1!).inSeconds >
             _serialDataStaleTimeoutSeconds) {
           mfiPreviousDateTime1 = DateTime.now();
-          print("LOG: ENQUEUE SERIAL INGEST Start ${batch.length} | _serialIngestQueue.isNotEmpty : ${_serialIngestQueue.isNotEmpty} | SAMPLES PROCESSED : ${samples}");
+          // print("LOG: ENQUEUE SERIAL INGEST Start ${batch.length} | _serialIngestQueue.isNotEmpty : ${_serialIngestQueue.isNotEmpty} | SAMPLES PROCESSED : ${samples}");
         }
         // final sampleLens = samples.isEmpty
         //     ? 'empty'
@@ -7742,8 +7753,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     int drawSurfaceWidth,
   ) async {
     if (!mounted || !_serialDisplayDeferred) return;
-    final ingestIdle =
-        _serialIngestQueue.isEmpty && !_serialIngestDraining;
+    final ingestIdle = _serialIngestQueue.isEmpty && !_serialIngestDraining;
     if (GraphTemplate.selectedBoard?.uniqueName == "HBLEOSB" ||
         GraphTemplate.selectedBoard?.uniqueName == "HHIBOX" ||
         GraphTemplate.selectedBoard?.uniqueName == "MUSCUSB1") {
@@ -7843,7 +7853,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     if (DateTime.now().difference(mfiPreviousDateTime2!).inSeconds >
         _serialDataStaleTimeoutSeconds) {
       mfiPreviousDateTime2 = DateTime.now();
-      print("LOG: ENQUE SERIAL INGEST FIN | _serialPaintFromZero : $_serialPaintFromZero");
+      print(
+          "LOG: ENQUE SERIAL INGEST FIN | _serialPaintFromZero : $_serialPaintFromZero");
     }
 
     if (_serialPaintFromZero) {
@@ -7982,8 +7993,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           _isSerialWebButtonEnabled = false;
           setState(() {});
           return;
-        } else 
-        if (err.toString().contains("getReader failed") ||
+        } else if (err.toString().contains("getReader failed") ||
             err.toString().contains("device unavailable")) {
           _isSerialWebButtonEnabled = false;
           setState(() {});
@@ -8447,7 +8457,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     });
   }
 
-  void _recoverFromSerialDataTimeout(GraphDataProvider? provider, {forceMicrophone = true}) {
+  void _recoverFromSerialDataTimeout(GraphDataProvider? provider,
+      {forceMicrophone = true}) {
     final providerRef = provider ??
         (mounted
             ? Provider.of<GraphDataProvider>(context, listen: false)
@@ -8600,7 +8611,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   GraphTemplate.selectedBoard!.expansionBoards != null &&
                   GraphTemplate.selectedBoard!.expansionBoards!.isEmpty) return;
 
-              print("localPlugin.currentExpansionBoardString: ${localPlugin.currentExpansionBoardString}");
+              print(
+                  "localPlugin.currentExpansionBoardString: ${localPlugin.currentExpansionBoardString}");
               if (localPlugin.currentExpansionBoardString != "") {
                 return;
               }
@@ -9075,7 +9087,6 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
               widget.notifier.value = [horizontalDragX, horizontalDragXFix];
 
               if (kIsWeb) {
-
                 // js.context.callMethod(
                 //     'setScrollValue', [horizontalDragX, horizontalDragXFix]);
               } else {}

@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:spikerbox_architecture/models/serial_util/serial_device_frame_parser.dart';
+import 'package:spikerbox_architecture/message_identifier.dart';
 import 'package:spikerbox_architecture/models/usb_protocol/commands.dart';
 
 /// Shared BYB baud auto-detection (same rates/timeouts as [SerialUtilWeb]).
+///
+/// Probe success requires an hwType device-identification reply (e.g.
+/// `HWT:MUSCUSB1;`), not a bare ADC escape frame.
 class SerialBaudAutoProbe {
   SerialBaudAutoProbe({this.logTag = 'SerialBaudAutoProbe'});
 
@@ -13,26 +16,105 @@ class SerialBaudAutoProbe {
   static const List<int> probeBaudRates = [500000, 230400, 222222];
   static final Uint8List probeQueryBytes =
       UsbCommand.hwTypeInquiry.cmdAsBytes();
-  static const Duration probeSettleTime = Duration(milliseconds: 150);
+  static const Duration probeSettleTime = Duration(milliseconds: 400);
   static const Duration probeReopenDelay = Duration(milliseconds: 300);
-  static const Duration probeFrameTimeout = Duration(seconds: 1);
+  static const Duration probeFrameTimeoutDefault =
+      Duration(milliseconds: 3000);
+  static const Duration probeFrameTimeout500k = Duration(milliseconds: 3000);
   static const int probeAttemptsPerBaud = 2;
   static const int probeBaudScanRounds = 5;
 
-  final SerialDeviceFrameParser _frameParser = SerialDeviceFrameParser();
+  Duration _probeFrameTimeoutForBaud(int baud) =>
+      baud == 500000 ? probeFrameTimeout500k : probeFrameTimeoutDefault;
+  static const int _maxAsciiWindowBytes = 512;
+
+  static const List<String> deviceReplyTokens = [
+    'PLANTSS;',
+    'MUSCUSB1;',
+    'HBLEOSB;',
+    'MSBPCDC;',
+    'NRNSBPRO;',
+    'HUMANSB;',
+    'NSBPCDC;',
+    'HHIBOX;',
+    'UNIBOX;',
+    'NEURONSS;',
+    'HEARTSS;',
+  ];
+
+  static final List<Uint8List> _replyTokenBytes = [
+    ...deviceReplyTokens.map((t) => Uint8List.fromList(t.codeUnits)),
+    ...deviceReplyTokens.map((t) => Uint8List.fromList('HWT:$t'.codeUnits)),
+  ];
+
   bool _probing = false;
   bool _probeAcceptRx = false;
-  bool _probeSawCompleteFrame = false;
+  bool _probeSawDeviceReply = false;
   int _probeRxBytes = 0;
   int _probeBaud = 0;
   Completer<bool>? _probeResponseCompleter;
   Timer? _queryRepeatTimer;
   StreamSubscription<Uint8List>? _probeSubscription;
+  final BytesBuilder _asciiWindow = BytesBuilder(copy: false);
+  late final MessageIdentifier _messageId = MessageIdentifier(
+    onDeviceData: (_) {},
+    onDeviceMessage: (Uint8List msg) {
+      if (!_probing || !_probeAcceptRx || _probeSawDeviceReply) {
+        return;
+      }
+      if (bytesContainDeviceReplyToken(msg)) {
+        _onProbeDeviceReply();
+      }
+    },
+  );
 
-  /// Tries [probeBaudRates] in order; first baud with a valid escape frame wins.
+  static bool bytesContainDeviceReplyToken(
+    Uint8List haystack, {
+    int start = 0,
+  }) {
+    if (haystack.isEmpty || start >= haystack.length) {
+      return false;
+    }
+    for (final needle in _replyTokenBytes) {
+      if (_bytesContains(haystack, needle, start)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _bytesContains(Uint8List haystack, Uint8List needle, int start) {
+    if (needle.isEmpty || haystack.length - start < needle.length) {
+      return false;
+    }
+    final maxStart = haystack.length - needle.length;
+    for (var i = start; i <= maxStart; i++) {
+      var match = true;
+      for (var j = 0; j < needle.length; j++) {
+        if (haystack[i + j] != needle[j]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   Future<int?> detect({
     required Future<bool> Function(int baud) tryProbeBaud,
+  }) {
+    return detectWithCandidates(probeBaudRates, tryProbeBaud: tryProbeBaud);
+  }
+
+  /// Tries [candidates] first (deduped), then remaining [probeBaudRates].
+  Future<int?> detectWithCandidates(
+    List<int> candidates, {
+    required Future<bool> Function(int baud) tryProbeBaud,
   }) async {
+    final ordered = _normalizeCandidates(candidates);
     try {
       for (var round = 1; round <= probeBaudScanRounds; round++) {
         if (round > 1) {
@@ -40,7 +122,7 @@ class SerialBaudAutoProbe {
             '$logTag: all baud rates failed — rescan round $round/$probeBaudScanRounds',
           );
         }
-        for (final baud in probeBaudRates) {
+        for (final baud in ordered) {
           print('$logTag: probing baud $baud (round $round)');
           final ok = await tryProbeBaud(baud);
           if (ok) {
@@ -57,19 +139,35 @@ class SerialBaudAutoProbe {
     }
   }
 
-  /// Opens at [baud], listens on [rxStream], sends hw inquiry, waits for a frame.
+  List<int> _normalizeCandidates(List<int> raw) {
+    final ordered = <int>[];
+    for (final baud in raw) {
+      if (baud > 0 && !ordered.contains(baud)) {
+        ordered.add(baud);
+      }
+    }
+    for (final baud in probeBaudRates) {
+      if (!ordered.contains(baud)) {
+        ordered.add(baud);
+      }
+    }
+    return ordered;
+  }
+
   Future<bool> probeAtBaud({
     required int baud,
     required Future<bool> Function(int baud) openAtBaud,
     required Future<void> Function() closePort,
     required Future<void> Function() writeQuery,
     required Stream<Uint8List>? Function() rxStream,
+    Future<void> Function()? stopRxStream,
   }) async {
     await closePort();
     await Future<void>.delayed(probeReopenDelay);
 
-    _frameParser.reset();
-    _probeSawCompleteFrame = false;
+    _asciiWindow.clear();
+    _messageId.reset();
+    _probeSawDeviceReply = false;
     _probeAcceptRx = false;
     _probeRxBytes = 0;
     _probeBaud = baud;
@@ -93,10 +191,10 @@ class SerialBaudAutoProbe {
       _onProbeRxChunk,
       onError: (Object e) {
         print('$logTag: probe read error @$baud: $e');
-        _completeProbeResponse(_probeSawCompleteFrame);
+        _completeProbeResponse(_probeSawDeviceReply);
       },
       onDone: () {
-        _completeProbeResponse(_probeSawCompleteFrame);
+        _completeProbeResponse(_probeSawDeviceReply);
       },
     );
 
@@ -107,10 +205,10 @@ class SerialBaudAutoProbe {
         if (attempt > 1) {
           print(
             '$logTag: probe @$baud no response in '
-            '${probeFrameTimeout.inMilliseconds}ms — retry $attempt/$probeAttemptsPerBaud',
+            '${_probeFrameTimeoutForBaud(baud).inMilliseconds}ms — retry $attempt/$probeAttemptsPerBaud',
           );
         }
-        success = await _sendQueryAndAwaitFrame(writeQuery);
+        success = await _sendQueryAndAwaitReply(writeQuery);
         if (success) {
           break;
         }
@@ -123,7 +221,10 @@ class SerialBaudAutoProbe {
       _probing = false;
       _probeAcceptRx = false;
       await _stopProbeSubscription();
-      if (!_probeSawCompleteFrame) {
+      if (stopRxStream != null) {
+        await stopRxStream();
+      }
+      if (!_probeSawDeviceReply) {
         await closePort();
       }
       _probeResponseCompleter = null;
@@ -151,30 +252,30 @@ class SerialBaudAutoProbe {
     });
   }
 
-  Future<bool> _sendQueryAndAwaitFrame(
+  Future<bool> _sendQueryAndAwaitReply(
     Future<void> Function() writeQuery,
   ) async {
-    _probeSawCompleteFrame = false;
-    _frameParser.reset();
+    _probeSawDeviceReply = false;
+    _asciiWindow.clear();
+    _messageId.reset();
     _probeResponseCompleter = Completer<bool>();
 
     await writeQuery();
     if (_probing) {
-      _frameParser.reset();
       _probeAcceptRx = true;
       _startQueryRepeatTimer(writeQuery);
     }
 
     try {
+      final timeout = _probeFrameTimeoutForBaud(_probeBaud);
       return await _probeResponseCompleter!.future.timeout(
-        probeFrameTimeout,
+        timeout,
         onTimeout: () {
           print(
-            '$logTag: probe timeout (${probeFrameTimeout.inSeconds}s) — '
-            'rawRx=$_probeRxBytes B, buf=${_frameParser.bufferedBytes} B, '
-            'start=${_frameParser.hasStartMarker}, end=${_frameParser.hasEndMarker}',
+            '$logTag: probe timeout (${timeout.inMilliseconds}ms) @ $_probeBaud — '
+            'rawRx=$_probeRxBytes B',
           );
-          return _probeSawCompleteFrame;
+          return _probeSawDeviceReply;
         },
       );
     } finally {
@@ -192,17 +293,10 @@ class SerialBaudAutoProbe {
     c.complete(success);
   }
 
-  void _onProbeCompleteFrame() {
-    _probeSawCompleteFrame = true;
+  void _onProbeDeviceReply() {
+    _probeSawDeviceReply = true;
     _cancelQueryRepeatTimer();
-    final frame = _frameParser.lastCompleteFrame;
-    final payload = _frameParser.lastPayload;
-    if (frame != null && payload != null) {
-      print(
-        '$logTag: probe frame OK (${frame.length} B, '
-        '${payload.length} B payload) @ $_probeBaud',
-      );
-    }
+    print('$logTag: probe hwType reply OK @ $_probeBaud');
     _completeProbeResponse(true);
   }
 
@@ -211,12 +305,31 @@ class SerialBaudAutoProbe {
     if (_probing && !_probeAcceptRx) {
       return;
     }
-    if (_frameParser.feed(chunk)) {
-      final frame = _frameParser.lastCompleteFrame;
-      final payload = _frameParser.lastPayload;
-      if (frame != null && payload != null) {
-        _onProbeCompleteFrame();
-      }
+
+    _messageId.addPacket(chunk);
+    if (_probeSawDeviceReply) {
+      return;
+    }
+
+    if (bytesContainDeviceReplyToken(chunk)) {
+      _onProbeDeviceReply();
+      return;
+    }
+
+    final lenBefore = _asciiWindow.length;
+    _asciiWindow.add(chunk);
+    if (_asciiWindow.length > _maxAsciiWindowBytes) {
+      final tail = _asciiWindow.toBytes();
+      _asciiWindow.clear();
+      _asciiWindow.add(
+        tail.sublist(tail.length - _maxAsciiWindowBytes ~/ 2),
+      );
+    }
+    final haystack = _asciiWindow.toBytes();
+    final searchFrom =
+        (lenBefore - _maxAsciiWindowBytes + 1).clamp(0, haystack.length);
+    if (bytesContainDeviceReplyToken(haystack, start: searchFrom)) {
+      _onProbeDeviceReply();
     }
   }
 

@@ -31,7 +31,10 @@ abstract class SerialUtil {
   void setBaudRate(int baudRate) {}
 
   Future<Stream<Uint8List>?> openPortToListen(
-      String? portName, int baudRate) async {
+    String? portName,
+    int baudRate, {
+    List<int>? baudProbeCandidates,
+  }) async {
     return null;
   }
 

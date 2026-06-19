@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_libserialport/flutter_libserialport.dart';
 import 'package:spikerbox_architecture/models/serial_util/serial_baud_auto_probe.dart';
+import 'package:spikerbox_architecture/models/serial_util/serial_port_read_pump.dart';
 
 import 'serial_util_check.dart';
 
@@ -30,6 +30,8 @@ class SerialUtilWindow implements SerialUtil {
   final SerialBaudAutoProbe _baudProbe =
       SerialBaudAutoProbe(logTag: 'SerialUtilWindow');
 
+  SerialPortReadPump? _readPump;
+
   @override
   Future<List<String>> startPortCheck(int baudRate) async {
     _baudRate = baudRate;
@@ -47,17 +49,17 @@ class SerialUtilWindow implements SerialUtil {
 
   @override
   void writeToPort({required Uint8List bytesMessage, String? address}) {
-    final targetPort = address ?? port?.name;
-    if (port?.name != targetPort) {
+    if (port == null || !port!.isOpen) {
+      return;
+    }
+    if (address != null && port!.name != address) {
       return;
     }
     try {
-      // print("writing to port: ${utf8.decode(bytesMessage)}");
-      final intsize = port?.write(bytesMessage, timeout: 1000);
-      // print("command is sent. Length: $intsize, cmd: $intsize");
+      port!.write(bytesMessage, timeout: 1000);
     } catch (err, _) {
-      port!.close();
-      throw Exception("ERROR WRITING TO PORT: $err");
+      unawaited(closePort());
+      throw Exception('ERROR WRITING TO PORT: $err');
     }
   }
 
@@ -107,21 +109,20 @@ class SerialUtilWindow implements SerialUtil {
     return true;
   }
 
-  void _releasePortSilently() {
-    try {
-      _probeReader?.close();
-    } catch (_) {}
-    _probeReader = null;
-    try {
-      reader?.close();
-    } catch (_) {}
-    reader = null;
+  void _stopReadPump() {
+    _readPump?.dispose();
+    _readPump = null;
+  }
+
+  Future<void> _releasePortSilently() async {
+    _stopReadPump();
     try {
       if (port != null && port!.isOpen) {
         port!.close();
       }
     } catch (_) {}
     port = null;
+    dataStream = null;
   }
 
   @override
@@ -131,82 +132,96 @@ class SerialUtilWindow implements SerialUtil {
 
   @override
   Future<void> closePort() async {
-    _releasePortSilently();
+    await _releasePortSilently();
   }
 
   @override
   Future<void> connectToPort() async {}
 
-  SerialPortReader? reader;
-  SerialPortReader? _probeReader;
   StreamSubscription? serialBufferSubscription;
 
-  Future<int?> _autoDetectBaudRate(String portName) async {
-    return _baudProbe.detect(
-      tryProbeBaud: (baud) => _baudProbe.probeAtBaud(
-        baud: baud,
-        openAtBaud: (b) async {
-          _releasePortSilently();
-          port = SerialPort(portName);
-          return _openPort(b);
-        },
-        closePort: () async => _releasePortSilently(),
-        writeQuery: () async {
-          writeToPort(bytesMessage: SerialBaudAutoProbe.probeQueryBytes);
-        },
-        rxStream: () {
-          if (port == null || !port!.isOpen) {
-            return null;
-          }
-          try {
-            _probeReader?.close();
-          } catch (_) {}
-          _probeReader = SerialPortReader(port!);
-          return _probeReader!.stream;
-        },
-      ),
+  Stream<Uint8List>? _attachReadPump() {
+    if (port == null || !port!.isOpen) {
+      return null;
+    }
+    _stopReadPump();
+    _readPump = SerialPortReadPump(port!);
+    return _readPump!.stream;
+  }
+
+  Future<bool> _probeBaudOnPort(String portName, int baud) {
+    return _baudProbe.probeAtBaud(
+      baud: baud,
+      openAtBaud: (b) async {
+        await _releasePortSilently();
+        port = SerialPort(portName);
+        return _openPort(b);
+      },
+      closePort: _releasePortSilently,
+      writeQuery: () async {
+        writeToPort(bytesMessage: SerialBaudAutoProbe.probeQueryBytes);
+      },
+      rxStream: _attachReadPump,
+      stopRxStream: () async => _stopReadPump(),
     );
   }
 
-  Future<Stream<Uint8List>?> _openPortToListenAtBaud(
-    String portName,
-    int baudRate,
-  ) async {
-    _baudRate = baudRate;
-    _releasePortSilently();
-    port = SerialPort(portName);
-
-    if (port?.name != portName) {
-      return null;
+  Future<int?> _autoDetectBaudRate(
+    String portName, {
+    List<int>? baudProbeCandidates,
+  }) async {
+    final tryProbe = (int baud) => _probeBaudOnPort(portName, baud);
+    if (baudProbeCandidates != null && baudProbeCandidates.isNotEmpty) {
+      return _baudProbe.detectWithCandidates(
+        baudProbeCandidates,
+        tryProbeBaud: tryProbe,
+      );
     }
-    if (!_openPort(baudRate)) {
-      print('SerialUtilWindow: failed to open $portName @ $baudRate');
-      _releasePortSilently();
+    return _baudProbe.detect(tryProbeBaud: tryProbe);
+  }
+
+  Future<Stream<Uint8List>?> _listenOnOpenPort(int baudRate) async {
+    _baudRate = baudRate;
+    _stopReadPump();
+
+    if (port == null || !port!.isOpen) {
+      print('SerialUtilWindow: listen aborted — port not open');
       dataStream = null;
       return null;
     }
+
+    try {
+      port!.flush(SerialPortBuffer.both);
+    } catch (_) {}
+
     await Future<void>.delayed(SerialBaudAutoProbe.probeSettleTime);
-    reader = SerialPortReader(port!);
-    dataStream = reader!.stream;
+
+    _readPump = SerialPortReadPump(port!);
+    dataStream = _readPump!.stream;
     return dataStream;
   }
 
   @override
   Future<Stream<Uint8List>?> openPortToListen(
     String? portName,
-    int baudRate,
-  ) async {
-    if (serialBufferSubscription != null) {
-      serialBufferSubscription?.cancel();
-    }
+    int baudRate, {
+    List<int>? baudProbeCandidates,
+  }) async {
+    serialBufferSubscription?.cancel();
 
     if (portName == null) {
       return null;
     }
 
-    var effectiveBaud = baudRate;
     if (baudRate <= 0) {
-      final detected = await _autoDetectBaudRate(portName);
+      print(
+        'SerialUtilWindow: auto-detect on $portName '
+        'candidates: ${baudProbeCandidates ?? SerialBaudAutoProbe.probeBaudRates}',
+      );
+      final detected = await _autoDetectBaudRate(
+        portName,
+        baudProbeCandidates: baudProbeCandidates,
+      );
       if (detected == null) {
         print(
           'SerialUtilWindow: no device response at supported baud rates '
@@ -214,22 +229,21 @@ class SerialUtilWindow implements SerialUtil {
         );
         return null;
       }
-      effectiveBaud = detected;
-      print('SerialUtilWindow: baud (auto-detected): $effectiveBaud');
+      print('SerialUtilWindow: baud (auto-detected): $detected');
+      return _listenOnOpenPort(detected);
     }
 
-    return _openPortToListenAtBaud(portName, effectiveBaud);
+    print('SerialUtilWindow: probing $portName @ $baudRate');
+    if (!await _probeBaudOnPort(portName, baudRate)) {
+      print('SerialUtilWindow: no device reply @ $baudRate on $portName');
+      return null;
+    }
+    print('SerialUtilWindow: probe OK @ $baudRate on $portName');
+    return _listenOnOpenPort(baudRate);
   }
 
   @override
-  void streamListen({required Stream<Uint8List>? getData}) {
-    try {
-      getData?.listen((event) {
-        final message = String.fromCharCodes(event);
-        if (message.contains(':') && message.contains(';')) {}
-      });
-    } catch (e) {}
-  }
+  void streamListen({required Stream<Uint8List>? getData}) {}
 
   @override
   Future<List<String>> getAvailablePortsWeb(
@@ -243,7 +257,7 @@ class SerialUtilWindow implements SerialUtil {
   Stream<String?> deviceStatusStreamListener() {
     return Stream.empty();
   }
-  
+
   @override
   Future<void> resetPort() {
     return Future.value();

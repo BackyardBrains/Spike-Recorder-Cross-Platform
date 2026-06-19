@@ -81,29 +81,38 @@ class SerialUtilAndroid implements SerialUtil {
     return availablePorts;
   }
 
-  Future<int?> _autoDetectBaudForDevice(UsbDevice device) async {
-    return _baudProbe.detect(
-      tryProbeBaud: (baud) => _baudProbe.probeAtBaud(
-        baud: baud,
-        openAtBaud: (b) async {
-          await _closePortSilently();
-          _baudRate = b;
-          return _connectTo(device);
-        },
-        closePort: _closePortSilently,
-        writeQuery: () async {
-          writeToPort(bytesMessage: SerialBaudAutoProbe.probeQueryBytes);
-        },
-        rxStream: () => _port?.inputStream,
-      ),
-    );
+  Future<int?> _autoDetectBaudForDevice(
+    UsbDevice device, {
+    List<int>? baudProbeCandidates,
+  }) async {
+    final tryProbe = (int baud) => _baudProbe.probeAtBaud(
+          baud: baud,
+          openAtBaud: (b) async {
+            await _closePortSilently();
+            _baudRate = b;
+            return _connectTo(device);
+          },
+          closePort: _closePortSilently,
+          writeQuery: () async {
+            writeToPort(bytesMessage: SerialBaudAutoProbe.probeQueryBytes);
+          },
+          rxStream: () => _port?.inputStream,
+        );
+    if (baudProbeCandidates != null && baudProbeCandidates.isNotEmpty) {
+      return _baudProbe.detectWithCandidates(
+        baudProbeCandidates,
+        tryProbeBaud: tryProbe,
+      );
+    }
+    return _baudProbe.detect(tryProbeBaud: tryProbe);
   }
 
   @override
   Future<Stream<Uint8List>?> openPortToListen(
     String? name,
-    int baudRate,
-  ) async {
+    int baudRate, {
+    List<int>? baudProbeCandidates,
+  }) async {
     try {
       devices = await UsbSerial.listDevices();
 
@@ -113,7 +122,10 @@ class SerialUtilAndroid implements SerialUtil {
         }
         devices = [element];
         if (baudRate <= 0) {
-          final detected = await _autoDetectBaudForDevice(element);
+          final detected = await _autoDetectBaudForDevice(
+            element,
+            baudProbeCandidates: baudProbeCandidates,
+          );
           if (detected == null) {
             return null;
           }

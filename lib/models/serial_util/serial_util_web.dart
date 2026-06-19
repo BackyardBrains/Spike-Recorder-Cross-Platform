@@ -982,6 +982,7 @@ class SerialUtilWeb implements SerialUtil {
     String? name,
     int baudRate, {
     bool replaceDataStream = true,
+    List<int>? baudProbeCandidates,
   }) async {
     _baudRate = baudRate;
     if (!_portOpen) {

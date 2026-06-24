@@ -7,6 +7,9 @@
 /// EA notifications are UIKit; register on the main queue (plugin init may not
 /// always run there).
 - (void)registerExternalAccessoryObserversOnMainIfNeeded;
+- (void)logConnectedAccessoriesDiagnostics;
+- (void)bootstrapProtocolFromInfoPlistIfNeeded;
+- (void)flushPendingRxToEventSink;
 - (void)connectToAccessory:(NSString *)name;
 /// Call only on main thread; uses NSRunLoop main for stream scheduling
 /// teardown.
@@ -28,6 +31,7 @@
   NSMutableData *_txData;
   EAAccessory *lastAccessory;
   FlutterEventSink _rxEventSink;
+  NSMutableData *_rxPendingBuffer;
   NSString *_pendingDeferProtocol;
   BOOL _didRegisterDeferActiveObserver;
   BOOL _didReceiveDartInit;
@@ -42,6 +46,7 @@
 }
 // Set the size of the buffer used to receive data from the input stream
 #define RX_BUFFER_SIZE 1024
+#define RX_PENDING_MAX (256 * 1024)
 // #define RX_BUFFER_SIZE 32
 #define PROTOCOL_HEADER_SIZE 2
 const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
@@ -60,9 +65,10 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
   BybAccessoryPlugin *instance = [[BybAccessoryPlugin alloc] init];
   [registrar addMethodCallDelegate:instance channel:channel];
   [rxChannel setStreamHandler:instance];
-  // Do not auto-attach during plugin registration. Accessory session open is
-  // driven by explicit Dart initWithProtocol after Flutter has presented first
-  // frame.
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [instance bootstrapProtocolFromInfoPlistIfNeeded];
+    [instance logConnectedAccessoriesDiagnostics];
+  });
 }
 
 + (NSArray<NSString *> *)readExternalAccessoryProtocolsFromBundlePlist {
@@ -79,6 +85,70 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
     }
   }
   return out;
+}
+
+- (void)bootstrapProtocolFromInfoPlistIfNeeded {
+  if (_protocol != nil && _protocol.length > 0) {
+    return;
+  }
+  NSArray<NSString *> *protocols =
+      [BybAccessoryPlugin readExternalAccessoryProtocolsFromBundlePlist];
+  if (protocols.count == 0) {
+    return;
+  }
+  [_protocol release];
+  _protocol = [protocols.firstObject copy];
+  NSLog(@"BYB iOS bootstrap protocol from Info.plist: %@", _protocol);
+}
+
+- (void)logConnectedAccessoriesDiagnostics {
+  NSArray<NSString *> *declaredProtocols =
+      [BybAccessoryPlugin readExternalAccessoryProtocolsFromBundlePlist];
+  NSLog(@"BYB iOS UISupportedExternalAccessoryProtocols (built app): %@",
+        declaredProtocols);
+  NSLog(@"BYB iOS active Dart/native protocol: %@",
+        _protocol.length > 0 ? _protocol : @"(unset)");
+
+  NSArray<EAAccessory *> *accessories =
+      [[EAAccessoryManager sharedAccessoryManager] connectedAccessories];
+  NSLog(@"BYB iOS connectedAccessories count=%lu",
+        (unsigned long)accessories.count);
+
+  for (EAAccessory *accessory in accessories) {
+    NSLog(@"BYB iOS accessory name=%@ manufacturer=%@ model=%@ serial=%@ "
+          @"firmware=%@ hardware=%@ connectionID=%u protocols=%@",
+          accessory.name, accessory.manufacturer, accessory.modelNumber,
+          accessory.serialNumber, accessory.firmwareRevision,
+          accessory.hardwareRevision, accessory.connectionID,
+          accessory.protocolStrings);
+  }
+
+  if (_session != nil) {
+    EAAccessory *sessionAccessory = [_session accessory];
+    NSLog(@"BYB iOS EASession open=YES protocol=%@ accessory=%@ "
+          @"connectionID=%u streams input=%@ output=%@",
+          _protocol,
+          sessionAccessory.name ?: @"(nil)",
+          sessionAccessory.connectionID,
+          [_session inputStream] ? @"yes" : @"no",
+          [_session outputStream] ? @"yes" : @"no");
+  } else {
+    NSLog(@"BYB iOS EASession open=NO");
+  }
+}
+
+- (void)flushPendingRxToEventSink {
+  if (_rxEventSink == nil || _rxPendingBuffer == nil ||
+      _rxPendingBuffer.length == 0) {
+    return;
+  }
+  NSData *payload = [_rxPendingBuffer copy];
+  [_rxPendingBuffer setLength:0];
+  FlutterStandardTypedData *typedData =
+      [FlutterStandardTypedData typedDataWithBytes:payload];
+  _rxEventSink(typedData);
+  NSLog(@"BYB iOS flushed %lu buffered RX bytes to Flutter listener",
+        (unsigned long)payload.length);
 }
 
 - (void)tryAttachAlreadyConnectedAccessoryAfterColdLaunch {
@@ -197,6 +267,7 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
     result([@"iOS "
         stringByAppendingString:[[UIDevice currentDevice] systemVersion]]);
   } else if ([@"getConnectedAccessories" isEqualToString:call.method]) {
+    [self logConnectedAccessoriesDiagnostics];
     NSArray<EAAccessory *> *accessories =
         [[EAAccessoryManager sharedAccessoryManager] connectedAccessories];
     NSLog(@"BYB iOS getConnectedAccessories count=%lu",
@@ -215,6 +286,9 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
           @"UISupportedExternalAccessoryProtocols matches accessory protocol.");
     }
     result(accessoryNames);
+  } else if ([@"logAccessoryDiagnostics" isEqualToString:call.method]) {
+    [self logConnectedAccessoriesDiagnostics];
+    result(@YES);
   } else if ([@"initWithProtocol" isEqualToString:call.method]) {
     NSLog(@"BYB iOS Init With Protocol.");
     NSString *protocol = call.arguments[@"protocol"];
@@ -227,7 +301,9 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
     [_protocol release];
     _protocol = [protocol copy];
     _didReceiveDartInit = YES;
+    [self logConnectedAccessoriesDiagnostics];
     [self openSessionWithProtocolDeferringUntilActive:_protocol];
+    [self tryAttachAlreadyConnectedAccessoryAfterColdLaunch];
     result(@YES);
   } else if ([@"connect" isEqualToString:call.method]) {
     NSString *name = call.arguments[@"name"];
@@ -334,6 +410,7 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
     _debugString =
         [NSMutableString stringWithString:@"BybAccessoryPlugin init\n"];
     _txData = [[NSMutableData alloc] init];
+    _rxPendingBuffer = [[NSMutableData alloc] init];
     _accessoryInfoString = @"Accessory Not Connected\n";
     _didReceiveDartInit = NO;
     _samplingRate = 10000;
@@ -551,19 +628,35 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
 // Protocol implementation (subclass) must override this method which is called
 // whenever bytes are received from the accessory.
 - (void)processRxBytes:(uint8_t *)bytes length:(NSUInteger)len {
-  if (len == 0 || _rxEventSink == nil) {
+  if (len == 0) {
+    return;
+  }
+  if (_rxEventSink == nil) {
+    if (_rxPendingBuffer == nil) {
+      _rxPendingBuffer = [[NSMutableData alloc] init];
+    }
+    NSUInteger remaining = RX_PENDING_MAX - _rxPendingBuffer.length;
+    if (remaining == 0) {
+      NSLog(@"BYB iOS RX pending buffer full (%d bytes); dropping %lu bytes",
+            RX_PENDING_MAX, (unsigned long)len);
+      return;
+    }
+    NSUInteger toStore = MIN(len, remaining);
+    [_rxPendingBuffer appendBytes:bytes length:toStore];
     return;
   }
   NSData *payload = [NSData dataWithBytes:bytes length:len];
   FlutterStandardTypedData *typedData =
       [FlutterStandardTypedData typedDataWithBytes:payload];
   if ([NSThread isMainThread]) {
-    if (_rxEventSink)
+    if (_rxEventSink) {
       _rxEventSink(typedData);
+    }
   } else {
     dispatch_async(dispatch_get_main_queue(), ^{
-      if (self->_rxEventSink)
+      if (self->_rxEventSink) {
         self->_rxEventSink(typedData);
+      }
     });
   }
 }
@@ -746,9 +839,14 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
 
     if (!self->_session) {
       [self addDebugString:@"Failed opening session\n"];
-      NSLog(@"BYB iOS EASession init failed");
+      NSLog(@"BYB iOS EASession init failed for protocol=%@ accessory=%@ "
+            @"connectionID=%u",
+            protocolString, accessory.name, accessory.connectionID);
       return;
     }
+
+    NSLog(@"BYB iOS EASession created protocol=%@ accessory=%@ connectionID=%u",
+          protocolString, accessory.name, accessory.connectionID);
 
     self->cBufHead = 0;
     self->cBufTail = 0;
@@ -876,6 +974,11 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
 // EAAccessoryManager. Attemps to open a session with the desired protocol if
 // one is not already open.
 - (void)accessoryDidConnect:(NSNotification *)notification {
+  EAAccessory *connected =
+      [[notification userInfo] objectForKey:EAAccessoryKey];
+  NSLog(@"BYB ACCESSORY - accessoryDidConnect name=%@ protocols=%@ "
+        @"connectionID=%u",
+        connected.name, connected.protocolStrings, connected.connectionID);
   if ([[UIApplication sharedApplication] isProtectedDataAvailable]) {
     if (_protocol == nil || _protocol.length == 0) {
       NSLog(@"BYB ACCESSORY - accessoryDidConnect (default protocol)");
@@ -899,6 +1002,10 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
   EAAccessory *disconnectedAccessory =
       [[notification userInfo] objectForKey:EAAccessoryKey];
   NSArray *protocolStrings = [disconnectedAccessory protocolStrings];
+  NSLog(@"BYB ACCESSORY - accessoryDidDisconnect name=%@ protocols=%@ "
+        @"connectionID=%u",
+        disconnectedAccessory.name, protocolStrings,
+        disconnectedAccessory.connectionID);
 
   [self addDebugString:[NSString stringWithFormat:@"DidDisconnect: %@\n",
                                                   protocolStrings]];
@@ -914,6 +1021,7 @@ const uint8_t kHeaderBytes[] = {0xCA, 0x5C};
 - (FlutterError *_Nullable)onListenWithArguments:(id _Nullable)arguments
                                        eventSink:(FlutterEventSink)events {
   _rxEventSink = events;
+  [self flushPendingRxToEventSink];
   return nil;
 }
 

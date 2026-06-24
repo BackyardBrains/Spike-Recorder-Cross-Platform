@@ -18,6 +18,7 @@ abstract class NWBFileUtil {
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallbackPlayback;
   
+  Future<List<String>> fetchNwbFiles();
   Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer, List<int> visibleChannelsList, int visibleChannelCount);
   Future<bool> addElectricalSeries(Int16List data, Int32List samplesCount, int selectedChannel,int channelCount, int isFinishRecording);
   Future<bool> readElectricalSeries(Int16List outSamples, Int32List outSamplesCount, int selectedChannel,int channelCount);

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 4.0.12+107
+version: 4.0.15+110
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -65,7 +65,7 @@ dependencies:
   wav: 1.5.0
   # permission_handler: ^11.0.0
   # flutter_libserialport: ^0.5.0
-  libserialport_plus: 0.1.2
+  # libserialport_plus: 0.1.2
   flutter_libserialport:
     git:
       url: https://github.com/salah-taha/flutter_libserialport  

@@ -110,18 +110,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         overlays: [],
       );
       if (Platform.isIOS) {
+        // MFi protocol init must not wait for connector detection or first paint.
+        _iosUiPaintReadyForAccessory = true;
+        _startAccessoryInitIfNeeded();
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _iosUiPaintReadyForAccessory = true;
-          _startAccessoryInitIfNeeded();
+          unawaited(BybAccessory.logAccessoryDiagnostics());
         });
         registerIosUiPaintReadyForAccessoryCallback(() {
           _iosUiPaintReadyForAccessory = true;
           _startAccessoryInitIfNeeded();
         });
-        _iosAccessoryFallbackTimer = Timer(const Duration(seconds: 4), () {
+        _iosAccessoryFallbackTimer = Timer(const Duration(seconds: 2), () {
           if (!mounted || _didStartAccessoryInit) return;
           debugPrint('BYB iOS accessory init fallback');
-          _iosUiPaintReadyForAccessory = true;
           _startAccessoryInitIfNeeded();
         });
       } else {

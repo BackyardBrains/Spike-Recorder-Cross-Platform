@@ -41,6 +41,7 @@ import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
 import 'package:spikerbox_architecture/widget/bybdropdown_widget.dart';
 import 'package:spikerbox_architecture/widget/darkdropdown_widget.dart';
 import 'package:spikerbox_architecture/widget/hump_custom_painter.dart';
+import 'package:spikerbox_architecture/widget/mobile_tab_menu.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 import 'package:wav/wav.dart';
 import 'package:spikerbox_architecture/functionality/wav_file_loader.dart';
@@ -57,7 +58,6 @@ import 'package:vector_graphics/vector_graphics.dart';
 import 'package:flutter/cupertino.dart';
 
 import 'package:carousel_slider/carousel_slider.dart';
-import '../functionality/IosConnectorDetector.dart';
 
 class _ReconfigureLiveMonitorRequest {
   const _ReconfigureLiveMonitorRequest({
@@ -227,10 +227,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     // print("START PORT CHECK");
     int baudRate = context.read<ConstantProvider>().getBaudRate();
-    if (!kIsWeb) {
-      if (!Platform.isIOS || _isIosUsbCSerialPath()) {
-        await _serialUtil.getAvailablePorts(baudRate, serialErrorCallback);
-      }
+    // iOS uses External Accessory (MFi) only — never desktop serial enumeration.
+    if (!kIsWeb && !Platform.isIOS) {
+      await _serialUtil.getAvailablePorts(baudRate, serialErrorCallback);
     }
     allDevices.clear();
 
@@ -246,18 +245,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               (port) => port.contains('usbmodem') || port.contains('usbserial'))
           .toList();
     } else if (Platform.isIOS) {
-      connectorType ??= await IosConnectorDetector.getConnectorType();
-      if (connectorType == ConnectorType.usbC) {
-        filteredPorts = _serialUtil.availablePorts
-            .where((port) =>
-                port.contains('usbmodem') || port.contains('usbserial'))
-            .toList();
-      } else {
-        // _attachMfiRxStream(listOfPort);
-
-        // print(
-        //     "BYB IOS --- ACCESSORIES ---@--- accessories: ${accessories.isNotEmpty}");
-        final accessories = await _resolveMfiAccessoryPorts();
+      unawaited(BybAccessory.logAccessoryDiagnostics());
+      final accessories = await _resolveMfiAccessoryPorts();
         if (accessories.isNotEmpty) {
           print('BYB iOS accessories found: $accessories');
           _mfiEmptyAccessoryPolls = 0;
@@ -359,8 +348,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             _mfiEmptyAccessoryPolls = 0;
           }
         }
-        if (mounted) setState(() {});
-      }
+      if (mounted) setState(() {});
     } else {
       filteredPorts = _serialUtil.availablePorts;
       // if (Platform.isWindows) {
@@ -399,7 +387,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         serialPortId = _availablePorts.last;
         print("isSerialDeviceFound: $isSerialDeviceFound");
         lastEstablishingConnectionTime = DateTime.now();
-        if (_isIosMfiPath() && isMfiDeviceConnect) {
+        if (_isIosExternalAccessoryPath() && isMfiDeviceConnect) {
           lastDateTimeSerialDataArrival = DateTime.now();
           // Baud scan is started in the MFi accessories-found branch.
         } else if (_availablePorts.isNotEmpty) {
@@ -463,12 +451,64 @@ class _GraphTemplateState extends State<GraphTemplate> {
   @override
   void initState() {
     super.initState();
+
     print("BYB IOS LOG - INIT STATE - GRAPH TEMPLATE");
 
-    if (!kIsWeb && Platform.isIOS) {
+    if (!kIsWeb && (Platform.isIOS || Platform.isAndroid)) {
       // Protocol init is owned by app_shell; RX attaches on first port check.
       print("BYB iOS GraphTemplate ready for MFi port check");
       markIosGraphTemplateMounted();
+      int isLoadingFileTemp = 0;
+      menuController = MenuControllerNotifier(0);
+      menuController.addListener(() {
+        print("MENU CONTROLLER LISTENER: ${menuController.value}");
+        if (menuController.value == 0) { 
+          if (isOpeningFile) {
+            GraphTemplate.isLoadingFile = isLoadingFileTemp;
+          }
+          isLoadingFileTemp = GraphTemplate.isLoadingFile;
+          isLoadingListFiles = false;
+          // isOpeningFile = false;
+          bool graphStatus = Provider.of<GraphResumePlayProvider>(context,listen: false).graphStatus;
+          print("GRAPH STATUS: $graphStatus");
+          Provider.of<GraphResumePlayProvider>(context,listen: false).setGraphResumePlay(false);
+          // if (isThresholdingButton) {
+          isThresholdingButton = true;// will be negated
+          callThresholdProcess();
+          // }
+          setState(() {});
+        } else
+        if (menuController.value == 1) { 
+          if (isOpeningFile) {
+            GraphTemplate.isLoadingFile = isLoadingFileTemp;
+          }
+          isLoadingFileTemp = GraphTemplate.isLoadingFile;
+
+          isLoadingListFiles = false;
+          // isOpeningFile = false;
+          callThresholdProcess();
+        } else 
+        if (menuController.value == 2) {
+          // if (!GraphTemplate.isPlayerPaused) {
+          //   callbackPlayButton(true);
+          // }
+          isThresholdingButton = true;// will be negated
+          callThresholdProcess();
+          isThresholdingButton = false;
+          isLoadingFileTemp = GraphTemplate.isLoadingFile;
+          GraphTemplate.isLoadingFile = 0;
+          // isOpeningFile = false;
+          GraphTemplate.nwbFileUtil?.fetchNwbFiles().then((listFiles) {
+            if (menuController.value == 2) { // menu is still 2
+              print("nwbFiles: $listFiles");
+              nwbFileDataRows = listFiles;
+              isLoadingListFiles = true;
+              setState(() {});
+            }
+          });
+          setState(() {});
+        }
+      });
     }
     _deviceListStreamController =
         StreamController<List<ComDataWithBoard>>.broadcast();
@@ -1317,7 +1357,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             return _AdaptiveArea(
               recordingNotifier: recordingNotifier,
               notifier: scrubNotifier,
-              child1: const _GraphArea(),
+              child1: !isLoadingListFiles ? const _GraphArea() : generateListFilesWidget(nwbFileDataRows),
               child3: Container(
                 decoration: BoxDecoration(
                   color: appColors.panelBackground,
@@ -1828,8 +1868,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   ],
                 ),
               ),
-              child4: !kIsWeb && Platform.isAndroid && isThresholdingButton
-                  ? Positioned(
+              child4: !kIsWeb && (Platform.isAndroid || Platform.isIOS) 
+                  ? SizedBox() : !isThresholdingButton ? SizedBox() : Positioned(
                       left: 10,
                       top: 80,
                       child: SafeArea(
@@ -1837,25 +1877,21 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           children: generateThresholdSlider(false),
                         ),
                       ),
-                    )
-                  : SizedBox(),
-              child2: Positioned(
+                    ),
+              child2: (!kIsWeb && (Platform.isIOS || Platform.isAndroid))? mobileNativeButtons() : Positioned(
                 left: 0,
                 top: 0,
                 child: Container(
                   padding: kIsWeb
                       ? const EdgeInsets.symmetric(horizontal: 10, vertical: 15)
-                      : Platform.isAndroid || Platform.isIOS
-                          ? const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 65)
-                          : const EdgeInsets.symmetric(
+                      : const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 15),
                   width: MediaQuery.of(context).size.width,
                   height: MediaQuery.of(context).size.height,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
+                      !kIsWeb && (Platform.isIOS || Platform.isAndroid)? SizedBox() : Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -1863,17 +1899,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisAlignment: MainAxisAlignment.start,
                             children: [
-                              isRecording == 1
-                                  ? SizedBox()
-                                  : SpikerBoxButton(
-                                      onTapButton: () async {
-                                        context
-                                            .read<SoftwareConfigProvider>()
-                                            .settingStatus(true);
-                                      },
-                                      // iconData: Icons.settings),
-                                      iconData: const IconData(0xe90a,
-                                          fontFamily: "IcomoonIcons")),
+                              generateSettingButton(isRecording),
                               const SizedBox(
                                 width: 10,
                               ),
@@ -1888,53 +1914,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
                               // ),
                               isRecording == 1
                                   ? SizedBox()
-                                  : SpikerBoxButton(
-                                      onTapButton: () {
-                                        isThresholdingButton =
-                                            !isThresholdingButton;
-                                        thresholdSliderValue = 1;
-
-                                        print(
-                                            "initThreshold : ${_sampleRate}, $deviceChannelCount === deviceChannelCount :$deviceChannelCount @@@ isThresholdingButton :$isThresholdingButton  ");
-                                        if (isThresholdingButton) {
-                                          processingUtil.initThreshold(
-                                              deviceChannelCount,
-                                              _sampleRate,
-                                              MediaQuery.of(context)
-                                                  .size
-                                                  .width);
-                                          processingUtil
-                                              .setAveragedSampleCount(1);
-                                          processingUtil.setThreshold(525);
-                                          processingUtil
-                                              .setIsThresholding(true);
-                                        } else {
-                                          processingUtil
-                                              .setIsThresholding(false);
-                                        }
-
-                                        context
-                                            .read<ThresholdStatusProvider>()
-                                            .setThresholdStatus(
-                                                isThresholdingButton);
-                                        context
-                                            .read<ThresholdStatusProvider>()
-                                            .setThresholdChannel(0);
-
-                                        setState(() {});
-                                      },
-                                      iconColor: isThresholdingButton
-                                          ? Colors.yellow
-                                          : Colors.white,
-                                      // iconData: Icons.graphic_eq_outlined,
-                                      iconData: const IconData(0xe90b,
-                                          fontFamily: "IcomoonIcons"),
-                                    ),
+                                  : generateThresholdButton(isRecording),
                               const SizedBox(
                                 width: 20,
                               ),
                               if (isThresholdingButton) ...{
-                                ...generateThresholdSlider(true),
+                                if (!kIsWeb && (Platform.isIOS || Platform.isAndroid))... {
+                                  SizedBox(),
+                                } else ... {
+                                  ...generateThresholdSlider(true),
+                                }
 
                                 // Container(
                                 //   width:50,
@@ -2099,198 +2088,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
                               */
                             ],
                           ),
-                          Row(
-                            children: [
-                              if (isRecording != 1) ...{
-                                SpikerBoxButton(
-                                  onTapButton: () async {
-                                    if (kIsWeb) {
-                                      // print("START OPENING FILE WEB");
-                                      startOpeningFileWeb("", 0, 1);
-                                      // startOpeningFile(result.files.single.path!);
-                                    } else {
-                                      FilePickerResult? result =
-                                          await FilePicker.platform.pickFiles();
-                                      if (result != null) {
-                                        startOpeningFile(
-                                            result.files.single.path!);
-                                      }
-                                    }
-                                    // }, iconData: Icons.menu)
-                                  },
-                                  iconData: const IconData(0xe909,
-                                      fontFamily: "IcomoonIcons"),
-                                )
-                              },
-                            ],
-                          )
+                          generateLoadFileButton(isRecording),
                         ],
                       ),
                       // Text("isOpeningFile: $isOpeningFile && isRecording: $isRecording"),
                       if (isOpeningFile) ...[
-                        BottomButtons(
-                          pauseButton: (bool isPlay) async {
-                            print(
-                                "PAUSE BUTTON CALLED: $isPlay --- isOpeningFile: $isOpeningFile");
-                            if (!isOpeningFile) {
-                              Provider.of<GraphResumePlayProvider>(context,
-                                      listen: false)
-                                  .setGraphResumePlay(isPlay);
-                              _toPauseGraph = isPlay;
-                              GraphTemplate.isPlayerPaused = !isPlay;
-                              _pendingPlayback = false;
-                              setState(() {});
-                            } else {
-                              callbackPlayButton(isPlay);
-                            }
-                          },
-                        ),
+                        generatePlaybackButton(isRecording, context),
+
                       ],
+                      // recording button
                       if (!isOpeningFile) ...[
-                        Center(
-                          child: SpikerBoxButton(
-                            onTapButton: () async {
-                              // print("STATUS RECORDING: $isRecording | Sample Rate: $_sampleRate");
-                              if (isRecording == 0) {
-                                if (kIsWeb) {
-                                } else if (Platform.isIOS) {
-                                  _channelCount = [1];
-                                }
-                                print(
-                                    "!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
-
-                                bool isAudioListen = context
-                                    .read<DataStatusProvider>()
-                                    .isMicrophoneData;
-                                visibleSignalsList = context
-                                    .read<ChannelColorProvider>()
-                                    .getVisibleChannel();
-                                visibleChannelCount = context
-                                    .read<ChannelColorProvider>()
-                                    .getVisibleChannelCount();
-
-                                if (kIsWeb) {
-                                  // await GraphTemplate.nwbFileUtil
-                                  //     ?.recordNewFileLocation();
-                                  // int counterTimerCancel = 0;
-                                  // Timer.periodic(
-                                  //     Duration(seconds: 1),
-                                  //     (timer) async {
-                                  // counterTimerCancel++;
-                                  // print(
-                                  //     "GraphTemplate.nwbFileUtil?.recordedNwbFilePath: ${GraphTemplate.nwbFileUtil?.recordedNwbFilePath}");
-                                  String strTemp = GraphTemplate
-                                          .nwbFileUtil?.recordedNwbFilePath ??
-                                      "";
-                                  // if (strTemp.length! > 3) {
-                                  if (1 == 1) {
-                                    // timer.cancel();
-                                    if (isAudioListen) {
-                                      recordedFilePath = await GraphTemplate
-                                          .nwbFileUtil
-                                          ?.processingInit(
-                                              _sampleRate,
-                                              widget.channelCount,
-                                              "Audio|||",
-                                              "SpikeRecorder Systems",
-                                              visibleSignalsList,
-                                              visibleChannelCount);
-                                    } else {
-                                      recordedFilePath = await GraphTemplate
-                                          .nwbFileUtil
-                                          ?.processingInit(
-                                              _sampleRate,
-                                              widget.channelCount,
-                                              "SpikeRecorder Device|||",
-                                              "SpikeRecorder Systems@@@${GraphTemplate.selectedBoard?.uniqueName}",
-                                              visibleSignalsList,
-                                              visibleChannelCount);
-                                    }
-                                    bool isPlay = true;
-                                    Provider.of<GraphResumePlayProvider>(
-                                            context,
-                                            listen: false)
-                                        .setGraphResumePlay(isPlay);
-                                    _toPauseGraph = isPlay;
-                                    GraphTemplate.isPlayerPaused = !isPlay;
-                                    _pendingPlayback = false;
-
-                                    Future.delayed(Duration(milliseconds: 1000),
-                                        () {
-                                      isRecording = 1;
-                                      context
-                                          .read<ChannelColorProvider>()
-                                          .setIsRecording(1);
-
-                                      recordingStartTime =
-                                          DateTime.now().millisecondsSinceEpoch;
-
-                                      recordingNotifier.value = [
-                                        recordingStartTime,
-                                        recordingStartTime
-                                      ];
-                                      setState(() {});
-                                    });
-                                  } else if (GraphTemplate
-                                          .nwbFileUtil?.recordedNwbFilePath ==
-                                      "--") {
-                                    // GraphTemplate.nwbFileUtil
-                                    //     ?.recordedNwbFilePath = "";
-                                    // print("NWB FILE PATH");
-                                    // counterTimerCancel = 0;
-                                    // isOpeningFile = false;
-                                    // timer.cancel();
-                                  }
-                                  // });
-                                } else {
-                                  if (isAudioListen) {
-                                    recordedFilePath = await GraphTemplate
-                                        .nwbFileUtil
-                                        ?.processingInit(
-                                            _sampleRate,
-                                            widget.channelCount,
-                                            "Audio|||",
-                                            "SpikeRecorder Systems",
-                                            visibleSignalsList,
-                                            visibleChannelCount);
-                                  } else {
-                                    recordedFilePath = await GraphTemplate
-                                        .nwbFileUtil
-                                        ?.processingInit(
-                                            _sampleRate,
-                                            widget.channelCount,
-                                            "SpikeRecorder Device|||",
-                                            "SpikeRecorder Systems",
-                                            visibleSignalsList,
-                                            visibleChannelCount);
-                                  }
-                                  Future.delayed(Duration(milliseconds: 1000),
-                                      () {
-                                    isRecording = 1;
-                                    context
-                                        .read<ChannelColorProvider>()
-                                        .setIsRecording(1);
-                                    recordingStartTime =
-                                        DateTime.now().millisecondsSinceEpoch;
-
-                                    recordingNotifier.value = [
-                                      recordingStartTime,
-                                      recordingStartTime
-                                    ];
-                                    setState(() {});
-                                  });
-                                }
-                                // isRecording = 1;
-                              } else {
-                                resetRecordingState(widgetContext);
-                                setState(() {});
-                              }
-                            },
-                            iconData: Icons.fiber_manual_record,
-                            iconColor:
-                                isRecording == 1 ? Colors.red : Colors.white,
-                          ),
-                        ),
+                        generateRecordingButton(isRecording, context),
                       ],
                       // isRecording != 0
                       //     ? SizedBox()
@@ -2302,15 +2110,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
               childOverlay: !isOpeningFile
                   ? SizedBox()
                   : Positioned(
-                      bottom: 35,
-                      right: 10,
+                      bottom: 25,
+                      right: 25,
                       child: Container(
                           margin: kIsWeb
                               ? const EdgeInsets.fromLTRB(0, 0, 0, 0)
                               : Platform.isAndroid || Platform.isIOS
                                   ? const EdgeInsets.fromLTRB(0, 110, 0, 0)
                                   : const EdgeInsets.fromLTRB(0, 0, 0, 0),
-                          child: SizedBox(
+                          child: SizedBox(// filename box black box
                             child: Container(
                                 alignment: Alignment.center,
                                 // margin: EdgeInsets.only(top: 65),
@@ -3206,6 +3014,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   Stopwatch? _webPlaybackAudioClock;
   int _webPlaybackFedSampleIndex = 0;
   bool _webPlaybackUsesStreamFeed = false;
+  int _nativePlaybackFedSampleIndex = 0;
+  bool _nativePlaybackUsesStreamFeed = false;
   DateTime? _lastWebPlaybackUiUpdate;
   static const double _webPlaybackAheadSeconds = 2.0;
   static const int _webPlaybackFeedChunkSamples = 8192;
@@ -3228,6 +3038,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
   List<SoLoud.AudioSource?> loadedFileStreams = [];
 
   List<SoLoud.SoundHandle?> loadedSoundHandles = [];
+
+  /// Bumped on each loaded-file play/pause so stale async stop callbacks are ignored.
+  int _loadedFilePlaybackSession = 0;
 
   /// Live monitor: plays tails of [ProcessingUtil.processMicrophoneData] via SoLoud.
   ProcessedSamplePlayer? _processedSamplePlayer;
@@ -3282,6 +3095,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   bool isSerialDeviceFound = false;
 
   Stream<List<ComDataWithBoard>>? deviceListStream;
+  bool isLoadingListFiles = false;
 
   /// Broadcasts [listOfBoard] updates; must stay non-null after [initState] so hot-plug / MFi can refresh UI.
   StreamController<List<ComDataWithBoard>>? _deviceListStreamController;
@@ -3494,15 +3308,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
             // if (isFftButton) {
             if (!kIsWeb) {
-              int windowCount = ((10.0 * 128) / (512 * 0.01).floor()).floor();
-              int windowSize = (FFT_30HZ_LENGTH * FFT_WINDOW_TIME_LENGTH);
-              List<int> inSampleCounts = [];
-              // print("KISWEB inSampleCounts: ${tempData[0].length}");
-              for (var data in tempData) {
-                inSampleCounts.add(data.length);
-              }
-              processingUtil.processFftMicrophoneData(tempData, [windowCount],
-                  [windowSize], inSampleCounts, channelCount);
+              // int windowCount = ((10.0 * 128) / (512 * 0.01).floor()).floor();
+              // int windowSize = (FFT_30HZ_LENGTH * FFT_WINDOW_TIME_LENGTH);
+              // List<int> inSampleCounts = [];
+              // // print("KISWEB inSampleCounts: ${tempData[0].length}");
+              // for (var data in tempData) {
+              //   inSampleCounts.add(data.length);
+              // }
+              // processingUtil.processFftMicrophoneData(tempData, [windowCount],
+              //     [windowSize], inSampleCounts, channelCount);
             }
             // }
           }
@@ -4179,18 +3993,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
   bool _mfiConnectInProgress = false;
   bool _mfiDisconnectInProgress = false;
 
-  bool _isIosMfiPath() {
-    if (kIsWeb || !Platform.isIOS) return false;
-    return connectorType != ConnectorType.usbC;
-  }
-
-  bool _isIosUsbCSerialPath() {
-    if (kIsWeb || !Platform.isIOS) return false;
-    return connectorType == ConnectorType.usbC;
+  /// iOS/iPadOS always uses External Accessory (MFi), regardless of Lightning vs USB-C.
+  bool _isIosExternalAccessoryPath() {
+    return !kIsWeb && Platform.isIOS;
   }
 
   bool _iosMfiLiveSessionActive() {
-    if (!_isIosMfiPath()) return false;
+    if (!_isIosExternalAccessoryPath()) return false;
     return isMfiDeviceConnect ||
         _isDataIdentified ||
         isDeviceSelected ||
@@ -4248,7 +4057,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   Future<void> _fallbackToMicrophoneAfterMfiDisconnect(
       GraphDataProvider? provider) async {
-    if (!mounted || !_isIosMfiPath() || _mfiDisconnectInProgress) return;
+    if (!mounted || !_isIosExternalAccessoryPath() || _mfiDisconnectInProgress) return;
     _mfiDisconnectInProgress = true;
     try {
       _prepareForMicFallbackAfterMfiDisconnect();
@@ -4270,7 +4079,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   Future<bool> _mfiAccessoryStillPresent() async {
-    if (!_isIosMfiPath()) return false;
+    if (!_isIosExternalAccessoryPath()) return false;
     final accessories = await BybAccessory.getConnectedAccessories();
     if (accessories.isNotEmpty) return true;
     return BybAccessory.isConnected();
@@ -4352,7 +4161,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   Future<void> _triggerMfiConnectOnce({bool force = false}) async {
-    if (!mounted || !_isIosMfiPath() || !isMfiDeviceConnect) {
+    if (!mounted || !_isIosExternalAccessoryPath() || !isMfiDeviceConnect) {
       return;
     }
     final label = accessoryLabel ?? '';
@@ -4377,7 +4186,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   /// MFi connect — no UART baud on ExternalAccessory; identify via hwType only.
   Future<void> _mfiConnectHandshake() async {
-    if (!mounted || !_isIosMfiPath() || !isMfiDeviceConnect) {
+    if (!mounted || !_isIosExternalAccessoryPath() || !isMfiDeviceConnect) {
       return;
     }
     try {
@@ -4458,7 +4267,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           _mfiMicListenerDetached = false;
           Future.delayed(Duration(milliseconds: 1000), () {
             forceSerialDisconnect = false;
-            if (_isIosMfiPath() && isMfiDeviceConnect) {
+            if (_isIosExternalAccessoryPath() && isMfiDeviceConnect) {
               // unawaited(_recoverMfiSerialStream());
             } else {
               listenToMicrophone(1, provider);
@@ -4476,7 +4285,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     bool restoreIdentification = false,
     bool runHandshake = false,
   }) async {
-    if (!mounted || !_isIosMfiPath()) return;
+    if (!mounted || !_isIosExternalAccessoryPath()) return;
     try {
       final accessories = await _resolveMfiAccessoryPorts();
       if (accessories.isEmpty) {
@@ -4534,8 +4343,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
   bool _mfiMicListenerDetached = false;
 
   StreamSubscription<Uint8List>? _rxSub;
-
-  ConnectorType? connectorType;
 
   DateTime lastEstablishingConnectionTime = DateTime.now();
 
@@ -5230,10 +5037,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   List<Widget> generateThresholdSlider(isHorizontal) {
-    if (!kIsWeb && isHorizontal && Platform.isAndroid) {
-      return [];
-    }
-    return [
+    // if (!kIsWeb && isHorizontal && (Platform.isAndroid || Platform.isIOS)) {
+    //   return [];
+    // }
+    List<Widget> thresholdWidget = [
       Center(
         child: DropdownButtonHideUnderline(
           child: DropdownButton2(
@@ -5247,7 +5054,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             items: listMenuLabels
                 .map((item) => DropdownMenuItem<String>(
                       value: item,
-                      child: Text(item),
+                      child: Text(item, style: TextStyle(fontSize: 10)),
                     ))
                 .toList(),
             onChanged: (value) {
@@ -5380,6 +5187,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
             style: TextStyle(color: Colors.white)),
       ),
     ];
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      return [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: thresholdWidget
+        )
+      ];
+    }
+    return thresholdWidget;
   }
 
   void initMessageIdentifier() {
@@ -5897,6 +5714,110 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
   }
 
+  bool _feedNativePlaybackPcmRange(int fromSample, int toSample) {
+    if (fromSample >= toSample) return true;
+    for (var ch = 0; ch < widget.channelCount; ch++) {
+      if (ch >= loadedFileStreams.length || ch >= loadedArrSamples.length) {
+        continue;
+      }
+      final stream = loadedFileStreams[ch];
+      if (stream == null) continue;
+      try {
+        soloud!.addAudioDataStream(
+          stream,
+          _loadedFilePcmBytes(loadedArrSamples[ch].sublist(fromSample, toSample)),
+        );
+      } catch (e) {
+        debugPrint('Native playback enqueue failed at $fromSample: $e');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Keeps SoLoud buffer streams fed ahead of the playback head (native only).
+  void _feedNativePlaybackAudioIfNeeded() {
+    if (!_nativePlaybackUsesStreamFeed ||
+        _isStreamEnded ||
+        kIsWeb ||
+        soloud == null ||
+        loadedFileStreams.isEmpty ||
+        loadedArrSamples.isEmpty) {
+      return;
+    }
+
+    final stream = loadedFileStreams[0];
+    if (stream == null) return;
+
+    final maxSamples = loadedArrSamples[0].length;
+    if (_nativePlaybackFedSampleIndex >= maxSamples) {
+      _markLoadedFilePlaybackStreamsEnded();
+      _nativePlaybackUsesStreamFeed = false;
+      return;
+    }
+
+    var consumedSamples = 0;
+    if (loadedSoundHandles.isNotEmpty) {
+      try {
+        consumedSamples = (soloud!
+                    .getStreamTimeConsumed(stream)
+                    .inMicroseconds *
+                _sampleRate /
+                1000000)
+            .round();
+      } catch (e) {
+        consumedSamples = _nativePlaybackFedSampleIndex;
+      }
+    }
+
+    final aheadSamples = (_sampleRate * _webPlaybackAheadSeconds).round();
+    final targetFed = max(
+      consumedSamples + aheadSamples,
+      _nativePlaybackFedSampleIndex,
+    );
+
+    while (_nativePlaybackFedSampleIndex < targetFed &&
+        _nativePlaybackFedSampleIndex < maxSamples) {
+      final chunkEnd = min(
+        _nativePlaybackFedSampleIndex + _webPlaybackFeedChunkSamples,
+        maxSamples,
+      );
+      if (!_feedNativePlaybackPcmRange(_nativePlaybackFedSampleIndex, chunkEnd)) {
+        return;
+      }
+      _nativePlaybackFedSampleIndex = chunkEnd;
+    }
+
+    if (_nativePlaybackFedSampleIndex >= maxSamples) {
+      _markLoadedFilePlaybackStreamsEnded();
+      _nativePlaybackUsesStreamFeed = false;
+    }
+  }
+
+  void _flushNativePlaybackAudio() {
+    if (kIsWeb ||
+        soloud == null ||
+        loadedFileStreams.isEmpty ||
+        loadedArrSamples.isEmpty) {
+      return;
+    }
+    final maxSamples = loadedArrSamples[0].length;
+    while (_nativePlaybackFedSampleIndex < maxSamples) {
+      final chunkEnd = min(
+        _nativePlaybackFedSampleIndex + _webPlaybackFeedChunkSamples,
+        maxSamples,
+      );
+      if (!_feedNativePlaybackPcmRange(_nativePlaybackFedSampleIndex, chunkEnd)) {
+        break;
+      }
+      _nativePlaybackFedSampleIndex = chunkEnd;
+    }
+    if (_nativePlaybackFedSampleIndex >= maxSamples) {
+      _markLoadedFilePlaybackStreamsEnded();
+      _nativePlaybackUsesStreamFeed = false;
+    }
+  }
+
   void _ensureWebLoadedFileStreams() {
     if (!kIsWeb || soloud == null) return;
 
@@ -5954,10 +5875,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     Future.delayed(Duration(milliseconds: 100), () {
       int prevTime = DateTime.now().millisecondsSinceEpoch;
-      bool isPlayback = true;
       timerPlaybackLoadedFile =
           Timer.periodic(Duration(milliseconds: 50), (timer) async {
         GraphTemplate.isLoadingFile = 4;
+        if (!kIsWeb) {
+          _feedNativePlaybackAudioIfNeeded();
+        }
         int timeDiff = DateTime.now().millisecondsSinceEpoch - prevTime;
         sampleDivider = (timeDiff * playbackFactor);
         prevTime = DateTime.now().millisecondsSinceEpoch;
@@ -6038,8 +5961,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
             timerPlaybackLoadedEndIndex = 0;
             startPlaybackSeekSampleIdx = 0;
             endSeekSampleIdx = 0;
-            _isStreamEnded = true;
             print("ARR SAMPLES ZERO STOPPING 2 - CANCEL TIMER");
+
+            if (!kIsWeb) {
+              _flushNativePlaybackAudio();
+            }
+            _isStreamEnded = true;
 
             double playbackPercentage =
                 (startPlaybackSeekSampleIdx + timerPlaybackLoadedStartIndex) /
@@ -6175,6 +6102,145 @@ class _GraphTemplateState extends State<GraphTemplate> {
     });
   }
 
+  Future<void> _disposeLoadedFileAudioSources() async {
+    if (soloud == null) return;
+    for (final stream in loadedFileStreams) {
+      if (stream == null) continue;
+      try {
+        await soloud!.disposeSource(stream);
+      } catch (e) {
+        debugPrint('disposeSource failed: $e');
+      }
+    }
+    loadedFileStreams.clear();
+    loadedSoundHandles.clear();
+  }
+
+  Future<void> _stopNativeLoadedFileAudioPlayback() async {
+    final session = _loadedFilePlaybackSession;
+    final streams = List<SoLoud.AudioSource?>.from(loadedFileStreams);
+    final handles = List<SoLoud.SoundHandle?>.from(loadedSoundHandles);
+
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (session != _loadedFilePlaybackSession) return;
+
+    if (soloud != null && streams.isNotEmpty) {
+      startPlaybackSeekSampleIdx += timerPlaybackLoadedStartIndex;
+      startSeekSampleIdx = startPlaybackSeekSampleIdx;
+    }
+
+    if (soloud == null) return;
+
+    for (final handle in handles) {
+      if (handle == null) continue;
+      try {
+        await soloud!.stop(handle);
+      } catch (e) {
+        debugPrint('Error stopping loaded-file handle: $e');
+      }
+    }
+
+    for (final stream in streams) {
+      if (stream == null) continue;
+      try {
+        soloud!.setDataIsEnded(stream);
+        await soloud!.disposeSource(stream);
+      } catch (e) {
+        debugPrint('Error disposing loaded-file stream: $e');
+      }
+    }
+
+    if (session != _loadedFilePlaybackSession) return;
+    loadedFileStreams.clear();
+    loadedSoundHandles.clear();
+    _nativePlaybackUsesStreamFeed = false;
+    _nativePlaybackFedSampleIndex = 0;
+
+    if (!kIsWeb && Platform.isIOS && soloud!.isInitialized) {
+      soloud!.deinit();
+    }
+  }
+
+  Future<void> _ensureSoLoudEngineForLoadedFilePlayback() async {
+    soloud ??= SoLoud.SoLoud.instance;
+    // iOS miniaudio does not reliably resume after buffer-stream stop/dispose;
+    // init() deinits first when already initialized (see flutter_soloud docs).
+    final reinit = !kIsWeb && Platform.isIOS && soloud!.isInitialized;
+    if (reinit || !soloud!.isInitialized) {
+      debugPrint(
+          'SoLoud loaded-file init (reinit=$reinit) sampleRate=$_sampleRate');
+      await soloud!.init(
+        bufferSize: 512,
+        sampleRate: _sampleRate,
+        channels: SoLoud.Channels.mono,
+      );
+    }
+  }
+
+  int _nativeLoadedFileBufferBytes() {
+    // Ring buffer sized for streaming feed, not the entire file.
+    return (_sampleRate * 2 * (_webPlaybackAheadSeconds + 2).ceil())
+        .clamp(_sampleRate * 2 * 2, 4 * 1024 * 1024)
+        .toInt();
+  }
+
+  SoLoud.BufferingType _nativeLoadedFileBufferingType() {
+    return SoLoud.BufferingType.released;
+  }
+
+  void _createNativeLoadedFileStreams() {
+    final bufferBytes = _nativeLoadedFileBufferBytes();
+    final bufferingType = _nativeLoadedFileBufferingType();
+    for (var i = 0; i < widget.channelCount; i++) {
+      loadedFileStreams.add(soloud!.setBufferStream(
+        maxBufferSizeBytes: bufferBytes,
+        bufferingType: bufferingType,
+        bufferingTimeNeeds: 0.05,
+        sampleRate: _sampleRate,
+        channels: SoLoud.Channels.mono,
+        format: SoLoud.BufferType.s16le,
+        onBuffering: (isBuffering, handle, time) async {
+          if (context.mounted) {}
+        },
+      ));
+    }
+  }
+
+  Future<void> _runNativeLoadedFileAudioPipeline() async {
+    if (soloud == null ||
+        loadedFileStreams.isEmpty ||
+        loadedArrSamples.isEmpty) {
+      return;
+    }
+
+    _nativePlaybackFedSampleIndex = 0;
+    _nativePlaybackUsesStreamFeed = true;
+    loadedSoundHandles.clear();
+
+    final playFutures = <Future<SoLoud.SoundHandle>>[];
+    for (var i = 0; i < widget.channelCount; i++) {
+      if (i >= loadedFileStreams.length || loadedFileStreams[i] == null) {
+        continue;
+      }
+      playFutures.add(soloud!.play(loadedFileStreams[i]!));
+    }
+    if (playFutures.isEmpty) {
+      _nativePlaybackUsesStreamFeed = false;
+      return;
+    }
+
+    try {
+      loadedSoundHandles.addAll(await Future.wait(playFutures));
+    } catch (e, st) {
+      debugPrint('Native loaded-file play failed: $e\n$st');
+      _nativePlaybackUsesStreamFeed = false;
+      return;
+    }
+
+    // Prime buffer so playback starts, then [_startPlaybackTimer] keeps feeding.
+    _feedNativePlaybackAudioIfNeeded();
+  }
+
   void callbackPlayButton(bool isPlay) async {
     // 1. UI state (no provider notify yet on play path so rebuild cannot run during setup)
     print("setGraphResumePlay PLAYBACK PAUSE BUTTON $isPlay");
@@ -6193,20 +6259,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
     // }
 
     // 2. SoLoud initialization (shared with live monitor — live streams paused above when playing)
-    soloud ??= SoLoud.SoLoud.instance;
+    await _ensureSoLoudEngineForLoadedFilePlayback();
     print("SOLoud IS PLAYINGBACK: ${soloud!.isInitialized}");
-    if (!soloud!.isInitialized) {
-      await soloud!.init(
-        bufferSize: 512,
-        sampleRate: _sampleRate,
-        channels: SoLoud.Channels.mono,
-      );
-    }
     bool isAudioListen = context.read<DataStatusProvider>().isMicrophoneData;
     print("IS PLAY $isPlay");
     if (!isPlay) {
       // print("STOP SOUND | ${widget.channelCount} | ::: ${soloud?.getStreamTimeConsumed(loadedFileStreams[0]!)}");
       // Mark streams as ended before cancelling timer to prevent race conditions
+      _loadedFilePlaybackSession++;
       _isStreamEnded = true;
       timerPlaybackLoadedFile?.cancel();
       _stopWebPlaybackAudioFeed();
@@ -6218,33 +6278,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         }
         _stopWebLoadedFileAudioPlayback();
       } else {
-        // Wait a brief moment to ensure any pending timer callbacks complete
-        await Future.delayed(Duration(milliseconds: 100));
-
-        if (soloud != null && loadedFileStreams.isNotEmpty) {
-          double sampleConsumed =
-              (soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!
-                      .inMilliseconds /
-                  2 *
-                  _sampleRate /
-                  1000;
-          startPlaybackSeekSampleIdx += timerPlaybackLoadedStartIndex;
-          startSeekSampleIdx = startPlaybackSeekSampleIdx;
-          print(
-              "STOP SOUND | ${widget.channelCount} | ${(soloud?.getStreamTimeConsumed(loadedFileStreams[0]!))!.inMilliseconds} | ::: $sampleConsumed ::: $timerPlaybackLoadedStartIndex");
-        }
-        for (int i = 0; i < widget.channelCount; i++) {
-          try {
-            if (i >= loadedFileStreams.length ||
-                i >= loadedSoundHandles.length) {
-              continue;
-            }
-            soloud?.setDataIsEnded(loadedFileStreams[i]!);
-            soloud?.stop(loadedSoundHandles[i]!);
-          } catch (e) {
-            print("Error ending stream: $e");
-          }
-        }
+        await _stopNativeLoadedFileAudioPlayback();
       }
       GraphTemplate.isLoadingFile = 2;
       // startPlaybackSeekSampleIdx += timerPlaybackLoadedStartIndex;
@@ -6253,42 +6287,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // timerPlaybackLoadedEndIndex = 0;
       setState(() {});
     } else {
-      loadedFileStreams.clear();
+      _loadedFilePlaybackSession++;
+      await _disposeLoadedFileAudioSources();
       _isStreamEnded = false; // Reset flag when creating new streams
 
       // print("ADDED FILE STREAMS : $_sampleRate || $startPlaybackSeekSampleIdx ||| $percentage || SCRUB: ${scrubNotifier.value}");
       // 3. SoLoud buffer stream setup
       print("widget.channelCount: ${widget.channelCount} ${_sampleRate}");
-      for (int i = 0; i < widget.channelCount; i++) {
-        if (!kIsWeb &&
-            (Platform.isIOS ||
-                Platform.isAndroid ||
-                Platform.isMacOS ||
-                Platform.isWindows)) {
-          loadedFileStreams.add(soloud!.setBufferStream(
-            // maxBufferSizeBytes: 1024 * 1024 * 10,
-            // {Size} = {Sample Rate} * {Bytes per Sample} * {MONO CHANNEL} * {Desired Seconds} * {100  constant}
-            bufferingType: SoLoud.BufferingType.released,
-            sampleRate: _sampleRate,
-            channels: SoLoud.Channels.mono,
-            format: SoLoud.BufferType.s16le,
-            onBuffering: (isBuffering, handle, time) async {
-              // print("IS BUFFERING $isBuffering $handle $time");
-              if (context.mounted) {}
-            },
-          ));
-        } else if (!kIsWeb) {
-          loadedFileStreams.add(soloud!.setBufferStream(
-            bufferingType: SoLoud.BufferingType.released,
-            sampleRate: _sampleRate,
-            channels: SoLoud.Channels.mono,
-            format: SoLoud.BufferType.s16le,
-            onBuffering: (isBuffering, handle, time) async {
-              if (context.mounted) {}
-            },
-          ));
-        }
-        // Web streams are created in [_ensureWebLoadedFileStreams] after PCM is loaded.
+      if (!kIsWeb) {
+        _createNativeLoadedFileStreams();
       }
 
       // insert old samples, if samplesLength == 0 return null,
@@ -6541,41 +6548,33 @@ class _GraphTemplateState extends State<GraphTemplate> {
         // loadedArrChannelCount.fillRange(0, totalChannelCount, initialSampleCount.floor());
         loadedArrChannelCount[i] = initialSampleCount.floor();
         combinedIdx += initialSampleCount.floor();
-        if (!_isStreamEnded && loadedFileStreams[i] != null) {
-          try {
-            // if (isSpeakerChannelMuted[i]) {
-            //   soloud!.addAudioDataStream(loadedFileStreams[i]!,
-            //       (Int16List(loadedArrSamples[i].length)).buffer.asUint8List());
-            // } else {
-            //   soloud!.addAudioDataStream(loadedFileStreams[i]!,
-            //       loadedArrSamples[i].buffer.asUint8List());
-            // }
-            soloud!.addAudioDataStream(
-              loadedFileStreams[i]!,
-              _loadedFilePcmBytes(loadedArrSamples[i]),
-            );
-          } catch (e) {
-            // Stream may have been ended, stop trying to add data
-            print("Error adding audio data to stream (may be ended): $e");
-            _isStreamEnded = true;
-          }
-        }
+        // if (!_isStreamEnded && loadedFileStreams[i] != null) {
+        //   try {
+        //     // if (isSpeakerChannelMuted[i]) {
+        //     //   soloud!.addAudioDataStream(loadedFileStreams[i]!,
+        //     //       (Int16List(loadedArrSamples[i].length)).buffer.asUint8List());
+        //     // } else {
+        //     //   soloud!.addAudioDataStream(loadedFileStreams[i]!,
+        //     //       loadedArrSamples[i].buffer.asUint8List());
+        //     // }
+        //     soloud!.addAudioDataStream(
+        //       loadedFileStreams[i]!,
+        //       _loadedFilePcmBytes(loadedArrSamples[i]),
+        //     );
+        //   } catch (e) {
+        //     // Stream may have been ended, stop trying to add data
+        //     print("Error adding audio data to stream (may be ended): $e");
+        //     _isStreamEnded = true;
+        //   }
+        // }
       }
 
       print("ADDED DATA STREAM Channel Count: ${widget.channelCount}");
 
-      // Start playback timer (non-web path)
+      _nativePlaybackFedSampleIndex = 0;
+      _nativePlaybackUsesStreamFeed = false;
+      await _runNativeLoadedFileAudioPipeline();
       _startPlaybackTimer();
-
-      Future.delayed(Duration(milliseconds: 100), () {
-        loadedSoundHandles.clear();
-        for (int i = 0; i < widget.channelCount; i++) {
-          soloud!.play(loadedFileStreams[i]!).then((soundHandle) {
-            loadedSoundHandles.add(soundHandle);
-            // loadedSoundHandles[i] = soundHandle;
-          });
-        }
-      });
 
       print("ADDED DATA STREAM2");
 
@@ -6664,12 +6663,34 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void stopCurrentPlaying() {
     try {
+      _loadedFilePlaybackSession++;
       _isStreamEnded = true; // Mark streams as ended
-      if (soloud != null) {
+      final engine = soloud;
+      final streams = List<SoLoud.AudioSource?>.from(loadedFileStreams);
+      final handles = List<SoLoud.SoundHandle?>.from(loadedSoundHandles);
+      loadedFileStreams.clear();
+      loadedSoundHandles.clear();
+      if (engine != null) {
         print("listenToMicrophone soloud != null ");
-        for (int i = 0; i < loadedSoundHandles.length; i++) {
-          soloud?.stop(loadedSoundHandles[i]!);
-        }
+        unawaited(Future(() async {
+          for (final handle in handles) {
+            if (handle == null) continue;
+            try {
+              await engine.stop(handle);
+            } catch (e) {
+              debugPrint('stopCurrentPlaying stop failed: $e');
+            }
+          }
+          for (final stream in streams) {
+            if (stream == null) continue;
+            try {
+              engine.setDataIsEnded(stream);
+              await engine.disposeSource(stream);
+            } catch (e) {
+              debugPrint('stopCurrentPlaying dispose failed: $e');
+            }
+          }
+        }));
         soloud = null;
       } else {
         print("listenToMicrophone soloud == null ");
@@ -6691,8 +6712,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
       scrubNotifier.value = [];
       recordingNotifier.value = [0, 0];
       soloud = null;
-      loadedFileStreams = [];
-      loadedSoundHandles = [];
       isOpeningFile = false;
       getData = null;
       periodicTimerSerial?.cancel();
@@ -7529,6 +7548,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   Future<void> _liveMonitorInitChain = Future<void>.value();
+  
+  MenuControllerNotifier menuController = MenuControllerNotifier(-1);
+  
+  List<String> nwbFileDataRows = [];
+  
 
   /// Starts or reconfigures SoLoud for live mic or serial monitoring.
   Future<void> _ensureLiveMonitorPlayer({int? channelCount}) async {
@@ -8548,7 +8572,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             ? Provider.of<GraphDataProvider>(context, listen: false)
             : null);
     final boardName = GraphTemplate.selectedBoard?.uniqueName;
-    final keepIdentifiedDevice = _isIosMfiPath() &&
+    final keepIdentifiedDevice = _isIosExternalAccessoryPath() &&
         isMfiDeviceConnect &&
         boardName != null &&
         boardName.isNotEmpty;
@@ -8564,7 +8588,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     if (keepIdentifiedDevice) {
       unawaited(() async {
-        if (_isIosMfiPath() && !await _mfiAccessoryStillPresent()) {
+        if (_isIosExternalAccessoryPath() && !await _mfiAccessoryStillPresent()) {
           print('BYB iOS stale: accessory gone, mic fallback');
           await _fallbackToMicrophoneAfterMfiDisconnect(providerRef);
           return;
@@ -8595,7 +8619,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _isDataIdentified = false;
     GraphTemplate.isLoadingFile = 0;
     foundDevices = "";
-    if (!_isIosMfiPath() || !isMfiDeviceConnect) {
+    if (!_isIosExternalAccessoryPath() || !isMfiDeviceConnect) {
       try {
         _serialUtil.closePort();
       } catch (err) {
@@ -8603,7 +8627,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
     }
 
-    if (_isIosMfiPath() && isMfiDeviceConnect) {
+    if (_isIosExternalAccessoryPath() && isMfiDeviceConnect) {
       unawaited(() async {
         if (!await _mfiAccessoryStillPresent()) {
           print('BYB iOS stale: accessory gone, mic fallback');
@@ -8789,6 +8813,393 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
     }
   }
+  
+  generateLoadFileButton(int isRecording) {
+    return Row(
+      children: [
+        if (isRecording != 1) ...{
+          SpikerBoxButton(
+            onTapButton: () async {
+              if (kIsWeb) {
+                // print("START OPENING FILE WEB");
+                startOpeningFileWeb("", 0, 1);
+                // startOpeningFile(result.files.single.path!);
+              } else {
+                FilePickerResult? result =
+                    await FilePicker.platform.pickFiles();
+                if (result != null) {
+                  startOpeningFile(
+                      result.files.single.path!);
+                }
+              }
+              // }, iconData: Icons.menu)
+            },
+            iconData: const IconData(0xe909,
+                fontFamily: "IcomoonIcons"),
+          ) // open loadfile button
+        },
+      ],
+    );    
+  }
+  
+  generateThresholdButton(int isRecording) {
+    return SpikerBoxButton(
+      onTapButton: () {
+        callThresholdProcess();
+
+      },
+      iconColor: isThresholdingButton
+          ? Colors.yellow
+          : Colors.white,
+      // iconData: Icons.graphic_eq_outlined,
+      iconData: const IconData(0xe90b,
+          fontFamily: "IcomoonIcons"),
+    );    
+  }
+  
+  generateSettingButton(int isRecording) {
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      return isRecording == 1 ? SizedBox() : ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          shape: const CircleBorder(),
+          padding: const EdgeInsets.all(16), // Adjust padding for button size
+          backgroundColor: const Color(0xff1e1e1e), // Dark background color
+          foregroundColor: Colors.white, // Icon color / ripple effect color
+          elevation: 4, // Subtle shadow depth
+          shadowColor: Colors.black.withOpacity(0.5),
+          side: BorderSide(
+            color: Colors.white.withOpacity(0.1), // The subtle outer ring/rim highlight
+            width: 1,
+          ),
+        ),        
+        onPressed: () async {
+          context
+              .read<SoftwareConfigProvider>()
+              .settingStatus(true);
+        },
+        // iconData: Icons.settings),
+        child: Icon(IconData(0xe90a,
+            fontFamily: "IcomoonIcons")));    
+    } else {
+      return isRecording == 1 ? SizedBox() : SpikerBoxButton(
+        onTapButton: () async {
+          context
+              .read<SoftwareConfigProvider>()
+              .settingStatus(true);
+        },
+        // iconData: Icons.settings),
+        iconData: const IconData(0xe90a,
+            fontFamily: "IcomoonIcons"));    
+    }
+  }
+  
+  mobileNativeButtons() {
+    return Positioned(
+      left:0,
+      top:0,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(
+                    10, 65, 10, 20),
+        width: MediaQuery.of(context).size.width,
+        height: MediaQuery.of(context).size.height,
+        child: Column(
+          children: [
+            isLoadingListFiles? SizedBox() : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                generateSettingButton(isRecording),
+                // generateLoadFileButton(isRecording),
+              ],
+            ),
+            Expanded(child:SizedBox()),
+            // generateThresholdButton(isRecording),
+            if (!isLoadingListFiles) ... {
+              if (isOpeningFile) ...[
+                generatePlaybackButton(isRecording, context),
+
+              ],
+              // recording button
+              if (!isOpeningFile) ...[
+                generateRecordingButton(isRecording, context),
+              ],
+            },
+            if (isThresholdingButton) ... {
+              ...generateThresholdSlider(true),
+            },
+            Container(
+              margin: EdgeInsets.fromLTRB(0, 60, 0, 30),
+              child: MobileTabMenu(controller: menuController),
+            )
+          ],
+        )
+      )
+    );
+  }
+  
+  generateRecordingButton(int isRecording, BuildContext widgetContext) {
+    return Center(
+      child: SpikerBoxButton(
+        onTapButton: () async {
+          // print("STATUS RECORDING: $isRecording | Sample Rate: $_sampleRate");
+          if (isRecording == 0) {
+            if (kIsWeb) {
+            } else if (Platform.isIOS) {
+              // CHECK
+              _channelCount = [1];
+            }
+            print(
+                "!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
+
+            bool isAudioListen = context
+                .read<DataStatusProvider>()
+                .isMicrophoneData;
+            visibleSignalsList = context
+                .read<ChannelColorProvider>()
+                .getVisibleChannel();
+            visibleChannelCount = context
+                .read<ChannelColorProvider>()
+                .getVisibleChannelCount();
+
+            if (kIsWeb) {
+              // await GraphTemplate.nwbFileUtil
+              //     ?.recordNewFileLocation();
+              // int counterTimerCancel = 0;
+              // Timer.periodic(
+              //     Duration(seconds: 1),
+              //     (timer) async {
+              // counterTimerCancel++;
+              // print(
+              //     "GraphTemplate.nwbFileUtil?.recordedNwbFilePath: ${GraphTemplate.nwbFileUtil?.recordedNwbFilePath}");
+              String strTemp = GraphTemplate
+                      .nwbFileUtil?.recordedNwbFilePath ??
+                  "";
+              // if (strTemp.length! > 3) {
+              if (1 == 1) {
+                // timer.cancel();
+                if (isAudioListen) {
+                  recordedFilePath = await GraphTemplate
+                      .nwbFileUtil
+                      ?.processingInit(
+                          _sampleRate,
+                          widget.channelCount,
+                          "Audio|||",
+                          "SpikeRecorder Systems",
+                          visibleSignalsList,
+                          visibleChannelCount);
+                } else {
+                  recordedFilePath = await GraphTemplate
+                      .nwbFileUtil
+                      ?.processingInit(
+                          _sampleRate,
+                          widget.channelCount,
+                          "SpikeRecorder Device|||",
+                          "SpikeRecorder Systems@@@${GraphTemplate.selectedBoard?.uniqueName}",
+                          visibleSignalsList,
+                          visibleChannelCount);
+                }
+                bool isPlay = true;
+                Provider.of<GraphResumePlayProvider>(
+                        context,
+                        listen: false)
+                    .setGraphResumePlay(isPlay);
+                _toPauseGraph = isPlay;
+                GraphTemplate.isPlayerPaused = !isPlay;
+                _pendingPlayback = false;
+
+                Future.delayed(Duration(milliseconds: 1000),
+                    () {
+                  this.isRecording = 1;
+                  context
+                      .read<ChannelColorProvider>()
+                      .setIsRecording(1);
+
+                  recordingStartTime =
+                      DateTime.now().millisecondsSinceEpoch;
+
+                  recordingNotifier.value = [
+                    recordingStartTime,
+                    recordingStartTime
+                  ];
+                  setState(() {});
+                });
+              } else if (GraphTemplate
+                      .nwbFileUtil?.recordedNwbFilePath ==
+                  "--") {
+                // GraphTemplate.nwbFileUtil
+                //     ?.recordedNwbFilePath = "";
+                // print("NWB FILE PATH");
+                // counterTimerCancel = 0;
+                // isOpeningFile = false;
+                // timer.cancel();
+              }
+              // });
+            } else {
+              if (isAudioListen) {
+                recordedFilePath = await GraphTemplate
+                    .nwbFileUtil
+                    ?.processingInit(
+                        _sampleRate,
+                        widget.channelCount,
+                        "Audio|||",
+                        "SpikeRecorder Systems",
+                        visibleSignalsList,
+                        visibleChannelCount);
+              } else {
+                recordedFilePath = await GraphTemplate
+                    .nwbFileUtil
+                    ?.processingInit(
+                        _sampleRate,
+                        widget.channelCount,
+                        "SpikeRecorder Device|||",
+                        "SpikeRecorder Systems",
+                        visibleSignalsList,
+                        visibleChannelCount);
+              }
+              Future.delayed(Duration(milliseconds: 1000),
+                  () {
+                this.isRecording = 1;
+                context
+                    .read<ChannelColorProvider>()
+                    .setIsRecording(1);
+                recordingStartTime =
+                    DateTime.now().millisecondsSinceEpoch;
+
+                recordingNotifier.value = [
+                  recordingStartTime,
+                  recordingStartTime
+                ];
+                setState(() {});
+              });
+            }
+            // isRecording = 1;
+          } else {
+            resetRecordingState(widgetContext);
+            setState(() {});
+          }
+        },
+        iconData: Icons.fiber_manual_record,
+        iconColor:
+            isRecording == 1 ? Colors.red : Colors.white,
+      ),
+    );    
+  }
+  
+  void callThresholdProcess() {
+    isThresholdingButton =
+        !isThresholdingButton;
+    thresholdSliderValue = 1;
+
+    print(
+        "initThreshold : ${_sampleRate}, $deviceChannelCount === deviceChannelCount :$deviceChannelCount @@@ isThresholdingButton :$isThresholdingButton  ");
+    if (isThresholdingButton) {
+      processingUtil.initThreshold(
+          deviceChannelCount,
+          _sampleRate,
+          MediaQuery.of(context)
+              .size
+              .width);
+      processingUtil
+          .setAveragedSampleCount(1);
+      processingUtil.setThreshold(525);
+      processingUtil
+          .setIsThresholding(true);
+    } else {
+      processingUtil
+          .setIsThresholding(false);
+    }
+
+    context
+        .read<ThresholdStatusProvider>()
+        .setThresholdStatus(
+            isThresholdingButton);
+    context
+        .read<ThresholdStatusProvider>()
+        .setThresholdChannel(0);
+
+    setState(() {});    
+  }
+  
+// Function to call native iOS code
+  Future<void> _handleFileClickiOS(String filePath) async {
+    if (!Platform.isIOS) {
+      print("Native iOS function skipped: Current platform is not iOS.");
+      return;
+    }
+    print("filePathIOS CLICKED: $filePath");
+    if (filePath.isNotEmpty) {
+      menuController.value = 0;
+      isLoadingListFiles = false;
+      isOpeningFile = false;
+      
+
+      startOpeningFile(filePath);
+    }
+
+    // try {
+    //   // Invoke the native iOS method and pass the file path
+    //   final String result = await platform.invokeMethod('onNwbFileClicked', {
+    //     'filePath': filePath,
+    //   });
+    //   print("Response from iOS: $result");
+    // } on PlatformException catch (e) {
+    //   print("Failed to invoke native iOS method: '${e.message}'.");
+    // }
+  }
+  
+  generateListFilesWidget(nwbFileDataRows) {
+    return Container(
+      margin: EdgeInsets.fromLTRB(0, 0, 0, 40),
+      child: ListView.builder(
+        itemCount: nwbFileDataRows.length,
+        itemBuilder: (context, index) {
+          // Split the joined string back into its parts for UI display
+          final rowData = nwbFileDataRows[index];
+          final parts = rowData.split('@@@');
+          final filePath = parts[0];
+          final dateTimeStr = parts[1];
+          
+          // Extract just the file name from the path
+          final fileName = filePath.split(Platform.pathSeparator).last;
+      
+          return ListTile(
+            leading: const Icon(Icons.insert_drive_file, color: Colors.blue),
+            title: Text(fileName),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Text('${filePath.split(Platform.pathSeparator).last}', style: const TextStyle(fontSize: 11)),
+                Text('$dateTimeStr', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            ),
+            trailing: Icon(Icons.chevron_right),
+            // Pass just the file path (or the full rowData if needed) to iOS
+            onTap: () => _handleFileClickiOS(filePath),
+          );
+        },
+      ),
+    );
+  }
+  
+  generatePlaybackButton(int isRecording, BuildContext context) {
+    return BottomButtons(
+      pauseButton: (bool isPlay) async {
+        print(
+            "PAUSE BUTTON CALLED: $isPlay --- isOpeningFile: $isOpeningFile");
+        if (!isOpeningFile) {
+          Provider.of<GraphResumePlayProvider>(context,
+                  listen: false)
+              .setGraphResumePlay(isPlay);
+          _toPauseGraph = isPlay;
+          GraphTemplate.isPlayerPaused = !isPlay;
+          _pendingPlayback = false;
+          setState(() {});
+        } else {
+          callbackPlayButton(isPlay);
+        }
+      },
+    );
+  }
 }
 
 class NotchPassFilterWidget extends StatelessWidget {
@@ -8854,7 +9265,7 @@ class NotchPassFilterWidget extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Text(
-          "Attenuate frequency (Notch filter) : ",
+          MediaQuery.of(context).orientation == Orientation.portrait ? "Notch filter : " : "Attenuate frequency (Notch filter) : ",
           style: SoftwareTextStyle().kWtMediumTextStyle,
         ),
         const SizedBox(width: 10),
@@ -9012,7 +9423,7 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
 
             Positioned(
               left: 0,
-              bottom: 100,
+              bottom: !kIsWeb && (Platform.isIOS || Platform.isAndroid)? 130 : 100,
               child: ValueListenableBuilder<List<int>>(
                   valueListenable: widget.recordingNotifier,
                   builder: (context, snapshot, _) {

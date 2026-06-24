@@ -289,6 +289,12 @@ class NwbFileUtilImpl implements NWBFileUtil {
     return Future.value("");
   }
   
+  @override
+  Future<List<String>> fetchNwbFiles() {
+    // TODO: implement fetchNwbFiles
+    throw UnimplementedError();
+  }
+  
 
   
 }

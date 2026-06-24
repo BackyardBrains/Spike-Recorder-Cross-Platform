@@ -280,114 +280,116 @@ class _TimeCalculateWidgetState extends State<TimeCalculateWidget> {
       widthOfScreen = MediaQuery.of(context).size.width;
       if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
         return Positioned(
-          top: 0,
+          top: 10,
           left: 0,
           right: 0,
-          child: Container(
-            margin: kIsWeb ? const EdgeInsets.fromLTRB(0, 7, 0, 0) : 
-                        Platform.isAndroid || Platform.isIOS? const EdgeInsets.fromLTRB(0, 20, 0, 0) : const EdgeInsets.fromLTRB(0, 7, 0, 0) ,
-            height: 50,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                ValueListenableBuilder<double>(
-                  valueListenable: lineWidthScaleNotifier, 
-                  builder: (context, value, child) {
-                    print("Value: $value");
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GestureDetector(
-                          onTap: () {
-                            graphDataProvider.notifyZoomEvent(10);
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Color(0xFF707070)),
-                              color: Color(0xFFdbdbdb),
-                            ),
-                            child: Icon(Icons.remove, color: Color(0xFF707070), size: 16,)
-                          )
-                        ),
-                        SizedBox(width: 4),
-
-                        Container(
-                          height: 3,
-                          width: value,
-                          color: Colors.white,
-                        ),
-                        SizedBox(width: 4),
-                        GestureDetector(
-                          onTap: () {
-                            graphDataProvider.notifyZoomEvent(-10);
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Color(0xFF707070)),
-                              color: Color(0xFFdbdbdb),
-                            ),
-                            child: Icon(Icons.add, color: Color(0xFF707070), size: 16,)
-                          )
-                        ),
-
-                      ],
-                    );
-                  }
-                ),
-                StreamBuilder<double>(
-                  stream: graphDataProvider.displayTimeStream,
-                  initialData: 10000.0,
-                  builder: (context, snapshot) {
-                    // print("Stream builder: Display Time: ${snapshot.data}");
-                    if (snapshot.data != null && snapshot.data!.toDouble() == 10000.0) {
-                      TimeCalculateWidget.displayTimeMsLabel = 2000;
-                      double samplesPerMs = sampleRate / 1000;
-                      double samplesPerEnvelopePixel = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRate / drawSurfaceWidth;
-                      double lineWidthInSecond = ProcessingUtil.MAX_DISPLAY_SECONDS / 5;
-                      double samplesPerLineWidth = lineWidthInSecond * 1000 * samplesPerMs;
-                      double pixelsPerLineWidth = samplesPerLineWidth / samplesPerEnvelopePixel; // 800/ 5 = 160
-
-                      widthOfScale = pixelsPerLineWidth;
-                      TimeCalculateWidget.widthOfScale = pixelsPerLineWidth;
-                      Future.delayed(Duration(milliseconds: 100), () {
-                        lineWidthScaleNotifier.value = widthOfScale;
-                      });
-                      TimeCalculateWidget.prevDisplayTimeMsLabel = TimeCalculateWidget.displayTimeMsLabel;
-                      TimeCalculateWidget.prevWidthOfScale = TimeCalculateWidget.widthOfScale;
-
-                      return Text(
-                        "2s",
-                        style: SoftwareTextStyle().kWtMediumTextStyle,
+          child: SafeArea(
+            child: Container(
+              margin: kIsWeb ? const EdgeInsets.fromLTRB(0, 7, 0, 0) : 
+                          Platform.isAndroid || Platform.isIOS? const EdgeInsets.fromLTRB(0, 20, 0, 0) : const EdgeInsets.fromLTRB(0, 7, 0, 0) ,
+              height: 50,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ValueListenableBuilder<double>(
+                    valueListenable: lineWidthScaleNotifier, 
+                    builder: (context, value, child) {
+                      print("Value: $value");
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              graphDataProvider.notifyZoomEvent(10);
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Color(0xFF707070)),
+                                color: Color(0xFFdbdbdb),
+                              ),
+                              child: Icon(Icons.remove, color: Color(0xFF707070), size: 16,)
+                            )
+                          ),
+                          SizedBox(width: 4),
+            
+                          Container(
+                            height: 3,
+                            width: value,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () {
+                              graphDataProvider.notifyZoomEvent(-10);
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Color(0xFF707070)),
+                                color: Color(0xFFdbdbdb),
+                              ),
+                              child: Icon(Icons.add, color: Color(0xFF707070), size: 16,)
+                            )
+                          ),
+            
+                        ],
                       );
-                    } else {
-                      String textLabel = calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth);
-                      return Text(
-                        textLabel,
-                        style: SoftwareTextStyle().kWtMediumTextStyle,
-                      );
-                      // return FutureBuilder(
-                      //   future: calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth), 
-                      //   builder: (context, futureSnapshot) {
-                      //     if (futureSnapshot.data == null) {
-                      //       return Text(
-                      //         "2s",
-                      //         style: SoftwareTextStyle().kWtMediumTextStyle,
-                      //       );
-                      //     }
-                          
-                      //     return Text(
-                      //       futureSnapshot.data as String,
-                      //       style: SoftwareTextStyle().kWtMediumTextStyle,
-                      //     );
-                      //   }
-                      // );
                     }
-                  },
-                ),
-              ],
+                  ),
+                  StreamBuilder<double>(
+                    stream: graphDataProvider.displayTimeStream,
+                    initialData: 10000.0,
+                    builder: (context, snapshot) {
+                      // print("Stream builder: Display Time: ${snapshot.data}");
+                      if (snapshot.data != null && snapshot.data!.toDouble() == 10000.0) {
+                        TimeCalculateWidget.displayTimeMsLabel = 2000;
+                        double samplesPerMs = sampleRate / 1000;
+                        double samplesPerEnvelopePixel = ProcessingUtil.MAX_DISPLAY_SECONDS * sampleRate / drawSurfaceWidth;
+                        double lineWidthInSecond = ProcessingUtil.MAX_DISPLAY_SECONDS / 5;
+                        double samplesPerLineWidth = lineWidthInSecond * 1000 * samplesPerMs;
+                        double pixelsPerLineWidth = samplesPerLineWidth / samplesPerEnvelopePixel; // 800/ 5 = 160
+            
+                        widthOfScale = pixelsPerLineWidth;
+                        TimeCalculateWidget.widthOfScale = pixelsPerLineWidth;
+                        Future.delayed(Duration(milliseconds: 100), () {
+                          lineWidthScaleNotifier.value = widthOfScale;
+                        });
+                        TimeCalculateWidget.prevDisplayTimeMsLabel = TimeCalculateWidget.displayTimeMsLabel;
+                        TimeCalculateWidget.prevWidthOfScale = TimeCalculateWidget.widthOfScale;
+            
+                        return Text(
+                          "2s",
+                          style: SoftwareTextStyle().kWtMediumTextStyle,
+                        );
+                      } else {
+                        String textLabel = calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth);
+                        return Text(
+                          textLabel,
+                          style: SoftwareTextStyle().kWtMediumTextStyle,
+                        );
+                        // return FutureBuilder(
+                        //   future: calculateDisplayTime(snapshot.data, sampleRate, drawSurfaceWidth), 
+                        //   builder: (context, futureSnapshot) {
+                        //     if (futureSnapshot.data == null) {
+                        //       return Text(
+                        //         "2s",
+                        //         style: SoftwareTextStyle().kWtMediumTextStyle,
+                        //       );
+                        //     }
+                            
+                        //     return Text(
+                        //       futureSnapshot.data as String,
+                        //       style: SoftwareTextStyle().kWtMediumTextStyle,
+                        //     );
+                        //   }
+                        // );
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -573,8 +575,6 @@ class _DraggableGraphState extends State<DraggableGraph> {
   List<bool> showWaveform = [];
   double widthChart = 800;
   double heightChart = 600;
-  double _lastLayoutHeight = 0;
-  double _lastLayoutWidth = 0;
   // double defaultGain = 0.25;
   double defaultGain = 0.125;
   
@@ -678,95 +678,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
     }
 
     isInitializedGraph = true;
-    _lastLayoutHeight = MediaQuery.of(context).size.height;
-    _lastLayoutWidth = MediaQuery.of(context).size.width;
     // double topChartY = heightChart * idx;
-  }
-
-  /// Keeps wave graphs, median markers, and threshold positions aligned when
-  /// the window is resized while preserving each channel's threshold value.
-  void repositionLayoutOnResize(double newWidth, double newHeight) {
-    if (_lastLayoutHeight <= 0 || _lastLayoutWidth <= 0) {
-      _lastLayoutHeight = newHeight;
-      _lastLayoutWidth = newWidth;
-      return;
-    }
-
-    final double heightRatio = newHeight / _lastLayoutHeight;
-    final bool heightChanged = (newHeight - _lastLayoutHeight).abs() > 1;
-    final bool widthChanged = (newWidth - _lastLayoutWidth).abs() > 1;
-    if (!heightChanged && !widthChanged) {
-      return;
-    }
-
-    final int prevChannelCount = channelCount;
-    channelCount = context.read<ConstantProvider>().getChannelCount();
-    final bool channelCountChanged = prevChannelCount != channelCount;
-
-    if (channelCountChanged || topChartY.length != channelCount) {
-      print("INITIALIZE GRAPH $channelCountChanged $topChartY.length $channelCount");
-      initializeGraph();
-    } else {
-      heightChart = newHeight / channelCount;
-      widthChart = newWidth;
-      for (int i = 0; i < channelCount; i++) {
-        topChartY[i] = heightChart * i;
-        midChartY[i] = topChartY[i] + heightChart / 2 - thresholdIconTopDifference;
-      }
-
-      if (midChartY.isNotEmpty) {
-        topDroplet = midChartY.first;
-      }
-    }
-
-    for (int c = 0; c < channelCount; c++) {
-      final double newMedian =
-          (c * newHeight / channelCount) + newHeight / channelCount / 2;
-      initialLevelMedian[c] = newMedian;
-
-      if (levelMedian[c] != -1) {
-        levelMedian[c] = levelMedian[c] * heightRatio;
-      }
-      
-      if (thresholdMarkerTop[c] == -10000) {
-        continue;
-      }
-
-      listMedianDistance[c] = listMedianDistance[c] * heightRatio;
-      if (listMedianDistance[c].abs() >= 0) {
-      //   signalMultiplierChannel[c] =
-      //       thresholdValue[c] / listMedianDistance[c].abs();
-      // } else {
-        // signalMultiplierChannel[c] /= heightRatio;
-      }
-
-      final double median =
-          levelMedian[c] == -1 ? initialLevelMedian[c] : levelMedian[c];
-      thresholdMarkerTop[c] =
-          median + listMedianDistance[c] - thresholdIconTopDifference;
-      thresholdPositionY[c] = thresholdMarkerTop[c];
-
-      double currentY = thresholdPositionY[c];
-      int tempMedianDistance =
-          ((currentY + thresholdIconTopDifference - median).floor()).floor();
-      double tempValue = (signalMultiplierChannel[c] * tempMedianDistance);
-      thresholdValue[c] = (tempValue.floor()).abs();
-
-      if (thresholdMarkerTop[c] < 50) {
-        markerOutOfRange = 1;
-      } else if (thresholdMarkerTop[c] > newHeight * 0.95) {
-        markerOutOfRange = 2;
-      } else {
-        markerOutOfRange = 0;
-      }
-    }
-
-    _lastLayoutHeight = newHeight;
-    _lastLayoutWidth = newWidth;
-
-    if (isThresholding) {
-      context.read<ThresholdStatusProvider>().setThresholdParams(thresholdValue);
-    }
   }
 
   // void addThresholdInteractionControls(List<Widget> thresholdAdditionalControls) {
@@ -1246,9 +1158,6 @@ class _DraggableGraphState extends State<DraggableGraph> {
     final colorProvider = context.watch<ChannelColorProvider>();
     final dataStatus = context.watch<DataStatusProvider>();
 
-    final double screenHeight = MediaQuery.of(context).size.height;
-    final double screenWidth = MediaQuery.of(context).size.width;
-
     // Cold accessory launch can mount before MediaQuery has non-zero size.
     final bool isDimensionZero = widthChart == 0 || heightChart == 0;
     final bool isInvalidTopY = topChartY.isEmpty ||
@@ -1261,17 +1170,6 @@ class _DraggableGraphState extends State<DraggableGraph> {
           isLoading = false;
         });
       });
-    } else if (isInitializedGraph && screenHeight > 0 && screenWidth > 0) {
-      final bool layoutChanged = _lastLayoutHeight > 0 &&
-          ((screenHeight - _lastLayoutHeight).abs() > 1 ||
-              (screenWidth - _lastLayoutWidth).abs() > 1);
-      if (layoutChanged) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          repositionLayoutOnResize(screenWidth, screenHeight);
-          _safeSetState(() {});
-        });
-      }
     }
     
     // final thresholdStatus = context.watch<ThresholdStatusProvider>();

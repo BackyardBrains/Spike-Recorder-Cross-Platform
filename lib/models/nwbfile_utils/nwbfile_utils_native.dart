@@ -433,6 +433,46 @@ class NwbFileUtilImpl implements NWBFileUtil {
   @override
   Function(dynamic p1, dynamic p2, dynamic p3, dynamic p4)?
       onStartOpeningFileWebCallbackPlayback;
+      
+  @override
+  Future<List<String>> fetchNwbFiles() async {
+    // return Future.value([]);
+    try {
+      // 1. Get the Application Documents Directory
+final directory = await getApplicationDocumentsDirectory();
+      final files = directory.listSync();
+      
+      // 1. Create a temporary structure to hold the File and its DateTime
+      List<Map<String, dynamic>> fileWithDates = [];
+
+      for (var file in files) {
+        if (file is File && file.path.endsWith('.nwb')) {
+          final stat = file.statSync();
+          fileWithDates.add({
+            'path': file.path,
+            'date': stat.modified, // Store as DateTime object for easy comparison
+          });
+        }
+      }
+
+      // 2. Sort the list: newest date first
+      // b['date'].compareTo(a['date']) gives a descending order (newest to oldest)
+      fileWithDates.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+
+      // 3. Map the sorted list into your requested 'path@@@dateTime' format
+      List<String> sortedCombinedData = fileWithDates.map((item) {
+        final path = item['path'] as String;
+        final dateTimeStr = (item['date'] as DateTime).toIso8601String();
+        return "$path@@@$dateTimeStr";
+      }).toList();
+
+      return Future.value(sortedCombinedData);
+      // return Future.value(nwbFiles.map((file) => (file.path + "@@@" + file.)).toList());
+    } catch (e) {
+      print("Error fetching files: $e");
+    };    
+    return Future.value([]);
+  }
 }
 
 NWBFileUtil createNwbFileUtil() => NwbFileUtilImpl();

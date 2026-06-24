@@ -13,6 +13,11 @@ class BybAccessory {
     await _channel.invokeMethod('initWithProtocol', {'protocol': protocol});
   }
 
+  /// Emits native EA diagnostics (connectedAccessories, protocols, session state).
+  static Future<void> logAccessoryDiagnostics() async {
+    await _channel.invokeMethod<void>('logAccessoryDiagnostics');
+  }
+
   static Future<void> setProtocol(String protocol) async {
     await _channel.invokeMethod('setProtocol', {'protocol': protocol});
   }

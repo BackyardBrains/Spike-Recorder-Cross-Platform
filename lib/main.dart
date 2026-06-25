@@ -31,9 +31,13 @@ Future<void> main() async {
       center: true,
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
-      titleBarStyle: TitleBarStyle.hidden,
+      titleBarStyle: TitleBarStyle.normal,
     );
     windowManager.waitUntilReadyToShow(windowOptions, () async {
+      if (Platform.isWindows) {
+        double titleBarHeight = await windowManager.getTitleBarHeight() as double;
+        await windowManager.setSize(Size(800, 600 + titleBarHeight));
+      }
       await windowManager.show();
       await windowManager.focus();
     });

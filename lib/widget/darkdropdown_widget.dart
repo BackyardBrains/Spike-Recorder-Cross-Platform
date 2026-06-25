@@ -90,39 +90,65 @@ class _DarkDropdownState extends State<DarkDropdown> {
           width: 1,
         ),
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: selectedValue,
-          hint: Text(
-            "NO DETECTED PORTS ${selectedValue ?? ""}",
-            style: TextStyle(
-              color: appColors.dropdownHint,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              letterSpacing: 0.5,
+      child: Stack(
+        children: [
+          // DropdownButtonHideUnderline(
+          //   child: DropdownButton<String>(
+          //     value: selectedValue,
+          //     hint: Text(
+          //       selectedValue ?? "NO DETECTED PORTS",
+          //       style: TextStyle(
+          //         color: appColors.dropdownHint,
+          //         fontWeight: FontWeight.bold,
+          //         fontSize: 14,
+          //         letterSpacing: 0.5,
+          //       ),
+          //     ),
+          //     dropdownColor: appColors.buttonBackground,
+          //     // icon: Icon(
+          //     //   Icons.close,
+          //     //   color: appColors.textPrimary.withOpacity(0.7),
+          //     //   size: 20,
+          //     // ),
+          //     isExpanded: true, // Takes up full container width
+          //     items: dropdownItems,
+          //     // items: widget.availablePorts
+          //     //     .map((String value) {
+          //     //   return DropdownMenuItem<String>(
+          //     //     value: value,
+          //     //     child: Text(value, style: const TextStyle(color: Colors.white)),
+          //     //   );
+          //     // }).toList(),
+          //     onChanged: (newValue) {
+          //       // setState(() {
+          //       //  selectedValue = newValue;
+          //       // });
+          //     },
+          //     onTap: () {
+          //       selectedValue = "";
+          //       setState(() {});
+          //       // print("ONTAP selectedValue: $selectedValue");
+          //     },
+          //   ),
+          // ),
+          Text(selectedValue ?? "NO DETECTED PORTS"),
+          Positioned(
+            right:0,
+            top:0,
+            child: GestureDetector(
+              onTap: () {
+                selectedValue = null;
+                setState(() {});
+                // print("ONTAP selectedValue: $selectedValue");
+              },
+              child: Icon(
+                Icons.close,
+                color: appColors.textPrimary.withOpacity(0.7),
+                size: 20,
+              ),
             ),
           ),
-          dropdownColor: appColors.buttonBackground,
-          icon: Icon(
-            Icons.unfold_more,
-            color: appColors.textPrimary.withOpacity(0.7),
-            size: 20,
-          ),
-          isExpanded: true, // Takes up full container width
-          items: dropdownItems,
-          // items: widget.availablePorts
-          //     .map((String value) {
-          //   return DropdownMenuItem<String>(
-          //     value: value,
-          //     child: Text(value, style: const TextStyle(color: Colors.white)),
-          //   );
-          // }).toList(),
-          onChanged: (newValue) {
-            setState(() {
-              selectedValue = newValue;
-            });
-          },
-        ),
+        ],
       ),
     );
   }

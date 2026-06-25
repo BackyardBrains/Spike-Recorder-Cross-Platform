@@ -42,6 +42,7 @@ import 'package:spikerbox_architecture/widget/bybdropdown_widget.dart';
 import 'package:spikerbox_architecture/widget/darkdropdown_widget.dart';
 import 'package:spikerbox_architecture/widget/hump_custom_painter.dart';
 import 'package:spikerbox_architecture/widget/mobile_tab_menu.dart';
+import 'package:spikerbox_architecture/widget/notchpass_filter_widget.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 import 'package:wav/wav.dart';
 import 'package:spikerbox_architecture/functionality/wav_file_loader.dart';
@@ -71,6 +72,7 @@ class _ReconfigureLiveMonitorRequest {
 
 class GraphTemplate extends StatefulWidget {
   static int isLoadingFile = 0;
+  static bool isLoadingListFiles = false;
   // isLoadingFile = 1 -> scrubbing
   // isLoadingFile = 2 -> scrubbing finished
   // isLoadingFile = 3 -> playback file
@@ -463,15 +465,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
       menuController.addListener(() {
         print("MENU CONTROLLER LISTENER: ${menuController.value}");
         if (menuController.value == 0) { 
-          if (isOpeningFile) {
-            GraphTemplate.isLoadingFile = isLoadingFileTemp;
-          }
+          // if (isOpeningFile) {
+          //   GraphTemplate.isLoadingFile = isLoadingFileTemp;
+          // }
           isLoadingFileTemp = GraphTemplate.isLoadingFile;
-          isLoadingListFiles = false;
+          GraphTemplate.isLoadingListFiles = false;
           // isOpeningFile = false;
           bool graphStatus = Provider.of<GraphResumePlayProvider>(context,listen: false).graphStatus;
           print("GRAPH STATUS: $graphStatus");
-          Provider.of<GraphResumePlayProvider>(context,listen: false).setGraphResumePlay(false);
+          // Provider.of<GraphResumePlayProvider>(context,listen: false).setGraphResumePlay(false);
           // if (isThresholdingButton) {
           isThresholdingButton = true;// will be negated
           callThresholdProcess();
@@ -479,30 +481,37 @@ class _GraphTemplateState extends State<GraphTemplate> {
           setState(() {});
         } else
         if (menuController.value == 1) { 
-          if (isOpeningFile) {
-            GraphTemplate.isLoadingFile = isLoadingFileTemp;
-          }
+          // if (isOpeningFile) {
+          //   GraphTemplate.isLoadingFile = isLoadingFileTemp;
+          // }
           isLoadingFileTemp = GraphTemplate.isLoadingFile;
 
-          isLoadingListFiles = false;
+          GraphTemplate.isLoadingListFiles = false;
           // isOpeningFile = false;
           callThresholdProcess();
         } else 
         if (menuController.value == 2) {
-          // if (!GraphTemplate.isPlayerPaused) {
-          //   callbackPlayButton(true);
-          // }
+          if (!GraphTemplate.isPlayerPaused) {
+            if (isOpeningFile) {
+              callbackPlayButton(false);
+            } else {
+              Provider.of<GraphResumePlayProvider>(context, listen: false)
+                  .setGraphResumePlay(false);
+              _toPauseGraph = false;
+              GraphTemplate.isPlayerPaused = true;
+            }
+          }
           isThresholdingButton = true;// will be negated
           callThresholdProcess();
           isThresholdingButton = false;
           isLoadingFileTemp = GraphTemplate.isLoadingFile;
-          GraphTemplate.isLoadingFile = 0;
+          // GraphTemplate.isLoadingFile = 0;
           // isOpeningFile = false;
           GraphTemplate.nwbFileUtil?.fetchNwbFiles().then((listFiles) {
             if (menuController.value == 2) { // menu is still 2
               print("nwbFiles: $listFiles");
               nwbFileDataRows = listFiles;
-              isLoadingListFiles = true;
+              GraphTemplate.isLoadingListFiles = true;
               setState(() {});
             }
           });
@@ -1186,6 +1195,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     periodicTimerSerial?.cancel();
     timerPlaybackLoadedFile?.cancel();
     _stopWebPlaybackAudioFeed();
+    _stopNativePlaybackAudioFeed();
     _stopWebLoadedFileAudioPlayback();
 
     // Remove listeners
@@ -1357,7 +1367,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             return _AdaptiveArea(
               recordingNotifier: recordingNotifier,
               notifier: scrubNotifier,
-              child1: !isLoadingListFiles ? const _GraphArea() : generateListFilesWidget(nwbFileDataRows),
+              child1: !GraphTemplate.isLoadingListFiles ? const _GraphArea() : generateListFilesWidget(nwbFileDataRows),
               child3: Container(
                 decoration: BoxDecoration(
                   color: appColors.panelBackground,
@@ -1783,6 +1793,54 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                             onReceive: (String add) async {},
                                             onWrite: (String add) async {
                                               // serialWebButtonPressed();
+                                              if (kIsWeb) {
+                                                _isSerialWebButtonEnabled = false;
+                                                _serialUtil.closePort();
+                                                isDeviceConnect = true;
+                                                isDeviceSelected = false;
+                                                isSerialDeviceFound = false;
+                                                _isDataIdentified = false;
+
+                                                GraphDataProvider graphDataProvider =
+                                                    Provider.of<GraphDataProvider>(context, listen: false);
+                                                // listenToMicrophone(1, graphDataProvider);
+                                                _recoverFromSerialDataTimeout(graphDataProvider);
+                                                streamScrubBuilderController.add(Random().nextInt(100000));
+                                                isSerialDeviceFound = false;
+                                                return;
+
+                                              } else {
+                                                if (Platform.isIOS) {
+                                                  print("Platform is IOS");
+                                                  final provider = Provider.of<GraphDataProvider>(context, listen: false);
+                                                  _recoverFromSerialDataTimeout(provider, forceMicrophone: true);
+                                                }
+
+                                                _cancelSerialStaleWatchdog();
+                                                forceSerialDisconnect = true;
+                                                _serialUtil.closePort();
+                                                Future.delayed(Duration(milliseconds: 1500), () {
+                                                  // print(
+                                                  //     "SERIAL PORT ERROR -- DISCONNECTED: $error CALLSERIAL DATA SUBSCRIPTION");
+                                                  forceSerialDisconnect = false;
+                                                  _isSerialWebButtonEnabled = false;
+                                                  isDeviceConnect = false;
+                                                  isDeviceSelected = false;
+                                                  if (boardTimer != null) {
+                                                    boardTimer?.cancel();
+                                                    boardTimer = null;
+                                                  }
+                                                  if (deviceTimer != null) {
+                                                    deviceTimer?.cancel();
+                                                    deviceTimer = null;
+                                                  }
+
+                                                  _isDataIdentified = false;
+                                                  streamScrubBuilderController.add(Random().nextInt(100000));
+                                                  listenToMicrophone(1, null);
+                                                });
+                                              }
+
                                             },
                                           );
                                         }),
@@ -3011,11 +3069,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   /// Web-only: optional streaming feed when PCM does not fit in one buffer (#55).
   Timer? _timerPlaybackWebAudio;
+  Timer? _timerPlaybackNativeAudio;
   Stopwatch? _webPlaybackAudioClock;
+  Stopwatch? _nativePlaybackAudioClock;
   int _webPlaybackFedSampleIndex = 0;
   bool _webPlaybackUsesStreamFeed = false;
   int _nativePlaybackFedSampleIndex = 0;
   bool _nativePlaybackUsesStreamFeed = false;
+  bool _nativePlaybackStreamDead = false;
+  bool _nativePlaybackEnqueueErrorLogged = false;
+  DateTime? _lastNativePlaybackLog;
   DateTime? _lastWebPlaybackUiUpdate;
   static const double _webPlaybackAheadSeconds = 2.0;
   static const int _webPlaybackFeedChunkSamples = 8192;
@@ -3095,8 +3158,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   bool isSerialDeviceFound = false;
 
   Stream<List<ComDataWithBoard>>? deviceListStream;
-  bool isLoadingListFiles = false;
-
+  
   /// Broadcasts [listOfBoard] updates; must stay non-null after [initState] so hot-plug / MFi can refresh UI.
   StreamController<List<ComDataWithBoard>>? _deviceListStreamController;
 
@@ -5532,12 +5594,105 @@ class _GraphTemplateState extends State<GraphTemplate> {
     return bytes;
   }
 
+  /// SoLoud/miniaudio on iOS expects standard output rates (44100/48000).
+  int _soloudOutputSampleRate() {
+    if (kIsWeb) return _sampleRate;
+    if (Platform.isIOS &&
+        (_sampleRate == 47999 || _sampleRate == 48001 || _sampleRate == 44100)) {
+      return _sampleRate == 44100 ? 44100 : 48000;
+    }
+    return _sampleRate;
+  }
+
   void _stopWebPlaybackAudioFeed() {
     _timerPlaybackWebAudio?.cancel();
     _timerPlaybackWebAudio = null;
     _webPlaybackAudioClock?.stop();
     _webPlaybackAudioClock = null;
     _webPlaybackUsesStreamFeed = false;
+  }
+
+  void _logNativePlayback(String message) {
+    debugPrint('[NativePlayback] $message');
+  }
+
+  int _nativeStreamConsumedSamples(SoLoud.AudioSource? stream) {
+    if (stream == null || soloud == null) return 0;
+    try {
+      return (soloud!
+                  .getStreamTimeConsumed(stream)
+                  .inMicroseconds *
+              _sampleRate /
+              1000000)
+          .round();
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  int _nativeHandlePlaybackPositionSamples() {
+    if (soloud == null || loadedSoundHandles.isEmpty) return 0;
+    final handle = loadedSoundHandles[0];
+    if (handle == null) return 0;
+    try {
+      if (!soloud!.getIsValidVoiceHandle(handle)) return 0;
+      return (soloud!
+                  .getPosition(handle)
+                  .inMicroseconds *
+              _sampleRate /
+              1000000)
+          .round();
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  int _nativePlaybackPositionSamples() {
+    final clock = _nativePlaybackAudioClock;
+    if (clock != null && clock.isRunning) {
+      return (clock.elapsedMicroseconds * _sampleRate / 1000000).round();
+    }
+    return _nativeHandlePlaybackPositionSamples();
+  }
+
+  void _createNativeReleasedStreamFeed() {
+    loadedFileStreams.clear();
+    _logNativePlayback(
+        'chunk stream feed: ${loadedArrSamples[0].length} samples, '
+        '${_totalLoadedFilePcmBytes()} bytes PCM');
+    for (var i = 0; i < widget.channelCount; i++) {
+      loadedFileStreams.add(soloud!.setBufferStream(
+        bufferingType: SoLoud.BufferingType.released,
+        bufferingTimeNeeds: 0.25,
+        sampleRate: _sampleRate,
+        channels: SoLoud.Channels.mono,
+        format: SoLoud.BufferType.s16le,
+        onBuffering: (isBuffering, handle, time) {
+          _logNativePlayback(
+              'buffering=$isBuffering handle=$handle time=$time');
+        },
+      ));
+    }
+  }
+
+  void _cancelNativePlaybackAudioFeedTimer() {
+    _timerPlaybackNativeAudio?.cancel();
+    _timerPlaybackNativeAudio = null;
+  }
+
+  void _stopNativePlaybackAudioFeed() {
+    _cancelNativePlaybackAudioFeedTimer();
+    _nativePlaybackAudioClock?.stop();
+    _nativePlaybackAudioClock = null;
+    _nativePlaybackUsesStreamFeed = false;
+  }
+
+  void _startNativePlaybackAudioFeed() {
+    _cancelNativePlaybackAudioFeedTimer();
+    _timerPlaybackNativeAudio =
+        Timer.periodic(const Duration(milliseconds: 15), (_) {
+      _feedNativePlaybackAudioIfNeeded();
+    });
   }
 
   int _loadedFileSpeakerChannelIndex() {
@@ -5728,16 +5883,26 @@ class _GraphTemplateState extends State<GraphTemplate> {
           _loadedFilePcmBytes(loadedArrSamples[ch].sublist(fromSample, toSample)),
         );
       } catch (e) {
-        debugPrint('Native playback enqueue failed at $fromSample: $e');
+        final message = e.toString();
+        if (!_nativePlaybackEnqueueErrorLogged) {
+          _nativePlaybackEnqueueErrorLogged = true;
+          _logNativePlayback('enqueue failed at $fromSample: $e');
+        }
+        if (message.contains('StreamEndedAlready')) {
+          _nativePlaybackStreamDead = true;
+          _nativePlaybackUsesStreamFeed = false;
+        }
         return false;
       }
     }
+    _nativePlaybackEnqueueErrorLogged = false;
     return true;
   }
 
   /// Keeps SoLoud buffer streams fed ahead of the playback head (native only).
   void _feedNativePlaybackAudioIfNeeded() {
     if (!_nativePlaybackUsesStreamFeed ||
+        _nativePlaybackStreamDead ||
         _isStreamEnded ||
         kIsWeb ||
         soloud == null ||
@@ -5751,42 +5916,55 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     final maxSamples = loadedArrSamples[0].length;
     if (_nativePlaybackFedSampleIndex >= maxSamples) {
+      _logNativePlayback('feed complete ($maxSamples samples), marking ended');
       _markLoadedFilePlaybackStreamsEnded();
       _nativePlaybackUsesStreamFeed = false;
       return;
     }
 
     var consumedSamples = 0;
-    if (loadedSoundHandles.isNotEmpty) {
-      try {
-        consumedSamples = (soloud!
-                    .getStreamTimeConsumed(stream)
-                    .inMicroseconds *
-                _sampleRate /
-                1000000)
-            .round();
-      } catch (e) {
-        consumedSamples = _nativePlaybackFedSampleIndex;
-      }
+    final clock = _nativePlaybackAudioClock;
+    if (clock == null || !clock.isRunning) {
+      return;
     }
+    consumedSamples =
+        (clock.elapsedMicroseconds * _sampleRate / 1000000).round();
 
     final aheadSamples = (_sampleRate * _webPlaybackAheadSeconds).round();
-    final targetFed = max(
-      consumedSamples + aheadSamples,
-      _nativePlaybackFedSampleIndex,
-    );
+    final targetFed = min(consumedSamples + aheadSamples, maxSamples);
 
-    while (_nativePlaybackFedSampleIndex < targetFed &&
-        _nativePlaybackFedSampleIndex < maxSamples) {
-      final chunkEnd = min(
-        _nativePlaybackFedSampleIndex + _webPlaybackFeedChunkSamples,
-        maxSamples,
+    final now = DateTime.now();
+    if (_lastNativePlaybackLog == null ||
+        now.difference(_lastNativePlaybackLog!).inSeconds >= 2) {
+      _lastNativePlaybackLog = now;
+      var bufferedSamples = -1;
+      try {
+        bufferedSamples = soloud!.getBufferSize(stream) ~/ 4;
+      } catch (_) {}
+      _logNativePlayback(
+        'feed: fed=$_nativePlaybackFedSampleIndex target=$targetFed '
+        'consumed=$consumedSamples buffered=$bufferedSamples max=$maxSamples '
+        'clock=${clock?.elapsedMilliseconds ?? -1}ms',
       );
-      if (!_feedNativePlaybackPcmRange(_nativePlaybackFedSampleIndex, chunkEnd)) {
-        return;
-      }
-      _nativePlaybackFedSampleIndex = chunkEnd;
     }
+
+    if (_nativePlaybackFedSampleIndex >= targetFed) {
+      return;
+    }
+
+    final chunkEnd = min(
+      _nativePlaybackFedSampleIndex + _webPlaybackFeedChunkSamples,
+      min(targetFed, maxSamples),
+    );
+    if (chunkEnd <= _nativePlaybackFedSampleIndex) {
+      return;
+    }
+
+    if (!_feedNativePlaybackPcmRange(
+        _nativePlaybackFedSampleIndex, chunkEnd)) {
+      return;
+    }
+    _nativePlaybackFedSampleIndex = chunkEnd;
 
     if (_nativePlaybackFedSampleIndex >= maxSamples) {
       _markLoadedFilePlaybackStreamsEnded();
@@ -5796,6 +5974,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   void _flushNativePlaybackAudio() {
     if (kIsWeb ||
+        _isStreamEnded ||
+        !_nativePlaybackUsesStreamFeed ||
         soloud == null ||
         loadedFileStreams.isEmpty ||
         loadedArrSamples.isEmpty) {
@@ -5865,9 +6045,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
     print("START PLAYBACK TIMER");
     _isStreamEnded = false; // Reset flag when starting playback
     timerPlaybackLoadedFile?.cancel();
-    if (!kIsWeb) {
+    if (kIsWeb) {
       _stopWebPlaybackAudioFeed();
     }
+    // Do NOT stop native audio feed here — _runNativeLoadedFileAudioPipeline
+    // starts it just before this call.
     timerPlaybackLoadedStartIndex = 0;
     timerPlaybackLoadedEndIndex = 0;
     double playbackFactor = _sampleRate / 1000;
@@ -5878,10 +6060,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
       timerPlaybackLoadedFile =
           Timer.periodic(Duration(milliseconds: 50), (timer) async {
         GraphTemplate.isLoadingFile = 4;
-        if (!kIsWeb) {
+        if (!kIsWeb && _nativePlaybackUsesStreamFeed) {
           _feedNativePlaybackAudioIfNeeded();
         }
         int timeDiff = DateTime.now().millisecondsSinceEpoch - prevTime;
+        const maxTimerDeltaMs = 75;
+        if (timeDiff > maxTimerDeltaMs) {
+          _logNativePlayback('graph timer catch-up clamp: ${timeDiff}ms -> $maxTimerDeltaMs');
+          timeDiff = maxTimerDeltaMs;
+        }
         sampleDivider = (timeDiff * playbackFactor);
         prevTime = DateTime.now().millisecondsSinceEpoch;
 
@@ -5897,6 +6084,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
             if (playbackEndIdx <= playbackStartIdx) {
               return;
             }
+          } else if (!kIsWeb && _nativePlaybackUsesStreamFeed) {
+            final posSamples = _nativePlaybackPositionSamples();
+            playbackStartIdx = timerPlaybackLoadedStartIndex.floor();
+            playbackEndIdx =
+                posSamples.clamp(playbackStartIdx, loadedArrSamples[0].length);
+            if (playbackEndIdx <= playbackStartIdx) {
+              return;
+            }
+            timerPlaybackLoadedEndIndex = playbackEndIdx.toDouble();
           } else {
             timerPlaybackLoadedEndIndex =
                 timerPlaybackLoadedStartIndex + sampleDivider;
@@ -5920,65 +6116,98 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
           if (kIsWeb && WebLoadedFilePlayer.instance.isActive) {
             timerPlaybackLoadedStartIndex = playbackEndIdx.toDouble();
+          } else if (!kIsWeb && _nativePlaybackUsesStreamFeed) {
+            timerPlaybackLoadedStartIndex = playbackEndIdx.toDouble();
           } else {
             timerPlaybackLoadedStartIndex =
                 (timerPlaybackLoadedStartIndex + sampleDivider);
           }
 
-          if (startPlaybackSeekSampleIdx + timerPlaybackLoadedStartIndex >
+          final loadedLen =
+              loadedArrSamples.isNotEmpty ? loadedArrSamples[0].length : 0;
+          var shouldEndPlayback = false;
+          if (!kIsWeb && _nativePlaybackUsesStreamFeed && loadedLen > 0) {
+            final posSamples = _nativePlaybackPositionSamples();
+            final allFed = _nativePlaybackFedSampleIndex >= loadedLen;
+            shouldEndPlayback =
+                posSamples >= loadedLen - 512 && allFed;
+            if (shouldEndPlayback) {
+              timerPlaybackLoadedStartIndex = loadedLen.toDouble();
+            }
+          } else if (startPlaybackSeekSampleIdx +
+                  timerPlaybackLoadedStartIndex >=
               loadedMaxSamples) {
-            timerPlaybackLoadedStartIndex = loadedMaxSamples - 1;
-            double startSeekSampleLocal = endSeekSampleIdx.toDouble();
-            double endSeekSampleLocal = loadedMaxSamples.toDouble();
-            startPlaybackSeekSampleIdx = startSeekSampleLocal;
-            endSeekSampleIdx = endSeekSampleLocal;
+            shouldEndPlayback = true;
+            timerPlaybackLoadedStartIndex = loadedLen.toDouble();
+          }
 
-            print("ARR SAMPLES ZERO STOPPING");
+          if (shouldEndPlayback) {
+            final atFileEnd = startPlaybackSeekSampleIdx + loadedLen >=
+                loadedMaxSamples;
+            _logNativePlayback(
+              'playback end: pos=${_nativePlaybackPositionSamples()} '
+              'loadedLen=$loadedLen streamFeed=$_nativePlaybackUsesStreamFeed '
+              'scrub=$startPlaybackSeekSampleIdx max=$loadedMaxSamples '
+              'atFileEnd=$atFileEnd',
+            );
+
             Provider.of<GraphResumePlayProvider>(context, listen: false)
                 .setGraphResumePlay(false);
-            Int32List arrSampleCount = Int32List(widget.channelCount);
-            Int16List arrSamples = Int16List((endSeekSampleIdx.floor() -
-                    startPlaybackSeekSampleIdx.floor()) *
-                widget.channelCount);
-            if (startSeekSampleLocal != endSeekSampleLocal) {
-              print(
-                  "startSeekSampleLocal != endSeekSampleLocal ::: $startSeekSampleLocal != $endSeekSampleLocal");
 
-              await GraphTemplate.nwbFileUtil?.seekElectricalSeries(
-                  currentLoadedFilePath,
-                  arrSamples,
-                  arrSampleCount,
-                  loadedConfig,
-                  (startSeekSampleLocal).floor(),
-                  endSeekSampleLocal.floor(),
-                  0,
-                  widget.channelCount - 1);
+            if (!atFileEnd) {
+              double startSeekSampleLocal = endSeekSampleIdx.toDouble();
+              double endSeekSampleLocal = loadedMaxSamples.toDouble();
+              startPlaybackSeekSampleIdx = startSeekSampleLocal;
+              endSeekSampleIdx = endSeekSampleLocal;
+
+              Int32List arrSampleCount = Int32List(widget.channelCount);
+              Int16List arrSamples = Int16List((endSeekSampleIdx.floor() -
+                      startPlaybackSeekSampleIdx.floor()) *
+                  widget.channelCount);
+              if (startSeekSampleLocal != endSeekSampleLocal) {
+                _logNativePlayback(
+                    'loading next segment: $startSeekSampleLocal -> $endSeekSampleLocal');
+                await GraphTemplate.nwbFileUtil?.seekElectricalSeries(
+                    currentLoadedFilePath,
+                    arrSamples,
+                    arrSampleCount,
+                    loadedConfig,
+                    (startSeekSampleLocal).floor(),
+                    endSeekSampleLocal.floor(),
+                    0,
+                    widget.channelCount - 1);
+              }
             }
             GraphTemplate.isLoadingFile = 2;
             GraphTemplate.isPlayerPaused = true;
 
             timerPlaybackLoadedStartIndex = 0;
             timerPlaybackLoadedEndIndex = 0;
-            startPlaybackSeekSampleIdx = 0;
-            endSeekSampleIdx = 0;
-            print("ARR SAMPLES ZERO STOPPING 2 - CANCEL TIMER");
 
-            if (!kIsWeb) {
+            if (!kIsWeb && _nativePlaybackUsesStreamFeed) {
               _flushNativePlaybackAudio();
             }
             _isStreamEnded = true;
 
-            double playbackPercentage =
-                (startPlaybackSeekSampleIdx + timerPlaybackLoadedStartIndex) /
-                    (loadedMaxSamples);
+            final savedScrub = startPlaybackSeekSampleIdx;
+            final endFileSample =
+                (savedScrub + loadedLen).clamp(0, loadedMaxSamples);
+            double playbackPercentage = endFileSample / loadedMaxSamples;
             AdaptiveAreaState.horizontalDragX =
                 playbackPercentage * AdaptiveAreaState.horizontalDragXFix;
             print(
                 "AdaptiveAreaState.horizontalDragX :  ${AdaptiveAreaState.horizontalDragX}");
 
+            startPlaybackSeekSampleIdx = 0;
+            endSeekSampleIdx = 0;
+
             timerPlaybackLoadedFile?.cancel();
             _stopWebPlaybackAudioFeed();
+            _stopNativePlaybackAudioFeed();
             _stopWebLoadedFileAudioPlayback();
+            if (!kIsWeb) {
+              await _stopNativeLoadedFileAudioPlayback();
+            }
             setState(() {});
             return;
           }
@@ -6154,75 +6383,48 @@ class _GraphTemplateState extends State<GraphTemplate> {
     loadedFileStreams.clear();
     loadedSoundHandles.clear();
     _nativePlaybackUsesStreamFeed = false;
+    _nativePlaybackStreamDead = false;
     _nativePlaybackFedSampleIndex = 0;
-
-    if (!kIsWeb && Platform.isIOS && soloud!.isInitialized) {
-      soloud!.deinit();
-    }
+    _stopNativePlaybackAudioFeed();
   }
 
   Future<void> _ensureSoLoudEngineForLoadedFilePlayback() async {
     soloud ??= SoLoud.SoLoud.instance;
-    // iOS miniaudio does not reliably resume after buffer-stream stop/dispose;
-    // init() deinits first when already initialized (see flutter_soloud docs).
-    final reinit = !kIsWeb && Platform.isIOS && soloud!.isInitialized;
-    if (reinit || !soloud!.isInitialized) {
-      debugPrint(
-          'SoLoud loaded-file init (reinit=$reinit) sampleRate=$_sampleRate');
+    final outputRate = _soloudOutputSampleRate();
+
+    if (soloud!.isInitialized && soloud!.getActiveVoiceCount() > 0) {
+      _logNativePlayback(
+          'resetting SoLoud (${soloud!.getActiveVoiceCount()} stale voices)');
+      soloud!.deinit();
+    }
+
+    if (!soloud!.isInitialized) {
+      debugPrint('SoLoud loaded-file init sampleRate=$outputRate');
       await soloud!.init(
-        bufferSize: 512,
-        sampleRate: _sampleRate,
+        bufferSize: 256,
+        sampleRate: outputRate,
         channels: SoLoud.Channels.mono,
       );
     }
+    soloud!.setGlobalVolume(1.0);
   }
 
-  int _nativeLoadedFileBufferBytes() {
-    // Ring buffer sized for streaming feed, not the entire file.
-    return (_sampleRate * 2 * (_webPlaybackAheadSeconds + 2).ceil())
-        .clamp(_sampleRate * 2 * 2, 4 * 1024 * 1024)
-        .toInt();
-  }
-
-  SoLoud.BufferingType _nativeLoadedFileBufferingType() {
-    return SoLoud.BufferingType.released;
-  }
-
-  void _createNativeLoadedFileStreams() {
-    final bufferBytes = _nativeLoadedFileBufferBytes();
-    final bufferingType = _nativeLoadedFileBufferingType();
-    for (var i = 0; i < widget.channelCount; i++) {
-      loadedFileStreams.add(soloud!.setBufferStream(
-        maxBufferSizeBytes: bufferBytes,
-        bufferingType: bufferingType,
-        bufferingTimeNeeds: 0.05,
-        sampleRate: _sampleRate,
-        channels: SoLoud.Channels.mono,
-        format: SoLoud.BufferType.s16le,
-        onBuffering: (isBuffering, handle, time) async {
-          if (context.mounted) {}
-        },
-      ));
-    }
-  }
-
-  Future<void> _runNativeLoadedFileAudioPipeline() async {
-    if (soloud == null ||
-        loadedFileStreams.isEmpty ||
-        loadedArrSamples.isEmpty) {
+  Future<void> _runNativeStreamFeedPlayback() async {
+    _createNativeReleasedStreamFeed();
+    if (loadedFileStreams.isEmpty) {
+      _logNativePlayback('pipeline abort: no streams');
       return;
     }
 
-    _nativePlaybackFedSampleIndex = 0;
     _nativePlaybackUsesStreamFeed = true;
-    loadedSoundHandles.clear();
+    _nativePlaybackFedSampleIndex = 0;
 
     final playFutures = <Future<SoLoud.SoundHandle>>[];
     for (var i = 0; i < widget.channelCount; i++) {
       if (i >= loadedFileStreams.length || loadedFileStreams[i] == null) {
         continue;
       }
-      playFutures.add(soloud!.play(loadedFileStreams[i]!));
+      playFutures.add(soloud!.play(loadedFileStreams[i]!, volume: 1.0));
     }
     if (playFutures.isEmpty) {
       _nativePlaybackUsesStreamFeed = false;
@@ -6237,8 +6439,35 @@ class _GraphTemplateState extends State<GraphTemplate> {
       return;
     }
 
-    // Prime buffer so playback starts, then [_startPlaybackTimer] keeps feeding.
-    _feedNativePlaybackAudioIfNeeded();
+    _nativePlaybackAudioClock = Stopwatch()..start();
+    final firstSample =
+        loadedArrSamples.isNotEmpty && loadedArrSamples[0].isNotEmpty
+            ? loadedArrSamples[0][0]
+            : 0;
+    _logNativePlayback(
+        'chunk stream play: ${loadedArrSamples[0].length} samples @ $_sampleRate Hz '
+        'firstSample=$firstSample chunk=$_webPlaybackFeedChunkSamples');
+    for (var i = 0; i < 8; i++) {
+      _feedNativePlaybackAudioIfNeeded();
+    }
+    _startNativePlaybackAudioFeed();
+  }
+
+  Future<void> _runNativeLoadedFileAudioPipeline() async {
+    if (soloud == null || loadedArrSamples.isEmpty) {
+      return;
+    }
+
+    soloud!.setGlobalVolume(1.0);
+
+    _nativePlaybackFedSampleIndex = 0;
+    _nativePlaybackStreamDead = false;
+    _nativePlaybackEnqueueErrorLogged = false;
+    _lastNativePlaybackLog = null;
+    _cancelNativePlaybackAudioFeedTimer();
+    loadedSoundHandles.clear();
+
+    await _runNativeStreamFeedPlayback();
   }
 
   void callbackPlayButton(bool isPlay) async {
@@ -6270,6 +6499,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       _isStreamEnded = true;
       timerPlaybackLoadedFile?.cancel();
       _stopWebPlaybackAudioFeed();
+      _stopNativePlaybackAudioFeed();
 
       if (kIsWeb) {
         if (WebLoadedFilePlayer.instance.isActive) {
@@ -6292,11 +6522,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       _isStreamEnded = false; // Reset flag when creating new streams
 
       // print("ADDED FILE STREAMS : $_sampleRate || $startPlaybackSeekSampleIdx ||| $percentage || SCRUB: ${scrubNotifier.value}");
-      // 3. SoLoud buffer stream setup
+      // 3. SoLoud buffer stream setup (after seek — see below)
       print("widget.channelCount: ${widget.channelCount} ${_sampleRate}");
-      if (!kIsWeb) {
-        _createNativeLoadedFileStreams();
-      }
 
       // insert old samples, if samplesLength == 0 return null,
       // List<int> timeScrub = scrubNotifier.value;
@@ -6573,7 +6800,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
       _nativePlaybackFedSampleIndex = 0;
       _nativePlaybackUsesStreamFeed = false;
-      await _runNativeLoadedFileAudioPipeline();
+      if (!kIsWeb) {
+        await _runNativeLoadedFileAudioPipeline();
+      }
       _startPlaybackTimer();
 
       print("ADDED DATA STREAM2");
@@ -8904,7 +9133,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         height: MediaQuery.of(context).size.height,
         child: Column(
           children: [
-            isLoadingListFiles? SizedBox() : Row(
+            GraphTemplate.isLoadingListFiles? SizedBox() : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -8914,10 +9143,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
             ),
             Expanded(child:SizedBox()),
             // generateThresholdButton(isRecording),
-            if (!isLoadingListFiles) ... {
+            if (!GraphTemplate.isLoadingListFiles) ... {
               if (isOpeningFile) ...[
                 generatePlaybackButton(isRecording, context),
-
               ],
               // recording button
               if (!isOpeningFile) ...[
@@ -9129,7 +9357,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     print("filePathIOS CLICKED: $filePath");
     if (filePath.isNotEmpty) {
       menuController.value = 0;
-      isLoadingListFiles = false;
+      GraphTemplate.isLoadingListFiles = false;
       isOpeningFile = false;
       
 
@@ -9202,144 +9430,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 }
 
-class NotchPassFilterWidget extends StatelessWidget {
-  const NotchPassFilterWidget({
-    super.key,
-    required this.onTapNotchFrequency,
-  });
-
-  final Function(FilterSetup) onTapNotchFrequency;
-
-  FilterSetup _buildSettings(int cutOffFrequency, int sampleRate, bool isOn) {
-    return FilterSetup(
-      filterConfiguration: FilterConfiguration(
-        cutOffFrequency: cutOffFrequency,
-        sampleRate: sampleRate,
-      ),
-      filterType: FilterType.notchFilter,
-      channelCount: channelCountBuffer,
-      isFilterOn: isOn,
-    );
-  }
-
-  void _apply50Hz(
-    BuildContext context,
-    bool checked,
-    int sampleRate,
-  ) {
-    final dataStatus = context.read<DataStatusProvider>();
-    if (checked) {
-      dataStatus.set60HertzStatus(false);
-    }
-    dataStatus.set50HertzStatus(checked);
-    onTapNotchFrequency(_buildSettings(50, sampleRate, checked));
-  }
-
-  void _apply60Hz(
-    BuildContext context,
-    bool checked,
-    int sampleRate,
-  ) {
-    final dataStatus = context.read<DataStatusProvider>();
-    if (checked) {
-      dataStatus.set50HertzStatus(false);
-    }
-    dataStatus.set60HertzStatus(checked);
-    onTapNotchFrequency(_buildSettings(60, sampleRate, checked));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final dataStatus = context.watch<DataStatusProvider>();
-    final sampleRate = context.watch<SampleRateProvider>().sampleRate;
-    return Row(
-      mainAxisSize: MainAxisSize.max,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(10, 10, 0, 10),
-          child: const Icon(
-            IconData(0xe90b, fontFamily: "IcomoonIcons"),
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          MediaQuery.of(context).orientation == Orientation.portrait ? "Notch filter : " : "Attenuate frequency (Notch filter) : ",
-          style: SoftwareTextStyle().kWtMediumTextStyle,
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(0, 10, 10, 10),
-            child: Row(
-              children: [
-                Text(
-                  "50 Hz",
-                  style: SoftwareTextStyle().kWtMediumTextStyle,
-                ),
-                WhiteColorCheckBox(
-                  value: dataStatus.is50Hertz,
-                  onChanged: (checked) =>
-                      _apply50Hz(context, checked, sampleRate),
-                ),
-                const SizedBox(width: 16),
-                Text(
-                  "60 Hz",
-                  style: SoftwareTextStyle().kWtMediumTextStyle,
-                ),
-                WhiteColorCheckBox(
-                  value: dataStatus.is60Hertz,
-                  onChanged: (checked) =>
-                      _apply60Hz(context, checked, sampleRate),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 /// Custom checkbox with explicit green fill — Material [Checkbox] theming is
 /// unreliable on Windows desktop (checked state often stays unstyled).
-class WhiteColorCheckBox extends StatelessWidget {
-  const WhiteColorCheckBox({
-    super.key,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  static const double _size = 20;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => onChanged(!value),
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Container(
-          width: _size,
-          height: _size,
-          decoration: BoxDecoration(
-            color: value ? SoftwareColors.kGraphColor : Colors.transparent,
-            border: Border.all(color: Colors.white, width: 1.5),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          alignment: Alignment.center,
-          child: value
-              ? const Icon(Icons.check, size: 14, color: Colors.white)
-              : null,
-        ),
-      ),
-    );
-  }
-}
 
 class SetFrequencyWidget extends StatelessWidget {
   const SetFrequencyWidget({
@@ -9478,11 +9570,11 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
             //   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
             //   child: widget.child2,
             // ),
-            if (GraphTemplate.isLoadingFile > 0) ...{
+            if (GraphTemplate.isLoadingFile > 0 && !GraphTemplate.isLoadingListFiles) ...{
               getTimeScrubWidget(),
             },
             // if (!GraphTemplate.isPlayerPaused)... {
-            if (GraphTemplate.isLoadingFile >= 1) ...{
+            if (GraphTemplate.isLoadingFile >= 1 && !GraphTemplate.isLoadingListFiles) ...{
               // strMinTime = "00:00 000";
               Positioned(
                 left: 50,
@@ -9849,137 +9941,9 @@ class _PortsArea extends StatelessWidget {
   onPortSelected(String p1) {
     print("onPortSelected: $p1");
     print("DISCONNECT USB");
+    
     onWrite(p1);
-    // forceSerialDisconnect =
-    //     !forceSerialDisconnect;
-    // _serialUtil.closePort();
-    // Future.delayed(
-    //     Duration(
-    //         milliseconds:
-    //             1500), () {
-    //   if (context.mounted) {
-    //     _availablePorts
-    //         .clear();
-    //     context
-    //         .read<
-    //             DataStatusProvider>()
-    //         .setMicrophoneDataStatus(
-    //             _availablePorts
-    //                 .isEmpty);
-    //     final provider = Provider
-    //         .of<GraphDataProvider>(
-    //             context,
-    //             listen:
-    //                 false);
-    //     listenToMicrophone(
-    //         1, provider);
-    //   }
-    //   // final provider = Provider.of<GraphDataProvider>(context, listen: false);
-    // });
-  }
-}
 
-class FilterProcessWidget extends StatefulWidget {
-  const FilterProcessWidget({
-    super.key,
-    required this.onHighPassFilterSetup,
-    required this.onLowPassFilterSetup,
-    required this.onSampleChange,
-    required this.isMicrophoneEnable,
-  });
-
-  final Function(bool) isMicrophoneEnable;
-  final Function(bool) onSampleChange;
-  final Function(FilterSetup) onHighPassFilterSetup;
-  final Function(FilterSetup) onLowPassFilterSetup;
-
-  @override
-  State<FilterProcessWidget> createState() => _FilterProcessWidgetState();
-}
-
-class _FilterProcessWidgetState extends State<FilterProcessWidget> {
-  MicrophoneUtil microphoneUtil = MicrophoneUtil();
-  bool _isSampleDataOn = false;
-  bool _isMicrophoneEnable = false;
-  final TextEditingController _lowSampleRateController =
-      TextEditingController();
-  final TextEditingController _lowCutOffController = TextEditingController();
-  final TextEditingController _highSampleRateController =
-      TextEditingController();
-  final TextEditingController _highCutOffController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    _lowCutOffController.dispose();
-    _lowSampleRateController.dispose();
-    _highCutOffController.dispose();
-    _highSampleRateController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<DataStatusProvider>(
-        builder: (context, dataStatus, snapshot) {
-      return Column(
-        children: [
-          // Row(
-          //   children: [
-          //     WhiteColorCheckBox(
-          //       valueStatus: dataStatus.isSampleDataOn,
-          //       onChanged: (value) {
-          //         setState(() {
-          //           _isSampleDataOn = value ?? false;
-          //           if (_isSampleDataOn && _isMicrophoneEnable) {
-          //             _isMicrophoneEnable = false;
-          //             widget.isMicrophoneEnable(_isMicrophoneEnable);
-          //           }
-          //         });
-          //         print("dummySamplingRate : $dummySamplingRate");
-          //         Provider.of<SampleRateProvider>(context, listen: false).setSampleRate(dummySamplingRate);
-          //         widget.onSampleChange(_isSampleDataOn);
-          //       },
-          //     ),
-          //     Text(
-          //       "Sample Data ",
-          //       style: SoftwareTextStyle().kWtMediumTextStyle,
-          //     )
-          //   ],
-          // ),
-          const SizedBox(height: 10),
-          // CustomButton(
-          //   childWidget: const Text("Check audio on web"),
-          //   onTap: () async {},
-          // ),
-          Row(
-            children: [
-              // WhiteColorCheckBox(
-              //   valueStatus: dataStatus.isMicrophoneData,
-              //   onChanged: (value) {
-              //     setState(() {
-              //       _isMicrophoneEnable = value ?? false;
-              //       if (_isMicrophoneEnable && _isSampleDataOn) {
-              //         _isSampleDataOn = false;
-              //         widget.onSampleChange(_isSampleDataOn);
-              //       }
-              //     });
-              //     widget.isMicrophoneEnable(_isMicrophoneEnable);
-              //   },
-              // ),
-              // Text(
-              //   "Microphone On",
-              //   style: SoftwareTextStyle().kWtMediumTextStyle,
-              // )
-            ],
-          ),
-        ],
-      );
-    });
   }
 }
 

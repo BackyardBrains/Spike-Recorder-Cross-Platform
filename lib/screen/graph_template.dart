@@ -7010,6 +7010,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
       if (kIsWeb) {
         GraphTemplate.nwbFileUtil?.addElectricalSeries(
             Int16List(0), Int32List(0), 0, visibleChannelCount, 1);
+      } else {
+        print("RESET RECORDING STATE 1");
+        GraphTemplate.nwbFileUtil?.addElectricalSeries(
+            Int16List(0), Int32List(0), 0, visibleChannelCount, 1);
       }
       isRecording = 0;
       GraphTemplate.nwbFileUtil?.recordedNwbFilePath = "";

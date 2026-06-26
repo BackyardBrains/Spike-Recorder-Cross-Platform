@@ -106,6 +106,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
       int visibleChannelCount) async {
     // final path = "${(await getApplicationDocumentsDirectory()).path}/${DateTime.now().millisecondsSinceEpoch}";
     // final path = (await getApplicationDocumentsDirectory()).path + "/example_recording2.nwb";
+    print("PROCESSING INIT: $sampleRate, $channelCount, $deviceInfo, $deviceManufacturer, $visibleChannelsList, $visibleChannelCount");
     recordedTime = DateTime.now().millisecondsSinceEpoch.toString();
     String path =
         "${(await getApplicationDocumentsDirectory()).path}\\spike_recorder$recordedTime.nwb";
@@ -181,13 +182,41 @@ class NwbFileUtilImpl implements NWBFileUtil {
   @override
   Future<bool> addElectricalSeries(Int16List data, Int32List samplesCount,
       int selectedChannel, int channelCount, int isFinishRecording) {
+    // Finalize requires at least one sample per visible channel; native rejects empty counts.
+    // if (isFinishRecording == 1 && data.isEmpty) {
+    //   final finishChannelCount = _recordVisibleChannelCount;
+    //   if (finishChannelCount <= 0) {
+    //     return Future.value(false);
+    //   }
+    //   final finishData = Int16List(finishChannelCount);
+    //   final finishCounts = Int32List(finishChannelCount)..fillRange(0, finishChannelCount, 1);
+    //   final finishDataPtr = calloc<Int16>(finishData.length);
+    //   finishDataPtr.asTypedList(finishData.length).fillRange(0, finishData.length, 0);
+    //   final finishCountsPtr = calloc<Int32>(finishCounts.length);
+    //   finishCountsPtr.asTypedList(finishCounts.length).setAll(0, finishCounts);
+    //   try {
+    //     nwb.nwbfile_add_electrical_series(
+    //       finishDataPtr,
+    //       finishCountsPtr,
+    //       selectedChannel,
+    //       finishChannelCount,
+    //       isFinishRecording,
+    //     );
+    //     return Future.value(true);
+    //   } finally {
+    //     calloc.free(finishDataPtr);
+    //     calloc.free(finishCountsPtr);
+    //   }
+    // }
+
     final filtered = filterVisibleChannelSamples(
       data,
       samplesCount,
       channelCount,
       _recordVisibleMask,
     );
-    if (filtered.channelCount == 0) {
+    // print("FILTERED CHANNEL COUNT: ${filtered.channelCount} IS FINISH RECORDING: $isFinishRecording");
+    if (filtered.channelCount == 0 && isFinishRecording != 1) {
       return Future.value(false);
     }
 
@@ -198,6 +227,8 @@ class NwbFileUtilImpl implements NWBFileUtil {
     samplesCountPtr
         .asTypedList(filtered.counts.length)
         .setAll(0, filtered.counts);
+    // print("FILTERED DATA: ${filtered.data.length} IS FINISH RECORDING: $isFinishRecording");
+    // print("FILTERED COUNTS: ${filtered.counts} IS FINISH RECORDING: $isFinishRecording");
     try {
       nwb.nwbfile_add_electrical_series(
         dataPtr,
@@ -206,6 +237,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
         filtered.channelCount,
         isFinishRecording,
       );
+      // print("📊 Add electrical series result: $isFinishRecording");
       return Future.value(true);
     } finally {
       calloc.free(dataPtr);
@@ -311,9 +343,6 @@ class NwbFileUtilImpl implements NWBFileUtil {
           endChannel);
       print("📊 Seek result: $result == $startChannel, $endChannel");
 
-      if (endChannel == 1) {
-        return Future.value(true);
-      }
 
       if (result == 0) {
         // Success - copy data back from native memory

@@ -605,15 +605,6 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
     outputPath = std::string(path);
     std::string filePath = outputPath;
     
-    // Open AQNWB file
-    std::shared_ptr<AQNWB::IO::BaseIO> io = AQNWB::createIO("HDF5", filePath);
-    auto openStatus = io->open(AQNWB::IO::FileMode::ReadOnly);
-    if (openStatus != AQNWB::Types::Success) {
-        std::cerr << "Failed to open NWB file: " << filePath << std::endl;
-        return 1;
-    }
-    std::cout << "✅ AQNWB opened successfully" << std::endl;
-    
     // Initialize outConfig array with default values
     outConfig[0] = 0;  // sampleRate
     outConfig[1] = 0;  // totalChannel
@@ -625,17 +616,17 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
     // Extract recording parameters from NWB file using direct HDF5 access
     std::cout << "📋 Extracting recording parameters from NWB file..." << std::endl;
     
-    // Open HDF5 file to read metadata directly
-    std::unique_ptr<H5::H5File> metadataFile;
+    // Open HDF5 file for metadata and partial data read
+    std::string electricalSeriesName = "ElectricalSeries1";
+    std::unique_ptr<H5::H5File> h5file;
     try {
-        metadataFile = std::make_unique<H5::H5File>(filePath, H5F_ACC_RDONLY);
+        h5file = std::make_unique<H5::H5File>(filePath, H5F_ACC_RDONLY);
         std::cout << "✅ Opened HDF5 file for metadata extraction" << std::endl;
 
         // Discover the actual ElectricalSeries name
-        std::string electricalSeriesName = "";
         try {
-            if (H5Lexists(metadataFile->getId(), "/acquisition", H5P_DEFAULT) > 0) {
-                H5::Group acquisitionGroup = metadataFile->openGroup("/acquisition");
+            if (H5Lexists(h5file->getId(), "/acquisition", H5P_DEFAULT) > 0) {
+                H5::Group acquisitionGroup = h5file->openGroup("/acquisition");
                 hsize_t numObjs = acquisitionGroup.getNumObjs();
                 for (hsize_t i = 0; i < numObjs; i++) {
                     std::string objName = acquisitionGroup.getObjnameByIdx(i);
@@ -666,8 +657,8 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
 
         try{
             std::string devicePath = "/general/devices";
-            if (H5Lexists(metadataFile->getId(), devicePath.c_str(), H5P_DEFAULT) > 0) {
-                H5::Group devicesGroup = metadataFile->openGroup(devicePath);
+            if (H5Lexists(h5file->getId(), devicePath.c_str(), H5P_DEFAULT) > 0) {
+                H5::Group devicesGroup = h5file->openGroup(devicePath);
                 hsize_t numDevices = devicesGroup.getNumObjs();
                 std::string deviceName = "";
                 // Find first device group
@@ -685,13 +676,8 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
                     std::string deviceDescription = "";
                     try {
                         H5::Attribute descAttr = deviceGroup.openAttribute("description");
-                        H5::StrType strType = descAttr.getStrType();
-                        char* cstr = nullptr;
-                        descAttr.read(strType, &cstr);
-                        if (cstr != nullptr) {
-                            deviceDescription = std::string(cstr);
-                            free(cstr);
-                        }
+                        H5::StrType strType(H5::PredType::C_S1, H5T_VARIABLE);
+                        descAttr.read(strType, deviceDescription);
                         std::cout << "📋 Device Description: " << deviceDescription << std::endl;
                     } catch (const H5::Exception& e) {
                         std::cout << "⚠️  Could not read device description: " << e.getDetailMsg() << std::endl;
@@ -700,14 +686,9 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
                     // Read device manufacturer
                     try {
                         H5::Attribute manufAttr = deviceGroup.openAttribute("manufacturer");
-                        H5::StrType strType = manufAttr.getStrType();
-                        char* cstr = nullptr;
-                        manufAttr.read(strType, &cstr);
+                        H5::StrType strType(H5::PredType::C_S1, H5T_VARIABLE);
                         std::string manufacturer;
-                        if (cstr != nullptr) {
-                            manufacturer = std::string(cstr);
-                            free(cstr);
-                        }
+                        manufAttr.read(strType, manufacturer);
                         std::cout << "🏭 Device Manufacturer: " << manufacturer << std::endl;
                     } catch (const H5::Exception& e) {
                         std::cout << "⚠️  Could not read device manufacturer: " << e.getDetailMsg() << std::endl;
@@ -737,7 +718,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         
         // Try to read from ElectricalSeries starting_time attribute (rate)
         try {
-            H5::Group acquisitionGroup = metadataFile->openGroup("/acquisition");
+            H5::Group acquisitionGroup = h5file->openGroup("/acquisition");
             H5::Group electricalSeriesGroup = acquisitionGroup.openGroup(electricalSeriesName);
             
             if (electricalSeriesGroup.attrExists("rate")) {
@@ -755,7 +736,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         // Try to read from timestamps dataset
         if (!sampleRateFound) {
             try {
-                H5::Group acquisitionGroup = metadataFile->openGroup("/acquisition");
+                H5::Group acquisitionGroup = h5file->openGroup("/acquisition");
                 H5::Group electricalSeriesGroup = acquisitionGroup.openGroup(electricalSeriesName);
                 H5::DataSet timestampsDataset = electricalSeriesGroup.openDataSet("timestamps");
                 
@@ -794,7 +775,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         
         // 2. Read conversion factor (bitVolts)
         try {
-            H5::Group acquisitionGroup = metadataFile->openGroup("/acquisition");
+            H5::Group acquisitionGroup = h5file->openGroup("/acquisition");
             H5::Group electricalSeriesGroup = acquisitionGroup.openGroup(electricalSeriesName);
             
             if (electricalSeriesGroup.attrExists("conversion")) {
@@ -804,13 +785,30 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
                 outConfig[4] = static_cast<int>(conversion * 1000000); // Convert to µV
                 std::cout << "📊 BitVolts (from conversion): " << outConfig[4] << " µV" << std::endl;
             } else {
-                // Try to read from channel_conversion dataset
+                // Try to read from channel_conversion dataset (one value per channel).
                 try {
-                    H5::DataSet channelConversionDataset = electricalSeriesGroup.openDataSet("channel_conversion");
-                    std::vector<float> conversions(1);
-                    channelConversionDataset.read(conversions.data(), H5::PredType::NATIVE_FLOAT);
-                    outConfig[4] = static_cast<int>(conversions[0] * 1000000); // Convert to µV
-                    std::cout << "📊 BitVolts (from channel_conversion): " << outConfig[4] << " µV" << std::endl;
+                    H5::DataSet channelConversionDataset =
+                        electricalSeriesGroup.openDataSet("channel_conversion");
+                    H5::DataSpace fileSpace = channelConversionDataset.getSpace();
+                    hsize_t dims[1] = {0};
+                    fileSpace.getSimpleExtentDims(dims, nullptr);
+                    if (dims[0] == 0) {
+                        outConfig[4] = 1000;
+                        std::cout << "📊 BitVolts (default, empty channel_conversion): "
+                                  << outConfig[4] << " µV" << std::endl;
+                    } else {
+                        float conversionValue = 0.0f;
+                        hsize_t offset[1] = {0};
+                        hsize_t count[1] = {1};
+                        fileSpace.selectHyperslab(H5S_SELECT_SET, count, offset);
+                        hsize_t memDims[1] = {1};
+                        H5::DataSpace memSpace(1, memDims);
+                        channelConversionDataset.read(
+                            &conversionValue, H5::PredType::NATIVE_FLOAT, memSpace, fileSpace);
+                        outConfig[4] = static_cast<int>(conversionValue * 1000000); // Convert to µV
+                        std::cout << "📊 BitVolts (from channel_conversion): " << outConfig[4]
+                                  << " µV" << std::endl;
+                    }
                 } catch (const H5::Exception& e2) {
                     outConfig[4] = 1000; // Default 1000 µV
                     std::cout << "📊 BitVolts (default): " << outConfig[4] << " µV" << std::endl;
@@ -823,8 +821,9 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         
         // 3. Read electrode group information
         try {
-            H5::Group generalGroup = metadataFile->openGroup("/general");
-            H5::Group extracellularEphysGroup = generalGroup.openGroup("extracellular_ephys");
+            if (H5Lexists(h5file->getId(), "/general/extracellular_ephys", H5P_DEFAULT) > 0) {
+                H5::Group generalGroup = h5file->openGroup("/general");
+                H5::Group extracellularEphysGroup = generalGroup.openGroup("extracellular_ephys");
             
             // Try to read electrode group info
             try {
@@ -865,77 +864,24 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
                 std::cout << "📊 Group Name (default ID): " << outConfig[2] << std::endl;
                 std::cout << "📊 Group Index (default): " << outConfig[3] << std::endl;
             }
-            
+            } else {
+                outConfig[2] = 1;
+                outConfig[3] = 0;
+                std::cout << "📊 Group Name (default, no extracellular_ephys): " << outConfig[2] << std::endl;
+                std::cout << "📊 Group Index (default): " << outConfig[3] << std::endl;
+            }
         } catch (const H5::Exception& e) {
             outConfig[2] = 1; // Default group name
             outConfig[3] = 0; // Default group index
             std::cout << "📊 Group Name (default ID): " << outConfig[2] << std::endl;
             std::cout << "📊 Group Index (default): " << outConfig[3] << std::endl;
         }
-        
-        metadataFile->close();
-        
-    } catch (const H5::Exception& e) {
-        std::cout << "⚠️  Exception while reading metadata: " << e.getDetailMsg() << std::endl;
-        // Set reasonable defaults
-        outConfig[0] = 30000; // 30kHz
-        outConfig[1] = 4;     // 4 channels (will be set later from data dimensions)
-        outConfig[2] = 1;     // Group 1
-        outConfig[3] = 0;     // Group index 0
-        outConfig[4] = 1000;  // 1000 µV
-    }
-    
-    // Direct HDF5 approach for partial reading
-    std::cout << "📊 Reading partial electrical series data using direct HDF5 approach..." << std::endl;
-    
-    try {
-        // Open HDF5 file directly for efficient partial reading
-        std::unique_ptr<H5::H5File> h5file;
-        try {
-            h5file = std::make_unique<H5::H5File>(filePath, H5F_ACC_RDONLY);
-            std::cout << "✅ Opened HDF5 file directly" << std::endl;
-        } catch (const H5::FileIException& e) {
-            std::cerr << "❌ Failed to open HDF5 file: " << e.getDetailMsg() << std::endl;
-            return -1;
-        }
-        
-        // Discover the actual ElectricalSeries name
-        std::string electricalSeriesNameForData = "";
-        try {
-            if (H5Lexists(h5file->getId(), "/acquisition", H5P_DEFAULT) > 0) {
-                H5::Group acquisitionGroup = h5file->openGroup("/acquisition");
-                hsize_t numObjs = acquisitionGroup.getNumObjs();
-                for (hsize_t i = 0; i < numObjs; i++) {
-                    std::string objName = acquisitionGroup.getObjnameByIdx(i);
-                    H5G_obj_t objType = acquisitionGroup.getObjTypeByIdx(i);
-                    if (objType == H5G_GROUP) {
-                        // Check if it's an ElectricalSeries by looking for 'data' dataset
-                        try {
-                            H5::Group testGroup = acquisitionGroup.openGroup(objName);
-                            if (H5Lexists(testGroup.getId(), "data", H5P_DEFAULT) > 0) {
-                                electricalSeriesNameForData = objName;
-                                break;
-                            }
-                        } catch (...) {
-                            continue;
-                        }
-                    }
-                }
-            }
-        } catch (const H5::Exception& e) {
-            std::cerr << "⚠️  Could not discover ElectricalSeries: " << e.getDetailMsg() << std::endl;
-        }
-        
-        if (electricalSeriesNameForData.empty()) {
-            electricalSeriesNameForData = "ElectricalSeries1"; // Fallback
-            std::cout << "⚠️  Using default ElectricalSeries name: " << electricalSeriesNameForData << std::endl;
-        } else {
-            std::cout << "✅ Found ElectricalSeries: " << electricalSeriesNameForData << std::endl;
-        }
-        
-        // Open the dataset directly
+
+        std::cout << "📊 Reading partial electrical series data using direct HDF5 approach..." << std::endl;
+
+        // Open the dataset directly (reuse same file handle)
         H5::DataSet dataset;
-        std::string dataPath = "/acquisition/" + electricalSeriesNameForData + "/data";
+        std::string dataPath = "/acquisition/" + electricalSeriesName + "/data";
         try {
             if (H5Lexists(h5file->getId(), dataPath.c_str(), H5P_DEFAULT) <= 0) {
                 std::cerr << "❌ Dataset path does not exist: " << dataPath << std::endl;
@@ -1113,9 +1059,8 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         std::cout << "   Samples returned: " << samplesToRead << std::endl;
         std::cout << "   Channels: " << startChannel << " to " << endChannel << " (" << numChannelsToRead << " channels)" << std::endl;
         std::cout << "   Total data points: " << (samplesToRead * numChannelsToRead) << std::endl;
-        
-        io->close();
-        h5file->close();
+
+        h5file.reset();
         
     } catch (const H5::Exception& e) {
         std::cerr << "❌ HDF5 Error during seek: " << e.getDetailMsg() << std::endl;

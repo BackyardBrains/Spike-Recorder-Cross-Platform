@@ -1820,9 +1820,13 @@ PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* s
     }
 
     short** inSamples = new short*[channelCount];
+    int planarOffset = 0;
     for (int i = 0; i < channelCount; i++) {
         inSamples[i] = new short[samplesCountRaw[i]];
-        std::copy(inSamplesRaw + i * samplesCountRaw[i], inSamplesRaw + (i + 1) * samplesCountRaw[i], inSamples[i]);
+        std::copy(inSamplesRaw + planarOffset,
+                  inSamplesRaw + planarOffset + samplesCountRaw[i],
+                  inSamples[i]);
+        planarOffset += samplesCountRaw[i];
     }
     // platform_log_processing("Channel 1 Length - %d | Channel 2 Length %d\n", samplesCountRaw[0], samplesCountRaw[1]);
     // platform_log_processing("Channel 1 Value - %d | Channel 2 Value %d\n", inSamples[0][0], inSamples[1][0]);

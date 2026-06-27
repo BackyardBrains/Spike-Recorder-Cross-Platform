@@ -312,15 +312,13 @@ class NwbFileUtilImpl implements NWBFileUtil {
     Pointer<Int32> outSamplesCountPtr = calloc<Int32>(outSamplesCount.length);
     Pointer<Int32> outConfigPtr =
         calloc<Int32>(10); // Allocate for 5 config parameters
+    Pointer<Char>? charPointer;
 
     try {
       print("FILE PATH: $filePath");
       final path = filePath;
-      // final path = "${(await getApplicationDocumentsDirectory()).path}/example_recording_android_serial3$recordedTime.nwb";
-      // final path = "${(await getApplicationDocumentsDirectory()).path}/example_recording.nwb";
-      // final path = "${(await getApplicationDocumentsDirectory()).path}/ZERIAL2_example_recording_multiple_channels.nwb";
       print("NWB SEEK file path: $path");
-      Pointer<Char> charPointer = path.toString().toNativeUtf8().cast<Char>();
+      charPointer = path.toString().toNativeUtf8().cast<Char>();
 
       int numChannelsToRead = endChannel - startChannel + 1;
       print("🎯 Seeking electrical series data (Multi-Channel)...");
@@ -333,7 +331,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
           "   Expected total data points: ${(endTimeStamp - startTimeStamp) * numChannelsToRead}");
 
       int result = nwb.nwbfile_seek_electrical_series(
-          charPointer,
+          charPointer!,
           outSamplesPtr,
           outSamplesCountPtr,
           outConfigPtr,
@@ -398,6 +396,9 @@ class NwbFileUtilImpl implements NWBFileUtil {
         return Future.value(false);
       }
     } finally {
+      if (charPointer != null) {
+        malloc.free(charPointer);
+      }
       calloc.free(outSamplesPtr);
       calloc.free(outSamplesCountPtr);
       calloc.free(outConfigPtr);

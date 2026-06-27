@@ -235,7 +235,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
               currentExpansionBoardString = "";
               postChannelCountController
                   .add(defaultChannelCountNoExpansionBoard);
-              if (expBoard.maxNumberOfChannels! == defaultChannelCountNoExpansionBoard) {
+              if (expBoard.maxNumberOfChannels! ==
+                  defaultChannelCountNoExpansionBoard) {
                 initializeSerial(GraphTemplate.selectedBoard!,
                     currentDrawSurfaceWidth.toDouble(),
                     expansionBoardChannelCount: 0);
@@ -259,7 +260,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   @override
   Future<bool> init() async {
     if (_isInitialized) return true;
-    
+
     setupDartCallbacks();
     // Initialize C++ processing
     ProcessingUtil.medianChannelValueAdjuster =
@@ -279,8 +280,10 @@ class ProcessingUtilImpl implements ProcessingUtil {
       print('Failed to set sample rate11: $sampleRateResult');
       return false;
     }
-    print("Default Channel Count No Expansion Board: $defaultChannelCountNoExpansionBoard");
-    print("Default Sample Rate No Expansion Board: $defaultSampleRateNoExpansionBoard");
+    print(
+        "Default Channel Count No Expansion Board: $defaultChannelCountNoExpansionBoard");
+    print(
+        "Default Sample Rate No Expansion Board: $defaultSampleRateNoExpansionBoard");
 
 /*
 		// Create receive port for main isolate to receive messages from processing isolate
@@ -531,13 +534,15 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   @override
-  Future<int> setBandFilter(int channelIdx, double lowCutOffFreq, double highCutOffFreq) async {
+  Future<int> setBandFilter(
+      int channelIdx, double lowCutOffFreq, double highCutOffFreq) async {
     if (!_isInitialized) {
       await init();
     }
 
     print("LH: $channelIdx --- $lowCutOffFreq $highCutOffFreq");
-    return pb.processingBindings.setBandFilter(channelIdx, lowCutOffFreq, highCutOffFreq);
+    return pb.processingBindings
+        .setBandFilter(channelIdx, lowCutOffFreq, highCutOffFreq);
   }
 
   @override
@@ -871,8 +876,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
     int res = pb.processingBindings.processSampleStream(outSamplesPtr,
         outSampleCountsPtr, inDataPtr, samples.length, deviceType);
     if (res < 0) {
-      print(
-          'BYB SERIAL PAINT: processSampleStream error res=$res '
+      print('BYB SERIAL PAINT: processSampleStream error res=$res '
           'bytes=${samples.length} deviceType=$deviceType channels=$channelCount');
       calloc.free(inDataPtr);
       for (int i = 0; i < channelCount; i++) {

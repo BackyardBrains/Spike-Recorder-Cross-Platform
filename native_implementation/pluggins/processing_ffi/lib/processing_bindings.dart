@@ -201,6 +201,8 @@ typedef ProcessingSetThreshold = void Function(double threshold);
 
 typedef ProcessingResetThresholdNative = Void Function();
 typedef ProcessingResetThreshold = void Function();
+typedef ProcessingResetThresholdBufferNative = Void Function();
+typedef ProcessingResetThresholdBuffer = void Function();
 
 typedef ProcessingResumeThresholdNative = Void Function();
 typedef ProcessingResumeThreshold = void Function();
@@ -311,6 +313,7 @@ class ProcessingBindings {
   late final ProcessingSetAveragingTriggerType setAveragingTriggerType;
   late final ProcessingSetThreshold setThreshold;
   late final ProcessingResetThreshold resetThreshold;
+  late final ProcessingResetThresholdBuffer resetThresholdBuffer;
   late final ProcessingResumeThreshold resumeThreshold;
   late final ProcessingPauseThreshold pauseThreshold;
   late final ProcessingProcessThreshold processThreshold;
@@ -395,6 +398,8 @@ class ProcessingBindings {
     setThreshold = _lib!.lookupFunction<ProcessingSetThresholdNative, ProcessingSetThreshold>('processing_set_threshold');
 
     resetThreshold = _lib!.lookupFunction<ProcessingResetThresholdNative, ProcessingResetThreshold>('processing_reset_threshold');
+
+    resetThresholdBuffer = _lib!.lookupFunction<ProcessingResetThresholdBufferNative, ProcessingResetThresholdBuffer>('processing_reset_threshold_buffer');
 
     resumeThreshold = _lib!.lookupFunction<ProcessingResumeThresholdNative, ProcessingResumeThreshold>('processing_resume_threshold');
 

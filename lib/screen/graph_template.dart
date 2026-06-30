@@ -477,6 +477,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
           // if (isThresholdingButton) {
           isThresholdingButton = true;// will be negated
           callThresholdProcess();
+
+          Provider.of<GraphResumePlayProvider>(context, listen: false)
+              .setGraphResumePlay(false);
+          _toPauseGraph = true;
+          GraphTemplate.isPlayerPaused = false;
+
           // }
           setState(() {});
         } else
@@ -6475,6 +6481,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     print("setGraphResumePlay PLAYBACK PAUSE BUTTON $isPlay");
     if (isPlay) {
       await _pauseLiveMonitorForFilePlayback();
+      if (isThresholdingButton) {
+        processingUtil.resetThresholdBuffer();
+      }
     }
     _toPauseGraph = isPlay;
     GraphTemplate.isPlayerPaused = !isPlay;

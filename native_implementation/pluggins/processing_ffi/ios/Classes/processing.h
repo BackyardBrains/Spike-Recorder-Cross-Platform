@@ -99,6 +99,7 @@ PROCESSING_API int32_t processing_get_averaging_trigger_type();
 PROCESSING_API void processing_set_averaging_trigger_type(int32_t type);
 PROCESSING_API void processing_set_threshold(float threshold);
 PROCESSING_API void processing_reset_threshold();
+PROCESSING_API void processing_reset_threshold_buffer();
 PROCESSING_API void processing_resume_threshold();
 PROCESSING_API void processing_pause_threshold();
 PROCESSING_API void processing_set_is_thresholding(bool flag);

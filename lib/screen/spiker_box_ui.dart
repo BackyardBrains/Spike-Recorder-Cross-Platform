@@ -678,7 +678,41 @@ class _DraggableGraphState extends State<DraggableGraph> {
     }
 
     isInitializedGraph = true;
+    _refreshThresholdLayoutScalars();
     // double topChartY = heightChart * idx;
+  }
+
+  double _channelMedian(int c) {
+    if (c >= 0 && c < levelMedian.length && levelMedian[c] != -1) {
+      return levelMedian[c];
+    }
+    if (c >= 0 &&
+        c < initialLevelMedian.length &&
+        initialLevelMedian[c] != 0) {
+      return initialLevelMedian[c];
+    }
+    if (c >= 0 && c < midChartY.length) {
+      return midChartY[c] + thresholdIconTopDifference;
+    }
+    return MediaQuery.of(context).size.height / 2;
+  }
+
+  /// Keeps per-channel threshold math in sync with current layout.
+  /// Does not move [thresholdMarkerTop] (static across rebuilds).
+  void _refreshThresholdLayoutScalars() {
+    if (!mounted || channelCount <= 0) return;
+    for (int c = 0; c < channelCount; c++) {
+      signalMultiplierChannel[c] = signalMultiplier;
+      initialLevelMedian[c] = _channelMedian(c);
+    }
+  }
+
+  void _ensureThresholdChannelReady(int c) {
+    if (c < 0 || c >= channelCount) return;
+    if (signalMultiplierChannel[c] == 0 ||
+        (initialLevelMedian[c] == 0 && levelMedian[c] == -1)) {
+      _refreshThresholdLayoutScalars();
+    }
   }
 
   // void addThresholdInteractionControls(List<Widget> thresholdAdditionalControls) {
@@ -842,14 +876,14 @@ class _DraggableGraphState extends State<DraggableGraph> {
           }
           selectedThresholdIdx = idx;
           context.read<ThresholdStatusProvider>().setThresholdChannel(idx);
+          _ensureThresholdChannelReady(idx);
           
           midChartY[idx] = details.globalPosition.dy;
           topChartY[idx] = midChartY[idx] + thresholdIconTopDifference - heightChart / 2;
           
           levelMedian[idx] = midChartY[idx] + thresholdIconTopDifference;
           double currentY = thresholdPositionY[idx];
-          double median =
-              levelMedian[idx] == -1 ? initialLevelMedian[idx] : levelMedian[idx];
+          double median = _channelMedian(idx);
           int tempMedianDistance =
               ((currentY + thresholdIconTopDifference - median).floor()).floor();
           double tempValue = (signalMultiplierChannel[idx] * tempMedianDistance);
@@ -908,6 +942,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
             onVerticalDragUpdate: (dragUpdateVerticalDetails) {
               forceThreshold = 1;
               int c = selectedThresholdIdx;
+              _ensureThresholdChannelReady(c);
 
               double currentY =
                   dragUpdateVerticalDetails.globalPosition.dy - thresholdIconTopDifference;
@@ -915,14 +950,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
 
 
               print('MOVING Threshold Marker: $currentY ${initialLevelMedian} ${levelMedian}');
-              print(levelMedian[c] == -1
-                  ? initialLevelMedian[c]
-                  : levelMedian[c]);
-              // double heightFactor = 32767 / (MediaQuery.of(context).size.height/2);
-
-              // double heightFactor = (gainChannel[c] / signalMultiplier);
-              double median =
-                  levelMedian[c] == -1 ? initialLevelMedian[c] : levelMedian[c];
+              print(_channelMedian(c));
+              double median = _channelMedian(c);
 
 
               int tempMedianDistance =
@@ -1177,6 +1206,9 @@ class _DraggableGraphState extends State<DraggableGraph> {
       thresholdMenuListener();
     } 
     isThresholding = context.read<ThresholdStatusProvider>().isThresholding;
+    if (isThresholding && isInitializedGraph) {
+      _refreshThresholdLayoutScalars();
+    }
 
     // if (isInitializedGraph && thresholdMarkerTop[selectedThresholdIdx] == -10000) {
     //   initLevelMedian(1, 0);
@@ -1393,7 +1425,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
     double heightFactor = curVal / (prevVal);
     double heightScale = 1 / heightFactor;
 
-    double median = levelMedian[c] == -1 ? initialLevelMedian[c] : levelMedian[c];
+    double median = _channelMedian(c);
     print("MEDIAN: $median" );
 
     double medianDistance = listMedianDistance[c];
@@ -1624,6 +1656,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
 
   void thresholdMenuListener() {
     print("thresholdMenuListener");
+    _refreshThresholdLayoutScalars();
     _requestGraphKeyboardFocusIfAppropriate();
     // initializeDeviceListener();
   }

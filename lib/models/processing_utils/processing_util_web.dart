@@ -525,6 +525,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
   void setIsThresholding(bool flag) {
     js.context.callMethod("setIsThresholding", [flag]);    
   }
+
+  @override
+  void resetThresholdBuffer() {}
   
   @override
   void setThresholdTriggerType(int eventThresholdTriggeredType) {

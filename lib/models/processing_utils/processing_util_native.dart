@@ -1281,6 +1281,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   @override
+  void resetThresholdBuffer() {
+    pb.processingBindings.resetThresholdBuffer();
+  }
+
+  @override
   int thresholdingArraylength = 1;
 
   @override

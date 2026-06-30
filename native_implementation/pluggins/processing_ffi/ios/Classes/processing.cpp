@@ -990,6 +990,12 @@ void processing_reset_threshold() {
     }
 }
 
+void processing_reset_threshold_buffer() {
+    if (thresholdProcessor) {
+        thresholdProcessor->resetThreshold();
+    }
+}
+
 void processing_resume_threshold() {
     threshold_paused = false;
     if (thresholdProcessor) {

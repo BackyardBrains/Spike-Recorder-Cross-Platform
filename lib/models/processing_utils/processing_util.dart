@@ -54,6 +54,8 @@ abstract class ProcessingUtil {
   void setThreshold(double thresholdValue);
 
   void initThreshold(int channelCount, int sampleRate, double drawSurfaceWidth);
+  /// Clears native threshold averaging buffers only; does not change threshold level.
+  void resetThresholdBuffer();
   // List<int> processThresholdData(Uint8List data, int drawSurfaceWidth, int selectedChannel, bool isAverageSamples);
   List<int> processThresholdData(List<Int16List> data, int thresholdChannelCount, int drawSurfaceWidth, int selectedChannel, bool isAverageSamples);
   // List<Int16List> processMicrophoneData(Uint8List data, bool isAverageSamples, bool isThresholdingButton, int drawSurfaceWidth, int selectedChannel);

@@ -249,107 +249,107 @@ class _GraphTemplateState extends State<GraphTemplate> {
     } else if (Platform.isIOS) {
       unawaited(BybAccessory.logAccessoryDiagnostics());
       final accessories = await _resolveMfiAccessoryPorts();
-        if (accessories.isNotEmpty) {
-          print('BYB iOS accessories found: $accessories');
-          _mfiEmptyAccessoryPolls = 0;
-          _attachMfiRxStream(
-            accessories.isNotEmpty ? accessories : listOfPort,
-          );
-          if (!_mfiMicListenerDetached) {
-            print("BYB iOS -- MIC LISTENER DETACHED");
-            _mfiMicListenerDetached = true;
-            try {
-              // print("BYB iOS -- REMOVE MIC LISTENER");
-              context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
-              microphoneUtil.micStream.removeListener(micListener);
-              if (!kIsWeb) {
-                unawaited(microphoneUtil.stopListeningToMicrophone());
-              }
-              ProcessingUtil.initializeDevice.value = 0;
-            } catch (e) {
-              print("Error removing micListener: $e");
+      if (accessories.isNotEmpty) {
+        print('BYB iOS accessories found: $accessories');
+        _mfiEmptyAccessoryPolls = 0;
+        _attachMfiRxStream(
+          accessories.isNotEmpty ? accessories : listOfPort,
+        );
+        if (!_mfiMicListenerDetached) {
+          print("BYB iOS -- MIC LISTENER DETACHED");
+          _mfiMicListenerDetached = true;
+          try {
+            // print("BYB iOS -- REMOVE MIC LISTENER");
+            context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
+            microphoneUtil.micStream.removeListener(micListener);
+            if (!kIsWeb) {
+              unawaited(microphoneUtil.stopListeningToMicrophone());
             }
-          }
-          final alreadyConnected = await BybAccessory.isConnected();
-          context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
-          // print(
-          //     "BYB IOS --- DEVICE STATUZZZ ---@--- isMfiDeviceConnect: $isMfiDeviceConnect @@ alreadyConnected: $alreadyConnected");
-          // if (isMfiDeviceConnect && isMfiDeviceConnect != alreadyConnected) {
-          //   isMfiDeviceConnect = false;
-          //   print(" BYB IOS - DISCONNECT 2222");
-          //   if (isMfiInitialized) {
-          //     isMfiInitialized = false;
-          //     _mfiMicListenerDetached = false;
-          //     isDeviceConnect = false;
-          //     isDeviceSelected = true;
-          //     final provider =
-          //         Provider.of<GraphDataProvider>(context, listen: true);
-          //     Future.delayed(Duration(milliseconds: 2500), () {
-          //       forceSerialDisconnect = false;
-          //       listenToMicrophone(1, provider);
-          //     });
-          //   }
-
-          // }
-          // print("BYB iOS accessory alreadyConnected : $alreadyConnected");
-
-          accessoryLabel = accessories.first;
-          filteredPorts = [accessories.first];
-
-          if (!alreadyConnected) {
-            isDeviceConnect = true;
-            isDeviceSelected = false;
-
-            final isConnected =
-                await BybAccessory.connect(name: accessories.first);
-            isMfiDeviceConnect = true;
-            if (isConnected) {
-              print("BYB iOS accessory connected: $accessoryLabel");
-              // await _printMfiAccessoryInfo();
-            } else {
-              print("BYB iOS accessory not connected: $accessoryLabel");
-              // print('RX stream error: $e');
-              // forceSerialDisconnect = true;
-              // print("SERIAL PORT ERROR -- DISCONNECTED");
-              // // _serialUtil.closePort();
-              // try{
-              //   BybAccessory.disconnect();
-              // }catch(e){
-              //   print("ERROR DISCONNECTING BYB ACCESSORY: $e");
-              // }
-              // final provider =
-              //     Provider.of<GraphDataProvider>(context, listen: true);
-              // isMfiInitialized = false;
-              // _mfiMicListenerDetached = false;
-              // Future.delayed(Duration(milliseconds: 2500), () {
-              //   forceSerialDisconnect = false;
-              //   listenToMicrophone(1, provider);
-              // });
-            }
-          } else {
-            isMfiDeviceConnect = true;
-            isDeviceConnect = true;
-            isDeviceSelected = false;
-            // print('BYB iOS accessory already connected: $accessoryLabel');
-          }
-          unawaited(_triggerMfiConnectOnce());
-        } else {
-          accessoryLabel = "";
-          filteredPorts = [];
-          print(
-              'BYB iOS no MFi accessories (isMfiDeviceConnect: $isMfiDeviceConnect, polls: $_mfiEmptyAccessoryPolls)');
-          if (_iosMfiLiveSessionActive()) {
-            _mfiEmptyAccessoryPolls++;
-            if (_mfiEmptyAccessoryPolls >= _mfiDisconnectDebouncePolls) {
-              print('BYB iOS MFi disconnect (debounced accessory poll)');
-              final provider =
-                  Provider.of<GraphDataProvider>(context, listen: false);
-              unawaited(_fallbackToMicrophoneAfterMfiDisconnect(provider));
-            }
-          } else {
-            _mfiEmptyAccessoryPolls = 0;
+            ProcessingUtil.initializeDevice.value = 0;
+          } catch (e) {
+            print("Error removing micListener: $e");
           }
         }
+        final alreadyConnected = await BybAccessory.isConnected();
+        context.read<DataStatusProvider>().setMicrophoneDataStatus(false);
+        // print(
+        //     "BYB IOS --- DEVICE STATUZZZ ---@--- isMfiDeviceConnect: $isMfiDeviceConnect @@ alreadyConnected: $alreadyConnected");
+        // if (isMfiDeviceConnect && isMfiDeviceConnect != alreadyConnected) {
+        //   isMfiDeviceConnect = false;
+        //   print(" BYB IOS - DISCONNECT 2222");
+        //   if (isMfiInitialized) {
+        //     isMfiInitialized = false;
+        //     _mfiMicListenerDetached = false;
+        //     isDeviceConnect = false;
+        //     isDeviceSelected = true;
+        //     final provider =
+        //         Provider.of<GraphDataProvider>(context, listen: true);
+        //     Future.delayed(Duration(milliseconds: 2500), () {
+        //       forceSerialDisconnect = false;
+        //       listenToMicrophone(1, provider);
+        //     });
+        //   }
+
+        // }
+        // print("BYB iOS accessory alreadyConnected : $alreadyConnected");
+
+        accessoryLabel = accessories.first;
+        filteredPorts = [accessories.first];
+
+        if (!alreadyConnected) {
+          isDeviceConnect = true;
+          isDeviceSelected = false;
+
+          final isConnected =
+              await BybAccessory.connect(name: accessories.first);
+          isMfiDeviceConnect = true;
+          if (isConnected) {
+            print("BYB iOS accessory connected: $accessoryLabel");
+            // await _printMfiAccessoryInfo();
+          } else {
+            print("BYB iOS accessory not connected: $accessoryLabel");
+            // print('RX stream error: $e');
+            // forceSerialDisconnect = true;
+            // print("SERIAL PORT ERROR -- DISCONNECTED");
+            // // _serialUtil.closePort();
+            // try{
+            //   BybAccessory.disconnect();
+            // }catch(e){
+            //   print("ERROR DISCONNECTING BYB ACCESSORY: $e");
+            // }
+            // final provider =
+            //     Provider.of<GraphDataProvider>(context, listen: true);
+            // isMfiInitialized = false;
+            // _mfiMicListenerDetached = false;
+            // Future.delayed(Duration(milliseconds: 2500), () {
+            //   forceSerialDisconnect = false;
+            //   listenToMicrophone(1, provider);
+            // });
+          }
+        } else {
+          isMfiDeviceConnect = true;
+          isDeviceConnect = true;
+          isDeviceSelected = false;
+          // print('BYB iOS accessory already connected: $accessoryLabel');
+        }
+        unawaited(_triggerMfiConnectOnce());
+      } else {
+        accessoryLabel = "";
+        filteredPorts = [];
+        print(
+            'BYB iOS no MFi accessories (isMfiDeviceConnect: $isMfiDeviceConnect, polls: $_mfiEmptyAccessoryPolls)');
+        if (_iosMfiLiveSessionActive()) {
+          _mfiEmptyAccessoryPolls++;
+          if (_mfiEmptyAccessoryPolls >= _mfiDisconnectDebouncePolls) {
+            print('BYB iOS MFi disconnect (debounced accessory poll)');
+            final provider =
+                Provider.of<GraphDataProvider>(context, listen: false);
+            unawaited(_fallbackToMicrophoneAfterMfiDisconnect(provider));
+          }
+        } else {
+          _mfiEmptyAccessoryPolls = 0;
+        }
+      }
       if (mounted) setState(() {});
     } else {
       filteredPorts = _serialUtil.availablePorts;
@@ -464,18 +464,20 @@ class _GraphTemplateState extends State<GraphTemplate> {
       menuController = MenuControllerNotifier(0);
       menuController.addListener(() {
         print("MENU CONTROLLER LISTENER: ${menuController.value}");
-        if (menuController.value == 0) { 
+        if (menuController.value == 0) {
           // if (isOpeningFile) {
           //   GraphTemplate.isLoadingFile = isLoadingFileTemp;
           // }
           isLoadingFileTemp = GraphTemplate.isLoadingFile;
           GraphTemplate.isLoadingListFiles = false;
           // isOpeningFile = false;
-          bool graphStatus = Provider.of<GraphResumePlayProvider>(context,listen: false).graphStatus;
+          bool graphStatus =
+              Provider.of<GraphResumePlayProvider>(context, listen: false)
+                  .graphStatus;
           print("GRAPH STATUS: $graphStatus");
           // Provider.of<GraphResumePlayProvider>(context,listen: false).setGraphResumePlay(false);
           // if (isThresholdingButton) {
-          isThresholdingButton = true;// will be negated
+          isThresholdingButton = true; // will be negated
           callThresholdProcess();
 
           Provider.of<GraphResumePlayProvider>(context, listen: false)
@@ -485,8 +487,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
           // }
           setState(() {});
-        } else
-        if (menuController.value == 1) { 
+        } else if (menuController.value == 1) {
           // if (isOpeningFile) {
           //   GraphTemplate.isLoadingFile = isLoadingFileTemp;
           // }
@@ -495,8 +496,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           GraphTemplate.isLoadingListFiles = false;
           // isOpeningFile = false;
           callThresholdProcess();
-        } else 
-        if (menuController.value == 2) {
+        } else if (menuController.value == 2) {
           if (!GraphTemplate.isPlayerPaused) {
             if (isOpeningFile) {
               callbackPlayButton(false);
@@ -507,14 +507,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
               GraphTemplate.isPlayerPaused = true;
             }
           }
-          isThresholdingButton = true;// will be negated
+          isThresholdingButton = true; // will be negated
           callThresholdProcess();
           isThresholdingButton = false;
           isLoadingFileTemp = GraphTemplate.isLoadingFile;
           // GraphTemplate.isLoadingFile = 0;
           // isOpeningFile = false;
           GraphTemplate.nwbFileUtil?.fetchNwbFiles().then((listFiles) {
-            if (menuController.value == 2) { // menu is still 2
+            if (menuController.value == 2) {
+              // menu is still 2
               print("nwbFiles: $listFiles");
               nwbFileDataRows = listFiles;
               GraphTemplate.isLoadingListFiles = true;
@@ -1373,7 +1374,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
             return _AdaptiveArea(
               recordingNotifier: recordingNotifier,
               notifier: scrubNotifier,
-              child1: !GraphTemplate.isLoadingListFiles ? const _GraphArea() : generateListFilesWidget(nwbFileDataRows),
+              child1: !GraphTemplate.isLoadingListFiles
+                  ? const _GraphArea()
+                  : generateListFilesWidget(nwbFileDataRows),
               child3: Container(
                 decoration: BoxDecoration(
                   color: appColors.panelBackground,
@@ -1800,36 +1803,51 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                             onWrite: (String add) async {
                                               // serialWebButtonPressed();
                                               if (kIsWeb) {
-                                                _isSerialWebButtonEnabled = false;
+                                                _isSerialWebButtonEnabled =
+                                                    false;
                                                 _serialUtil.closePort();
                                                 isDeviceConnect = true;
                                                 isDeviceSelected = false;
                                                 isSerialDeviceFound = false;
                                                 _isDataIdentified = false;
 
-                                                GraphDataProvider graphDataProvider =
-                                                    Provider.of<GraphDataProvider>(context, listen: false);
+                                                GraphDataProvider
+                                                    graphDataProvider = Provider
+                                                        .of<GraphDataProvider>(
+                                                            context,
+                                                            listen: false);
                                                 // listenToMicrophone(1, graphDataProvider);
-                                                _recoverFromSerialDataTimeout(graphDataProvider);
-                                                streamScrubBuilderController.add(Random().nextInt(100000));
+                                                _recoverFromSerialDataTimeout(
+                                                    graphDataProvider);
+                                                streamScrubBuilderController
+                                                    .add(Random()
+                                                        .nextInt(100000));
                                                 isSerialDeviceFound = false;
                                                 return;
-
                                               } else {
                                                 if (Platform.isIOS) {
                                                   print("Platform is IOS");
-                                                  final provider = Provider.of<GraphDataProvider>(context, listen: false);
-                                                  _recoverFromSerialDataTimeout(provider, forceMicrophone: true);
+                                                  final provider = Provider.of<
+                                                          GraphDataProvider>(
+                                                      context,
+                                                      listen: false);
+                                                  _recoverFromSerialDataTimeout(
+                                                      provider,
+                                                      forceMicrophone: true);
                                                 }
 
                                                 _cancelSerialStaleWatchdog();
                                                 forceSerialDisconnect = true;
                                                 _serialUtil.closePort();
-                                                Future.delayed(Duration(milliseconds: 1500), () {
+                                                Future.delayed(
+                                                    Duration(
+                                                        milliseconds: 1500),
+                                                    () {
                                                   // print(
                                                   //     "SERIAL PORT ERROR -- DISCONNECTED: $error CALLSERIAL DATA SUBSCRIPTION");
                                                   forceSerialDisconnect = false;
-                                                  _isSerialWebButtonEnabled = false;
+                                                  _isSerialWebButtonEnabled =
+                                                      false;
                                                   isDeviceConnect = false;
                                                   isDeviceSelected = false;
                                                   if (boardTimer != null) {
@@ -1842,11 +1860,12 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                                   }
 
                                                   _isDataIdentified = false;
-                                                  streamScrubBuilderController.add(Random().nextInt(100000));
+                                                  streamScrubBuilderController
+                                                      .add(Random()
+                                                          .nextInt(100000));
                                                   listenToMicrophone(1, null);
                                                 });
                                               }
-
                                             },
                                           );
                                         }),
@@ -1906,7 +1925,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.20',
+                                            'SpikeRecorder App ver. 2.1.22',
                                             style: TextStyle(
                                               color: appColors.textSecondary,
                                               fontSize: 14,
@@ -1932,98 +1951,113 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   ],
                 ),
               ),
-              child4: !kIsWeb && (Platform.isAndroid || Platform.isIOS) 
-                  ? SizedBox() : !isThresholdingButton ? SizedBox() : Positioned(
-                      left: 10,
-                      top: 80,
-                      child: SafeArea(
-                        child: Row(
-                          children: generateThresholdSlider(false),
+              child4: !kIsWeb && (Platform.isAndroid || Platform.isIOS)
+                  ? SizedBox()
+                  : !isThresholdingButton
+                      ? SizedBox()
+                      : Positioned(
+                          left: 10,
+                          top: 80,
+                          child: SafeArea(
+                            child: Row(
+                              children: generateThresholdSlider(false),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-              child2: (!kIsWeb && (Platform.isIOS || Platform.isAndroid))? mobileNativeButtons() : Positioned(
-                left: 0,
-                top: 0,
-                child: Container(
-                  padding: kIsWeb
-                      ? const EdgeInsets.symmetric(horizontal: 10, vertical: 15)
-                      : const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 15),
-                  width: MediaQuery.of(context).size.width,
-                  height: MediaQuery.of(context).size.height,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      !kIsWeb && (Platform.isIOS || Platform.isAndroid)? SizedBox() : Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: [
-                              generateSettingButton(isRecording),
-                              const SizedBox(
-                                width: 10,
-                              ),
-                              // Text(accessoryLabel ?? "-@-", style: TextStyle(color: Colors.red)),
-                              // Text("BLANKK", style: TextStyle(color: Colors.red)),
+              child2: (!kIsWeb && (Platform.isIOS || Platform.isAndroid))
+                  ? mobileNativeButtons()
+                  : Positioned(
+                      left: 0,
+                      top: 0,
+                      child: Container(
+                        padding: kIsWeb
+                            ? const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 15)
+                            : const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 15),
+                        width: MediaQuery.of(context).size.width,
+                        height: MediaQuery.of(context).size.height,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            !kIsWeb && (Platform.isIOS || Platform.isAndroid)
+                                ? SizedBox()
+                                : Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.start,
+                                        children: [
+                                          generateSettingButton(isRecording),
+                                          const SizedBox(
+                                            width: 10,
+                                          ),
+                                          // Text(accessoryLabel ?? "-@-", style: TextStyle(color: Colors.red)),
+                                          // Text("BLANKK", style: TextStyle(color: Colors.red)),
 
-                              serialWebButton(),
-                              // SpikerBoxButton(
-                              //     onTapButton: () async {}, iconData: Icons.graphic_eq),
-                              // const SizedBox(
-                              //   width: 10,
-                              // ),
-                              isRecording == 1
-                                  ? SizedBox()
-                                  : generateThresholdButton(isRecording),
-                              const SizedBox(
-                                width: 20,
-                              ),
-                              if (isThresholdingButton) ...{
-                                if (!kIsWeb && (Platform.isIOS || Platform.isAndroid))... {
-                                  SizedBox(),
-                                } else ... {
-                                  ...generateThresholdSlider(true),
-                                }
+                                          serialWebButton(),
+                                          // SpikerBoxButton(
+                                          //     onTapButton: () async {}, iconData: Icons.graphic_eq),
+                                          // const SizedBox(
+                                          //   width: 10,
+                                          // ),
+                                          isRecording == 1
+                                              ? SizedBox()
+                                              : generateThresholdButton(
+                                                  isRecording),
+                                          const SizedBox(
+                                            width: 20,
+                                          ),
+                                          if (isThresholdingButton) ...{
+                                            if (!kIsWeb &&
+                                                (Platform.isIOS ||
+                                                    Platform.isAndroid)) ...{
+                                              SizedBox(),
+                                            } else ...{
+                                              ...generateThresholdSlider(true),
+                                            }
 
-                                // Container(
-                                //   width:50,
-                                //   height:30,
-                                //   child: TextField(
-                                //     controller: thresholdValueController,
-                                //   )
-                                // )
-                              },
+                                            // Container(
+                                            //   width:50,
+                                            //   height:30,
+                                            //   child: TextField(
+                                            //     controller: thresholdValueController,
+                                            //   )
+                                            // )
+                                          },
 
-                              // if (!isThresholdingButton) ... {
-                              //   SpikerBoxButton(
-                              //     onTapButton: () {
-                              //       isFftButton = !isFftButton;
-                              //       if (isFftButton) {
-                              //         context.read<FftStatusProvider>().setFftVisibility(true);
-                              //       } else {
-                              //         context.read<FftStatusProvider>().setFftVisibility(false);
-                              //       }
+                                          // if (!isThresholdingButton) ... {
+                                          //   SpikerBoxButton(
+                                          //     onTapButton: () {
+                                          //       isFftButton = !isFftButton;
+                                          //       if (isFftButton) {
+                                          //         context.read<FftStatusProvider>().setFftVisibility(true);
+                                          //       } else {
+                                          //         context.read<FftStatusProvider>().setFftVisibility(false);
+                                          //       }
 
-                              //       setState((){});
-                              //     },
-                              //     iconColor: isFftButton? Colors.yellow : Colors.black,
-                              //     iconData: Icons.abc,
-                              //   ),
-                              // },
-                              const SizedBox(
-                                width: 10,
-                              ),
-                              // if (!forceSerialDisconnect) ... {
-                              //   SpikerBoxButton(onTapButton: () {
-                              //     forceSerialDisconnect = !forceSerialDisconnect;
-                              //   }, iconData: Icons.usb),
-                              // },
-                              // CONNECT LIST USB SERIAL WEB
-                              /*
+                                          //       setState((){});
+                                          //     },
+                                          //     iconColor: isFftButton? Colors.yellow : Colors.black,
+                                          //     iconData: Icons.abc,
+                                          //   ),
+                                          // },
+                                          const SizedBox(
+                                            width: 10,
+                                          ),
+                                          // if (!forceSerialDisconnect) ... {
+                                          //   SpikerBoxButton(onTapButton: () {
+                                          //     forceSerialDisconnect = !forceSerialDisconnect;
+                                          //   }, iconData: Icons.usb),
+                                          // },
+                                          // CONNECT LIST USB SERIAL WEB
+                                          /*
                               StreamBuilder<List<ComDataWithBoard>>(
                                   stream: deviceListStream,
                                   builder: (context, snapshot) {
@@ -2150,27 +2184,26 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                     }
                                   })
                               */
+                                        ],
+                                      ),
+                                      generateLoadFileButton(isRecording),
+                                    ],
+                                  ),
+                            // Text("isOpeningFile: $isOpeningFile && isRecording: $isRecording"),
+                            if (isOpeningFile) ...[
+                              generatePlaybackButton(isRecording, context),
                             ],
-                          ),
-                          generateLoadFileButton(isRecording),
-                        ],
+                            // recording button
+                            if (!isOpeningFile) ...[
+                              generateRecordingButton(isRecording, context),
+                            ],
+                            // isRecording != 0
+                            //     ? SizedBox()
+                            //     : !isOpeningFile ? SizedBox() :
+                          ],
+                        ),
                       ),
-                      // Text("isOpeningFile: $isOpeningFile && isRecording: $isRecording"),
-                      if (isOpeningFile) ...[
-                        generatePlaybackButton(isRecording, context),
-
-                      ],
-                      // recording button
-                      if (!isOpeningFile) ...[
-                        generateRecordingButton(isRecording, context),
-                      ],
-                      // isRecording != 0
-                      //     ? SizedBox()
-                      //     : !isOpeningFile ? SizedBox() :
-                    ],
-                  ),
-                ),
-              ),
+                    ),
               childOverlay: !isOpeningFile
                   ? SizedBox()
                   : Positioned(
@@ -2182,7 +2215,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                               : Platform.isAndroid || Platform.isIOS
                                   ? const EdgeInsets.fromLTRB(0, 110, 0, 0)
                                   : const EdgeInsets.fromLTRB(0, 0, 0, 0),
-                          child: SizedBox(// filename box black box
+                          child: SizedBox(
+                            // filename box black box
                             child: Container(
                                 alignment: Alignment.center,
                                 // margin: EdgeInsets.only(top: 65),
@@ -3164,7 +3198,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   bool isSerialDeviceFound = false;
 
   Stream<List<ComDataWithBoard>>? deviceListStream;
-  
+
   /// Broadcasts [listOfBoard] updates; must stay non-null after [initState] so hot-plug / MFi can refresh UI.
   StreamController<List<ComDataWithBoard>>? _deviceListStreamController;
 
@@ -4125,7 +4159,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
   Future<void> _fallbackToMicrophoneAfterMfiDisconnect(
       GraphDataProvider? provider) async {
-    if (!mounted || !_isIosExternalAccessoryPath() || _mfiDisconnectInProgress) return;
+    if (!mounted || !_isIosExternalAccessoryPath() || _mfiDisconnectInProgress)
+      return;
     _mfiDisconnectInProgress = true;
     try {
       _prepareForMicFallbackAfterMfiDisconnect();
@@ -4137,8 +4172,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // Let ExternalAccessory release AVAudioSession before mic capture starts.
       await Future<void>.delayed(const Duration(milliseconds: 400));
       if (!mounted) return;
-      final providerRef = provider ??
-          Provider.of<GraphDataProvider>(context, listen: false);
+      final providerRef =
+          provider ?? Provider.of<GraphDataProvider>(context, listen: false);
       print('BYB iOS MFi disconnect — falling back to microphone');
       listenToMicrophone(1, providerRef, restartMicCapture: true);
     } finally {
@@ -4737,6 +4772,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
       final wavChannelCount = wavReader.channels.length;
       final wavSampleRate = wavReader.samplesPerSecond;
+      // Import all WAV channels; defaults (visibleChannelCount=1) would create a
+      // single-channel NWB via processingInit's visible-channel mask.
+      visibleSignalsList = List.filled(wavChannelCount, 1);
+      visibleChannelCount = wavChannelCount;
       if (wavChannelCount > 1) {
         recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(
             wavSampleRate,
@@ -5258,10 +5297,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
       return [
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: thresholdWidget
-        )
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: thresholdWidget)
       ];
     }
     return thresholdWidget;
@@ -5604,7 +5642,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
   int _soloudOutputSampleRate() {
     if (kIsWeb) return _sampleRate;
     if (Platform.isIOS &&
-        (_sampleRate == 47999 || _sampleRate == 48001 || _sampleRate == 44100)) {
+        (_sampleRate == 47999 ||
+            _sampleRate == 48001 ||
+            _sampleRate == 44100)) {
       return _sampleRate == 44100 ? 44100 : 48000;
     }
     return _sampleRate;
@@ -5625,9 +5665,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   int _nativeStreamConsumedSamples(SoLoud.AudioSource? stream) {
     if (stream == null || soloud == null) return 0;
     try {
-      return (soloud!
-                  .getStreamTimeConsumed(stream)
-                  .inMicroseconds *
+      return (soloud!.getStreamTimeConsumed(stream).inMicroseconds *
               _sampleRate /
               1000000)
           .round();
@@ -5642,9 +5680,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     if (handle == null) return 0;
     try {
       if (!soloud!.getIsValidVoiceHandle(handle)) return 0;
-      return (soloud!
-                  .getPosition(handle)
-                  .inMicroseconds *
+      return (soloud!.getPosition(handle).inMicroseconds *
               _sampleRate /
               1000000)
           .round();
@@ -5886,7 +5922,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       try {
         soloud!.addAudioDataStream(
           stream,
-          _loadedFilePcmBytes(loadedArrSamples[ch].sublist(fromSample, toSample)),
+          _loadedFilePcmBytes(
+              loadedArrSamples[ch].sublist(fromSample, toSample)),
         );
       } catch (e) {
         final message = e.toString();
@@ -5966,8 +6003,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       return;
     }
 
-    if (!_feedNativePlaybackPcmRange(
-        _nativePlaybackFedSampleIndex, chunkEnd)) {
+    if (!_feedNativePlaybackPcmRange(_nativePlaybackFedSampleIndex, chunkEnd)) {
       return;
     }
     _nativePlaybackFedSampleIndex = chunkEnd;
@@ -5993,7 +6029,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
         _nativePlaybackFedSampleIndex + _webPlaybackFeedChunkSamples,
         maxSamples,
       );
-      if (!_feedNativePlaybackPcmRange(_nativePlaybackFedSampleIndex, chunkEnd)) {
+      if (!_feedNativePlaybackPcmRange(
+          _nativePlaybackFedSampleIndex, chunkEnd)) {
         break;
       }
       _nativePlaybackFedSampleIndex = chunkEnd;
@@ -6072,7 +6109,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
         int timeDiff = DateTime.now().millisecondsSinceEpoch - prevTime;
         const maxTimerDeltaMs = 75;
         if (timeDiff > maxTimerDeltaMs) {
-          _logNativePlayback('graph timer catch-up clamp: ${timeDiff}ms -> $maxTimerDeltaMs');
+          _logNativePlayback(
+              'graph timer catch-up clamp: ${timeDiff}ms -> $maxTimerDeltaMs');
           timeDiff = maxTimerDeltaMs;
         }
         sampleDivider = (timeDiff * playbackFactor);
@@ -6135,8 +6173,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           if (!kIsWeb && _nativePlaybackUsesStreamFeed && loadedLen > 0) {
             final posSamples = _nativePlaybackPositionSamples();
             final allFed = _nativePlaybackFedSampleIndex >= loadedLen;
-            shouldEndPlayback =
-                posSamples >= loadedLen - 512 && allFed;
+            shouldEndPlayback = posSamples >= loadedLen - 512 && allFed;
             if (shouldEndPlayback) {
               timerPlaybackLoadedStartIndex = loadedLen.toDouble();
             }
@@ -6148,8 +6185,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
           }
 
           if (shouldEndPlayback) {
-            final atFileEnd = startPlaybackSeekSampleIdx + loadedLen >=
-                loadedMaxSamples;
+            final atFileEnd =
+                startPlaybackSeekSampleIdx + loadedLen >= loadedMaxSamples;
             _logNativePlayback(
               'playback end: pos=${_nativePlaybackPositionSamples()} '
               'loadedLen=$loadedLen streamFeed=$_nativePlaybackUsesStreamFeed '
@@ -7790,11 +7827,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   Future<void> _liveMonitorInitChain = Future<void>.value();
-  
+
   MenuControllerNotifier menuController = MenuControllerNotifier(-1);
-  
+
   List<String> nwbFileDataRows = [];
-  
 
   /// Starts or reconfigures SoLoud for live mic or serial monitoring.
   Future<void> _ensureLiveMonitorPlayer({int? channelCount}) async {
@@ -8830,7 +8866,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     if (keepIdentifiedDevice) {
       unawaited(() async {
-        if (_isIosExternalAccessoryPath() && !await _mfiAccessoryStillPresent()) {
+        if (_isIosExternalAccessoryPath() &&
+            !await _mfiAccessoryStillPresent()) {
           print('BYB iOS stale: accessory gone, mic fallback');
           await _fallbackToMicrophoneAfterMfiDisconnect(providerRef);
           return;
@@ -9055,7 +9092,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       }
     }
   }
-  
+
   generateLoadFileButton(int isRecording) {
     return Row(
       children: [
@@ -9070,114 +9107,109 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 FilePickerResult? result =
                     await FilePicker.platform.pickFiles();
                 if (result != null) {
-                  startOpeningFile(
-                      result.files.single.path!);
+                  startOpeningFile(result.files.single.path!);
                 }
               }
               // }, iconData: Icons.menu)
             },
-            iconData: const IconData(0xe909,
-                fontFamily: "IcomoonIcons"),
+            iconData: const IconData(0xe909, fontFamily: "IcomoonIcons"),
           ) // open loadfile button
         },
       ],
-    );    
+    );
   }
-  
+
   generateThresholdButton(int isRecording) {
     return SpikerBoxButton(
       onTapButton: () {
         callThresholdProcess();
-
       },
-      iconColor: isThresholdingButton
-          ? Colors.yellow
-          : Colors.white,
+      iconColor: isThresholdingButton ? Colors.yellow : Colors.white,
       // iconData: Icons.graphic_eq_outlined,
-      iconData: const IconData(0xe90b,
-          fontFamily: "IcomoonIcons"),
-    );    
-  }
-  
-  generateSettingButton(int isRecording) {
-    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-      return isRecording == 1 ? SizedBox() : ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          shape: const CircleBorder(),
-          padding: const EdgeInsets.all(16), // Adjust padding for button size
-          backgroundColor: const Color(0xff1e1e1e), // Dark background color
-          foregroundColor: Colors.white, // Icon color / ripple effect color
-          elevation: 4, // Subtle shadow depth
-          shadowColor: Colors.black.withOpacity(0.5),
-          side: BorderSide(
-            color: Colors.white.withOpacity(0.1), // The subtle outer ring/rim highlight
-            width: 1,
-          ),
-        ),        
-        onPressed: () async {
-          context
-              .read<SoftwareConfigProvider>()
-              .settingStatus(true);
-        },
-        // iconData: Icons.settings),
-        child: Icon(IconData(0xe90a,
-            fontFamily: "IcomoonIcons")));    
-    } else {
-      return isRecording == 1 ? SizedBox() : SpikerBoxButton(
-        onTapButton: () async {
-          context
-              .read<SoftwareConfigProvider>()
-              .settingStatus(true);
-        },
-        // iconData: Icons.settings),
-        iconData: const IconData(0xe90a,
-            fontFamily: "IcomoonIcons"));    
-    }
-  }
-  
-  mobileNativeButtons() {
-    return Positioned(
-      left:0,
-      top:0,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(
-                    10, 65, 10, 20),
-        width: MediaQuery.of(context).size.width,
-        height: MediaQuery.of(context).size.height,
-        child: Column(
-          children: [
-            GraphTemplate.isLoadingListFiles? SizedBox() : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                generateSettingButton(isRecording),
-                // generateLoadFileButton(isRecording),
-              ],
-            ),
-            Expanded(child:SizedBox()),
-            // generateThresholdButton(isRecording),
-            if (!GraphTemplate.isLoadingListFiles) ... {
-              if (isOpeningFile) ...[
-                generatePlaybackButton(isRecording, context),
-              ],
-              // recording button
-              if (!isOpeningFile) ...[
-                generateRecordingButton(isRecording, context),
-              ],
-            },
-            if (isThresholdingButton) ... {
-              ...generateThresholdSlider(true),
-            },
-            Container(
-              margin: EdgeInsets.fromLTRB(0, 60, 0, 30),
-              child: MobileTabMenu(controller: menuController),
-            )
-          ],
-        )
-      )
+      iconData: const IconData(0xe90b, fontFamily: "IcomoonIcons"),
     );
   }
-  
+
+  generateSettingButton(int isRecording) {
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      return isRecording == 1
+          ? SizedBox()
+          : ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                shape: const CircleBorder(),
+                padding:
+                    const EdgeInsets.all(16), // Adjust padding for button size
+                backgroundColor:
+                    const Color(0xff1e1e1e), // Dark background color
+                foregroundColor:
+                    Colors.white, // Icon color / ripple effect color
+                elevation: 4, // Subtle shadow depth
+                shadowColor: Colors.black.withOpacity(0.5),
+                side: BorderSide(
+                  color: Colors.white
+                      .withOpacity(0.1), // The subtle outer ring/rim highlight
+                  width: 1,
+                ),
+              ),
+              onPressed: () async {
+                context.read<SoftwareConfigProvider>().settingStatus(true);
+              },
+              // iconData: Icons.settings),
+              child: Icon(IconData(0xe90a, fontFamily: "IcomoonIcons")));
+    } else {
+      return isRecording == 1
+          ? SizedBox()
+          : SpikerBoxButton(
+              onTapButton: () async {
+                context.read<SoftwareConfigProvider>().settingStatus(true);
+              },
+              // iconData: Icons.settings),
+              iconData: const IconData(0xe90a, fontFamily: "IcomoonIcons"));
+    }
+  }
+
+  mobileNativeButtons() {
+    return Positioned(
+        left: 0,
+        top: 0,
+        child: Container(
+            padding: const EdgeInsets.fromLTRB(10, 65, 10, 20),
+            width: MediaQuery.of(context).size.width,
+            height: MediaQuery.of(context).size.height,
+            child: Column(
+              children: [
+                GraphTemplate.isLoadingListFiles
+                    ? SizedBox()
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          generateSettingButton(isRecording),
+                          // generateLoadFileButton(isRecording),
+                        ],
+                      ),
+                Expanded(child: SizedBox()),
+                // generateThresholdButton(isRecording),
+                if (!GraphTemplate.isLoadingListFiles) ...{
+                  if (isOpeningFile) ...[
+                    generatePlaybackButton(isRecording, context),
+                  ],
+                  // recording button
+                  if (!isOpeningFile) ...[
+                    generateRecordingButton(isRecording, context),
+                  ],
+                },
+                if (isThresholdingButton) ...{
+                  ...generateThresholdSlider(true),
+                },
+                Container(
+                  margin: EdgeInsets.fromLTRB(0, 60, 0, 30),
+                  child: MobileTabMenu(controller: menuController),
+                )
+              ],
+            )));
+  }
+
   generateRecordingButton(int isRecording, BuildContext widgetContext) {
     return Center(
       child: SpikerBoxButton(
@@ -9189,18 +9221,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
               // CHECK
               _channelCount = [1];
             }
-            print(
-                "!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
+            print("!!!INIT NWB FILE, $_sampleRate, ${_channelCount.length}");
 
-            bool isAudioListen = context
-                .read<DataStatusProvider>()
-                .isMicrophoneData;
-            visibleSignalsList = context
-                .read<ChannelColorProvider>()
-                .getVisibleChannel();
-            visibleChannelCount = context
-                .read<ChannelColorProvider>()
-                .getVisibleChannelCount();
+            bool isAudioListen =
+                context.read<DataStatusProvider>().isMicrophoneData;
+            visibleSignalsList =
+                context.read<ChannelColorProvider>().getVisibleChannel();
+            visibleChannelCount =
+                context.read<ChannelColorProvider>().getVisibleChannelCount();
 
             if (kIsWeb) {
               // await GraphTemplate.nwbFileUtil
@@ -9212,15 +9240,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
               // counterTimerCancel++;
               // print(
               //     "GraphTemplate.nwbFileUtil?.recordedNwbFilePath: ${GraphTemplate.nwbFileUtil?.recordedNwbFilePath}");
-              String strTemp = GraphTemplate
-                      .nwbFileUtil?.recordedNwbFilePath ??
-                  "";
+              String strTemp =
+                  GraphTemplate.nwbFileUtil?.recordedNwbFilePath ?? "";
               // if (strTemp.length! > 3) {
               if (1 == 1) {
                 // timer.cancel();
                 if (isAudioListen) {
-                  recordedFilePath = await GraphTemplate
-                      .nwbFileUtil
+                  recordedFilePath = await GraphTemplate.nwbFileUtil
                       ?.processingInit(
                           _sampleRate,
                           widget.channelCount,
@@ -9229,8 +9255,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           visibleSignalsList,
                           visibleChannelCount);
                 } else {
-                  recordedFilePath = await GraphTemplate
-                      .nwbFileUtil
+                  recordedFilePath = await GraphTemplate.nwbFileUtil
                       ?.processingInit(
                           _sampleRate,
                           widget.channelCount,
@@ -9240,23 +9265,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
                           visibleChannelCount);
                 }
                 bool isPlay = true;
-                Provider.of<GraphResumePlayProvider>(
-                        context,
-                        listen: false)
+                Provider.of<GraphResumePlayProvider>(context, listen: false)
                     .setGraphResumePlay(isPlay);
                 _toPauseGraph = isPlay;
                 GraphTemplate.isPlayerPaused = !isPlay;
                 _pendingPlayback = false;
 
-                Future.delayed(Duration(milliseconds: 1000),
-                    () {
+                Future.delayed(Duration(milliseconds: 1000), () {
                   this.isRecording = 1;
-                  context
-                      .read<ChannelColorProvider>()
-                      .setIsRecording(1);
+                  context.read<ChannelColorProvider>().setIsRecording(1);
 
-                  recordingStartTime =
-                      DateTime.now().millisecondsSinceEpoch;
+                  recordingStartTime = DateTime.now().millisecondsSinceEpoch;
 
                   recordingNotifier.value = [
                     recordingStartTime,
@@ -9264,8 +9283,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   ];
                   setState(() {});
                 });
-              } else if (GraphTemplate
-                      .nwbFileUtil?.recordedNwbFilePath ==
+              } else if (GraphTemplate.nwbFileUtil?.recordedNwbFilePath ==
                   "--") {
                 // GraphTemplate.nwbFileUtil
                 //     ?.recordedNwbFilePath = "";
@@ -9277,8 +9295,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               // });
             } else {
               if (isAudioListen) {
-                recordedFilePath = await GraphTemplate
-                    .nwbFileUtil
+                recordedFilePath = await GraphTemplate.nwbFileUtil
                     ?.processingInit(
                         _sampleRate,
                         widget.channelCount,
@@ -9287,8 +9304,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         visibleSignalsList,
                         visibleChannelCount);
               } else {
-                recordedFilePath = await GraphTemplate
-                    .nwbFileUtil
+                recordedFilePath = await GraphTemplate.nwbFileUtil
                     ?.processingInit(
                         _sampleRate,
                         widget.channelCount,
@@ -9297,14 +9313,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
                         visibleSignalsList,
                         visibleChannelCount);
               }
-              Future.delayed(Duration(milliseconds: 1000),
-                  () {
+              Future.delayed(Duration(milliseconds: 1000), () {
                 this.isRecording = 1;
-                context
-                    .read<ChannelColorProvider>()
-                    .setIsRecording(1);
-                recordingStartTime =
-                    DateTime.now().millisecondsSinceEpoch;
+                context.read<ChannelColorProvider>().setIsRecording(1);
+                recordingStartTime = DateTime.now().millisecondsSinceEpoch;
 
                 recordingNotifier.value = [
                   recordingStartTime,
@@ -9320,47 +9332,35 @@ class _GraphTemplateState extends State<GraphTemplate> {
           }
         },
         iconData: Icons.fiber_manual_record,
-        iconColor:
-            isRecording == 1 ? Colors.red : Colors.white,
+        iconColor: isRecording == 1 ? Colors.red : Colors.white,
       ),
-    );    
+    );
   }
-  
+
   void callThresholdProcess() {
-    isThresholdingButton =
-        !isThresholdingButton;
+    isThresholdingButton = !isThresholdingButton;
     thresholdSliderValue = 1;
 
     print(
         "initThreshold : ${_sampleRate}, $deviceChannelCount === deviceChannelCount :$deviceChannelCount @@@ isThresholdingButton :$isThresholdingButton  ");
     if (isThresholdingButton) {
       processingUtil.initThreshold(
-          deviceChannelCount,
-          _sampleRate,
-          MediaQuery.of(context)
-              .size
-              .width);
-      processingUtil
-          .setAveragedSampleCount(1);
+          deviceChannelCount, _sampleRate, MediaQuery.of(context).size.width);
+      processingUtil.setAveragedSampleCount(1);
       processingUtil.setThreshold(525);
-      processingUtil
-          .setIsThresholding(true);
+      processingUtil.setIsThresholding(true);
     } else {
-      processingUtil
-          .setIsThresholding(false);
+      processingUtil.setIsThresholding(false);
     }
 
     context
         .read<ThresholdStatusProvider>()
-        .setThresholdStatus(
-            isThresholdingButton);
-    context
-        .read<ThresholdStatusProvider>()
-        .setThresholdChannel(0);
+        .setThresholdStatus(isThresholdingButton);
+    context.read<ThresholdStatusProvider>().setThresholdChannel(0);
 
-    setState(() {});    
+    setState(() {});
   }
-  
+
 // Function to call native iOS code
   Future<void> _handleFileClickiOS(String filePath) async {
     if (!Platform.isIOS) {
@@ -9372,7 +9372,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
       menuController.value = 0;
       GraphTemplate.isLoadingListFiles = false;
       isOpeningFile = false;
-      
 
       startOpeningFile(filePath);
     }
@@ -9387,7 +9386,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     //   print("Failed to invoke native iOS method: '${e.message}'.");
     // }
   }
-  
+
   generateListFilesWidget(nwbFileDataRows) {
     return Container(
       margin: EdgeInsets.fromLTRB(0, 0, 0, 40),
@@ -9399,10 +9398,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
           final parts = rowData.split('@@@');
           final filePath = parts[0];
           final dateTimeStr = parts[1];
-          
+
           // Extract just the file name from the path
           final fileName = filePath.split(Platform.pathSeparator).last;
-      
+
           return ListTile(
             leading: const Icon(Icons.insert_drive_file, color: Colors.blue),
             title: Text(fileName),
@@ -9410,7 +9409,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Text('${filePath.split(Platform.pathSeparator).last}', style: const TextStyle(fontSize: 11)),
-                Text('$dateTimeStr', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                Text('$dateTimeStr',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             ),
             trailing: Icon(Icons.chevron_right),
@@ -9421,15 +9421,13 @@ class _GraphTemplateState extends State<GraphTemplate> {
       ),
     );
   }
-  
+
   generatePlaybackButton(int isRecording, BuildContext context) {
     return BottomButtons(
       pauseButton: (bool isPlay) async {
-        print(
-            "PAUSE BUTTON CALLED: $isPlay --- isOpeningFile: $isOpeningFile");
+        print("PAUSE BUTTON CALLED: $isPlay --- isOpeningFile: $isOpeningFile");
         if (!isOpeningFile) {
-          Provider.of<GraphResumePlayProvider>(context,
-                  listen: false)
+          Provider.of<GraphResumePlayProvider>(context, listen: false)
               .setGraphResumePlay(isPlay);
           _toPauseGraph = isPlay;
           GraphTemplate.isPlayerPaused = !isPlay;
@@ -9528,7 +9526,8 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
 
             Positioned(
               left: 0,
-              bottom: !kIsWeb && (Platform.isIOS || Platform.isAndroid)? 130 : 100,
+              bottom:
+                  !kIsWeb && (Platform.isIOS || Platform.isAndroid) ? 130 : 100,
               child: ValueListenableBuilder<List<int>>(
                   valueListenable: widget.recordingNotifier,
                   builder: (context, snapshot, _) {
@@ -9583,11 +9582,13 @@ class AdaptiveAreaState extends State<_AdaptiveArea> {
             //   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
             //   child: widget.child2,
             // ),
-            if (GraphTemplate.isLoadingFile > 0 && !GraphTemplate.isLoadingListFiles) ...{
+            if (GraphTemplate.isLoadingFile > 0 &&
+                !GraphTemplate.isLoadingListFiles) ...{
               getTimeScrubWidget(),
             },
             // if (!GraphTemplate.isPlayerPaused)... {
-            if (GraphTemplate.isLoadingFile >= 1 && !GraphTemplate.isLoadingListFiles) ...{
+            if (GraphTemplate.isLoadingFile >= 1 &&
+                !GraphTemplate.isLoadingListFiles) ...{
               // strMinTime = "00:00 000";
               Positioned(
                 left: 50,
@@ -9954,9 +9955,8 @@ class _PortsArea extends StatelessWidget {
   onPortSelected(String p1) {
     print("onPortSelected: $p1");
     print("DISCONNECT USB");
-    
-    onWrite(p1);
 
+    onWrite(p1);
   }
 }
 

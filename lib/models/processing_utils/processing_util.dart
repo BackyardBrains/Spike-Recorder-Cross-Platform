@@ -59,7 +59,7 @@ abstract class ProcessingUtil {
   // List<int> processThresholdData(Uint8List data, int drawSurfaceWidth, int selectedChannel, bool isAverageSamples);
   List<int> processThresholdData(List<Int16List> data, int thresholdChannelCount, int drawSurfaceWidth, int selectedChannel, bool isAverageSamples);
   // List<Int16List> processMicrophoneData(Uint8List data, bool isAverageSamples, bool isThresholdingButton, int drawSurfaceWidth, int selectedChannel);
-  List<Int16List> processMicrophoneData(Uint8List data);
+  Future<List<Int16List>> processMicrophoneData(Uint8List data);
   List<Int16List> prepareDisplayMicrophoneData(
       List<Int16List> data,
       int drawSurfaceWidth,

@@ -3230,6 +3230,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   void micListener() {
+    unawaited(_micListenerAsync());
+  }
+
+  Future<void> _micListenerAsync() async {
     // print("miCLISTENER DATA | TIME: ${DateTime.now().millisecondsSinceEpoch} |||| ${microphoneUtil.micStream.value.sublist(0,10)}");
     int channelCount = 1;
     int selectedThresholdChannel = 0;
@@ -3246,7 +3250,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
         !isSpeakerChannelMuted[0]) {
       final micChunk = Uint8List.fromList(microphoneUtil.micStream.value);
       if (!kIsWeb) {
-        _liveMicProcessedCache = processingUtil.processMicrophoneData(micChunk);
+        _liveMicProcessedCache =
+            await processingUtil.processMicrophoneData(micChunk);
         _processedSamplePlayer?.enqueueProcessedChunk(_liveMicProcessedCache!);
       }
     }
@@ -3290,7 +3295,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         GraphTemplate.isLoadingFile = 2;
         // List<Int16List> tempData = processingUtil.processMicrophoneData(loadedArrSamples.sublist(0, loadedArrChannelCount[0]).buffer.asUint8List());
         // loadedArrSamples[0].fillRange(0, loadedArrSamples[0].length, 5000);
-        List<Int16List> tempData = processingUtil
+        List<Int16List> tempData = await processingUtil
             .processMicrophoneData(loadedArrSamples[0].buffer.asUint8List());
         // List<Int16List> tempData = processingUtil.processMicrophoneData(Uint8List(0));
         microphoneUtil.micStream.value = Uint8List(0);
@@ -3302,15 +3307,15 @@ class _GraphTemplateState extends State<GraphTemplate> {
           // print("PROCESS MICROPHONE ISLOADINGFILE 3");
           GraphTemplate.isLoadingFile = 4;
           // print("PROCESS MICROPHONE DATA LOADED 3: ${GraphTemplate.isLoadingFile}");
-          List<Int16List> tempData = processingUtil
+          List<Int16List> tempData = await processingUtil
               .processMicrophoneData(microphoneUtil.micStream.value);
         } else if (!GraphTemplate.isPlayerPaused) {
           if (isThresholdingButton) {
             if (kIsWeb) {
-              processingUtil
+              await processingUtil
                   .processMicrophoneData(microphoneUtil.micStream.value);
             } else {
-              List<Int16List> tempData = processingUtil
+              List<Int16List> tempData = await processingUtil
                   .processMicrophoneData(microphoneUtil.micStream.value);
               tempData.add(Int16List.fromList(tempData[0]));
               Int32List samplesCount = Int32List(tempData.length);
@@ -3362,7 +3367,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
             }
           } else {
             List<Int16List> tempData = _liveMicProcessedCache ??
-                processingUtil.processMicrophoneData(
+                await processingUtil.processMicrophoneData(
                     Uint8List.fromList(microphoneUtil.micStream.value));
             _liveMicProcessedCache = null;
             tempData.add(Int16List.fromList(tempData[0]));
@@ -6267,7 +6272,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
           if (isAudioListen) {
             GraphTemplate.isLoadingFile = 3;
-            List<Int16List> tempData = processingUtil
+            List<Int16List> tempData = await processingUtil
                 .processMicrophoneData(sublistArray[0].buffer.asUint8List());
             microphoneUtil.micStream.value = Uint8List(0);
 
@@ -6729,7 +6734,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   0,
                   arrSamplesInitial.sublist(
                       0, arrSampleCountInitial[0].floor()));
-              processingUtil.processMicrophoneData(
+              await processingUtil.processMicrophoneData(
                   tempLoadedArrSamples.buffer.asUint8List());
               print(
                   "----> START SEEK SAMPLE INITIAL : $startInitialIndex |=| ${(startSeekSample % maxScreenSamples.floor()).floor()} | ${arrSampleCountInitial[0].floor()} |  ${tempLoadedArrSamples.length} |||| ${tempLoadedArrSamples.buffer.asUint8List().length}");
@@ -6888,7 +6893,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
               Int16List(arrSampleCountInitial[0].floor());
           tempLoadedArrSamples.setAll(0,
               arrSamplesInitial.sublist(0, arrSampleCountInitial[0].floor()));
-          processingUtil
+          await processingUtil
               .processMicrophoneData(tempLoadedArrSamples.buffer.asUint8List());
           print(
               "----> START SEEK SAMPLE INITIAL : $startInitialIndex |=| ${(startSeekSample % maxScreenSamples.floor()).floor()} | ${arrSampleCountInitial[0].floor()} |  ${tempLoadedArrSamples.length} |||| ${tempLoadedArrSamples.buffer.asUint8List().length}");

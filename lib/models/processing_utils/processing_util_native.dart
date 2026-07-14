@@ -6,6 +6,7 @@ import 'dart:ffi';
 import 'dart:io';
 // import 'dart:ui';
 import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart';
 import 'package:spikerbox_architecture/models/CircularFloatArrayBuffer.dart';
 import 'package:spikerbox_architecture/models/FftDrawBuffer.dart';
 import 'package:spikerbox_architecture/models/default_config_model.dart';
@@ -14,6 +15,8 @@ import 'package:spikerbox_architecture/screen/graph_template.dart';
 import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
 import 'package:spikerbox_architecture/widget/fft_painter.dart';
 import 'processing_util.dart';
+import 'prepare_display_data_isolate_entry.dart';
+import 'prepare_display_data_isolate_messages.dart';
 // import 'package:native_add/native_add.dart';
 import 'package:processing_ffi/processing_ffi.dart' as pb;
 // import 'package:processing_ffi/processing_bindings.dart';
@@ -32,6 +35,21 @@ class ProcessingUtilImpl implements ProcessingUtil {
   SendPort? portMainToProcessingIsolate;
   ReceivePort? portProcessingIsolateToMain;
   final _dataController = StreamController<dynamic>.broadcast();
+  Isolate? _displayDataIsolate;
+  SendPort? _displayDataWorkerPort;
+  ReceivePort? _displayDataReceivePort;
+  StreamSubscription<dynamic>? _displayDataSubscription;
+  int _displayDataRequestId = 0;
+  int _latestDisplayDataRequestId = 0;
+  GraphDataProvider? _pendingDisplayProvider;
+  int _insertMicRequestId = 0;
+  final Map<int, Completer<InsertMicrophoneDataResult>> _pendingMicInserts = {};
+  /// Serializes mic inserts so overlapping calls keep sample order (point B).
+  Future<void> _micInsertChain = Future<void>.value();
+  int _insertSerialRequestId = 0;
+  final Map<int, Completer<InsertSerialDataResult>> _pendingSerialInserts = {};
+  /// Serializes serial inserts so overlapping calls keep sample order (point B).
+  Future<void> _serialInsertChain = Future<void>.value();
   bool _isInitialized = false;
   int _sampleRate = 44100;
   int _channelCount = 1;
@@ -446,91 +464,53 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   @override
-  // List<Int16List> processMicrophoneData(Uint8List data, bool isAverageSamples, bool isThresholdingButton, int drawSurfaceWidth, int selectedChannel) {
-  List<Int16List> processMicrophoneData(Uint8List data) {
+  Future<List<Int16List>> processMicrophoneData(Uint8List data) async {
     if (!_isInitialized) {
       throw StateError('ProcessingUtil not initialized. Call init() first.');
     }
-    // ProcessingUtil.positionIndex =
-    //     (ProcessingUtil.positionIndex + data.length / 2).toInt() %
-    //         (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate * 2).toInt();
-    // print("ProcessingUtil.positionIndex : $_sampleRate --  ${ProcessingUtil.positionIndex}");
-
-    final outSampleCountsPtr = calloc<Int32>();
-    try {
-      // Prepare input data pointer
-      final inDataPtr = calloc<Uint8>(data.length);
-      for (int i = 0; i < data.length; i++) {
-        inDataPtr[i] = data[i];
-      }
-
-      // Process the microphone data using pre-allocated buffer
-      // print("PROCESS MICROPHONE DATA1: ${data.length}");
-      final result = pb.processingBindings.processMicrophoneStream(
-          currentDataBuffer!, outSampleCountsPtr, inDataPtr, data.length);
-      // print("ERROR PROCESS MICROPHONE DATA: ${data.length} $result");
-      if (result != 0) {
-        // throw Exception('Failed to process microphone data: $result');
-      } else {}
-
-      // Free input data memory
-      calloc.free(inDataPtr);
-      int frameCount = (data.length / 2).floor();
-      // print("frameCount: $frameCount");
-      int removedIndicesCount = 0;
-      for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {
-        if (inEventIndicesPtr![i] - frameCount > 0) {
-          inEventIndicesPtr![i] -= frameCount;
-          ProcessingUtil.eventPosition[i] = inEventIndicesPtr![i];
-        } else {
-          if (inEventIndicesPtr![i] != -1) {
-            removedIndicesCount++;
-            inEventIndicesPtr![i] = -1;
-            // DraggableGraph.eventMarkersPosition.removeAt(i);
-          }
-        }
-      }
-      for (int i = 0; i < removedIndicesCount; i++) {
-        if (inEventIndicesPtr![i] == -1) {
-          // print(
-          //     "INDEX: $i -- $removedIndicesCount __ ${inEventIndicesPtr![i]} : ${ProcessingUtil.eventLabels} @@ ${inEventIndicesPtr!.asTypedList(ProcessingUtil.currentEventMarkers)}");
-          if (ProcessingUtil.eventLabels.isNotEmpty) {
-            ProcessingUtil.eventLabels.removeAt(0);
-            ProcessingUtil.eventPosition.removeAt(0);
-          }
-        }
-      }
-      int tempCurrentEvent = ProcessingUtil.currentEventMarkers;
-      ProcessingUtil.currentEventMarkers -= removedIndicesCount;
-      if (inEventIndicesPtr != null && inEventIndicesPtr![0] == -1) {
-        int eventPositionLen = ProcessingUtil.eventLabels.length;
-        // print(
-        //     "0ProcessingUtil.eventPosition ${ProcessingUtil.eventPosition.sublist(0, eventPositionLen)} --- ${inEventIndicesPtr!.asTypedList(eventPositionLen)}");
-        for (int i = eventPositionLen; i >= 0; i--) {
-          inEventIndicesPtr![i] = ProcessingUtil.eventPosition[i];
-        }
-        for (int i = eventPositionLen; i < tempCurrentEvent; i++) {
-          // print("ZEROING: $eventPositionLen - $tempCurrentEvent");
-          inEventIndicesPtr![i] =
-              (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
-        }
-        // print(
-        //     "1ProcessingUtil.eventPosition ${ProcessingUtil.eventPosition.sublist(0, eventPositionLen)} --- ${inEventIndicesPtr!.asTypedList(eventPositionLen)}");
-      }
-      // print("PROCESS MICROPHONE DATA2: ${data.length}");
-
-      // Create Dart view of the native memory
-      final sampleCount = outSampleCountsPtr.value;
-      Pointer<Pointer<Int16>> curDataBuffer =
-          currentDataBuffer as Pointer<Pointer<Int16>>;
-      final bufferViews = List<Int16List>.generate(_channelCount,
-          (i) => curDataBuffer[i].cast<Int16>().asTypedList(sampleCount));
-      return bufferViews;
-
-      // return [];
-    } finally {
-      calloc.free(outSampleCountsPtr);
+    if (data.isEmpty) {
+      return List.generate(_channelCount, (_) => Int16List(0));
     }
+
+    final resultCompleter = Completer<List<Int16List>>();
+    _micInsertChain = _micInsertChain.then((_) async {
+      try {
+        final channels = await _processMicrophoneDataOnIsolate(data);
+        if (!resultCompleter.isCompleted) {
+          resultCompleter.complete(channels);
+        }
+      } catch (e, st) {
+        if (!resultCompleter.isCompleted) {
+          resultCompleter.completeError(e, st);
+        }
+      }
+    });
+    return resultCompleter.future;
+  }
+
+  Future<List<Int16List>> _processMicrophoneDataOnIsolate(Uint8List data) async {
+    await _ensureDisplayDataIsolate();
+    if (_displayDataWorkerPort == null) {
+      return List.generate(_channelCount, (_) => Int16List(0));
+    }
+
+    final requestId = ++_insertMicRequestId;
+    final completer = Completer<InsertMicrophoneDataResult>();
+    _pendingMicInserts[requestId] = completer;
+
+    _displayDataWorkerPort!.send(InsertMicrophoneDataRequest(
+      requestId: requestId,
+      data: Uint8List.fromList(data),
+      channelCount: _channelCount,
+    ));
+
+    final result = await completer.future;
+    if (result.status != 0) {
+      return List.generate(_channelCount, (_) => Int16List(0));
+    }
+
+    _shiftEventMarkersForInsertedFrames(result.frameCount);
+    return result.channels;
   }
 
   @override
@@ -609,6 +589,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   // Cleanup resources
   Future<void> dispose() async {
     postChannelCountController.close();
+    unawaited(_shutdownDisplayDataIsolate());
     cleanupDartCallbacks();
     _processingIsolate?.kill();
     portProcessingIsolateToMain?.close();
@@ -660,6 +641,172 @@ class ProcessingUtilImpl implements ProcessingUtil {
     _isInitialized = false;
   }
 
+  Future<void> _ensureDisplayDataIsolate() async {
+    if (_displayDataWorkerPort != null || kIsWeb) return;
+
+    _displayDataReceivePort = ReceivePort();
+    final readyCompleter = Completer<SendPort>();
+
+    _displayDataSubscription = _displayDataReceivePort!.listen((message) {
+      if (message is PrepareDisplayDataIsolateReady) {
+        _displayDataWorkerPort = message.workerCommandPort;
+        if (!readyCompleter.isCompleted) {
+          readyCompleter.complete(message.workerCommandPort);
+        }
+        return;
+      }
+      if (message is PrepareDisplayDataResult) {
+        _applyPrepareDisplayDataResult(message);
+        return;
+      }
+      if (message is InsertMicrophoneDataResult) {
+        _pendingMicInserts.remove(message.requestId)?.complete(message);
+        return;
+      }
+      if (message is InsertSerialDataResult) {
+        _pendingSerialInserts.remove(message.requestId)?.complete(message);
+        return;
+      }
+      if (message is String) {
+        print('Prepare display data isolate error: $message');
+      }
+    });
+
+    _displayDataIsolate = await Isolate.spawn(
+      prepareDisplayDataIsolateEntry,
+      _displayDataReceivePort!.sendPort,
+    );
+    await readyCompleter.future;
+  }
+
+  Future<void> _shutdownDisplayDataIsolate() async {
+    if (_displayDataWorkerPort != null) {
+      _displayDataWorkerPort!.send(PrepareDisplayDataShutdown());
+    }
+    await _displayDataSubscription?.cancel();
+    _displayDataSubscription = null;
+    _displayDataReceivePort?.close();
+    _displayDataReceivePort = null;
+    _displayDataIsolate?.kill(priority: Isolate.immediate);
+    _displayDataIsolate = null;
+    _displayDataWorkerPort = null;
+    _pendingDisplayProvider = null;
+    for (final pending in _pendingMicInserts.values) {
+      if (!pending.isCompleted) {
+        pending.completeError(StateError('Display data isolate shut down'));
+      }
+    }
+    _pendingMicInserts.clear();
+    for (final pending in _pendingSerialInserts.values) {
+      if (!pending.isCompleted) {
+        pending.completeError(StateError('Display data isolate shut down'));
+      }
+    }
+    _pendingSerialInserts.clear();
+  }
+
+  void _shiftEventMarkersForInsertedFrames(int frameCount) {
+    if (frameCount <= 0 || inEventIndicesPtr == null) return;
+
+    int removedIndicesCount = 0;
+    for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {
+      if (inEventIndicesPtr![i] - frameCount > 0) {
+        inEventIndicesPtr![i] -= frameCount;
+        ProcessingUtil.eventPosition[i] = inEventIndicesPtr![i];
+      } else if (inEventIndicesPtr![i] != -1) {
+        removedIndicesCount++;
+        inEventIndicesPtr![i] = -1;
+      }
+    }
+    for (int i = 0; i < removedIndicesCount; i++) {
+      if (inEventIndicesPtr![i] == -1 && ProcessingUtil.eventLabels.isNotEmpty) {
+        ProcessingUtil.eventLabels.removeAt(0);
+        ProcessingUtil.eventPosition.removeAt(0);
+      }
+    }
+    final tempCurrentEvent = ProcessingUtil.currentEventMarkers;
+    ProcessingUtil.currentEventMarkers -= removedIndicesCount;
+    if (inEventIndicesPtr![0] == -1) {
+      final eventPositionLen = ProcessingUtil.eventLabels.length;
+      for (int i = eventPositionLen; i >= 0; i--) {
+        inEventIndicesPtr![i] = ProcessingUtil.eventPosition[i];
+      }
+      for (int i = eventPositionLen; i < tempCurrentEvent; i++) {
+        inEventIndicesPtr![i] =
+            (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+      }
+    }
+  }
+
+  void _applyPrepareDisplayDataResult(PrepareDisplayDataResult result) {
+    if (result.requestId < _latestDisplayDataRequestId) return;
+
+    final provider = _pendingDisplayProvider;
+    if (provider == null) return;
+
+    for (int i = 0; i < result.drawingBuffers.length; i++) {
+      if (i < ProcessingUtil.drawingBuffers.length) {
+        ProcessingUtil.drawingBuffers[i]
+            .setAll(0, result.drawingBuffers[i]);
+        ProcessingUtil.drawingBufferCounts[i] =
+            result.drawingBufferCounts[i];
+      }
+    }
+
+    DraggableGraph.eventMarkersPosition.clear();
+    DraggableGraph.eventMarkersLabels.clear();
+    DraggableGraph.eventMarkersPosition
+        .addAll(result.eventMarkerPositions);
+
+    final startPositionIdx = DraggableGraph.startPositionIdx;
+    final endPositionIdx = DraggableGraph.endPositionIdx;
+    for (int i = 0; i < ProcessingUtil.eventLabels.length; i++) {
+      if (i < ProcessingUtil.eventPosition.length &&
+          ProcessingUtil.eventPosition[i] >= startPositionIdx &&
+          ProcessingUtil.eventPosition[i] <= endPositionIdx) {
+        DraggableGraph.eventMarkersLabels.add(ProcessingUtil.eventLabels[i]);
+      }
+    }
+
+    provider.inputListener(Uint8List(0));
+  }
+
+  void _postPrepareDisplayDataToIsolate({
+    required int drawSurfaceWidth,
+    required int channelCount,
+    required int startPositionIdx,
+    required int endPositionIdx,
+    required GraphDataProvider provider,
+  }) {
+    if (_displayDataWorkerPort == null) return;
+
+    currentDrawSurfaceWidth = drawSurfaceWidth;
+    ProcessingUtil.fromDrawingIdx = startPositionIdx;
+    ProcessingUtil.toDrawingIdx = endPositionIdx;
+    _pendingDisplayProvider = provider;
+
+    final requestId = ++_displayDataRequestId;
+    _latestDisplayDataRequestId = requestId;
+
+    final inEventIndices = inEventIndicesPtr != null
+        ? inEventIndicesPtr!
+            .asTypedList(ProcessingUtil.MAX_EVENT_MARKERS)
+            .toList()
+        : List<int>.filled(ProcessingUtil.MAX_EVENT_MARKERS, 0);
+
+    _displayDataWorkerPort!.send(PrepareDisplayDataRequest(
+      requestId: requestId,
+      drawSurfaceWidth: drawSurfaceWidth,
+      channelCount: channelCount,
+      startPositionIdx: startPositionIdx,
+      endPositionIdx: endPositionIdx,
+      currentEventMarkers: ProcessingUtil.currentEventMarkers,
+      inEventIndices: inEventIndices,
+      eventLabels: List<int>.from(ProcessingUtil.eventLabels),
+      eventPosition: List<int>.from(ProcessingUtil.eventPosition),
+    ));
+  }
+
   @override
   List<Int16List> prepareDisplayMicrophoneData(
       List<Int16List> processedData,
@@ -669,133 +816,16 @@ class ProcessingUtilImpl implements ProcessingUtil {
       GraphDataProvider provider,
       int startPositionIdx,
       int endPositionIdx) {
-    // return [Int16List(0)];
     if (processedData.isNotEmpty) {
-      currentDrawSurfaceWidth = drawSurfaceWidth;
-      ProcessingUtil.fromDrawingIdx = startPositionIdx;
-      ProcessingUtil.toDrawingIdx = endPositionIdx;
-      // Convert Int16List to Float data for signal drawing
-      int frameCount = processedData[0].length;
-      List<Float32List> floatSignalData = [];
-
-      // Convert each channel's data to float
-      for (int i = 0; i < processedData.length; i++) {
-        Float32List floatData = Float32List(frameCount);
-        for (int j = 0; j < frameCount; j++) {
-          floatData[j] = processedData[i][j].toDouble();
-        }
-        floatSignalData.add(floatData);
-      }
-
-      // Prepare for drawing - focusing on the first channel for now
-      // Float32List outSignal = Float32List(drawSurfaceWidth * 5); // 5x for envelope
-      // Int32List outEvents = Int32List(100); // Max 100 events
-
-      // Allocate memory for output samples (array of float arrays)
-      final outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
-      for (int i = 0; i < channelCount; i++) {
-        outSamplesPtr[i] =
-            calloc<Int16>(drawSurfaceWidth * 5); // 5x for envelope
-      }
-
-      // Allocate memory for sample counts
-      final outSampleCountsPtr = calloc<Int32>(channelCount);
-
-      // Allocate memory for event indices (assuming max 100 events)
-      final outEventIndicesPtr =
-          calloc<Float>(ProcessingUtil.MAX_EVENT_MARKERS);
-
-      // Allocate memory for event count
-      final outEventCountPtr = calloc<Int32>(1);
-
-      // Allocate and prepare input event indices
-      // final inEventIndicesPtr = calloc<Int32>(0); // No events yet
-      // int sampleResolution = (displayTimeMs*0.001 * _sampleRate).toInt();
-
-      try {
-        int result = prepareForSignalDrawingProcess(
-            outSamplesPtr, // Pointer<Pointer<Float>>
-            outSampleCountsPtr, // Pointer<Int32>
-            outEventIndicesPtr, // Pointer<Float>
-            outEventCountPtr, // Pointer<Int32>
-            inEventIndicesPtr, // Pointer<Int32>
-            ProcessingUtil.currentEventMarkers, // int (inEventCount)
-            startPositionIdx, // int (fromSample)
-            endPositionIdx, // int (toSample)
-            drawSurfaceWidth // int
-            );
-
-        if (result == 0) {
-          // Copy the results back to Dart
-          // Get the number of samples from outSampleCountsPtr
-          int sampleCount = outSampleCountsPtr.value;
-          // Copy the prepared signal data
-          //for (int i = 0; i < widget.channelCount; i++) {
-          // Int16List channelData = outSamplesPtr[0].asTypedList(sampleCount);
-          //print("Sample count: $sampleCount");
-          //print("first sample: ${channelData[0]}");
-          //se log with this:
-          // cat /tmp/flutter_native_crash.log
-
-          // Uint8List uint8Data = Uint8List.view(channelData.buffer);
-          // ProcessingUtil.drawingBuffers.clear();
-          for (int i = 0; i < channelCount; i++) {
-            final temp = outSamplesPtr[i].asTypedList(sampleCount);
-            // print("temp: ${temp.length} - $sampleCount :: ${ProcessingUtil.drawingBuffers[i].length}");
-            // final arrDouble = List.generate(sampleCount, (index) => temp[index].toDouble());
-            // if (ProcessingUtil.drawingBuffers.length <= i) {
-            // ProcessingUtil.drawingBuffers.add( arrDouble );
-            // } else {
-            ProcessingUtil.drawingBuffers[i].setAll(0, temp);
-            ProcessingUtil.drawingBufferCounts[i] = sampleCount;
-            // }
-          }
-          DraggableGraph.eventMarkersPosition.clear();
-          DraggableGraph.eventMarkersLabels.clear();
-          var tempList =
-              outEventIndicesPtr.asTypedList(ProcessingUtil.eventLabels.length);
-          // print(
-          //     "tempList: $tempList --- ${ProcessingUtil.currentEventMarkers}");
-          for (double temp in tempList) {
-            DraggableGraph.eventMarkersPosition.add(temp);
-          }
-
-          int len = ProcessingUtil.eventLabels.length;
-          int startPositionIdx = DraggableGraph.startPositionIdx;
-          int endPositionIdx = DraggableGraph.endPositionIdx;
-          for (int i = 0; i < len; i++) {
-            // print("RANGE : $startPositionIdx - $endPositionIdx");
-            if (ProcessingUtil.eventPosition[i] >= startPositionIdx &&
-                ProcessingUtil.eventPosition[i] <= endPositionIdx) {
-              DraggableGraph.eventMarkersLabels
-                  .add(ProcessingUtil.eventLabels[i]);
-            }
-          }
-
-          // print(
-          //     "DraggableGraph.eventMarkersPosition: ${DraggableGraph.eventMarkersPosition}");
-
-          provider.inputListener(Uint8List(0));
-          //provider.inputListener(channelData);
-          // Get the number of events
-          int eventCount = outEventCountPtr.value;
-          if (eventCount > 0) {
-            // Copy event indices if needed
-            // Float32List eventIndices = outEventIndicesPtr.asTypedList(eventCount);
-            // Use eventIndices as needed
-          }
-        }
-      } finally {
-        // Clean up allocated memory
-        for (int i = 0; i < channelCount; i++) {
-          calloc.free(outSamplesPtr[i]);
-        }
-        calloc.free(outSamplesPtr);
-        calloc.free(outSampleCountsPtr);
-        calloc.free(outEventIndicesPtr);
-        calloc.free(outEventCountPtr);
-        // calloc.free(inEventIndicesPtr);
-      }
+      unawaited(_ensureDisplayDataIsolate().then((_) {
+        _postPrepareDisplayDataToIsolate(
+          drawSurfaceWidth: drawSurfaceWidth,
+          channelCount: channelCount,
+          startPositionIdx: startPositionIdx,
+          endPositionIdx: endPositionIdx,
+          provider: provider,
+        );
+      }));
     }
     return processedData;
   }
@@ -848,117 +878,62 @@ class ProcessingUtilImpl implements ProcessingUtil {
   Future<List<Int16List>> processSerialData(Uint8List samples,
       int displayTimeMs, int deviceType, int drawSurfaceWidth,
       [GraphDataProvider? provider]) async {
-    // print("samples : $samples | channelCount : $channelCount | drawSurfaceWidth: $drawSurfaceWidth");
-    var outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
-    for (int i = 0; i < channelCount; i++) {
-      outSamplesPtr[i] = calloc<Int16>(drawSurfaceWidth * 5); // 5x for envelope
-    }
-    // print("END samples : $samples | channelCount : $channelCount");
-
-    final outSampleCountsPtr = calloc<Int32>(channelCount);
-
-    // try {
-    // Prepare input data pointer
-    final inDataPtr = calloc<Uint8>(samples.length);
-    // if (initialSamples.isEmpty) {
-    //   for (int i = 0; i < 10; i++) {
-    //     initialSamples.addAll([255,255,1,1,128,255]);
-    //     initialSamples.addAll([0,10 * i,0,20 * i]);
-    //     // initialSamples.addAll([0,10 * i,0,20 * i]);
-    //     // initialSamples.addAll([0,10 * i,0,20 * i]);
-    //     initialSamples.addAll([255,255,1,1,129,255]);
-    //   }
-    // }
-    for (int i = 0; i < samples.length; i++) {
-      inDataPtr[i] = samples[i];
-      // inDataPtr[i] = initialSamples[i]; PROCESS SERIAL DATA ERROR START
-    }
-    int res = pb.processingBindings.processSampleStream(outSamplesPtr,
-        outSampleCountsPtr, inDataPtr, samples.length, deviceType);
-    if (res < 0) {
-      print('BYB SERIAL PAINT: processSampleStream error res=$res '
-          'bytes=${samples.length} deviceType=$deviceType channels=$channelCount');
-      calloc.free(inDataPtr);
-      for (int i = 0; i < channelCount; i++) {
-        calloc.free(outSamplesPtr[i]);
-      }
-      calloc.free(outSamplesPtr);
-      calloc.free(outSampleCountsPtr);
+    if (samples.isEmpty) {
       return List.generate(channelCount, (_) => Int16List(0));
     }
-    int minCounter = 100000;
-    List<Int16List> buffer = [];
-    for (int i = 0; i < channelCount; i++) {
-      final count = outSampleCountsPtr[i];
-      if (count <= 0) {
-        buffer.add(Int16List(0));
-        continue;
-      }
-      minCounter = min(count, minCounter);
-      Int16List temp = outSamplesPtr[i].asTypedList(count);
-      Int16List arr = Int16List(count);
-      arr.setAll(0, temp);
-      buffer.add(arr);
-    }
-    // }
-    // Int32List sampleCount = outSampleCountsPtr.asTypedList(channelCount);
-    // provider.inputListener(outSamplesPtr[0].asTypedList(sampleCount).buffer.asUint8List());
-    // if (samples.reduce(max) > 250) {
-    //   print("RES : $res - $samples === ${samples.length} @@@ : [1]=> $list [2]=> $list2");
-    // }
-    // print("RES : $res - ${samples.length} : == ");
-    // Free input data memory
-    calloc.free(inDataPtr);
-    int frameCount = minCounter;
-    int removedIndicesCount = 0;
-    // print("RES : ${inEventIndicesPtr![0]} - ${samples.length} : == ");
-    for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {
-      if (inEventIndicesPtr![i] - frameCount > 0) {
-        inEventIndicesPtr![i] -= frameCount;
-        ProcessingUtil.eventPosition[i] = inEventIndicesPtr![i];
-      } else {
-        if (inEventIndicesPtr![i] != -1) {
-          removedIndicesCount++;
-          inEventIndicesPtr![i] = -1;
+
+    final resultCompleter = Completer<List<Int16List>>();
+    _serialInsertChain = _serialInsertChain.then((_) async {
+      try {
+        final channels = await _processSerialDataOnIsolate(
+          samples: samples,
+          deviceType: deviceType,
+          drawSurfaceWidth: drawSurfaceWidth,
+        );
+        if (!resultCompleter.isCompleted) {
+          resultCompleter.complete(channels);
+        }
+      } catch (e, st) {
+        if (!resultCompleter.isCompleted) {
+          resultCompleter.completeError(e, st);
         }
       }
+    });
+    return resultCompleter.future;
+  }
+
+  Future<List<Int16List>> _processSerialDataOnIsolate({
+    required Uint8List samples,
+    required int deviceType,
+    required int drawSurfaceWidth,
+  }) async {
+    await _ensureDisplayDataIsolate();
+    if (_displayDataWorkerPort == null) {
+      return List.generate(channelCount, (_) => Int16List(0));
     }
 
-    for (int i = 0; i < removedIndicesCount; i++) {
-      if (inEventIndicesPtr![i] == -1) {
-        // print(
-        //     "INDEX: $i -- $removedIndicesCount __ ${inEventIndicesPtr![i]} : ${ProcessingUtil.eventLabels} @@ ${inEventIndicesPtr!.asTypedList(ProcessingUtil.currentEventMarkers)}");
-        if (ProcessingUtil.eventLabels.isNotEmpty) {
-          ProcessingUtil.eventLabels.removeAt(0);
-          ProcessingUtil.eventPosition.removeAt(0);
-        }
-      }
+    final requestId = ++_insertSerialRequestId;
+    final completer = Completer<InsertSerialDataResult>();
+    _pendingSerialInserts[requestId] = completer;
+
+    _displayDataWorkerPort!.send(InsertSerialDataRequest(
+      requestId: requestId,
+      data: Uint8List.fromList(samples),
+      channelCount: channelCount,
+      deviceType: deviceType,
+      drawSurfaceWidth: drawSurfaceWidth,
+    ));
+
+    final result = await completer.future;
+    if (result.status < 0) {
+      print('BYB SERIAL PAINT: processSampleStream error res=${result.status} '
+          'bytes=${samples.length} deviceType=$deviceType channels=$channelCount');
+      return List.generate(channelCount, (_) => Int16List(0));
     }
 
-    int tempCurrentEvent = ProcessingUtil.currentEventMarkers;
-    ProcessingUtil.currentEventMarkers -= removedIndicesCount;
-    if (inEventIndicesPtr != null && inEventIndicesPtr![0] == -1) {
-      int eventPositionLen = ProcessingUtil.eventLabels.length;
-      for (int i = eventPositionLen; i >= 0; i--) {
-        inEventIndicesPtr![i] = ProcessingUtil.eventPosition[i];
-      }
-      for (int i = eventPositionLen; i < tempCurrentEvent; i++) {
-        inEventIndicesPtr![i] =
-            (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
-      }
-    }
-
-    // return;
-    // }catch (err) {
-    //   print("err process Sample Stream");
-    //   print(err);
-    // }
-    for (int i = 0; i < channelCount; i++) {
-      calloc.free(outSamplesPtr[i]);
-    }
-    calloc.free(outSamplesPtr);
-    calloc.free(outSampleCountsPtr);
-    return Future.value(buffer);
+    // frameCount from decoded outSampleCounts — not raw bytes / channelCount.
+    _shiftEventMarkersForInsertedFrames(result.frameCount);
+    return result.channels;
   }
 
   @override
@@ -966,109 +941,19 @@ class ProcessingUtilImpl implements ProcessingUtil {
       int displayTimeMs,
       int deviceType,
       int drawSurfaceWidth,
-      GraphDataProvider? provider,
+      GraphDataProvider provider,
       int startPositionIdx,
       int endPositionIdx) async {
-    // Allocate memory for sample counts
-    ProcessingUtil.fromDrawingIdx = startPositionIdx;
-    ProcessingUtil.toDrawingIdx = endPositionIdx;
-
-    var outSamplesPtr = calloc<Pointer<Int16>>(channelCount);
-    final outSampleCountsPtr = calloc<Int32>(channelCount);
-    for (int i = 0; i < channelCount; i++) {
-      outSamplesPtr[i] = calloc<Int16>(drawSurfaceWidth * 5); // 5x for envelope
-    }
-
-    // Allocate memory for event indices (assuming max 100 events)
-    final outEventIndicesPtr = calloc<Float>(100);
-
-    // Allocate memory for event count
-    final outEventCountPtr = calloc<Int32>(1);
-
-    // Allocate and prepare input event indices
-    // final inEventIndicesPtr = calloc<Int32>(0); // No events yet
-    // print("drawSurfaceWidth : $drawSurfaceWidth");
-    try {
-      // return Future.value(Uint8List(0));
-      // print("PREPARE FOR SIGNAL DRAWING - Start Channel Count $channelCount");
-      int result = pb.processingBindings.prepareForSignalDrawing(
-          outSamplesPtr, // Pointer<Pointer<Float>>
-          outSampleCountsPtr, // Pointer<Int32>
-          outEventIndicesPtr, // Pointer<Float>
-          outEventCountPtr, // Pointer<Int32>
-          inEventIndicesPtr!, // Pointer<Int32>
-          ProcessingUtil.currentEventMarkers, // int (inEventCount)
-          // 0,                       // int (fromSample)
-          // (displayTimeMs*0.001 * sampleRate * 1).toInt(),  // int (toSample)
-          startPositionIdx, // int (fromSample)
-          endPositionIdx, // int (toSample)
-          drawSurfaceWidth // int
-          );
-
-      // if (result != 0) {
-      //   print(
-      //       'BYB SERIAL PAINT: prepareForSignalDrawing failed result=$result '
-      //       'from=$startPositionIdx to=$endPositionIdx '
-      //       'channels=$channelCount width=$drawSurfaceWidth');
-      // }
-
-      if (result == 0) {
-        // print("startPositionIdx : $startPositionIdx");
-        int sampleCount = outSampleCountsPtr.value;
-        int eventCount = outEventCountPtr.value;
-        // print(
-        //     'BYB SERIAL PAINT: prepareForSignalDrawing ok sampleCount=$sampleCount '
-        //     'events=$eventCount from=${ProcessingUtil.fromDrawingIdx} '
-        //     'to=${ProcessingUtil.toDrawingIdx} channels=$channelCount');
-        if (eventCount > 0) {
-          // Float32List eventIndices = outEventIndicesPtr.asTypedList(eventCount);
-        }
-
-        for (int i = 0; i < channelCount; i++) {
-          final temp = outSamplesPtr[i].asTypedList(sampleCount);
-          // final arrDouble = List.generate(sampleCount, (index) => temp[index].toDouble());
-          ProcessingUtil.drawingBuffers[i].setAll(0, temp);
-          ProcessingUtil.drawingBufferCounts[i] = sampleCount;
-        }
-
-        DraggableGraph.eventMarkersPosition.clear();
-        DraggableGraph.eventMarkersLabels.clear();
-        var tempList =
-            outEventIndicesPtr.asTypedList(ProcessingUtil.eventLabels.length);
-        // print(
-        //     "tempList: $tempList --- ${ProcessingUtil.currentEventMarkers}");
-        for (double temp in tempList) {
-          DraggableGraph.eventMarkersPosition.add(temp);
-        }
-
-        int len = ProcessingUtil.eventLabels.length;
-        int startPositionIdx = DraggableGraph.startPositionIdx;
-        int endPositionIdx = DraggableGraph.endPositionIdx;
-        for (int i = 0; i < len; i++) {
-          if (ProcessingUtil.eventPosition[i] >= startPositionIdx &&
-              ProcessingUtil.eventPosition[i] <= endPositionIdx) {
-            DraggableGraph.eventMarkersLabels
-                .add(ProcessingUtil.eventLabels[i]);
-          }
-        }
-        // print("RANGE : $startPositionIdx - $endPositionIdx");
-        //provider.inputListener(channelData);
-        // Get the number of events
-      }
-      for (int i = 0; i < channelCount; i++) {
-        calloc.free(outSamplesPtr[i]);
-      }
-      calloc.free(outSamplesPtr);
-
-      calloc.free(outSampleCountsPtr);
-      calloc.free(outEventIndicesPtr);
-      calloc.free(outEventCountPtr);
-      // calloc.free(inEventIndicesPtr);
-    } catch (err) {
-      print("err");
-      print(err);
-    } finally {}
-    return Future.value(Uint8List(0));
+    unawaited(_ensureDisplayDataIsolate().then((_) {
+      _postPrepareDisplayDataToIsolate(
+        drawSurfaceWidth: drawSurfaceWidth,
+        channelCount: channelCount,
+        startPositionIdx: startPositionIdx,
+        endPositionIdx: endPositionIdx,
+        provider: provider,
+      );
+    }));
+    return Uint8List(0);
   }
 
   void processSerialDataIsolate(sendPort) async {

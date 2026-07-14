@@ -107,7 +107,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   @override
-  List<Int16List> processMicrophoneData(Uint8List data) {
+  Future<List<Int16List>> processMicrophoneData(Uint8List data) async {
     if (data.isEmpty) return [Int16List(0)];
 
     // Always forward mic PCM to the WASM worker (graph + live playback on web).

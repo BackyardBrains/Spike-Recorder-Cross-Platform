@@ -1925,7 +1925,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.22',
+                                            'SpikeRecorder App ver. 2.1.23',
                                             style: TextStyle(
                                               color: appColors.textSecondary,
                                               fontSize: 14,
@@ -5758,6 +5758,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
       startPlaybackSeekSampleIdx += timerPlaybackLoadedStartIndex;
       startSeekSampleIdx = startPlaybackSeekSampleIdx;
     }
+    // Keep scrubber + seek index at EOF so UI matches; play will wrap to start.
+    _snapPlaybackPositionToFileEnd();
     Provider.of<GraphResumePlayProvider>(context, listen: false)
         .setGraphResumePlay(false);
     GraphTemplate.isPlayerPaused = true;
@@ -5766,6 +5768,44 @@ class _GraphTemplateState extends State<GraphTemplate> {
     timerPlaybackLoadedFile?.cancel();
     _stopWebPlaybackAudioFeed();
     if (mounted) setState(() {});
+  }
+
+  /// Remaining samples from the current scrub position to EOF.
+  double _remainingPlaybackSamples() {
+    if (loadedMaxSamples <= 0) return 0;
+    return max(0.0, loadedMaxSamples - startPlaybackSeekSampleIdx);
+  }
+
+  /// Snap playhead + timeline scrubber to EOF (without firing [scrubNotifier]).
+  void _snapPlaybackPositionToFileEnd() {
+    if (loadedMaxSamples <= 0) return;
+    startPlaybackSeekSampleIdx = loadedMaxSamples;
+    startSeekSampleIdx = loadedMaxSamples;
+    endSeekSampleIdx = loadedMaxSamples;
+    timerPlaybackLoadedStartIndex = 0;
+    timerPlaybackLoadedEndIndex = 0;
+    final scrubMaxWidth = AdaptiveAreaState.horizontalDragXFix;
+    if (scrubMaxWidth > 0) {
+      AdaptiveAreaState.horizontalDragX = scrubMaxWidth;
+    }
+  }
+
+  /// When play is pressed at/near EOF, wrap to t=0 so playback can start.
+  /// Without this, seek(start≈end) returns an empty buffer and play is a no-op.
+  bool _wrapPlaybackToStartIfNearEnd() {
+    if (loadedMaxSamples <= 0) return false;
+    // ~100ms (or at least 1 sample) — below this, resume has nothing useful to play.
+    final nearEndThreshold = max(_sampleRate * 0.1, 1.0);
+    if (_remainingPlaybackSamples() > nearEndThreshold) {
+      return false;
+    }
+    startPlaybackSeekSampleIdx = 0;
+    startSeekSampleIdx = 0;
+    endSeekSampleIdx = loadedMaxSamples;
+    timerPlaybackLoadedStartIndex = 0;
+    timerPlaybackLoadedEndIndex = 0;
+    AdaptiveAreaState.horizontalDragX = 0;
+    return true;
   }
 
   bool _startWebLoadedFileAudioPlayback() {
@@ -6121,6 +6161,25 @@ class _GraphTemplateState extends State<GraphTemplate> {
         prevTime = DateTime.now().millisecondsSinceEpoch;
 
         try {
+          // Empty buffer (e.g. play pressed exactly at EOF before wrap) — end cleanly.
+          if (loadedArrSamples.isEmpty || loadedArrSamples[0].isEmpty) {
+            Provider.of<GraphResumePlayProvider>(context, listen: false)
+                .setGraphResumePlay(false);
+            GraphTemplate.isLoadingFile = 2;
+            GraphTemplate.isPlayerPaused = true;
+            _isStreamEnded = true;
+            _snapPlaybackPositionToFileEnd();
+            timerPlaybackLoadedFile?.cancel();
+            _stopWebPlaybackAudioFeed();
+            _stopNativePlaybackAudioFeed();
+            _stopWebLoadedFileAudioPlayback();
+            if (!kIsWeb) {
+              unawaited(_stopNativeLoadedFileAudioPlayback());
+            }
+            if (mounted) setState(() {});
+            return;
+          }
+
           final int playbackStartIdx;
           final int playbackEndIdx;
 
@@ -6146,7 +6205,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 timerPlaybackLoadedStartIndex + sampleDivider;
             if (startPlaybackSeekSampleIdx + timerPlaybackLoadedEndIndex >
                 loadedMaxSamples) {
-              timerPlaybackLoadedEndIndex = loadedArrSamples[0].length - 1;
+              timerPlaybackLoadedEndIndex =
+                  max(0, loadedArrSamples[0].length - 1).toDouble();
             }
             playbackStartIdx = timerPlaybackLoadedStartIndex.floor();
             playbackEndIdx = timerPlaybackLoadedEndIndex.floor();
@@ -6236,17 +6296,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
             }
             _isStreamEnded = true;
 
-            final savedScrub = startPlaybackSeekSampleIdx;
-            final endFileSample =
-                (savedScrub + loadedLen).clamp(0, loadedMaxSamples);
-            double playbackPercentage = endFileSample / loadedMaxSamples;
-            AdaptiveAreaState.horizontalDragX =
-                playbackPercentage * AdaptiveAreaState.horizontalDragXFix;
+            // Keep scrubber + seek at EOF (do not reset seek to 0 while leaving
+            // the scrubber at 100% — that desync made the next play fail/feel stuck).
+            _snapPlaybackPositionToFileEnd();
             print(
                 "AdaptiveAreaState.horizontalDragX :  ${AdaptiveAreaState.horizontalDragX}");
-
-            startPlaybackSeekSampleIdx = 0;
-            endSeekSampleIdx = 0;
 
             timerPlaybackLoadedFile?.cancel();
             _stopWebPlaybackAudioFeed();
@@ -6582,6 +6636,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
       //   percentage = timeScrub[0] / timeScrub[1];
       // }
       // startPlaybackSeekSampleIdx = percentage * loadedMaxSamples;
+
+      // Play near EOF previously sought an empty range (start≈end) so audio never
+      // started. Wrap to t=0 like a typical media player / the rewind button.
+      if (_wrapPlaybackToStartIfNearEnd()) {
+        print(
+            "PLAY WRAP TO START: remaining was near EOF (max=$loadedMaxSamples)");
+        if (mounted) setState(() {});
+      }
 
       // 4. Seek sample index setup
       double startSeekSample = startPlaybackSeekSampleIdx.toDouble();

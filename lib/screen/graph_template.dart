@@ -3332,7 +3332,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
               if (isRecording == 1) {
                 // print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0) 11 -- $isRecording ${samplesCount}");
-                // STEVE
+                // Web mic samples are written in the worker; Dart stubs must not be saved.
                 if (!kIsWeb) {
                   GraphTemplate.nwbFileUtil?.addElectricalSeries(
                       flattenedList, samplesCount, 0, 1, 0);
@@ -3387,7 +3387,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
             if (isRecording == 1) {
               // print("GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 0) 22 -- $isRecording");
-              // STEVE
+              // Web mic samples are written in the worker; Dart stubs must not be saved.
               if (!kIsWeb) {
                 GraphTemplate.nwbFileUtil
                     ?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 0);
@@ -3401,7 +3401,6 @@ class _GraphTemplateState extends State<GraphTemplate> {
               isRecording = 0;
               print(
                   "ENDING RECORDING GraphTemplate.nwbFileUtil?.addElectricalSeries(flattenedList, samplesCount, 0, 2, 1)");
-              // STEVE
               if (!kIsWeb) {
                 GraphTemplate.nwbFileUtil
                     ?.addElectricalSeries(flattenedList, samplesCount, 0, 1, 1);
@@ -7066,6 +7065,25 @@ class _GraphTemplateState extends State<GraphTemplate> {
         : Container();
   }
 
+  /// Polls until the web worker reports NWB_FILE_CREATED via [onNwbFileCreated].
+  Future<bool> _waitForWebNwbFileCreated({
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      final path = GraphTemplate.nwbFileUtil?.recordedNwbFilePath ?? "";
+      if (path.isNotEmpty && path != "--") {
+        return true;
+      }
+      if (path == "--") {
+        return false;
+      }
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+    final path = GraphTemplate.nwbFileUtil?.recordedNwbFilePath ?? "";
+    return path.isNotEmpty && path != "--";
+  }
+
   void resetRecordingState(widgetContext) {
     if (isRecording == 1) {
       if (kIsWeb) {
@@ -8037,6 +8055,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       return list;
     }).toList());
     if (isRecording == 1) {
+      // Web processSerialData returns a stub; live serial NWB writes happen in the worker.
       if (!kIsWeb) {
         GraphTemplate.nwbFileUtil?.addElectricalSeries(
             flattenedList, samplesCount, 0, samples.length, 0);
@@ -9273,68 +9292,51 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 context.read<ChannelColorProvider>().getVisibleChannelCount();
 
             if (kIsWeb) {
-              // await GraphTemplate.nwbFileUtil
-              //     ?.recordNewFileLocation();
-              // int counterTimerCancel = 0;
-              // Timer.periodic(
-              //     Duration(seconds: 1),
-              //     (timer) async {
-              // counterTimerCancel++;
-              // print(
-              //     "GraphTemplate.nwbFileUtil?.recordedNwbFilePath: ${GraphTemplate.nwbFileUtil?.recordedNwbFilePath}");
-              String strTemp =
-                  GraphTemplate.nwbFileUtil?.recordedNwbFilePath ?? "";
-              // if (strTemp.length! > 3) {
-              if (1 == 1) {
-                // timer.cancel();
-                if (isAudioListen) {
-                  recordedFilePath = await GraphTemplate.nwbFileUtil
-                      ?.processingInit(
-                          _sampleRate,
-                          widget.channelCount,
-                          "Audio|||",
-                          "SpikeRecorder Systems",
-                          visibleSignalsList,
-                          visibleChannelCount);
-                } else {
-                  recordedFilePath = await GraphTemplate.nwbFileUtil
-                      ?.processingInit(
-                          _sampleRate,
-                          widget.channelCount,
-                          "SpikeRecorder Device|||",
-                          "SpikeRecorder Systems@@@${GraphTemplate.selectedBoard?.uniqueName}",
-                          visibleSignalsList,
-                          visibleChannelCount);
-                }
-                bool isPlay = true;
-                Provider.of<GraphResumePlayProvider>(context, listen: false)
-                    .setGraphResumePlay(isPlay);
-                _toPauseGraph = isPlay;
-                GraphTemplate.isPlayerPaused = !isPlay;
-                _pendingPlayback = false;
-
-                Future.delayed(Duration(milliseconds: 1000), () {
-                  this.isRecording = 1;
-                  context.read<ChannelColorProvider>().setIsRecording(1);
-
-                  recordingStartTime = DateTime.now().millisecondsSinceEpoch;
-
-                  recordingNotifier.value = [
-                    recordingStartTime,
-                    recordingStartTime
-                  ];
-                  setState(() {});
-                });
-              } else if (GraphTemplate.nwbFileUtil?.recordedNwbFilePath ==
-                  "--") {
-                // GraphTemplate.nwbFileUtil
-                //     ?.recordedNwbFilePath = "";
-                // print("NWB FILE PATH");
-                // counterTimerCancel = 0;
-                // isOpeningFile = false;
-                // timer.cancel();
+              GraphTemplate.nwbFileUtil?.recordedNwbFilePath = "";
+              if (isAudioListen) {
+                recordedFilePath = await GraphTemplate.nwbFileUtil
+                    ?.processingInit(
+                        _sampleRate,
+                        widget.channelCount,
+                        "Audio|||",
+                        "SpikeRecorder Systems",
+                        visibleSignalsList,
+                        visibleChannelCount);
+              } else {
+                recordedFilePath = await GraphTemplate.nwbFileUtil
+                    ?.processingInit(
+                        _sampleRate,
+                        widget.channelCount,
+                        "SpikeRecorder Device|||",
+                        "SpikeRecorder Systems@@@${GraphTemplate.selectedBoard?.uniqueName}",
+                        visibleSignalsList,
+                        visibleChannelCount);
               }
-              // });
+              bool isPlay = true;
+              Provider.of<GraphResumePlayProvider>(context, listen: false)
+                  .setGraphResumePlay(isPlay);
+              _toPauseGraph = isPlay;
+              GraphTemplate.isPlayerPaused = !isPlay;
+              _pendingPlayback = false;
+
+              // Wait for the worker NWB_FILE_CREATED callback before streaming
+              // samples; addElectricalSeriesWeb drops chunks while path is empty.
+              unawaited(() async {
+                final ready = await _waitForWebNwbFileCreated();
+                if (!mounted || !ready) {
+                  print(
+                      "WEB RECORDING: NWB file not ready (path=${GraphTemplate.nwbFileUtil?.recordedNwbFilePath})");
+                  return;
+                }
+                this.isRecording = 1;
+                context.read<ChannelColorProvider>().setIsRecording(1);
+                recordingStartTime = DateTime.now().millisecondsSinceEpoch;
+                recordingNotifier.value = [
+                  recordingStartTime,
+                  recordingStartTime
+                ];
+                setState(() {});
+              }());
             } else {
               if (isAudioListen) {
                 recordedFilePath = await GraphTemplate.nwbFileUtil

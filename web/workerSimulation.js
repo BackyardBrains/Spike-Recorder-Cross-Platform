@@ -1255,103 +1255,90 @@ self.onmessage = async function (eventFromMain) {
                 // }
 
                 if (isRecording == 0) {
-                    // Buffer samples per channel - accumulate samples when length > 0
+                    // Write equal-length planar frames every packet.
+                    // Old path buffered into a 300-sample array and returned early when any
+                    // channel had 0 samples — that truncated recordings and used the wrong
+                    // stride (data.length instead of serialPacketLen).
+                    if (!NwbModule) {
+                        console.error("NwbModule not ready for serial recording");
+                    } else if (!recordSignalsList || recordChannelCount <= 0) {
+                        console.error("Serial recording mask not initialized");
+                    } else {
+                        const frameCount = resolveSerialFrameCount(
+                            serialResult,
+                            outSampleCountsBuffer,
+                            totalChannel,
+                            serialPacketLen,
+                            data.length
+                        );
+                        if (frameCount > 0) {
+                            let segmentIndex = 0;
+                            const planar = new Int16Array(recordChannelCount * frameCount);
+                            const counts = new Int32Array(recordChannelCount);
+                            let recordIdx = 0;
 
-                    let recordCombinedIdx = 0;
-                    let isFoundEmpty = false;
-                    for (let i = 0; i < totalChannel; i++) {
-                        let samplesLength = outSampleCountsBuffer[i];
-                        if (samplesLength == 0) {
-                            isFoundEmpty = true;
+                            for (let i = 0; i < totalChannel; i++) {
+                                if (recordSignalsList[i] == 0) continue;
+                                const srcStart = i * serialPacketLen;
+                                const available = outSampleCountsBuffer[i] | 0;
+                                const copyLen = Math.min(
+                                    frameCount,
+                                    available > 0 ? available : frameCount,
+                                    Math.max(0, inSamplesBuffer.length - srcStart)
+                                );
+                                if (copyLen > 0) {
+                                    planar.set(
+                                        inSamplesBuffer.subarray(srcStart, srcStart + copyLen),
+                                        segmentIndex
+                                    );
+                                }
+                                // Pad remainder with zeros so every channel has frameCount samples.
+                                counts[recordIdx] = frameCount;
+                                recordIdx++;
+                                segmentIndex += frameCount;
+                            }
+
+                            if (recordIdx === recordChannelCount && segmentIndex > 0) {
+                                const samplesPtr = NwbModule._malloc(
+                                    segmentIndex * NwbModule.HEAP16.BYTES_PER_ELEMENT
+                                );
+                                const samplesPtrStart =
+                                    samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
+                                const samplesBuffer = NwbModule.HEAP16.subarray(
+                                    samplesPtrStart,
+                                    samplesPtrStart + segmentIndex
+                                );
+                                samplesBuffer.set(planar);
+
+                                const samplesCtrPtr = NwbModule._malloc(
+                                    recordChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT
+                                );
+                                const samplesCtrPtrStart =
+                                    samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
+                                const samplesCtrBuffer = NwbModule.HEAP32.subarray(
+                                    samplesCtrPtrStart,
+                                    samplesCtrPtrStart + recordChannelCount
+                                );
+                                samplesCtrBuffer.set(counts);
+
+                                NwbModule._nwbfile_add_electrical_series(
+                                    samplesPtr,
+                                    samplesCtrPtr,
+                                    0,
+                                    recordChannelCount,
+                                    0
+                                );
+                                NwbModule._free(samplesPtr);
+                                NwbModule._free(samplesCtrPtr);
+                            }
+
+                            // Keep legacy buffers empty; finish path no longer relies on them.
+                            for (let i = 0; i < totalChannel; i++) {
+                                if (bufferedSerialEmptyCount[i] !== undefined) {
+                                    bufferedSerialEmptyCount[i] = 0;
+                                }
+                            }
                         }
-                        const tempArray = inSamplesBuffer.subarray(recordCombinedIdx, recordCombinedIdx + samplesLength);
-                        bufferedSerialEmptyValue[i].set(tempArray, bufferedSerialEmptyCount[i]);
-                        bufferedSerialEmptyCount[i] += samplesLength;
-                        recordCombinedIdx += data.length
-                    }
-                    if (isFoundEmpty) {
-                        return;
-                    } 
-                    // buffer if 0 | if > 0 also buffer in a array
-
-                    let combinedIdx = 0;
-                    let samplesCtrPtr = NwbModule._malloc(recordChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT);
-                    let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
-                    let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + recordChannelCount));
-                    let segmentIndex = 0;
-                    // for (let i = 0; i < totalChannel; i++) {
-                    //     let samplesLength = outSampleCountsBuffer[i];    
-                    //     // hardcode -- buffer it
-                    //     if (samplesLength == 0) {
-                    //         samplesLength = 1;
-                    //     }
-                    //     samplesCtrBuffer[i] = samplesLength;
-                    //     combinedIdx += data.length;
-                    //     segmentIndex += samplesLength;
-                    // }
-                    let recordIdx = 0;
-                    for (let i = 0; i < totalChannel; i++) {
-                        if (recordSignalsList[i] == 0) continue;
-                        
-                        let samplesLength = bufferedSerialEmptyCount[i];    
-                        samplesCtrBuffer[recordIdx] = samplesLength;
-                        combinedIdx += data.length;
-                        segmentIndex += samplesLength;
-                        recordIdx++;
-                    }
-                    let samplesPtr = NwbModule._malloc(segmentIndex * NwbModule.HEAP16.BYTES_PER_ELEMENT);
-                    let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
-                    let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + segmentIndex));
-
-                    // Copy data sequentially: [ch0_samples, ch1_samples, ch2_samples, ...]
-                    recordIdx = 0;
-                    combinedIdx = 0;
-                    segmentIndex = 0;
-                    // console.log("INSAMPLES BUFFER: ", inSamplesBuffer);
-                    for (let i = 0; i < totalChannel; i++) {
-                        if (recordSignalsList[i] == 0) continue;
-
-                        let samplesLength = bufferedSerialEmptyCount[i];    
-                        // hardcode -- buffer it
-                        // if (samplesLength == 0) {
-                        //     samplesLength = 1;
-                        //     const tempArray = new Int16Array(1);
-                        //     samplesBuffer.set(tempArray, segmentIndex);
-                        // } else {
-                        //     const tempArray = inSamplesBuffer.subarray(combinedIdx, combinedIdx + samplesLength);
-                        //     // console.log("samplesLength: ", samplesLength, "tempArray: ", tempArray);
-                        //     samplesBuffer.set(tempArray, segmentIndex);
-                        // }
-                        const tempArray = bufferedSerialEmptyValue[i].subarray(0, bufferedSerialEmptyCount[i]);
-                        // console.log("INDEX : ", i, recordSignalsList[i], recordSignalsList[i] == 0);
-                        // console.log("samplesLength: ", samplesLength, "tempArray: ", tempArray);
-                        samplesBuffer.set(tempArray, segmentIndex);
-                        combinedIdx += data.length;
-                        segmentIndex += samplesLength;
-                    }
-
-
-
-                    // NwbModule._nwbfile_add_electrical_series(inSamplesPtr, outSampleCountsPtr, 0, 1, isRecording);
-                    // console.log("INSAMPLES BUFFER: ", inSamplesBuffer);
-                    // console.log("Data Length: ", data.length, "SAMPLES CTR BUFFER: ", samplesCtrBuffer);
-                    // // console.log("SAMPLES BUFFER: ", samplesBuffer);
-                    // console.log("TOTAL CHANNEL: ", recordChannelCount, "samplesBuffer: ", samplesBuffer);
-    
-                    NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, recordChannelCount, isRecording);
-                    NwbModule._free(samplesPtr);
-                    NwbModule._free(samplesCtrPtr);
-
-                    // reset buffer after writing to file segment.
-                    for (let i = 0; i < totalChannel; i++) {
-                        let endClearIndex = bufferedSerialEmptyCount[i];
-                        if (endClearIndex > 140) {
-                            endClearIndex = 300;
-                        } else {
-                            endClearIndex *= 2;
-                        }
-                        bufferedSerialEmptyValue[i].fill(0, 0, endClearIndex);
-                        bufferedSerialEmptyCount[i] = 0;
                     }
                 }
                 // console.log("PROCESSING THRESHOLD - SEND_SERIAL_DATA_WEB : ", isThresholding);

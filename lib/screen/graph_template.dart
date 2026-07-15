@@ -7021,7 +7021,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
                     print(
                         "SERIAL DATETIME CLOSED : ${DateTime.now().millisecondsSinceEpoch}");
                     _isSerialWebButtonEnabled = false;
-                    _serialUtil.closePort();
+                    if (mounted) setState(() {});
+                    try {
+                      await _serialUtil
+                          .closePort()
+                          .timeout(const Duration(seconds: 8));
+                    } catch (e) {
+                      print("SERIAL WEB DISCONNECT close failed: $e");
+                      try {
+                        await _serialUtil.resetPort();
+                      } catch (_) {}
+                    }
                     isDeviceConnect = true;
                     isDeviceSelected = false;
                     isSerialDeviceFound = false;
@@ -7039,7 +7049,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   setState(() {});
                   print(
                       "serialWebButtonPressed ::: $_baudRate isDeviceConnect: $isDeviceConnect");
-                  serialWebButtonPressed(_baudRate);
+                  await serialWebButtonPressed(_baudRate);
                 },
                 child: Row(
                   children: [
@@ -8324,7 +8334,16 @@ class _GraphTemplateState extends State<GraphTemplate> {
       // if (error is SerialPortError) {
       _cancelSerialStaleWatchdog();
       forceSerialDisconnect = true;
-      _serialUtil.closePort();
+      _isSerialWebButtonEnabled = false;
+      unawaited(() async {
+        try {
+          await _serialUtil.closePort().timeout(const Duration(seconds: 8));
+        } catch (_) {
+          try {
+            await _serialUtil.resetPort();
+          } catch (_) {}
+        }
+      }());
       Future.delayed(Duration(milliseconds: 1500), () {
         print(
             "SERIAL PORT ERROR -- DISCONNECTED: $error CALLSERIAL DATA SUBSCRIPTION");
@@ -8361,10 +8380,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _preprocessingBuffer.discardPendingInput();
   }
 
-  void serialWebButtonPressed(List<int> _baudRate) async {
+  Future<void> serialWebButtonPressed(List<int> _baudRate) async {
     lastEstablishingConnectionTime = DateTime.now();
     try {
-      await _serialUtil.resetPort();
+      await _serialUtil.resetPort().timeout(const Duration(seconds: 8));
     } catch (err) {
       print("ERROR IN SERIAL WEB BUTTON PRESSED: $err");
     }
@@ -8380,28 +8399,36 @@ class _GraphTemplateState extends State<GraphTemplate> {
       } catch (err) {
         print("ERROR GETTING AVAILABLE PORTS: $err");
         isSerialDeviceFound = false;
-        if (err.toString().contains("BYPASS")) {
+        final errText = err.toString();
+        final timedOut = err is TimeoutException ||
+            errText.contains('TimeoutException') ||
+            errText.contains('timed out');
+        if (timedOut ||
+            errText.contains("getReader failed") ||
+            errText.contains("device unavailable")) {
+          if (timedOut) {
+            print("SERIAL WEB CONNECT TIMED OUT — clearing USB state");
+          }
           _isSerialWebButtonEnabled = false;
-          setState(() {});
-          return;
-        } else if (err.toString().contains("getReader failed") ||
-            err.toString().contains("device unavailable")) {
-          _isSerialWebButtonEnabled = false;
-          setState(() {});
-          await _serialUtil.resetPort();
+          if (mounted) setState(() {});
+          try {
+            await _serialUtil.resetPort().timeout(const Duration(seconds: 8));
+          } catch (_) {}
 
           isDeviceConnect = true;
           isDeviceSelected = false;
           isSerialDeviceFound = false;
           _isDataIdentified = false;
 
-          // GraphDataProvider graphDataProvider =
-          //     Provider.of<GraphDataProvider>(context, listen: false);
-          // listenToMicrophone(1, graphDataProvider);
           _recoverFromSerialDataTimeout(null, forceMicrophone: false);
           streamScrubBuilderController.add(Random().nextInt(100000));
           isSerialDeviceFound = false;
 
+          return;
+        }
+        if (errText.contains("BYPASS")) {
+          _isSerialWebButtonEnabled = false;
+          setState(() {});
           return;
         }
         PanaraInfoDialog.show(
@@ -8483,8 +8510,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
       });
     } catch (e) {
       Debugging.printing("Opening port failed:\n$e");
+      _isSerialWebButtonEnabled = false;
     }
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   onTriggerDisconnect(String p1) {
@@ -8497,8 +8525,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
     _cancelSerialStaleWatchdog();
     forceSerialDisconnect = true;
+    _isSerialWebButtonEnabled = false;
     print("SERIAL PORT ERROR -- DISCONNECTED");
-    _serialUtil.closePort();
+    unawaited(() async {
+      try {
+        await _serialUtil.closePort().timeout(const Duration(seconds: 8));
+      } catch (_) {
+        try {
+          await _serialUtil.resetPort();
+        } catch (_) {}
+      }
+    }());
     Future.delayed(Duration(milliseconds: 2500), () {
       forceSerialDisconnect = false;
       _isSerialWebButtonEnabled = false;

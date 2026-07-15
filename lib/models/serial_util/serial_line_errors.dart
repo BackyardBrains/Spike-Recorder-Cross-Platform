@@ -1,5 +1,5 @@
 /// Web-serial line error helpers (no `dart:html` / `package:serial` imports).
-const String kSerialUtilWebBuildId = 'serial-web-2026-05-17-datastream-race-fix';
+const String kSerialUtilWebBuildId = 'serial-web-2026-07-15-fast-fail-wrong-baud-v2';
 
 bool isSerialBufferOverrunError(Object error) {
   final message = error.toString();

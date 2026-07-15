@@ -84,23 +84,17 @@ class SerialUtilWeb implements SerialUtil {
     'HEARTSS;',
   ];
 
-  static final List<Uint8List> _probeDeviceReplyTokenBytes =
-      _probeDeviceReplyTokens
-          .map((t) => Uint8List.fromList(t.codeUnits))
-          .toList(growable: false);
+  /// Canonical baud after HWT id (matches graph_template post-identify baud).
+  /// Near rates like 230400 can still decode `HWT:HBLEOSB;` (~3.7% off 222222).
+  static const int _canonicalBaudDefault = 222222;
+  static const int _canonicalBaudHhiBox = 500000;
 
-  /// Replies are often `HWT:HHIBOX;` (graph_template logs).
   static final List<Uint8List> _probeHwtDeviceReplyTokenBytes =
       _probeDeviceReplyTokens
           .map((t) => Uint8List.fromList('HWT:$t'.codeUnits))
           .toList(growable: false);
 
-  static final List<Uint8List> _probeAllReplyTokenBytes = [
-    ..._probeDeviceReplyTokenBytes,
-    ..._probeHwtDeviceReplyTokenBytes,
-  ];
-
-  static final int _probeMaxDeviceTokenBytes = _probeAllReplyTokenBytes.fold(
+  static final int _probeMaxDeviceTokenBytes = _probeHwtDeviceReplyTokenBytes.fold(
     0,
     (max, t) => t.length > max ? t.length : max,
   );
@@ -117,6 +111,10 @@ class SerialUtilWeb implements SerialUtil {
   /// Shorter hwType wait when the device is likely off (no RX on first baud).
   static const Duration _probeFrameTimeoutDeadDevice =
       Duration(milliseconds: 700);
+  /// Heavy RX / ADC-like stream but no canonical HWT — don't sit for 3s×2.
+  static const Duration _probeFrameTimeoutWrongBaud =
+      Duration(milliseconds: 800);
+  static const int _probeWrongBaudMinRxBytes = 4096;
   static const int _probeAttemptsPerBaud = 2;
 
   Duration _probeFrameTimeoutForBaud(int baud) =>
@@ -144,9 +142,13 @@ class SerialUtilWeb implements SerialUtil {
       if (!_probing || !_probeAcceptRx || _probeSawCompleteFrame) {
         return;
       }
-      if (_probeReplyIdentifiesDevice(msg)) {
-        print('SerialUtilWeb: probe escape message @ $_baudRate');
-        _onProbeCompleteFrame();
+      final matched = _probeMatchedAsciiHwtToken(msg);
+      if (matched != null) {
+        _acceptProbeHwtMatch(
+          matched,
+          source: 'escape',
+          raw: _probePrintable(msg),
+        );
       }
     },
   );
@@ -155,6 +157,8 @@ class SerialUtilWeb implements SerialUtil {
   bool _probeSawCompleteFrame = false;
   bool _probeAcceptRx = false;
   bool _intentionalProbeStop = false;
+  /// Set when HWT matches at a near/wrong baud (e.g. 230400 for HBLEOSB).
+  bool _probeSawNonCanonicalHwt = false;
 
   /// Set while [_disposeReaderBody] cancels the reader — pending [read] ends with BreakError.
   bool _intentionalReaderStop = false;
@@ -171,15 +175,30 @@ class SerialUtilWeb implements SerialUtil {
   static const Duration _readCancelTimeout = Duration(seconds: 2);
   static const Duration _readPumpJoinTimeout = Duration(seconds: 4);
   static const Duration _writerReadyTimeout = Duration(seconds: 2);
+  /// Chrome 150+ has been observed to stall on SerialPort.open/close; bound waits.
+  static const Duration _portOpenTimeout = Duration(seconds: 5);
+  static const Duration _portCloseTimeout = Duration(seconds: 4);
+  static const Duration _lifecycleGateTimeout = Duration(seconds: 10);
+  /// Full connect after the user picks a port (baud probe + listen open).
+  static const Duration _postPickerConnectTimeout = Duration(seconds: 40);
+
+  /// Bumped on [closePort]/[resetPort] so in-flight connect/probe can abort.
+  int _sessionEpoch = 0;
 
   @override
   void setBaudRate(int baudRate) {
     _baudRate = baudRate;
   }
 
+  void _throwIfSessionStale(int epoch, [Object? cause]) {
+    if (epoch != _sessionEpoch) {
+      throw SerialConnectAborted(cause ?? 'session superseded');
+    }
+  }
+
   /// Tries [_probeBaudRates] in order; framed reply, ASCII token, or ADC hint.
   /// Repeats the full baud list up to [_probeBaudScanRounds] times if all fail.
-  Future<int?> _autoDetectBaudRate() async {
+  Future<int?> _autoDetectBaudRate(int epoch) async {
     if (serialPort == null) {
       return null;
     }
@@ -188,6 +207,7 @@ class SerialUtilWeb implements SerialUtil {
     var bestAdcScore = 0.0;
     try {
       for (var round = 1; round <= _probeBaudScanRounds; round++) {
+        _throwIfSessionStale(epoch);
         if (round > 1) {
           print(
             'SerialUtilWeb: all baud rates failed — '
@@ -195,6 +215,7 @@ class SerialUtilWeb implements SerialUtil {
           );
         }
         for (final baud in _probeBaudRates) {
+          _throwIfSessionStale(epoch);
           print('SerialUtilWeb: probing baud $baud (round $round)');
           final fastScan = round == 1 && identical(baud, _probeBaudRates.first);
           try {
@@ -202,6 +223,7 @@ class SerialUtilWeb implements SerialUtil {
               baud,
               acceptAdcStream: false,
               fastScan: fastScan,
+              epoch: epoch,
             );
             if (ok) {
               return baud;
@@ -230,11 +252,18 @@ class SerialUtilWeb implements SerialUtil {
         }
       }
       if (bestAdcBaud != null) {
+        _throwIfSessionStale(epoch);
         print(
-          'SerialUtilWeb: strict re-probe @$bestAdcBaud '
-          '(ADC hint score=$bestAdcScore)',
+          'SerialUtilWeb: HWT re-probe @$bestAdcBaud '
+          '(ADC activity hint score=$bestAdcScore — not accepted alone)',
         );
-        final ok = await _tryProbeBaud(bestAdcBaud, acceptAdcStream: true);
+        // Never accept ADC framing alone — that false-locks wrong bauds
+        // (e.g. 230400 Noise looking "synced"). Require HWT again.
+        final ok = await _tryProbeBaud(
+          bestAdcBaud,
+          acceptAdcStream: false,
+          epoch: epoch,
+        );
         return ok ? bestAdcBaud : null;
       }
       print('SerialUtilWeb: END');
@@ -283,6 +312,57 @@ class SerialUtilWeb implements SerialUtil {
     _probeAsciiWindow.clear();
   }
 
+  /// Clear escape / frame / ASCII buffers without wiping RX counters.
+  void _flushProbeParsers({required String reason}) {
+    print('SerialUtilWeb: flush probe parsers ($reason) @$_baudRate');
+    _cancelQueryRepeatTimer();
+    _probeSawCompleteFrame = false;
+    _resetProbeMessageAttemptState();
+  }
+
+  int _canonicalBaudForHwtToken(String matchedHwtToken) {
+    // matched like `HWT:HBLEOSB;`
+    final board = matchedHwtToken
+        .replaceFirst('HWT:', '')
+        .replaceAll(';', '')
+        .trim();
+    if (board == 'HHIBOX') {
+      return _canonicalBaudHhiBox;
+    }
+    return _canonicalBaudDefault;
+  }
+
+  /// Accept HWT only at the board's canonical baud. Near rates (230400 vs 222222)
+  /// can decode the same ASCII reply and must not stop the scan early.
+  void _acceptProbeHwtMatch(
+    String matched, {
+    required String source,
+    required String raw,
+  }) {
+    final canonical = _canonicalBaudForHwtToken(matched);
+    if (_baudRate != canonical) {
+      print(
+        'SerialUtilWeb: ignore $source HWT @ $_baudRate ($matched) '
+        'raw="$raw" — canonical baud is $canonical; clearing parsers and continuing',
+      );
+      _probeSawNonCanonicalHwt = true;
+      // Stale/partial escape state from the near-baud stream must not linger.
+      _flushProbeParsers(reason: 'non-canonical HWT @$matched');
+      // Unblock the current probe wait instead of sitting out the full timeout.
+      _completeProbeResponse(false);
+      return;
+    }
+    print(
+      'SerialUtilWeb: probe $source HWT @ $_baudRate ($matched) raw="$raw"',
+    );
+    _onProbeCompleteFrame();
+  }
+
+  bool _probeSuspectWrongBaudStream() =>
+      _probeSawNonCanonicalHwt ||
+      _probeRxBytes >= _probeWrongBaudMinRxBytes ||
+      _probeAdcStreamLooksLikeDevice();
+
   void _noteProbeAdcStreamSync(Uint8List chunk) {
     if (_probeRxBytes > _probeFrameDetectMaxBytes) {
       _probeFrameDetect = FrameDetect(channelCount: 1, minimumBytesToCheck: 50);
@@ -296,22 +376,36 @@ class SerialUtilWeb implements SerialUtil {
     }
   }
 
-  bool _probeReplyIdentifiesDevice(Uint8List msg) =>
-      _probeBytesContainDeviceToken(msg);
+  /// Require `HWT:BOARD;` — bare ids like `HBLEOSB;` appear in wrong-baud noise.
+  String? _probeMatchedAsciiHwtToken(Uint8List haystack, {int start = 0}) =>
+      _probeMatchedToken(haystack, _probeHwtDeviceReplyTokenBytes, start: start);
 
-  bool _probeBytesContainDeviceToken(
-    Uint8List haystack, {
+  String _probePrintable(Uint8List bytes) {
+    final b = StringBuffer();
+    for (final v in bytes) {
+      if (v >= 0x20 && v <= 0x7e) {
+        b.writeCharCode(v);
+      } else {
+        b.write('.');
+      }
+    }
+    return b.toString();
+  }
+
+  String? _probeMatchedToken(
+    Uint8List haystack,
+    List<Uint8List> needles, {
     int start = 0,
   }) {
     if (haystack.isEmpty || start >= haystack.length) {
-      return false;
+      return null;
     }
-    for (final needle in _probeAllReplyTokenBytes) {
+    for (final needle in needles) {
       if (_probeBytesContains(haystack, needle, start)) {
-        return true;
+        return String.fromCharCodes(needle);
       }
     }
-    return false;
+    return null;
   }
 
   bool _probeBytesContains(Uint8List haystack, Uint8List needle, int start) {
@@ -338,9 +432,16 @@ class SerialUtilWeb implements SerialUtil {
       _probeRxBytes >= _probeAdcStreamMinRxBytes &&
       _probeAdcFrameHits >= _probeAdcSyncHitsRequired;
 
-  Duration _probeQueryTimeout(int attempt, {required bool fastScan}) {
+  Duration _probeQueryTimeout(
+    int attempt, {
+    required bool fastScan,
+    required bool suspectWrongBaud,
+  }) {
     if (fastScan && attempt == 1) {
       return _probeFrameTimeoutDeadDevice;
+    }
+    if (suspectWrongBaud) {
+      return _probeFrameTimeoutWrongBaud;
     }
     return _probeFrameTimeoutForBaud(_baudRate);
   }
@@ -348,6 +449,7 @@ class SerialUtilWeb implements SerialUtil {
   Future<bool> _sendQueryAndAwaitFrameProbe({
     bool fastScan = false,
     int attempt = 1,
+    bool suspectWrongBaud = false,
   }) async {
     if (_probeSawCompleteFrame) {
       return true;
@@ -363,7 +465,11 @@ class SerialUtilWeb implements SerialUtil {
       _startQueryRepeatTimer();
     }
 
-    final frameTimeout = _probeQueryTimeout(attempt, fastScan: fastScan);
+    final frameTimeout = _probeQueryTimeout(
+      attempt,
+      fastScan: fastScan,
+      suspectWrongBaud: suspectWrongBaud || _probeSuspectWrongBaudStream(),
+    );
     try {
       return await _probeResponseCompleter!.future.timeout(
         frameTimeout,
@@ -372,7 +478,8 @@ class SerialUtilWeb implements SerialUtil {
             'SerialUtilWeb: probe timeout (${frameTimeout.inMilliseconds}ms) — '
             'rawRx=$_probeRxBytes B, buf=${_frameParser.bufferedBytes} B, '
             'start=${_frameParser.hasStartMarker}, end=${_frameParser.hasEndMarker}, '
-            'adcSyncs=$_probeAdcFrameHits',
+            'adcSyncs=$_probeAdcFrameHits'
+            '${_probeSawNonCanonicalHwt ? ', nonCanonicalHwt=true' : ''}',
           );
           return _probeSawCompleteFrame;
         },
@@ -387,10 +494,14 @@ class SerialUtilWeb implements SerialUtil {
     int baud, {
     bool acceptAdcStream = false,
     bool fastScan = false,
+    int? epoch,
   }) async {
     final port = serialPort;
     if (port == null) {
       return false;
+    }
+    if (epoch != null) {
+      _throwIfSessionStale(epoch);
     }
 
     if (_portOpen) {
@@ -401,27 +512,36 @@ class SerialUtilWeb implements SerialUtil {
       }
     }
 
+    if (epoch != null) {
+      _throwIfSessionStale(epoch);
+    }
+
     _writableSession++;
     _baudRate = baud;
     _probeSawCompleteFrame = false;
+    _probeSawNonCanonicalHwt = false;
     _probeAcceptRx = false;
     _resetProbeRxState();
+    print('SerialUtilWeb: probe parsers reset for baud switch → $baud');
 
     try {
       await _openSerialPortWithRetry(probing: true);
     } catch (e) {
       print('SerialUtilWeb: probe open @$baud failed: $e');
-      if (isSerialPortUnavailableError(e)) {
+      if (isSerialPortUnavailableError(e) || e is TimeoutException) {
         throw SerialConnectAborted(e);
       }
       return false;
     }
 
+    if (epoch != null) {
+      _throwIfSessionStale(epoch);
+    }
+
     _probing = true;
     _probeReading = true;
-    // Drain the port during settle without heavy parsing (avoids starving timers).
-    // Windows Chromium + FTDI often delivers very large read chunks when bufferSize
-    // is high; macOS web tends to be less aggressive, so this hang was mainly Windows.
+    // Drain the port during settle without parsing — stale USB/FTDI bytes from
+    // the previous baud must not enter MessageIdentifier / frame parser.
     _probeAcceptRx = false;
     final ReadableStreamReader probeReader;
     try {
@@ -439,21 +559,57 @@ class SerialUtilWeb implements SerialUtil {
       await Future<void>.delayed(
         fastScan ? const Duration(milliseconds: 150) : _probeSettleTime,
       );
+      if (epoch != null) {
+        _throwIfSessionStale(epoch);
+      }
+      // Hard-clear again after discard so settle noise never becomes a reply.
+      _flushProbeParsers(reason: 'post-settle discard @$baud');
       _probeAcceptRx = true;
 
+      // Heavy settle RX / ADC-like stream ⇒ short HWT wait, single attempt.
+      var suspectWrongBaud = _probeSuspectWrongBaudStream();
+      final maxAttempts =
+          suspectWrongBaud ? 1 : _probeAttemptsPerBaud;
+      if (suspectWrongBaud) {
+        print(
+          'SerialUtilWeb: fast-fail mode @$baud — '
+          'rawRx=$_probeRxBytes B, adcSyncs=$_probeAdcFrameHits, '
+          'timeout=${_probeFrameTimeoutWrongBaud.inMilliseconds}ms ×1',
+        );
+      }
+
       var success = false;
-      for (var attempt = 1; attempt <= _probeAttemptsPerBaud; attempt++) {
+      for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+        if (epoch != null) {
+          _throwIfSessionStale(epoch);
+        }
         if (attempt > 1) {
           print(
             'SerialUtilWeb: probe @$baud no response in '
-            '${_probeQueryTimeout(attempt - 1, fastScan: fastScan).inMilliseconds}ms — retry $attempt/$_probeAttemptsPerBaud',
+            '${_probeQueryTimeout(attempt - 1, fastScan: fastScan, suspectWrongBaud: suspectWrongBaud).inMilliseconds}ms — retry $attempt/$maxAttempts',
           );
         }
         success = await _sendQueryAndAwaitFrameProbe(
           fastScan: fastScan,
           attempt: attempt,
+          suspectWrongBaud: suspectWrongBaud,
         );
         if (success) {
+          break;
+        }
+        if (_probeSawNonCanonicalHwt) {
+          print(
+            'SerialUtilWeb: fast-fail @$baud after non-canonical HWT — next baud',
+          );
+          break;
+        }
+        // After first attempt, escalate to fast-fail if the stream looks wrong.
+        if (!suspectWrongBaud && _probeSuspectWrongBaudStream()) {
+          suspectWrongBaud = true;
+          print(
+            'SerialUtilWeb: fast-fail @$baud after attempt $attempt — '
+            'heavy RX/no canonical HWT (rawRx=$_probeRxBytes)',
+          );
           break;
         }
         if (fastScan && attempt == 1 && _probeRxBytes == 0) {
@@ -466,11 +622,12 @@ class SerialUtilWeb implements SerialUtil {
       await _stopProbeReadLoop(readerToStop, probePump);
 
       if (!success && acceptAdcStream && _probeAdcStreamLooksLikeDevice()) {
+        // Kept for API compatibility; callers must pass acceptAdcStream:false.
+        // ADC-looking streams at the wrong baud previously false-locked Heart & Brain.
         print(
-          'SerialUtilWeb: probe @$baud accepted via ADC stream '
-          '(rawRx=$_probeRxBytes B, adcSyncs=$_probeAdcFrameHits)',
+          'SerialUtilWeb: probe @$baud has ADC-like stream but NO HWT — '
+          'not accepting (rawRx=$_probeRxBytes B, adcSyncs=$_probeAdcFrameHits)',
         );
-        success = true;
       }
 
       if (success) {
@@ -489,7 +646,7 @@ class SerialUtilWeb implements SerialUtil {
       print('SerialUtilWeb: probe @$baud error: $e\n$st');
       await _stopProbeReading();
       await _closeSerialPortWithSettle();
-      if (isSerialPortUnavailableError(e)) {
+      if (isSerialPortUnavailableError(e) || e is TimeoutException) {
         throw SerialConnectAborted(e);
       }
       return false;
@@ -596,10 +753,19 @@ class SerialUtilWeb implements SerialUtil {
     // Same path as graph_template [_preEscapeSequenceBuffer] → MessageIdentifier.
     _probeMessageId.addPacket(chunk);
 
-    if (!_probeSawCompleteFrame && _probeBytesContainDeviceToken(chunk)) {
-      print('SerialUtilWeb: probe ASCII token in chunk @ $_baudRate');
-      _onProbeCompleteFrame();
-      return;
+    // Do NOT match bare board ids in raw chunks — UART framing errors at the
+    // wrong baud invent short ASCII substrings and false-lock (e.g. 230400
+    // instead of 222222 for Heart & Brain). Require `HWT:...;`.
+    if (!_probeSawCompleteFrame) {
+      final matched = _probeMatchedAsciiHwtToken(chunk);
+      if (matched != null) {
+        _acceptProbeHwtMatch(
+          matched,
+          source: 'chunk',
+          raw: _probePrintable(chunk),
+        );
+        return;
+      }
     }
 
     final asciiLenBefore = _probeAsciiWindow.length;
@@ -619,9 +785,14 @@ class SerialUtilWeb implements SerialUtil {
           ? 0
           : (asciiLenBefore - _probeMaxDeviceTokenBytes + 1)
               .clamp(0, haystack.length);
-      if (_probeBytesContainDeviceToken(haystack, start: searchFrom)) {
-        print('SerialUtilWeb: probe ASCII token in stream @ $_baudRate');
-        _onProbeCompleteFrame();
+      final matched =
+          _probeMatchedAsciiHwtToken(haystack, start: searchFrom);
+      if (matched != null) {
+        _acceptProbeHwtMatch(
+          matched,
+          source: 'stream',
+          raw: _probePrintable(haystack),
+        );
         return;
       }
     }
@@ -630,12 +801,13 @@ class SerialUtilWeb implements SerialUtil {
       final frame = _frameParser.lastCompleteFrame;
       final payload = _frameParser.lastPayload;
       if (frame != null && payload != null) {
-        if (_probeReplyIdentifiesDevice(payload)) {
-          print(
-            'SerialUtilWeb: probe frame OK (${frame.length} B, '
-            '${payload.length} B payload) @ $_baudRate',
+        final matched = _probeMatchedAsciiHwtToken(payload);
+        if (matched != null) {
+          _acceptProbeHwtMatch(
+            matched,
+            source: 'frame',
+            raw: _probePrintable(payload),
           );
-          _onProbeCompleteFrame();
         }
       }
     }
@@ -767,13 +939,27 @@ class SerialUtilWeb implements SerialUtil {
     final gate = Completer<void>();
     _serialLifecycle = gate.future;
     print("RUN SERIAL LIFECYCLE 1000: $previous");
-    await previous;
+    try {
+      await previous.timeout(
+        _lifecycleGateTimeout,
+        onTimeout: () {
+          print(
+            'SerialUtilWeb: previous lifecycle timed out after '
+            '${_lifecycleGateTimeout.inSeconds}s — continuing',
+          );
+        },
+      );
+    } catch (e) {
+      print('SerialUtilWeb: previous lifecycle wait error: $e');
+    }
     print("RUN PREVIOUS FIN");
     try {
       print("RUN AWAIT ACTION");
       return await action();
     } finally {
-      gate.complete();
+      if (!gate.isCompleted) {
+        gate.complete();
+      }
     }
   }
 
@@ -805,26 +991,21 @@ class SerialUtilWeb implements SerialUtil {
       vendorId = portInfo?.usbVendorId ?? 0;
       productId = portInfo?.usbProductId ?? 0;
 
-      int? detectedBaud;
+      final epoch = _sessionEpoch;
       try {
-        detectedBaud = await _autoDetectBaudRate();
-      } on SerialConnectAborted catch (e) {
-        print('SerialUtilWeb: baud scan aborted: $e');
-        await _closePortBody();
+        await _completeConnectAfterPortPick(epoch).timeout(
+          _postPickerConnectTimeout,
+          onTimeout: () {
+            throw TimeoutException(
+              'Web Serial connect timed out after '
+              '${_postPickerConnectTimeout.inSeconds}s',
+            );
+          },
+        );
+      } on TimeoutException catch (e) {
+        print('SerialUtilWeb: $e');
+        await _forceAbandonPort('connect timeout');
         throw Exception('device unavailable');
-      }
-      if (detectedBaud == null) {
-        print("detected baud == null");
-        await _closePortBody();
-        throw Exception('device unavailable');
-      }
-      _baudRate = detectedBaud;
-      _listenBaudRecoveryRounds = 0;
-      _resetLineErrorTracking();
-      print("baudRate serial web (auto-detected): $_baudRate");
-      if (await openPortToListen(" ", _baudRate) == null) {
-        await _closePortBody();
-        throw Exception("getReader failed");
       }
     } catch (e) {
       print("Port cancelled1: $e");
@@ -835,11 +1016,14 @@ class SerialUtilWeb implements SerialUtil {
       }
       if (e is SerialConnectAborted ||
           msg.contains('device unavailable') ||
-          msg.contains("Failed to execute 'getReader'")) {
+          msg.contains("Failed to execute 'getReader'") ||
+          e is TimeoutException) {
         try {
           await _closePortBody();
         } catch (_) {}
-        if (msg.contains('device unavailable') || e is SerialConnectAborted) {
+        if (msg.contains('device unavailable') ||
+            e is SerialConnectAborted ||
+            e is TimeoutException) {
           throw Exception('device unavailable');
         }
         throw Exception('getReader failed');
@@ -853,17 +1037,87 @@ class SerialUtilWeb implements SerialUtil {
     }
   }
 
+  Future<void> _completeConnectAfterPortPick(int epoch) async {
+    _throwIfSessionStale(epoch);
+    int? detectedBaud;
+    try {
+      detectedBaud = await _autoDetectBaudRate(epoch);
+    } on SerialConnectAborted catch (e) {
+      print('SerialUtilWeb: baud scan aborted: $e');
+      await _closePortBody();
+      throw Exception('device unavailable');
+    }
+    _throwIfSessionStale(epoch);
+    if (detectedBaud == null) {
+      print("detected baud == null");
+      await _closePortBody();
+      throw Exception('device unavailable');
+    }
+    _baudRate = detectedBaud;
+    _listenBaudRecoveryRounds = 0;
+    _resetLineErrorTracking();
+    print("baudRate serial web (auto-detected): $_baudRate");
+    if (await openPortToListen(" ", _baudRate) == null) {
+      await _closePortBody();
+      throw Exception("getReader failed");
+    }
+  }
+
+  /// Drop local port state when Chromium stalls mid open/close so the next
+  /// [requestPort] can proceed without a page refresh.
+  Future<void> _forceAbandonPort(String reason) async {
+    print('SerialUtilWeb: force abandon port ($reason)');
+    _sessionEpoch++;
+    _cancelQueryRepeatTimer();
+    _probing = false;
+    _probeReading = false;
+    _intentionalProbeStop = true;
+    _intentionalReaderStop = true;
+    _writableSession++;
+    try {
+      await _fullyReleasePortStreams().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {},
+      );
+    } catch (_) {}
+    try {
+      final port = serialPort;
+      if (port != null && _portOpen) {
+        await port.close().timeout(_portCloseTimeout, onTimeout: () {});
+      }
+    } catch (_) {}
+    writer = null;
+    reader = null;
+    _probeActiveReader = null;
+    portInfo = null;
+    serialPort = null;
+    _portOpen = false;
+    _intentionalProbeStop = false;
+    _intentionalReaderStop = false;
+    _replaceDataStream();
+  }
+
   @override
   Future<void> closePort() async {
     return _runSerialLifecycle(_closePortBody);
   }
 
   Future<void> _closePortBody() async {
+    _sessionEpoch++;
     final portToClose = serialPort;
     print("closePort 1000 start: $portToClose");
     // Drop in-flight writes that might still touch the writer while we tear down.
     _writableSession++;
-    await _fullyReleasePortStreams();
+    try {
+      await _fullyReleasePortStreams().timeout(
+        const Duration(seconds: 6),
+        onTimeout: () {
+          print('SerialUtilWeb: stream release timed out during close');
+        },
+      );
+    } catch (e) {
+      print('SerialUtilWeb: stream release during close failed: $e');
+    }
     _replaceDataStream();
     print("closePort 1000 MIDDLE: $portToClose");
 
@@ -873,6 +1127,10 @@ class SerialUtilWeb implements SerialUtil {
       }
     } catch (e) {
       print("Error closing web serial port: $e");
+      if (identical(serialPort, portToClose)) {
+        await _forceAbandonPort('close error: $e');
+        return;
+      }
     } finally {
       writer = null;
       reader = null;
@@ -956,7 +1214,7 @@ class SerialUtilWeb implements SerialUtil {
       await w.ready.timeout(_writerReadyTimeout, onTimeout: () {});
     } catch (_) {}
     try {
-      await w.close();
+      await w.close().timeout(_writerReadyTimeout, onTimeout: () {});
     } catch (_) {}
     try {
       w.releaseLock();
@@ -1449,7 +1707,7 @@ class SerialUtilWeb implements SerialUtil {
       await w.ready.timeout(_writerReadyTimeout, onTimeout: () {});
     } catch (_) {}
     try {
-      await w.close();
+      await w.close().timeout(_writerReadyTimeout, onTimeout: () {});
     } catch (_) {}
     try {
       w.releaseLock();
@@ -1466,7 +1724,15 @@ class SerialUtilWeb implements SerialUtil {
     Object? lastCloseError;
     for (var attempt = 0; attempt < 6; attempt++) {
       try {
-        await port.close();
+        await port.close().timeout(
+          _portCloseTimeout,
+          onTimeout: () {
+            throw TimeoutException(
+              'SerialPort.close timed out '
+              '(${_portCloseTimeout.inSeconds}s)',
+            );
+          },
+        );
         _portOpen = false;
         lastCloseError = null;
         break;
@@ -1479,12 +1745,19 @@ class SerialUtilWeb implements SerialUtil {
         print("serialPort.close attempt ${attempt + 1} failed: $e");
         _writableSession++;
         await Future<void>.delayed(Duration(milliseconds: 100 * (attempt + 1)));
-        await _fullyReleasePortStreams();
+        try {
+          await _fullyReleasePortStreams().timeout(
+            const Duration(seconds: 3),
+            onTimeout: () {},
+          );
+        } catch (_) {}
       }
     }
     if (lastCloseError != null) {
       print(
           "serialPort.close: giving up after retries, last error: $lastCloseError");
+      // Chrome may keep the handle open forever — drop local ref so reconnect works.
+      serialPort = null;
     }
     _portOpen = false;
     await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -1541,7 +1814,15 @@ class SerialUtilWeb implements SerialUtil {
 
     for (var i = 0; i < attempts.length; i++) {
       try {
-        await attempts[i]();
+        await attempts[i]().timeout(
+          _portOpenTimeout,
+          onTimeout: () {
+            throw TimeoutException(
+              'SerialPort.open timed out @$_baudRate '
+              '(${_portOpenTimeout.inSeconds}s)',
+            );
+          },
+        );
         _portOpen = true;
         if (!probing) {
           await _trySetPortSignals(port);

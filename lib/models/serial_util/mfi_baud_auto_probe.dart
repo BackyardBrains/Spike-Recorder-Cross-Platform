@@ -43,8 +43,6 @@ class MfiBaudAutoProbe {
 
   static final List<Uint8List> _replyTokenBytes = [
     ..._deviceReplyTokens
-        .map((t) => Uint8List.fromList(t.codeUnits)),
-    ..._deviceReplyTokens
         .map((t) => Uint8List.fromList('HWT:$t'.codeUnits)),
   ];
 

@@ -42,8 +42,10 @@ class SerialBaudAutoProbe {
     'HEARTSS;',
   ];
 
+  /// Probe success requires an hwType device-identification reply (e.g.
+  /// `HWT:MUSCUSB1;` / `HWT:HBLEOSB;`). Bare board ids are rejected — they
+  /// appear by chance in wrong-baud UART noise.
   static final List<Uint8List> _replyTokenBytes = [
-    ...deviceReplyTokens.map((t) => Uint8List.fromList(t.codeUnits)),
     ...deviceReplyTokens.map((t) => Uint8List.fromList('HWT:$t'.codeUnits)),
   ];
 

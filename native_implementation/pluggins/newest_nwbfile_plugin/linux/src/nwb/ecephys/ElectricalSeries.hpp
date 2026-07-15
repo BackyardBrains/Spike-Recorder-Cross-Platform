@@ -1,0 +1,175 @@
+#pragma once
+
+#include <string>
+
+#include "Channel.hpp"
+#include "Utils.hpp"
+#include "io/BaseIO.hpp"
+#include "io/ReadIO.hpp"
+#include "nwb/base/TimeSeries.hpp"
+#include "nwb/file/ElectrodesTable.hpp"
+#include "spec/core.hpp"
+
+namespace AQNWB::NWB
+{
+/**
+ * @brief General purpose time series.
+ */
+class ElectricalSeries : public TimeSeries
+{
+public:
+  // Register the TimeSeries as a subclass of Container
+  REGISTER_SUBCLASS(ElectricalSeries,
+                    TimeSeries,
+                    AQNWB::SPEC::CORE::namespaceName)
+
+protected:
+  /**
+   * @brief Constructor.
+   * @param path The location of the ElectricalSeries in the file.
+   * @param io A shared pointer to the IO object.
+   */
+  ElectricalSeries(const std::string& path, std::shared_ptr<IO::BaseIO> io);
+
+public:
+  /**
+   * @brief Destructor
+   */
+  ~ElectricalSeries() override;
+
+  /**
+   * @brief Initializes the Electrical Series
+   *
+   * @param dataConfig Configuration for the dataset including data type, shape
+   * and chunking. The shape must be a vector with two elements. The first
+   * element specifies the length in time and the second element must be equal
+   * to the length of channelVector. The chunking must also be a vector with two
+   * elements to specify the size of a chunk in the time and electrode
+   * dimension.
+   * @param channelVector The electrodes to use for recording
+   * @param description The description of the TimeSeries.
+   * @param conversion Scalar to multiply each element in data to convert it to
+   *                   the specified 'unit'
+   * @param resolution Smallest meaningful difference between values in data,
+   *                   stored in the specified by unit
+   * @param offset Scalar to add to the data after scaling by 'conversion' to
+   *               finalize its coercion to the specified 'unit'
+   * @return The status of the initialization operation.
+   */
+  Status initialize(const IO::BaseArrayDataSetConfig& dataConfig,
+                    const Types::ChannelVector& channelVector,
+                    const std::string& description,
+                    const float& conversion = 1.0f,
+                    const float& resolution = -1.0f,
+                    const float& offset = 0.0f);
+
+  /**
+   * @brief Writes a channel to an ElectricalSeries dataset.
+   *
+   * Timestamp and controlInput values are only written if the channel index is
+   * 0.
+   *
+   * @param channelInd The channel index within the ElectricalSeries
+   * @param numSamples The number of samples to write (length in time).
+   * @param dataInput A pointer to the data block.
+   * @param timestampsInput A pointer to the timestamps block.
+   * @param controlInput A pointer to the control block data (optional)
+   * @return The status of the write operation.
+   */
+  Status writeChannel(SizeType channelInd,
+                      const SizeType& numSamples,
+                      const void* dataInput,
+                      const void* timestampsInput,
+                      const void* controlInput = nullptr);
+
+  /**
+   * @brief Writes a block of multichannel samples to an ElectricalSeries
+   * dataset in a single operation.
+   *
+   * This method accepts interleaved multichannel data laid out in row-major
+   * (C) order: `[t0_ch0, t0_ch1, ..., t0_chK, t1_ch0, ..., tJ_chK]`,
+   * i.e. a contiguous 2D array of shape `[numSamples, numChannels]`.
+   *
+   * @note All channels must be at the same sample offset when this method is
+   * called, i.e. every channel must have the same number of samples already
+   * recorded. This condition is automatically satisfied when only
+   * `writeAllChannels` (and not `writeChannel`) is used for writing. Mixing
+   * `writeChannel` calls for a subset of channels with `writeAllChannels` will
+   * violate this requirement and result in a failure status.
+   *
+   * @param numSamples The number of time samples (rows) to write.
+   * @param dataInput Pointer to the interleaved data buffer with shape
+   *                  `[numSamples, numChannels]`.
+   * @param timestampsInput A pointer to the timestamps array of length
+   *                        `numSamples`. This pointer must be non-null when
+   *                        this ElectricalSeries is configured to use explicit
+   *                        timestamps. When the series instead uses implicit
+   *                        time via `starting_time` together with a
+   *                        `rate`/`sampling_rate`, this parameter should be
+   *                        `nullptr` (or omitted) and no timestamps are
+   *                        written.
+   * @param controlInput A pointer to the control array of length `numSamples`
+   *                     (optional). Required when control data is used in the
+   *                     TimeSeries configuration.
+   * @return The status of the write operation. Returns `Status::Failure` if
+   *         the channels are at different sample offsets.
+   */
+  Status writeAllChannels(const SizeType& numSamples,
+                          const void* dataInput,
+                          const void* timestampsInput = nullptr,
+                          const void* controlInput = nullptr);
+
+  /**
+   * @brief Checks if all channels are at the same sample offset, i.e. if every
+   * channel has the same number of samples recorded.
+   * @return True if all channels are at the same sample offset, false
+   * otherwise.
+   */
+  bool channelsAtSameSampleOffset() const;
+
+  /**
+   * @brief Channel group that this time series is associated with.
+   */
+  Types::ChannelVector m_channelVector;
+
+  DEFINE_DATASET_FIELD(readChannelConversion,
+                       recordChannelConversion,
+                       float,
+                       "channel_conversion",
+                       Channel - specific conversion factor)
+
+  DEFINE_DATASET_FIELD(
+      readData, recordData, float, "data", Recorded voltage data)
+
+  DEFINE_ATTRIBUTE_FIELD(readDataUnit,
+                        std::string,
+                        "data/unit",
+                        Base unit of measurement for working with the data. 
+                        This value is fixed to volts)
+
+  DEFINE_DATASET_FIELD(
+      readElectrodes,
+      recordElectrodes,
+      int,
+      "electrodes",
+      The indices of the electrodes that generated this electrical series.)
+
+  DEFINE_ATTRIBUTE_FIELD(readElectrodesDescription,
+                         std::string,
+                         "electrodes/description",
+                         The electrodes that generated this electrical series.)
+
+  DEFINE_REFERENCED_REGISTERED_FIELD(
+      readElectrodesTable,
+      ElectrodesTable,
+      "electrodes/table",
+      The electrodes table retrieved from the object referenced in the 
+      `electrodes / table` attribute.)
+
+private:
+  /**
+   * @brief The number of samples already written per channel.
+   */
+  SizeArray m_samplesRecorded;
+};
+}  // namespace AQNWB::NWB

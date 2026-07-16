@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:html';
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
@@ -111,11 +110,10 @@ class SerialUtilWeb implements SerialUtil {
   /// Shorter hwType wait when the device is likely off (no RX on first baud).
   static const Duration _probeFrameTimeoutDeadDevice =
       Duration(milliseconds: 700);
-  /// Heavy RX / ADC-like stream but no canonical HWT — don't sit for 3s×2.
+  /// Confirmed near-baud HWT reply but wrong canonical baud — don't sit for 3s×2.
   static const Duration _probeFrameTimeoutWrongBaud =
       Duration(milliseconds: 800);
-  static const int _probeWrongBaudMinRxBytes = 4096;
-  static const int _probeAttemptsPerBaud = 2;
+  static const int _probeAttemptsPerBaud = 1;
 
   Duration _probeFrameTimeoutForBaud(int baud) =>
       baud == 500000 ? _probeFrameTimeout500k : _probeFrameTimeoutDefault;
@@ -124,7 +122,7 @@ class SerialUtilWeb implements SerialUtil {
   /// After this many UART line errors inside [_lineErrorRecoveryWindow], re-probe baud.
   static const int _lineErrorsBeforeBaudRecovery = 8;
   static const Duration _lineErrorRecoveryWindow = Duration(seconds: 4);
-  static const int _maxListenBaudRecoveryAttempts = 2;
+  static const int _maxListenBaudRecoveryAttempts = 3;
   static const Duration _reacquireBackoffBase = Duration(milliseconds: 60);
   static const Duration _reacquireBackoffMax = Duration(milliseconds: 1000);
 
@@ -358,10 +356,14 @@ class SerialUtilWeb implements SerialUtil {
     _onProbeCompleteFrame();
   }
 
-  bool _probeSuspectWrongBaudStream() =>
-      _probeSawNonCanonicalHwt ||
-      _probeRxBytes >= _probeWrongBaudMinRxBytes ||
-      _probeAdcStreamLooksLikeDevice();
+  /// Only a confirmed near-baud HWT reply is a safe "wrong baud" signal.
+  /// Raw RX volume / ADC-sync-hit heuristics are NOT safe here: a live device
+  /// already streaming ADC data at the CORRECT baud also produces heavy RX
+  /// before its HWT reply lands — especially on Windows, where Chromium+FTDI
+  /// deliver much larger read bursts than ChromeOS. Using RX volume alone
+  /// caused real 222222 probes to be fast-failed and pairing to regress on
+  /// Windows (see BackyardBrains/Spike-Recorder-Cross-Platform#13).
+  bool _probeSuspectWrongBaudStream() => _probeSawNonCanonicalHwt;
 
   void _noteProbeAdcStreamSync(Uint8List chunk) {
     if (_probeRxBytes > _probeFrameDetectMaxBytes) {
@@ -566,17 +568,11 @@ class SerialUtilWeb implements SerialUtil {
       _flushProbeParsers(reason: 'post-settle discard @$baud');
       _probeAcceptRx = true;
 
-      // Heavy settle RX / ADC-like stream ⇒ short HWT wait, single attempt.
-      var suspectWrongBaud = _probeSuspectWrongBaudStream();
-      final maxAttempts =
-          suspectWrongBaud ? 1 : _probeAttemptsPerBaud;
-      if (suspectWrongBaud) {
-        print(
-          'SerialUtilWeb: fast-fail mode @$baud — '
-          'rawRx=$_probeRxBytes B, adcSyncs=$_probeAdcFrameHits, '
-          'timeout=${_probeFrameTimeoutWrongBaud.inMilliseconds}ms ×1',
-        );
-      }
+      // _probeSawNonCanonicalHwt is always false here (just reset above, no
+      // query sent yet); the fast-fail path only engages once a confirmed
+      // near-baud HWT reply arrives mid-attempt (see break below).
+      const maxAttempts = _probeAttemptsPerBaud;
+      var suspectWrongBaud = false;
 
       var success = false;
       for (var attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -598,17 +594,11 @@ class SerialUtilWeb implements SerialUtil {
           break;
         }
         if (_probeSawNonCanonicalHwt) {
-          print(
-            'SerialUtilWeb: fast-fail @$baud after non-canonical HWT — next baud',
-          );
-          break;
-        }
-        // After first attempt, escalate to fast-fail if the stream looks wrong.
-        if (!suspectWrongBaud && _probeSuspectWrongBaudStream()) {
+          // Confirmed wrong-canonical-baud HWT reply — already unblocked via
+          // _completeProbeResponse(false); skip the remaining attempts.
           suspectWrongBaud = true;
           print(
-            'SerialUtilWeb: fast-fail @$baud after attempt $attempt — '
-            'heavy RX/no canonical HWT (rawRx=$_probeRxBytes)',
+            'SerialUtilWeb: fast-fail @$baud after non-canonical HWT — next baud',
           );
           break;
         }

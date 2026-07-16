@@ -182,6 +182,5 @@ com.backyardbrains.Backyard-Brains
 disconnect issue
 
 
-final row = nwb.nwbfileAddEvent(1.234, 3);
-nwb.nwbfileUpdateEvent(row, 1.500, 5);
-nwb.nwbfileDeleteEvent(row);
+Windows ChromeOS 150
+On Windows, Chromium+FTDI deliver much larger bursts (the existing code comments already flagged this as a known quirk), so 4096 bytes could arrive in a single burst well before the HWT: reply — even at the correct baud (222222).

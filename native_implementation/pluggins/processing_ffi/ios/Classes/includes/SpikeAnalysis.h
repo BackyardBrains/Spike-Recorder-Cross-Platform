@@ -27,6 +27,11 @@ namespace backyardbrains {
                             short **outValuesNeg, int **outIndicesNeg, float **outTimesNeg, int *outPosCounts,
                             int *outNegCounts);
 
+            void findSampleSpike(const short *inSamples, long long sampleCount, int channelCount, int sampleRate,
+                                   short **outValuesPos, int **outIndicesPos, float **outTimesPos,
+                                   short **outValuesNeg, int **outIndicesNeg, float **outTimesNeg, int *outPosCounts,
+                                   int *outNegCounts);
+
         private:
             static const char *TAG;
 

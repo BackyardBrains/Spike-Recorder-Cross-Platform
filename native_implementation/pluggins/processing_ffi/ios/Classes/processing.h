@@ -156,6 +156,19 @@ PROCESSING_API int32_t** processing_find_spikes(const char* file_path,
                                 int32_t channel_count,
                                 int32_t max_spikes);
 
+PROCESSING_API int32_t processing_find_sample_spike(const int16_t* in_samples,
+                                int64_t sample_count,
+                                int32_t channel_count,
+                                int32_t sample_rate,
+                                int16_t** values_pos,
+                                int32_t** indices_pos,
+                                float** times_pos,
+                                int16_t** values_neg,
+                                int32_t** indices_neg,
+                                float** times_neg,
+                                int32_t* out_pos_counts,
+                                int32_t* out_neg_counts);
+
 PROCESSING_API void processing_autocorrelation_analysis(float** spike_trains,
                                        int32_t spike_train_count,
                                        int32_t* spike_counts,

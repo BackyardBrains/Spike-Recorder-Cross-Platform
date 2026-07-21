@@ -1558,6 +1558,104 @@ class ProcessingUtilImpl implements ProcessingUtil {
     calloc.free(inDataPtr);
     calloc.free(sampleCountsPtr);
   }
+
+  @override
+  List<DetectedSpike> findSampleSpike(
+      Int16List planarChannelSamples, int sampleRateHz) {
+    if (planarChannelSamples.isEmpty || sampleRateHz <= 0) {
+      return const [];
+    }
+
+    // Native findSampleSpike expects interleaved multi-channel data; a single
+    // planar channel is already in the right layout with channelCount = 1.
+    const channelCount = 1;
+    final sampleCount = planarChannelSamples.length;
+    // Rejected by native if shorter than MIN_VALID_FILE_LENGTH_IN_SECS (0.2 s).
+    if (sampleCount < (sampleRateHz * channelCount * 0.2).ceil()) {
+      return const [];
+    }
+
+    final durationSec = sampleCount / sampleRateHz;
+    // Headroom above the 5 ms kill-interval densest plausible rate.
+    final maxSpikes = max(4096, (durationSec * 500).ceil());
+
+    final inSamples = calloc<Int16>(sampleCount);
+    final valuesPos = calloc<Pointer<Int16>>(channelCount);
+    final indicesPos = calloc<Pointer<Int32>>(channelCount);
+    final timesPos = calloc<Pointer<Float>>(channelCount);
+    final valuesNeg = calloc<Pointer<Int16>>(channelCount);
+    final indicesNeg = calloc<Pointer<Int32>>(channelCount);
+    final timesNeg = calloc<Pointer<Float>>(channelCount);
+    final posCounts = calloc<Int32>(channelCount);
+    final negCounts = calloc<Int32>(channelCount);
+
+    try {
+      inSamples.asTypedList(sampleCount).setAll(0, planarChannelSamples);
+
+      for (var ch = 0; ch < channelCount; ch++) {
+        valuesPos[ch] = calloc<Int16>(maxSpikes);
+        indicesPos[ch] = calloc<Int32>(maxSpikes);
+        timesPos[ch] = calloc<Float>(maxSpikes);
+        valuesNeg[ch] = calloc<Int16>(maxSpikes);
+        indicesNeg[ch] = calloc<Int32>(maxSpikes);
+        timesNeg[ch] = calloc<Float>(maxSpikes);
+      }
+
+      final ok = pb.processingBindings.findSampleSpike(
+        inSamples,
+        sampleCount,
+        channelCount,
+        sampleRateHz,
+        valuesPos,
+        indicesPos,
+        timesPos,
+        valuesNeg,
+        indicesNeg,
+        timesNeg,
+        posCounts,
+        negCounts,
+      );
+      if (ok != 1) return const [];
+
+      final posN = posCounts[0].clamp(0, maxSpikes);
+      final negN = negCounts[0].clamp(0, maxSpikes);
+      final spikes = <DetectedSpike>[];
+
+      final posIdx = indicesPos[0];
+      final posVal = valuesPos[0];
+      for (var i = 0; i < posN; i++) {
+        spikes.add(DetectedSpike(index: posIdx[i], value: posVal[i]));
+      }
+      final negIdx = indicesNeg[0];
+      final negVal = valuesNeg[0];
+      for (var i = 0; i < negN; i++) {
+        spikes.add(DetectedSpike(index: negIdx[i], value: negVal[i]));
+      }
+      spikes.sort((a, b) => a.index.compareTo(b.index));
+      return spikes;
+    } catch (e, st) {
+      print("findSampleSpike failed: $e\n$st");
+      return const [];
+    } finally {
+      for (var ch = 0; ch < channelCount; ch++) {
+        if (valuesPos[ch] != nullptr) calloc.free(valuesPos[ch]);
+        if (indicesPos[ch] != nullptr) calloc.free(indicesPos[ch]);
+        if (timesPos[ch] != nullptr) calloc.free(timesPos[ch]);
+        if (valuesNeg[ch] != nullptr) calloc.free(valuesNeg[ch]);
+        if (indicesNeg[ch] != nullptr) calloc.free(indicesNeg[ch]);
+        if (timesNeg[ch] != nullptr) calloc.free(timesNeg[ch]);
+      }
+      calloc.free(inSamples);
+      calloc.free(valuesPos);
+      calloc.free(indicesPos);
+      calloc.free(timesPos);
+      calloc.free(valuesNeg);
+      calloc.free(indicesNeg);
+      calloc.free(timesNeg);
+      calloc.free(posCounts);
+      calloc.free(negCounts);
+    }
+  }
 }
 
 // This function runs in the processing isolate

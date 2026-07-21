@@ -3237,8 +3237,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
             false;
         if (!ok || sampleCounts[0] <= 0) return;
         final actual = sampleCounts[0].clamp(0, samples.length);
+        final channelSamples = samples.sublist(0, actual);
+        final peaks = _detectSpikePeaks(channelSamples, sampleRateHz);
         provider.setChannelData(
-            channel, samples.sublist(0, actual), sampleRateHz);
+            channel, channelSamples, sampleRateHz,
+            peaks: peaks);
       } else {
         seekElectricalSeriesWebCompleter = Completer<Map<String, dynamic>>();
         await GraphTemplate.nwbFileUtil?.seekElectricalSeriesWeb(
@@ -3256,12 +3259,27 @@ class _GraphTemplateState extends State<GraphTemplate> {
         final seekedCounts = _coerceJsInt32List(map['arrSampleCount']);
         if (seekedCounts.isEmpty || seekedCounts[0] <= 0) return;
         final actual = seekedCounts[0].clamp(0, seekedSamples.length);
+        final channelSamples = seekedSamples.sublist(0, actual);
+        final peaks = _detectSpikePeaks(channelSamples, sampleRateHz);
         provider.setChannelData(
-            channel, seekedSamples.sublist(0, actual), sampleRateHz);
+            channel, channelSamples, sampleRateHz,
+            peaks: peaks);
       }
     } catch (err) {
       print(
           "Spike Analysis: failed to load channel $channel from NWB file: $err");
+    }
+  }
+
+  List<SpikePeak> _detectSpikePeaks(Int16List channelSamples, int sampleRateHz) {
+    try {
+      return processingUtil
+          .findSampleSpike(channelSamples, sampleRateHz)
+          .map((s) => SpikePeak(index: s.index, value: s.value))
+          .toList();
+    } catch (err) {
+      print("Spike Analysis: findSampleSpike failed: $err");
+      return const [];
     }
   }
 

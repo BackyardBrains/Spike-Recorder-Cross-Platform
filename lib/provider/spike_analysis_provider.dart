@@ -5,8 +5,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 /// One user-adjustable threshold "window" within a channel's Spike Analysis
-/// raster: spikes are counted/drawn when the signal enters the band between
-/// [lowValue] and [highValue].
+/// raster: spikes from [ProcessingUtil.findSampleSpike] whose peak amplitude
+/// falls between [lowValue] and [highValue] are counted/drawn (desktop
+/// SpikeSorter window filter).
 class SpikeThreshold {
   SpikeThreshold({
     required this.id,
@@ -19,6 +20,13 @@ class SpikeThreshold {
   double highValue;
   double lowValue;
   final Color color;
+}
+
+/// A Schmitt-trigger peak from [ProcessingUtil.findSampleSpike].
+class SpikePeak {
+  const SpikePeak({required this.index, required this.value});
+  final int index;
+  final int value;
 }
 
 /// Controls the Spike Analysis overlay: which channel is currently active and
@@ -56,6 +64,7 @@ class SpikeAnalysisProvider extends ChangeNotifier {
       channelDataLoader;
 
   final Map<int, Int16List> _channelSamples = {};
+  final Map<int, List<SpikePeak>> _channelPeaks = {};
   int _sampleRateHz = 10000;
   int get sampleRateHz => _sampleRateHz;
 
@@ -66,12 +75,22 @@ class SpikeAnalysisProvider extends ChangeNotifier {
   /// null if they haven't been loaded (yet).
   Int16List? samplesFor(int channel) => _channelSamples[channel];
 
+  /// Peaks from [ProcessingUtil.findSampleSpike] for [channel], or empty.
+  List<SpikePeak> peaksFor(int channel) =>
+      List.unmodifiable(_channelPeaks[channel] ?? const []);
+
   bool hasDataFor(int channel) => _channelSamples.containsKey(channel);
 
   /// Called by [channelDataLoader] once it has read the samples for
   /// [channel] from the NWB file.
-  void setChannelData(int channel, Int16List samples, int sampleRateHz) {
+  void setChannelData(
+    int channel,
+    Int16List samples,
+    int sampleRateHz, {
+    List<SpikePeak> peaks = const [],
+  }) {
     _channelSamples[channel] = samples;
+    _channelPeaks[channel] = List<SpikePeak>.from(peaks);
     if (sampleRateHz > 0) _sampleRateHz = sampleRateHz;
     _isLoadingChannelData = false;
     notifyListeners();
@@ -109,6 +128,7 @@ class SpikeAnalysisProvider extends ChangeNotifier {
     _channelIndex = channel < 0 ? 0 : channel;
     _isEnabled = true;
     _channelSamples.clear();
+    _channelPeaks.clear();
     if ((_thresholdsByChannel[_channelIndex] ?? const []).isEmpty) {
       _addThreshold(_channelIndex);
     }
@@ -121,6 +141,7 @@ class SpikeAnalysisProvider extends ChangeNotifier {
     // Drop the loaded raw samples (can be a few MB per channel) now that the
     // overlay is closed; they'll be re-fetched fresh next time it's opened.
     _channelSamples.clear();
+    _channelPeaks.clear();
     _isLoadingChannelData = false;
     notifyListeners();
   }

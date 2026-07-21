@@ -14,6 +14,14 @@ export 'processing_util_native.dart'
     if (dart.library.html) 'processing_util_web.dart';
 
 
+/// One peak found by [ProcessingUtil.findSampleSpike] (Schmitt-trigger
+/// positive or negative peak at sample [index] with amplitude [value]).
+class DetectedSpike {
+  const DetectedSpike({required this.index, required this.value});
+  final int index;
+  final int value;
+}
+
 // The abstract interface all implementations must follow
 abstract class ProcessingUtil {
   /// Web only: worker posts processed PCM chunks after WASM processing.
@@ -132,6 +140,11 @@ abstract class ProcessingUtil {
 
   void processingNwbFileInjectData(Int16List data, Int32List sampleCounts, int selectedChannel, int channelCount);
   void processingSerialDataResult(Int16List data, Int32List sampleCounts, int channelCount);
+
+  /// Runs native `processing_find_sample_spike` (Schmitt peak finder) on a
+  /// single planar channel. Returns positive + negative peaks sorted by index.
+  /// Empty when the buffer is too short (< ~0.2 s) or detection fails.
+  List<DetectedSpike> findSampleSpike(Int16List planarChannelSamples, int sampleRateHz);
 
   void setupDartCallbacks();
   void cleanupDartCallbacks();

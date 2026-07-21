@@ -1577,6 +1577,39 @@ int32_t** processing_find_spikes(const char* file_path,
     }
 }
 
+int32_t processing_find_sample_spike(const int16_t* in_samples,
+                                int64_t sample_count,
+                                int32_t channel_count,
+                                int32_t sample_rate,
+                                int16_t** values_pos,
+                                int32_t** indices_pos,
+                                float** times_pos,
+                                int16_t** values_neg,
+                                int32_t** indices_neg,
+                                float** times_neg,
+                                int32_t* out_pos_counts,
+                                int32_t* out_neg_counts) {
+    if (!initialized || !spikeAnalysis || in_samples == nullptr ||
+        out_pos_counts == nullptr || out_neg_counts == nullptr) {
+        return 0;
+    }
+
+    try {
+        spikeAnalysis->findSampleSpike(
+            in_samples,
+            sample_count,
+            channel_count,
+            sample_rate,
+            values_pos, indices_pos, times_pos,
+            values_neg, indices_neg, times_neg,
+            out_pos_counts, out_neg_counts
+        );
+        return 1;
+    } catch (...) {
+        return 0;
+    }
+}
+
 void processing_autocorrelation_analysis(float** spike_trains,
                                        int32_t spike_train_count,
                                        int32_t* spike_counts,

@@ -276,6 +276,35 @@ typedef ProcessingNwbfileInjectDataResult = int Function(
     int channelCount,
 );
 
+typedef ProcessingFindSampleSpikeNative = Int32 Function(
+    Pointer<Int16> inSamples,
+    Int64 sampleCount,
+    Int32 channelCount,
+    Int32 sampleRate,
+    Pointer<Pointer<Int16>> valuesPos,
+    Pointer<Pointer<Int32>> indicesPos,
+    Pointer<Pointer<Float>> timesPos,
+    Pointer<Pointer<Int16>> valuesNeg,
+    Pointer<Pointer<Int32>> indicesNeg,
+    Pointer<Pointer<Float>> timesNeg,
+    Pointer<Int32> outPosCounts,
+    Pointer<Int32> outNegCounts,
+);
+typedef ProcessingFindSampleSpike = int Function(
+    Pointer<Int16> inSamples,
+    int sampleCount,
+    int channelCount,
+    int sampleRate,
+    Pointer<Pointer<Int16>> valuesPos,
+    Pointer<Pointer<Int32>> indicesPos,
+    Pointer<Pointer<Float>> timesPos,
+    Pointer<Pointer<Int16>> valuesNeg,
+    Pointer<Pointer<Int32>> indicesNeg,
+    Pointer<Pointer<Float>> timesNeg,
+    Pointer<Int32> outPosCounts,
+    Pointer<Int32> outNegCounts,
+);
+
 typedef InitDartApiNative = IntPtr Function(Pointer<Void>);
 typedef InitDartApiDart = int Function(Pointer<Void>);
 
@@ -322,6 +351,7 @@ class ProcessingBindings {
   late final ProcessingCleanup cleanup;
   
   late final ProcessingNwbfileInjectDataResult nwbfileInjectDataResult;
+  late final ProcessingFindSampleSpike findSampleSpike;
 
   late final ProcessingGetInformation getInformation;
   late final ProcessingSetIsThresholding setIsThresholding;
@@ -418,6 +448,8 @@ class ProcessingBindings {
     cleanup = _lib!.lookupFunction<ProcessingCleanupNative, ProcessingCleanup>('processing_cleanup');
     
     nwbfileInjectDataResult = _lib!.lookupFunction<ProcessingNwbfileInjectDataResultNative, ProcessingNwbfileInjectDataResult>('processing_nwbfile_inject_data_result');
+
+    findSampleSpike = _lib!.lookupFunction<ProcessingFindSampleSpikeNative, ProcessingFindSampleSpike>('processing_find_sample_spike');
 
     registerDartPort = _lib!.lookupFunction<ProcessingRegisterDartPortNative, ProcessingRegisterDartPort>('processing_register_dart_port');
     unregisterDartPort = _lib!.lookupFunction<ProcessingUnregisterDartPortNative, ProcessingUnregisterDartPort>('processing_unregister_dart_port');

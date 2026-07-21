@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 // import 'dart:ffi';
 import 'dart:isolate';
+import 'dart:math';
 import 'dart:typed_data';
 // import 'dart:ffi';
 import 'package:spikerbox_architecture/models/CircularFloatArrayBuffer.dart';
@@ -952,6 +953,122 @@ class ProcessingUtilImpl implements ProcessingUtil {
   
   @override
   Stream<int>? postChannelCountStream;
+
+  @override
+  List<DetectedSpike> findSampleSpike(
+      Int16List planarChannelSamples, int sampleRateHz) {
+    // Web worker does not yet expose processing_find_sample_spike; use a
+    // Dart Schmitt peak-hold that mirrors the native algorithm closely enough
+    // for Spike Analysis markers.
+    return _findSampleSpikeDart(planarChannelSamples, sampleRateHz);
+  }
+}
+
+/// Dart port of SpikeAnalysis::findSampleSpike (SD threshold + Schmitt peaks).
+List<DetectedSpike> _findSampleSpikeDart(Int16List samples, int sampleRateHz) {
+  if (samples.isEmpty || sampleRateHz <= 0) return const [];
+  if (samples.length < (sampleRateHz * 0.2).ceil()) return const [];
+
+  const binCount = 200.0;
+  const bufferSizeInSecs = 12.0;
+  var bufferSize = (samples.length / binCount).ceil();
+  final maxBufferSize = (sampleRateHz * bufferSizeInSecs).ceil();
+  if (bufferSize > maxBufferSize) bufferSize = maxBufferSize;
+  if (bufferSize < 1) bufferSize = 1;
+
+  final deviations = <double>[];
+  for (var offset = 0; offset < samples.length; offset += bufferSize) {
+    final end = min(offset + bufferSize, samples.length);
+    final n = end - offset;
+    if (n <= 0) break;
+    var sum = 0.0;
+    for (var i = offset; i < end; i++) {
+      sum += samples[i];
+    }
+    final mean = sum / n;
+    var acc = 0.0;
+    for (var i = offset; i < end; i++) {
+      final d = samples[i] - mean;
+      acc += d * d;
+    }
+    deviations.add(sqrt(acc / n));
+  }
+  if (deviations.isEmpty) return const [];
+  deviations.sort((a, b) => b.compareTo(a));
+  final sig = (2 * deviations[(deviations.length * 0.4).ceil()
+          .clamp(0, deviations.length - 1)])
+      .round()
+      .clamp(1, 32767);
+  final negSig = -sig;
+
+  const killIntervalSec = 0.005;
+  final killSamples = max(1, (killIntervalSec * sampleRateHz).round());
+
+  final pos = <DetectedSpike>[];
+  final neg = <DetectedSpike>[];
+  var schmittPos = false;
+  var schmittNeg = false;
+  var maxPeakValue = -32768;
+  var minPeakValue = 32767;
+  var maxPeakIndex = 0;
+  var minPeakIndex = 0;
+
+  for (var i = 0; i < samples.length; i++) {
+    final sample = samples[i];
+    if (!schmittPos) {
+      if (sample > sig) {
+        schmittPos = true;
+        maxPeakValue = -32768;
+      }
+    } else {
+      if (sample < 0) {
+        schmittPos = false;
+        pos.add(DetectedSpike(index: maxPeakIndex, value: maxPeakValue));
+      } else if (sample > maxPeakValue) {
+        maxPeakValue = sample;
+        maxPeakIndex = i;
+      }
+    }
+    if (!schmittNeg) {
+      if (sample < negSig) {
+        schmittNeg = true;
+        minPeakValue = 32767;
+      }
+    } else {
+      if (sample > 0) {
+        schmittNeg = false;
+        neg.add(DetectedSpike(index: minPeakIndex, value: minPeakValue));
+      } else if (sample < minPeakValue) {
+        minPeakValue = sample;
+        minPeakIndex = i;
+      }
+    }
+  }
+
+  List<DetectedSpike> applyKill(List<DetectedSpike> train, {required bool positive}) {
+    if (train.isEmpty) return train;
+    final out = List<DetectedSpike>.from(train);
+    for (var i = 0; i < out.length - 1; i++) {
+      if ((out[i + 1].index - out[i].index) < killSamples) {
+        final keepNext = positive
+            ? out[i].value < out[i + 1].value
+            : out[i].value > out[i + 1].value;
+        if (keepNext) {
+          out.removeAt(i);
+        } else {
+          out.removeAt(i + 1);
+        }
+        i--;
+      }
+    }
+    return out;
+  }
+
+  final filteredPos = applyKill(pos, positive: true);
+  final filteredNeg = applyKill(neg, positive: false);
+  final spikes = <DetectedSpike>[...filteredPos, ...filteredNeg];
+  spikes.sort((a, b) => a.index.compareTo(b.index));
+  return spikes;
 }
 
 // Factory function to create an instance

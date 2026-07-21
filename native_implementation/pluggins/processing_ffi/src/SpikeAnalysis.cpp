@@ -353,5 +353,286 @@ namespace backyardbrains {
             delete[] removedCounter;
             delete[] removedNegCounter;
         }
+
+        void
+        SpikeAnalysis::findSampleSpike(const short *inSamples, long long sampleCount, int channelCount,
+                                         int sampleRate, short **outValuesPos, int **outIndicesPos,
+                                         float **outTimesPos, short **outValuesNeg, int **outIndicesNeg,
+                                         float **outTimesNeg, int *outPosCounts, int *outNegCounts) {
+            if (inSamples == nullptr || channelCount <= 0 || sampleRate <= 0) {
+                return;
+            }
+
+            // check whether samples are long enough for processing
+            if (sampleCount < static_cast<long long>(sampleRate) * channelCount *
+                               backyardbrains::utils::AnalysisUtils::MIN_VALID_FILE_LENGTH_IN_SECS) {
+                return;
+            }
+
+            // determine buffer size
+            auto bufferSize = static_cast<long long>(ceil(
+                    static_cast<double>(sampleCount) / backyardbrains::utils::AnalysisUtils::BIN_COUNT));
+            auto maxBufferSize = static_cast<long long>(ceil(
+                    (static_cast<double>(sampleRate) * backyardbrains::utils::AnalysisUtils::BUFFER_SIZE_IN_SECS) /
+                    channelCount));
+            if (bufferSize > maxBufferSize) bufferSize = maxBufferSize;
+
+            // create buffers
+            int deviationsCount = static_cast<int>(ceil(static_cast<float>(sampleCount) / bufferSize));
+            auto **deinterleavedSamples = new short *[channelCount];
+            auto **standardDeviations = new float *[channelCount];
+            for (int i = 0; i < channelCount; i++) {
+                deinterleavedSamples[i] = new short[bufferSize]{0};
+                standardDeviations[i] = new float[deviationsCount];
+            }
+
+            // 1. FIRST LET'S FIND STANDARD DEVIATIONS FOR EVERY CHUNK
+            int *deviationCounters = new int[channelCount]{0};
+
+            long long offset = 0;
+            int chunkSampleCount = static_cast<int>(bufferSize);
+            int frameCount = chunkSampleCount / channelCount;
+            while (offset < sampleCount) {
+                long long remaining = sampleCount - offset;
+                long long read = remaining < bufferSize ? remaining : bufferSize;
+                if (chunkSampleCount != static_cast<int>(read)) {
+                    chunkSampleCount = static_cast<int>(read);
+                    frameCount = chunkSampleCount / channelCount;
+                }
+                backyardbrains::utils::SignalUtils::deinterleaveSignal(deinterleavedSamples, inSamples + offset,
+                                                                       chunkSampleCount, channelCount);
+                for (int i = 0; i < channelCount; i++) {
+                    standardDeviations[i][deviationCounters[i]++] = backyardbrains::utils::AnalysisUtils::SD(
+                            deinterleavedSamples[i], frameCount);
+                }
+                offset += read;
+            }
+
+            // 2. SORT DEVIATIONS ASCENDING
+            for (int i = 0; i < channelCount; i++) {
+                std::sort(standardDeviations[i], standardDeviations[i] + deviationCounters[i], std::greater<>());
+            }
+
+            // 3. DETERMINE ACCEPTABLE SPIKE VALUES WHICH ARE VALUES GRATER THEN 40% OF SDTs MULTIPLIED BY 2
+            auto *sig = new short[channelCount]{0};
+            auto *negSig = new short[channelCount]{0};
+            for (int i = 0; i < channelCount; i++) {
+                float tmpSig = 2 * standardDeviations[i][(int) ceil(deviationCounters[i] * 0.4f)];
+                sig[i] = static_cast<short>(tmpSig > SHRT_MAX ? SHRT_MAX : tmpSig);
+                float tmpNegSig = -1 * sig[i]; // we need it for negative values as well
+                negSig[i] = static_cast<short>(tmpNegSig < SHRT_MIN ? SHRT_MIN : tmpNegSig);
+            }
+
+            for (int i = 0; i < channelCount; i++) {
+                delete[] deinterleavedSamples[i];
+                delete[] standardDeviations[i];
+            }
+            delete[] deinterleavedSamples;
+            delete[] standardDeviations;
+            delete[] deviationCounters;
+
+            // 4. FIND THE SPIKES IMPLEMENTING SCHMITT TRIGGER
+            float sampleRateDivider = (float) 1 / sampleRate;
+            short sample;
+
+            int *schmittPosState = new int[channelCount];
+            int *schmittNegState = new int[channelCount];
+            auto *maxPeakValue = new short[channelCount];
+            auto *minPeakValue = new short[channelCount];
+            int *maxPeakIndex = new int[channelCount]{0};
+            int *minPeakIndex = new int[channelCount]{0};
+            auto *maxPeakTime = new float[channelCount]{0.0f};
+            auto *minPeakTime = new float[channelCount]{0.0f};
+            auto *currentTime = new float[channelCount]{0.0f};
+            int *currentIndex = new int[channelCount]{0};
+            int *spikeCounter = new int[channelCount]{0};
+            int *spikeNegCounter = new int[channelCount]{0};
+
+            bufferSize = maxBufferSize; // let's use max buffer size
+
+            deinterleavedSamples = new short *[channelCount];
+            for (int i = 0; i < channelCount; i++) {
+                deinterleavedSamples[i] = new short[bufferSize]{0};
+                schmittPosState[i] = SCHMITT_OFF;
+                schmittNegState[i] = SCHMITT_OFF;
+                maxPeakValue[i] = SHRT_MIN;
+                minPeakValue[i] = SHRT_MAX;
+            }
+
+            // run through the samples again to find spikes
+            offset = 0;
+            chunkSampleCount = static_cast<int>(bufferSize);
+            frameCount = chunkSampleCount / channelCount;
+            while (offset < sampleCount) {
+                long long remaining = sampleCount - offset;
+                long long read = remaining < bufferSize ? remaining : bufferSize;
+                if (chunkSampleCount != static_cast<int>(read)) {
+                    chunkSampleCount = static_cast<int>(read);
+                    frameCount = chunkSampleCount / channelCount;
+                }
+                backyardbrains::utils::SignalUtils::deinterleaveSignal(deinterleavedSamples, inSamples + offset,
+                                                                       chunkSampleCount, channelCount);
+                for (int channel = 0; channel < channelCount; channel++) {
+                    // find peaks
+                    for (int i = 0; i < frameCount; i++) {
+                        sample = deinterleavedSamples[channel][i];
+                        // determine state of positive schmitt trigger
+                        if (schmittPosState[channel] == SCHMITT_OFF) {
+                            if (sample > sig[channel]) {
+                                schmittPosState[channel] = SCHMITT_ON;
+                                maxPeakValue[channel] = SHRT_MIN;
+                            }
+                        } else {
+                            if (sample < 0) {
+                                schmittPosState[channel] = SCHMITT_OFF;
+                                outValuesPos[channel][spikeCounter[channel]] = maxPeakValue[channel];
+                                outIndicesPos[channel][spikeCounter[channel]] = maxPeakIndex[channel];
+                                outTimesPos[channel][spikeCounter[channel]] = maxPeakTime[channel];
+                                spikeCounter[channel]++;
+                            } else if (sample > maxPeakValue[channel]) {
+                                maxPeakValue[channel] = sample;
+                                maxPeakIndex[channel] = currentIndex[channel];
+                                maxPeakTime[channel] = currentTime[channel];
+                            }
+                        }
+
+                        // determine state of negative schmitt trigger
+                        if (schmittNegState[channel] == SCHMITT_OFF) {
+                            if (sample < negSig[channel]) {
+                                schmittNegState[channel] = SCHMITT_ON;
+                                minPeakValue[channel] = SHRT_MAX;
+                            }
+                        } else {
+                            if (sample > 0) {
+                                schmittNegState[channel] = SCHMITT_OFF;
+                                outValuesNeg[channel][spikeNegCounter[channel]] = minPeakValue[channel];
+                                outIndicesNeg[channel][spikeNegCounter[channel]] = minPeakIndex[channel];
+                                outTimesNeg[channel][spikeNegCounter[channel]] = minPeakTime[channel];
+                                spikeNegCounter[channel]++;
+                            } else if (sample < minPeakValue[channel]) {
+                                minPeakValue[channel] = sample;
+                                minPeakIndex[channel] = currentIndex[channel];
+                                minPeakTime[channel] = currentTime[channel];
+                            }
+                        }
+
+                        currentIndex[channel]++;
+                        currentTime[channel] += sampleRateDivider;
+                    }
+                }
+                offset += read;
+            }
+            for (int i = 0; i < channelCount; i++) {
+                delete[] deinterleavedSamples[i];
+            }
+            delete[] deinterleavedSamples;
+            delete[] sig;
+            delete[] negSig;
+            delete[] schmittPosState;
+            delete[] schmittNegState;
+            delete[] maxPeakValue;
+            delete[] minPeakValue;
+            delete[] maxPeakIndex;
+            delete[] minPeakIndex;
+            delete[] maxPeakTime;
+            delete[] minPeakTime;
+            delete[] currentTime;
+            delete[] currentIndex;
+
+            // 5. FINALLY WE SHOULD FILTER FOUND SPIKES BY APPLYING KILL INTERVAL OF 5ms
+            int i;
+            int len;
+            int *removedCounter = new int[channelCount]{0};
+            int *removedNegCounter = new int[channelCount]{0};
+            for (int channel = 0; channel < channelCount; channel++) {
+                len = spikeCounter[channel];
+                if (len > 0) { // Filter positive spikes using kill interval
+                    for (i = 0; i < len - 1; i++) { // look on the right
+                        if (outValuesPos[channel][i] < outValuesPos[channel][i + 1]) {
+                            if ((outTimesPos[channel][i + 1] - outTimesPos[channel][i]) < KILL_INTERVAL) {
+                                int numMoved = len - i - 1;
+                                if (numMoved > 0) {
+                                    std::move(outValuesPos[channel] + i + 1, outValuesPos[channel] + i + numMoved,
+                                              outValuesPos[channel] + i);
+                                    std::move(outIndicesPos[channel] + i + 1, outIndicesPos[channel] + i + numMoved,
+                                              outIndicesPos[channel] + i);
+                                    std::move(outTimesPos[channel] + i + 1, outTimesPos[channel] + i + numMoved,
+                                              outTimesPos[channel] + i);
+                                }
+                                len--;
+                                removedCounter[channel]++;
+                                i--;
+                            }
+                        }
+                    }
+                    len = i;
+                    for (i = 1; i < len; i++) { // look on the left neighbor
+                        if (outValuesPos[channel][i] < outValuesPos[channel][i - 1]) {
+                            if ((outTimesPos[channel][i] - outTimesPos[channel][i - 1]) < KILL_INTERVAL) {
+                                int numMoved = len - i - 1;
+                                if (numMoved > 0) {
+                                    std::move(outValuesPos[channel] + i + 1, outValuesPos[channel] + i + numMoved,
+                                              outValuesPos[channel] + i);
+                                    std::move(outIndicesPos[channel] + i + 1, outIndicesPos[channel] + i + numMoved,
+                                              outIndicesPos[channel] + i);
+                                    std::move(outTimesPos[channel] + i + 1, outTimesPos[channel] + i + numMoved,
+                                              outTimesPos[channel] + i);
+                                }
+                                len--;
+                                removedCounter[channel]++;
+                                i--;
+                            }
+                        }
+                    }
+                }
+                len = spikeNegCounter[channel];
+                if (len > 0) { // Filter negative spikes using kill interval
+                    for (i = 0; i < len - 1; i++) { // look on the right
+                        if (outValuesNeg[channel][i] > outValuesNeg[channel][i + 1]) {
+                            if ((outTimesNeg[channel][i + 1] - outTimesNeg[channel][i]) < KILL_INTERVAL) {
+                                int numMoved = len - i - 1;
+                                if (numMoved > 0) {
+                                    std::move(outValuesNeg[channel] + i + 1, outValuesNeg[channel] + i + numMoved,
+                                              outValuesNeg[channel] + i);
+                                    std::move(outIndicesNeg[channel] + i + 1, outIndicesNeg[channel] + i + numMoved,
+                                              outIndicesNeg[channel] + i);
+                                    std::move(outTimesNeg[channel] + i + 1, outTimesNeg[channel] + i + numMoved,
+                                              outTimesNeg[channel] + i);
+                                }
+                                len--;
+                                removedNegCounter[channel]++;
+                                i--;
+                            }
+                        }
+                    }
+                    len = i;
+                    for (i = 1; i < len; i++) { // look on the left neighbor
+                        if (outValuesNeg[channel][i] > outValuesNeg[channel][i - 1]) {
+                            if ((outTimesNeg[channel][i] - outTimesNeg[channel][i - 1]) < KILL_INTERVAL) {
+                                int numMoved = len - i - 1;
+                                if (numMoved > 0) {
+                                    std::move(outValuesNeg[channel] + i + 1, outValuesNeg[channel] + i + numMoved,
+                                              outValuesNeg[channel] + i);
+                                    std::move(outIndicesNeg[channel] + i + 1, outIndicesNeg[channel] + i + numMoved,
+                                              outIndicesNeg[channel] + i);
+                                    std::move(outTimesNeg[channel] + i + 1, outTimesNeg[channel] + i + numMoved,
+                                              outTimesNeg[channel] + i);
+                                }
+                                len--;
+                                removedNegCounter[channel]++;
+                                i--;
+                            }
+                        }
+                    }
+                }
+                outPosCounts[channel] = spikeCounter[channel] - removedCounter[channel];
+                outNegCounts[channel] = spikeNegCounter[channel] - removedNegCounter[channel];
+            }
+
+            delete[] spikeCounter;
+            delete[] spikeNegCounter;
+            delete[] removedCounter;
+            delete[] removedNegCounter;
+        }
     }
 }

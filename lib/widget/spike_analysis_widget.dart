@@ -10,17 +10,13 @@ import 'package:spikerbox_architecture/provider/provider_export.dart';
 
 /// Full-screen overlay showing a spike raster for one channel at a time.
 ///
-/// Each threshold is a window discriminator: a spike is counted/drawn
-/// whenever the signal is inside the band between [SpikeThreshold.lowValue]
-/// and [SpikeThreshold.highValue]. Detection and the background waveform run
-/// against the channel's full-resolution samples as read straight from the
-/// currently opened NWB file (see [SpikeAnalysisProvider.samplesFor]). The
-/// background waveform is a per-pixel-column min/max envelope of the
-/// currently visible time window, the same technique as the native
-/// `DrawingUtils::prepareSignalForDrawing` uses to draw the main graph. The
-/// visible time window can be zoomed in/out - anchored at its current
-/// center - via the +/- control, mouse scroll wheel, or a pinch/trackpad
-/// gesture; a scrub bar below lets you pan once zoomed in.
+/// Peak candidates come from native [ProcessingUtil.findSampleSpike]
+/// (Schmitt-trigger, same family as desktop SpikeSorter). Every peak is drawn
+/// as a white square on the waveform; peaks whose amplitude falls between
+/// [SpikeThreshold.lowValue] and [SpikeThreshold.highValue] are recolored and
+/// counted (desktop window filter). The background waveform is a per-pixel
+/// min/max envelope of the visible window. Zoom is anchored at the current
+/// center via +/- / scroll / pinch; a scrub bar pans when zoomed in.
 class SpikeAnalysisWidget extends StatefulWidget {
   const SpikeAnalysisWidget({super.key});
 
@@ -189,51 +185,42 @@ class _SpikeAnalysisWidgetState extends State<SpikeAnalysisWidget> {
     });
   }
 
-  /// Full-channel event detection (entering the [low, high] band with a
-  /// refractory period), cached per threshold so dragging one threshold's
-  /// handle doesn't force re-scanning every other threshold on each frame.
-  _CachedThresholdEvents _eventsFor(Int16List samples, SpikeThreshold threshold) {
+  /// Filters [findSampleSpike] peaks into the threshold amplitude window for
+  /// the sidebar spike count. Peak *markers* on the waveform show every
+  /// detected peak (desktop SpikeSorter style); only the count uses this
+  /// window filter.
+  _CachedThresholdEvents _eventsFor(
+      List<SpikePeak> peaks, SpikeThreshold threshold) {
     final cached = _eventCache[threshold.id];
     if (cached != null &&
-        identical(cached.samples, samples) &&
+        identical(cached.peaks, peaks) &&
         cached.highValue == threshold.highValue &&
         cached.lowValue == threshold.lowValue) {
       return cached;
     }
-    final events = _detectEvents(
-        samples, (v) => v >= threshold.lowValue && v <= threshold.highValue);
+    final low = min(threshold.lowValue, threshold.highValue);
+    final high = max(threshold.lowValue, threshold.highValue);
+    final events = <_SpikeEvent>[];
+    for (final peak in peaks) {
+      final v = peak.value.toDouble();
+      if (v >= low && v <= high) {
+        events.add(_SpikeEvent(peak.index, v));
+      }
+    }
     final result =
-        _CachedThresholdEvents(samples, threshold.highValue, threshold.lowValue, events);
+        _CachedThresholdEvents(peaks, threshold.highValue, threshold.lowValue, events);
     _eventCache[threshold.id] = result;
     return result;
   }
 
-  static List<_SpikeEvent> _detectEvents(
-      Int16List samples, bool Function(int) qualifies) {
-    final events = <_SpikeEvent>[];
-    if (samples.isEmpty) return events;
-    final refractory = max(2, (samples.length * 0.0004).round());
-    bool wasQualifying = qualifies(samples[0]);
-    int lastEntry = -refractory * 2;
-    for (int i = 1; i < samples.length; i++) {
-      final bool q = qualifies(samples[i]);
-      if (q && !wasQualifying && (i - lastEntry) > refractory) {
-        events.add(_SpikeEvent(i, samples[i].toDouble()));
-        lastEntry = i;
-      }
-      wasQualifying = q;
-    }
-    return events;
-  }
-
-  static List<_RasterPoint> _visibleQualifying(
-      Int16List samples, int from, int to, bool Function(int) qualifies) {
+  static List<_RasterPoint> _visiblePeaks(
+      List<SpikePeak> peaks, int from, int to) {
     final len = to - from;
     if (len <= 0) return const [];
     final pts = <_RasterPoint>[];
-    for (int i = from; i < to; i++) {
-      if (qualifies(samples[i])) {
-        pts.add(_RasterPoint((i - from) / len, samples[i].toDouble()));
+    for (final peak in peaks) {
+      if (peak.index >= from && peak.index < to) {
+        pts.add(_RasterPoint((peak.index - from) / len, peak.value.toDouble()));
       }
     }
     return pts;
@@ -248,6 +235,17 @@ class _SpikeAnalysisWidgetState extends State<SpikeAnalysisWidget> {
       if (e.index >= from && e.index < to) {
         pts.add(_RasterPoint((e.index - from) / len, e.value));
       }
+    }
+    return pts;
+  }
+
+  static List<_RasterPoint> _visibleRawSamples(
+      Int16List samples, int from, int to) {
+    final len = to - from;
+    if (len <= 0) return const [];
+    final pts = <_RasterPoint>[];
+    for (int i = from; i < to; i++) {
+      pts.add(_RasterPoint((i - from) / len, samples[i].toDouble()));
     }
     return pts;
   }
@@ -286,6 +284,7 @@ class _SpikeAnalysisWidgetState extends State<SpikeAnalysisWidget> {
     final channel = provider.channelIndex;
     final thresholds = provider.thresholdsFor(channel);
     final samples = provider.samplesFor(channel);
+    final peaks = provider.peaksFor(channel);
     final sampleRateHz = provider.sampleRateHz;
 
     // Spike counts shown in the side panel always match the number of event
@@ -336,7 +335,7 @@ class _SpikeAnalysisWidgetState extends State<SpikeAnalysisWidget> {
       final visibleSeconds = _visibleSeconds ?? 1.0;
 
       for (final threshold in thresholds) {
-        final events = _eventsFor(samples, threshold);
+        final events = _eventsFor(peaks, threshold);
         visibleCounts[threshold.id] =
             _visibleEvents(events.events, visibleFrom, visibleTo).length;
       }
@@ -364,8 +363,14 @@ class _SpikeAnalysisWidgetState extends State<SpikeAnalysisWidget> {
                     for (int i = 0; i < thresholds.length; i++) ...[
                       if (i > 0) const SizedBox(height: 10),
                       Expanded(
-                        child: _buildLane(context, channel, thresholds[i], samples,
-                            visibleFrom, visibleTo),
+                        child: _buildLane(
+                            context,
+                            channel,
+                            thresholds[i],
+                            samples,
+                            peaks,
+                            visibleFrom,
+                            visibleTo),
                       ),
                     ],
                   ],
@@ -373,14 +378,14 @@ class _SpikeAnalysisWidgetState extends State<SpikeAnalysisWidget> {
               ),
             ),
           ),
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 40,
-            child: Center(
-              child: _buildZoomControl(appColors, samples.length, sampleRateHz),
-            ),
-          ),
+          // Positioned(
+          //   left: 0,
+          //   top: 0,
+          //   bottom: 40,
+          //   child: Center(
+          //     child: _buildZoomControl(appColors, samples.length, sampleRateHz),
+          //   ),
+          // ),
           Positioned(
             left: 34,
             right: 0,
@@ -493,9 +498,33 @@ class _SpikeAnalysisWidgetState extends State<SpikeAnalysisWidget> {
     );
   }
 
-  /// "1 s" time scale ruler plus a scrub bar showing/controlling which part
-  /// of the file is currently visible (only meaningfully draggable once
-  /// zoomed in past the full file duration).
+  /// Picks a "nice" scale-bar duration for the current zoom (same idea as
+  /// desktop Spike Analysis: 1 s → 0.1 s → 0.01 s as you zoom in).
+  static double _niceScaleSeconds(double visibleSeconds) {
+    const candidates = <double>[
+      10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001,
+    ];
+    // Aim for a bar roughly 1/5–1/3 of the view width.
+    final target = visibleSeconds / 4;
+    for (final c in candidates) {
+      if (c <= target) return c;
+    }
+    return max(visibleSeconds / 4, 0.001);
+  }
+
+  static String _formatScaleLabel(double seconds) {
+    if (seconds >= 1) {
+      return seconds == seconds.roundToDouble()
+          ? '${seconds.toInt()} s'
+          : '${seconds.toStringAsFixed(1)} s';
+    }
+    if (seconds >= 0.1) return '${seconds.toStringAsFixed(1)} s';
+    if (seconds >= 0.01) return '${seconds.toStringAsFixed(2)} s';
+    return '${seconds.toStringAsFixed(3)} s';
+  }
+
+  /// Adaptive time-scale ruler plus a scrub bar showing/controlling which
+  /// part of the file is currently visible (thumb shrinks as you zoom in).
   Widget _buildScrubAndScale(
     AppThemeColors appColors,
     int totalSamples,
@@ -505,8 +534,11 @@ class _SpikeAnalysisWidgetState extends State<SpikeAnalysisWidget> {
   ) {
     return LayoutBuilder(builder: (context, constraints) {
       final width = constraints.maxWidth;
-      final pxPerSecond = visibleSeconds > 0 ? width / visibleSeconds : 0.0;
-      final scaleBarWidth = pxPerSecond.clamp(16.0, width);
+      final safeVisible =
+          visibleSeconds > 0 ? visibleSeconds : _minVisibleSeconds;
+      final scaleSeconds = _niceScaleSeconds(safeVisible);
+      final scaleBarWidth =
+          ((scaleSeconds / safeVisible) * width).clamp(16.0, width * 0.55);
 
       final fromFrac = totalSamples > 0 ? visibleFrom / totalSamples : 0.0;
       final toFrac = totalSamples > 0 ? visibleTo / totalSamples : 1.0;
@@ -527,7 +559,7 @@ class _SpikeAnalysisWidgetState extends State<SpikeAnalysisWidget> {
                     height: 1.5,
                     color: appColors.textSecondary.withOpacity(0.7)),
                 const SizedBox(height: 2),
-                Text('1 s',
+                Text(_formatScaleLabel(scaleSeconds),
                     style: TextStyle(color: appColors.textSecondary, fontSize: 11)),
               ],
             ),
@@ -695,20 +727,32 @@ class _SpikeAnalysisWidgetState extends State<SpikeAnalysisWidget> {
     int channel,
     SpikeThreshold threshold,
     Int16List samples,
+    List<SpikePeak> peaks,
     int visibleFrom,
     int visibleTo,
   ) {
-    final events = _eventsFor(samples, threshold);
-    final raster = _visibleQualifying(samples, visibleFrom, visibleTo,
-        (v) => v >= threshold.lowValue && v <= threshold.highValue);
-    final eventMarkers = _visibleEvents(events.events, visibleFrom, visibleTo);
+    final events = _eventsFor(peaks, threshold);
+    // Desktop AnalysisAudioView: draw EVERY sorter peak as a white square,
+    // then recolor those inside the amplitude window.
+    final allPeakMarkers = _visiblePeaks(peaks, visibleFrom, visibleTo);
+    final selectedPeakMarkers =
+        _visibleEvents(events.events, visibleFrom, visibleTo);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final height = constraints.maxHeight;
         final width = constraints.maxWidth;
         final columns = width.round().clamp(1, 1200);
-        final stems = _computeStems(samples, visibleFrom, visibleTo, columns);
+        final visibleLen = visibleTo - visibleFrom;
+        // When zoomed in enough for ≤1 sample/pixel, draw the raw polyline
+        // (desktop AudioView path when samplesPerPixel == 1). Otherwise use
+        // the min/max envelope path.
+        final List<_Stem>? stems = visibleLen > columns
+            ? _computeStems(samples, visibleFrom, visibleTo, columns)
+            : null;
+        final List<_RasterPoint>? rawWave = visibleLen <= columns
+            ? _visibleRawSamples(samples, visibleFrom, visibleTo)
+            : null;
 
         void dragHigh(DragUpdateDetails details) {
           if (height <= 0) return;
@@ -736,9 +780,10 @@ class _SpikeAnalysisWidgetState extends State<SpikeAnalysisWidget> {
                     highValue: threshold.highValue,
                     lowValue: threshold.lowValue,
                     color: threshold.color,
-                    stems: stems,
-                    raster: raster,
-                    events: eventMarkers,
+                    stems: stems ?? const [],
+                    rawWave: rawWave ?? const [],
+                    allPeaks: allPeakMarkers,
+                    selectedPeaks: selectedPeakMarkers,
                   ),
                 ),
               ),
@@ -794,8 +839,8 @@ class _SpikeEvent {
 }
 
 class _CachedThresholdEvents {
-  const _CachedThresholdEvents(this.samples, this.highValue, this.lowValue, this.events);
-  final Int16List samples;
+  const _CachedThresholdEvents(this.peaks, this.highValue, this.lowValue, this.events);
+  final List<SpikePeak> peaks;
   final double highValue;
   final double lowValue;
   final List<_SpikeEvent> events;
@@ -825,8 +870,9 @@ class _ThresholdPanePainter extends CustomPainter {
     required this.lowValue,
     required this.color,
     required this.stems,
-    required this.raster,
-    required this.events,
+    required this.rawWave,
+    required this.allPeaks,
+    required this.selectedPeaks,
   });
 
   final double domainMin;
@@ -835,8 +881,11 @@ class _ThresholdPanePainter extends CustomPainter {
   final double lowValue;
   final Color color;
   final List<_Stem> stems;
-  final List<_RasterPoint> raster;
-  final List<_RasterPoint> events;
+  final List<_RasterPoint> rawWave;
+  final List<_RasterPoint> allPeaks;
+  final List<_RasterPoint> selectedPeaks;
+
+  static const Color _waveColor = Color(0xFF9E9E9E);
 
   double _mapY(double value, double height) {
     final range = (domainMax - domainMin).abs() < 1e-6 ? 1.0 : (domainMax - domainMin);
@@ -844,41 +893,73 @@ class _ThresholdPanePainter extends CustomPainter {
     return height * (1 - normalized);
   }
 
+  void _drawWaveform(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = _waveColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..strokeJoin = StrokeJoin.round
+      ..isAntiAlias = true;
+
+    if (rawWave.isNotEmpty) {
+      final path = Path();
+      for (var i = 0; i < rawWave.length; i++) {
+        final p = rawWave[i];
+        final o = Offset(p.xFraction * size.width, _mapY(p.value, size.height));
+        if (i == 0) {
+          path.moveTo(o.dx, o.dy);
+        } else {
+          path.lineTo(o.dx, o.dy);
+        }
+      }
+      canvas.drawPath(path, paint);
+      return;
+    }
+
+    if (stems.isEmpty) return;
+    // Desktop AudioView::drawData: GL_LINE_STRIP with (max, min) at each x.
+    final path = Path();
+    var started = false;
+    for (final s in stems) {
+      final x = s.xFraction * size.width;
+      final yMax = _mapY(s.maxV, size.height);
+      final yMin = _mapY(s.minV, size.height);
+      if (!started) {
+        path.moveTo(x, yMax);
+        started = true;
+      } else {
+        path.lineTo(x, yMax);
+      }
+      path.lineTo(x, yMin);
+    }
+    canvas.drawPath(path, paint);
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final highY = _mapY(highValue, size.height);
     final lowY = _mapY(lowValue, size.height);
 
-    // Active band: spikes are counted whenever the signal is inside
-    // [lowValue, highValue] (a window discriminator).
+    // Soft band between the two threshold handles (window discriminator).
     canvas.drawRect(
       Rect.fromLTRB(0, highY, size.width, lowY),
-      Paint()..color = color.withOpacity(0.10),
+      Paint()..color = color.withOpacity(0.08),
     );
 
-    // Background waveform (per-pixel min/max envelope of the visible window).
-    final stemPaint = Paint()
-      ..color = Colors.white.withOpacity(0.16)
-      ..strokeWidth = 1;
-    for (final s in stems) {
-      final x = s.xFraction * size.width;
-      canvas.drawLine(
-          Offset(x, _mapY(s.maxV, size.height)), Offset(x, _mapY(s.minV, size.height)), stemPaint);
-    }
+    _drawWaveform(canvas, size);
 
-    // Dense raster cloud of every raw in-band sample in the visible window.
-    final dotPaint = Paint()..color = color.withOpacity(0.6);
-    for (final p in raster) {
-      canvas.drawCircle(
-          Offset(p.xFraction * size.width, _mapY(p.value, size.height)), 1.3, dotPaint);
-    }
-
-    // Distinct square markers at each detected spike event (refractory-spaced
-    // entries into the band).
-    final eventPaint = Paint()..color = color;
-    for (final p in events) {
+    // All findSampleSpike peaks as white 3x3 squares (desktop AnalysisAudioView).
+    final allPaint = Paint()..color = Colors.white;
+    for (final p in allPeaks) {
       final center = Offset(p.xFraction * size.width, _mapY(p.value, size.height));
-      canvas.drawRect(Rect.fromCenter(center: center, width: 5, height: 5), eventPaint);
+      canvas.drawRect(Rect.fromCenter(center: center, width: 3, height: 3), allPaint);
+    }
+
+    // Peaks inside the amplitude window get the train color (selected).
+    final selectedPaint = Paint()..color = color;
+    for (final p in selectedPeaks) {
+      final center = Offset(p.xFraction * size.width, _mapY(p.value, size.height));
+      canvas.drawRect(Rect.fromCenter(center: center, width: 5, height: 5), selectedPaint);
     }
 
     final linePaint = Paint()

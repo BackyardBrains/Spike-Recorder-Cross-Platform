@@ -560,6 +560,8 @@ class DraggableGraph extends StatefulWidget {
   static int endPositionIdx = 0;
   static List<double> eventMarkersPosition = [];
   static List<int> eventMarkersLabels = [];
+  static int isOpeningFile = 0;
+  static int isRecording = -1;
 
   @override
   State<DraggableGraph> createState() => _DraggableGraphState();

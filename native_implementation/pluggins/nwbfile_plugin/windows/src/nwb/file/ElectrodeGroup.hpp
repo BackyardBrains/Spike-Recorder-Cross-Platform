@@ -1,10 +1,12 @@
 #pragma once
 
+#include <any>
 #include <string>
 
-#include "../../io/BaseIO.hpp"
-#include "../device/Device.hpp"
-#include "../hdmf/base/Container.hpp"
+#include "io/BaseIO.hpp"
+#include "nwb/base/NWBContainer.hpp"
+#include "nwb/device/Device.hpp"
+#include "spec/core.hpp"
 
 namespace AQNWB::NWB
 {
@@ -12,12 +14,15 @@ namespace AQNWB::NWB
  * @brief The ElectrodeGroup class represents a physical grouping of electrodes,
  * e.g. a shank of an array.
  */
-class ElectrodeGroup : public Container
+class ElectrodeGroup : public NWBContainer
 {
 public:
-  // Register ElectrodeGroup as a subclass of Container
-  REGISTER_SUBCLASS(ElectrodeGroup, "core")
+  // Register ElectrodeGroup as a subclass of NWBContainer
+  REGISTER_SUBCLASS(ElectrodeGroup,
+                    NWBContainer,
+                    AQNWB::SPEC::CORE::namespaceName)
 
+protected:
   /**
    * @brief Constructor.
    * @param path The location in the file of the electrode group.
@@ -25,10 +30,11 @@ public:
    */
   ElectrodeGroup(const std::string& path, std::shared_ptr<IO::BaseIO> io);
 
+public:
   /**
    * @brief Destructor.
    */
-  ~ElectrodeGroup();
+  ~ElectrodeGroup() override;
 
   /**
    * @brief Initializes the ElectrodeGroup object.
@@ -40,15 +46,16 @@ public:
    * @param location The location of electrode group within the subject e.g.
    * brain region.
    * @param device The device associated with the electrode group.
+   * @return Status::Success if successful, otherwise Status::Failure.
    */
-  void initialize(const std::string& description,
-                  const std::string& location,
-                  const Device& device);
+  Status initialize(const std::string& description,
+                    const std::string& location,
+                    const std::shared_ptr<Device>& device);
 
-  DEFINE_FIELD(readData,
-               DatasetField,
-               std::any,
-               "position",
-               Stereotaxis or common framework coordinates)
+  DEFINE_DATASET_FIELD(readPosition,
+                       recordPosition,
+                       std::any,
+                       "position",
+                       Stereotaxis or common framework coordinates)
 };
 }  // namespace AQNWB::NWB

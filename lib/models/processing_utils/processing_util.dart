@@ -136,6 +136,30 @@ abstract class ProcessingUtil {
   void setupDartCallbacks();
   void cleanupDartCallbacks();
 
+  /// Overwrites the current event marker state from a fully-computed set of
+  /// (label, position) pairs, where each position is a raw sample offset
+  /// within the [MAX_DISPLAY_SECONDS] * sampleRate display window (0 = left
+  /// edge/oldest, sampleRate * MAX_DISPLAY_SECONDS = right edge/newest).
+  ///
+  /// Used for loaded-file playback/scrubbing, where the correct marker
+  /// positions are derived from the absolute sample position in the file
+  /// (driven by the scrub/playback position) rather than incrementally aged
+  /// frame-by-frame like realtime markers.
+  void setLoadedFileEventMarkers(List<int> labels, List<int> positions);
+
+  /// Ages the current event marker positions by [frameCount] samples,
+  /// shifting them toward the left edge (0 = about to scroll off screen)
+  /// exactly like the realtime mic/serial pipelines do internally.
+  ///
+  /// [processMicrophoneData]/[processSerialData] already do this as a
+  /// side effect of decoding, but [processingSerialDataResult] (used to
+  /// paint already-decoded samples, e.g. loaded-file playback ticks when
+  /// live audio monitoring is off) does not touch event marker state at
+  /// all. Callers driving playback through that path must call this once
+  /// per tick with the number of samples just advanced, or markers will
+  /// appear frozen during playback.
+  void advanceEventMarkers(int frameCount);
+
   int defaultChannelCountNoExpansionBoard = -1;
   int defaultSampleRateNoExpansionBoard = -1;
 

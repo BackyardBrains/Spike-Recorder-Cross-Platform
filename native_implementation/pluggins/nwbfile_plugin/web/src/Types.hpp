@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <limits>
+#include <string>
+#include <type_traits>
 #include <vector>
 
 namespace AQNWB
@@ -59,6 +61,27 @@ public:
   };
 
   /**
+   * @brief Convert StorageObjectType enum value to string
+   * @param type The StorageObjectType value to convert
+   * @return String representation of the StorageObjectType
+   */
+  static std::string storageObjectTypeToString(StorageObjectType type)
+  {
+    switch (type) {
+      case Group:
+        return "Group";
+      case Dataset:
+        return "Dataset";
+      case Attribute:
+        return "Attribute";
+      case Undefined:
+        return "Undefined";
+      default:
+        return "Unknown";
+    }
+  }
+
+  /**
    *  \brief Helper struct to check if a value is a data field, i.e.,
    * Dataset or Attribute
    *
@@ -80,12 +103,12 @@ public:
    * @brief Value to use to indicate that a SizeType index is not set.
    */
   static constexpr SizeType SizeTypeNotSet =
-      std::numeric_limits<SizeType>::max();
+      (std::numeric_limits<SizeType>::max)();
 
   /**
    * @brief Alias for an array of size types used in the project.
    */
-  using SizeArray = std::vector<size_t>;
+  using SizeArray = std::vector<SizeType>;
 
   /**
    * @brief Alias for a vector of channels.

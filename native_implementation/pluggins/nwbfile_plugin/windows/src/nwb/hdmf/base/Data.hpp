@@ -1,9 +1,11 @@
 #pragma once
 
+#include <any>
 #include <memory>
 
-#include "../../io/BaseIO.hpp"
-#include "../../RegisteredType.hpp"
+#include "io/BaseIO.hpp"
+#include "nwb/RegisteredType.hpp"
+#include "spec/hdmf_common.hpp"
 
 namespace AQNWB::NWB
 {
@@ -14,8 +16,92 @@ namespace AQNWB::NWB
 class Data : public RegisteredType
 {
 public:
-  REGISTER_SUBCLASS(Data, "hdmf-common")
+  /**
+   * @brief Non-templated base class for runtime Data configuration.
+   *
+   * DynamicTable needs to store a heterogeneous list of specs for different
+   * Data subclasses (e.g., ElementIdentifiers, VectorData,
+   * TimestampVectorData). This non-templated base provides a common storage
+   * type while still allowing derived typed specs to implement concrete object
+   * creation.
+   */
+  struct DataSpecBase : public IO::ArrayDataSetConfig
+  {
+    /**
+     * @brief Construct the DataSpecBase.
+     * @param datasetName The dataset name relative to the owning
+     * table/container.
+     * @param dataConfig Dataset configuration for the object to create.
+     */
+    DataSpecBase(const std::string& datasetName,
+                 const IO::ArrayDataSetConfig& dataConfig)
+        : IO::ArrayDataSetConfig(dataConfig)
+        , name(datasetName)
+    {
+    }
 
+    virtual ~DataSpecBase() = default;
+
+    /**
+     * @brief Create the concrete Data object represented by this spec.
+     * @param path Full path of the dataset to create.
+     * @param io The IO object to associate with the created instance.
+     * @return The created concrete Data object.
+     */
+    virtual std::shared_ptr<Data> create(
+        const std::string& path, std::shared_ptr<IO::BaseIO> io) const = 0;
+
+    /**
+     * @brief Initialize the created concrete Data object from this spec.
+     * @param data The object to initialize.
+     * @return Status::Success if successful, otherwise Status::Failure.
+     */
+    virtual Status initialize(Data& data) const = 0;
+
+    /// @brief Dataset name relative to the owning table/container.
+    std::string name;
+  };
+
+  /**
+   * @brief Typed runtime configuration for a concrete Data subclass.
+   *
+   * The template parameter DataT supplies the `create(path, io)` factory used
+   * to instantiate the correct concrete subclass from the stored runtime spec.
+   *
+   * @tparam DataT Concrete subclass of Data represented by this spec.
+   */
+  template<typename DataT>
+  struct DataSpec : public DataSpecBase
+  {
+    /**
+     * @brief Construct the typed DataSpec.
+     * @param datasetName The dataset name relative to the owning
+     * table/container.
+     * @param dataConfig Dataset configuration for the object to create.
+     */
+    DataSpec(const std::string& datasetName,
+             const IO::ArrayDataSetConfig& dataConfig)
+        : DataSpecBase(datasetName, dataConfig)
+    {
+    }
+
+    /**
+     * @brief Create the concrete Data object represented by this typed spec.
+     * @param path Full path of the dataset to create.
+     * @param io The IO object to associate with the created instance.
+     * @return The created concrete Data object.
+     */
+    std::shared_ptr<Data> create(const std::string& path,
+                                 std::shared_ptr<IO::BaseIO> io) const override
+    {
+      return DataT::create(path, io);
+    }
+  };
+
+  // Register the Data class with the type registry
+  REGISTER_SUBCLASS(Data, RegisteredType, "hdmf-common")
+
+protected:
   /**
    * @brief Constructor.
    *
@@ -24,6 +110,7 @@ public:
    */
   Data(const std::string& path, std::shared_ptr<IO::BaseIO> io);
 
+public:
   /**
    * @brief Virtual destructor.
    */
@@ -32,42 +119,30 @@ public:
   /**
    *  @brief Initialize the dataset for the Data object
    *
-   *  This functions takes ownership of the passed rvalue unique_ptr and moves
-   *  ownership to its internal m_dataset variable
+   *  This function creates a dataset using the provided configuration
    *
-   * @param dataset The rvalue unique pointer to the BaseRecordingData object
+   * @param dataConfig The configuration for the dataset
    * @return Status::Success if successful, otherwise Status::Failure.
    */
-  Status initialize(std::unique_ptr<IO::BaseRecordingData>&& dataset)
-  {
-    m_dataset = std::move(dataset);
-    // setup common attributes
-    Status commonAttrsStatus = m_io->createCommonNWBAttributes(
-        m_path, this->getNamespace(), this->getTypeName());
-    return commonAttrsStatus;
-  }
+  Status initialize(const IO::BaseArrayDataSetConfig& dataConfig);
 
   /**
-   * @brief Check whether the m_dataset has been initialized
+   * @brief Check whether the dataset has been initialized
    */
-  inline bool isInitialized() { return m_dataset != nullptr; }
+  inline bool isInitialized() { return this->readData()->exists(); }
 
   // Define the data fields to expose for lazy read access
-  DEFINE_FIELD(readData, DatasetField, std::any, "", The main data)
+  DEFINE_DATASET_FIELD(readData, recordData, std::any, "", The main data)
 
-  DEFINE_FIELD(readNeurodataType,
-               AttributeField,
-               std::string,
-               "neurodata_type",
-               The name of the type)
+  DEFINE_ATTRIBUTE_FIELD(readNeurodataType,
+                         std::string,
+                         "neurodata_type",
+                         The name of the type)
 
-  DEFINE_FIELD(readNamespace,
-               AttributeField,
-               std::string,
-               "namespace",
-               The name of the namespace)
-
-  std::unique_ptr<IO::BaseRecordingData> m_dataset;
+  DEFINE_ATTRIBUTE_FIELD(readNamespace,
+                         std::string,
+                         "namespace",
+                         The name of the namespace)
 };
 
 /**
@@ -77,8 +152,8 @@ public:
  * at compile time, enabling type-safe access to the data. This is useful for
  * data read to simplify access when the type is known. While we can use
  * the typed version also for data write, in most case the base version
- * of VectorData is sufficient. NOTE: Only VectorData is registered with the
- * RegisteredType class registry. The VectorDataTyped class is not registered
+ * of Data is sufficient. NOTE: Only Data is registered with the
+ * RegisteredType class registry. The DataTyped class is not registered
  * since the DTYPE information is not available as part of the neurodata_type
  * attribute in the NWB file.
  *
@@ -87,7 +162,9 @@ public:
 template<typename DTYPE = std::any>
 class DataTyped : public Data
 {
-public:
+  friend class AQNWB::NWB::RegisteredType; /* base can call constructor */
+
+protected:
   /**
    * @brief Constructor.
    *
@@ -97,6 +174,25 @@ public:
   DataTyped(const std::string& path, std::shared_ptr<IO::BaseIO> io)
       : Data(path, io)
   {
+  }
+
+  using Data::Data; /* inherit from immediate base */
+
+public:
+  /** \brief Factor method to create a DataTyped object.
+   *
+   * This is required here since DataTyped is a template class and
+   * is not being registered with the RegisteredType class registry via
+   * REGISTER_SUBCLASS.
+   * @param path The path of the container.
+   * @param io A shared pointer to the IO object.
+   * @return A shared pointer to the created NWBFile object, or nullptr if
+   * creation failed.
+   */
+  static std::shared_ptr<DataTyped> create(
+      const std::string& path, std::shared_ptr<AQNWB::IO::BaseIO> io)
+  {
+    return RegisteredType::create<DataTyped>(path, io);
   }
 
   /**
@@ -116,15 +212,16 @@ public:
    *  @param data The Data object to convert
    *  @return A DataTyped object with the same path and IO object as the input
    */
-  static std::shared_ptr<DataTyped<DTYPE>> fromData(const Data& data)
+  static std::shared_ptr<DataTyped<DTYPE>> fromData(
+      const std::shared_ptr<Data>& data)
   {
-    return std::make_shared<DataTyped<DTYPE>>(data.getPath(), data.getIO());
+    return DataTyped<DTYPE>::create(data->getPath(), data->getIO());
   }
 
   // Define the data fields to expose for lazy read access
-  DEFINE_FIELD(readData, DatasetField, DTYPE, "", The main data)
+  DEFINE_DATASET_FIELD(readData, recordData, DTYPE, "", The main data)
 
-  using RegisteredType::m_io;
-  using RegisteredType::m_path;
+  using RegisteredType::getIO;
+  using RegisteredType::getPath;
 };
 }  // namespace AQNWB::NWB

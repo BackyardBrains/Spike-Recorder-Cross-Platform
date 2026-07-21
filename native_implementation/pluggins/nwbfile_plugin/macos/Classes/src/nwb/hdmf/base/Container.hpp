@@ -3,8 +3,8 @@
 #include <memory>
 #include <string>
 
-#include "../../RegisteredType.hpp"
-#include "../../../spec/hdmf_common.hpp"
+#include "nwb/RegisteredType.hpp"
+#include "spec/hdmf_common.hpp"
 
 namespace AQNWB::NWB
 {
@@ -17,8 +17,11 @@ class Container : public RegisteredType
 {
 public:
   // Register the Container class as a registered type
-  REGISTER_SUBCLASS(Container, AQNWB::SPEC::HDMF_COMMON::namespaceName)
+  REGISTER_SUBCLASS(Container,
+                    RegisteredType,
+                    AQNWB::SPEC::HDMF_COMMON::namespaceName)
 
+protected:
   /**
    * @brief Constructor.
    *
@@ -27,10 +30,11 @@ public:
    */
   Container(const std::string& path, std::shared_ptr<IO::BaseIO> io);
 
+public:
   /**
    * @brief Destructor.
    */
-  virtual ~Container();
+  ~Container() override;
 
   /**
    * @brief Initialize the container.

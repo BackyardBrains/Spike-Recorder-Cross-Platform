@@ -1,6 +1,3 @@
-#ifndef PROCESSING_H
-#define PROCESSING_H
-
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,96 +10,102 @@
 #endif
 
 #if _WIN32
-#define FFI_PLUGIN_EXPORT _declspec(dllexport)
+#define FFI_PLUGIN_EXPORT extern "C" __declspec(dllexport)
 #else
-#define FFI_PLUGIN_EXPORT
+#define FFI_PLUGIN_EXPORT extern "C"
 #endif
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-// A very short-lived native function.
-//
-// For very short-lived functions, it is fine to call them on the main isolate.
-// They will block the Dart execution while running the native function, so
-// only do this for native functions which are guaranteed to be short-lived.
+// Spike-Recorder NWB recording API (AqNWB 0.4.0)
 FFI_PLUGIN_EXPORT int sum(int a, int b);
-
-// A longer lived native function, which occupies the thread calling it.
-//
-// Do not call these kind of native functions in the main isolate. They will
-// block Dart execution. This will cause dropped frames in Flutter applications.
-// Instead, call these native functions on a separate isolate.
 FFI_PLUGIN_EXPORT int sum_long_running(int a, int b);
 
-// Processing initialization function
-FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int channelCount, const char* deviceInfo, const char* deviceManufacturer);
+FFI_PLUGIN_EXPORT int32_t processing_init(const char* path,
+                                          int sampleRate,
+                                          int channelCount,
+                                          const char* deviceInfo,
+                                          const char* deviceManufacturer);
 
-// NWB file electrical series functions
-FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* samplesCount, int selectedChannel, int channelCount, int isFinishRecording);
-FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples, int* outSamplesCount, int selectedChannel, int channelCount);
-FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short* outSamples, int* outSamplesCount, int* outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel);
+FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples,
+                                                        int* samplesCount,
+                                                        int selectedChannel,
+                                                        int channelCount,
+                                                        int isFinishRecording);
 
-// Debug function
-FFI_PLUGIN_EXPORT int32_t debug_nwb_file_structure(const char* filePath);
+// SpikeEventSeries (threshold-crossing waveform snippets).
+// nwbfile_create_spike_event_series must be called after processing_init and
+// before the first write that starts SWMR recording.
+// Returns the recording container index (>= 0), or -1 on failure.
+FFI_PLUGIN_EXPORT int32_t nwbfile_create_spike_event_series(int32_t channelIndex);
 
-// NWB file data functions
-FFI_PLUGIN_EXPORT int32_t get_nwb_file_size();
-FFI_PLUGIN_EXPORT int32_t get_nwb_file_data(uint8_t* buffer, int buffer_size);
+// Writes one spike event. waveform is float32[numSamples] in volts.
+// Returns 0 on success, -1 on failure.
+FFI_PLUGIN_EXPORT int32_t nwbfile_write_spike_event(int32_t channelIndex,
+                                                      float timestampSeconds,
+                                                      const float* waveform,
+                                                      int32_t numSamples);
+
+// Returns the number of spike events written for channelIndex, or -1 on failure.
+FFI_PLUGIN_EXPORT int32_t nwbfile_get_spike_event_count(int32_t channelIndex);
+
+// EventsTable row-based API (AqNWB EventsTable / addRow).
+// nwbfile_add_event returns the new row index (>= 0) on success, or -1 on failure.
+// update/delete return 0 on success, -1 on failure. delete is a soft-delete
+// (sets the deleted column to 1) so append recording state stays valid.
+FFI_PLUGIN_EXPORT int32_t nwbfile_add_event(float timestampSeconds,
+                                            int32_t eventLabel);
+FFI_PLUGIN_EXPORT int32_t nwbfile_update_event(int32_t rowIndex,
+                                               float timestampSeconds,
+                                               int32_t eventLabel);
+FFI_PLUGIN_EXPORT int32_t nwbfile_delete_event(int32_t rowIndex);
+
+// Reads one EventsTable row by index into the output params. Returns 0 on
+// success, -1 on failure (e.g. invalid rowIndex or uninitialized table).
+// outDeleted is 1 if the row was soft-deleted via nwbfile_delete_event.
+FFI_PLUGIN_EXPORT int32_t nwbfile_read_event(int32_t rowIndex,
+                                             float* outTimestampSeconds,
+                                             int32_t* outEventLabel,
+                                             uint8_t* outDeleted);
+
+// Returns the total number of EventsTable rows added so far (including
+// soft-deleted rows), or 0 if the table has not been initialized.
+FFI_PLUGIN_EXPORT int32_t nwbfile_get_event_count();
+
+// MeaningsTable management for the EventsTable `event_type` column.
+// Maps integer event codes -> human-readable labels (e.g. 1 -> "lick").
+//
+// nwbfile_set_meaning: upsert by value. Returns row index (>= 0) on success,
+// or -1 on failure. New values are appended; existing values update in place.
+// nwbfile_get_meaning_count: number of meaning rows (0 if uninitialized).
+// nwbfile_read_meaning: read by row index into outValue / outMeaning buffer.
+//   Returns 0 on success, -1 on failure. outMeaning is null-terminated;
+//   truncated if longer than outMeaningCapacity-1.
+// nwbfile_find_meaning: lookup label by event_type value. Returns 0 if found,
+//   -1 if not found / uninitialized.
+FFI_PLUGIN_EXPORT int32_t nwbfile_set_meaning(int32_t value, const char* meaning);
+FFI_PLUGIN_EXPORT int32_t nwbfile_get_meaning_count();
+FFI_PLUGIN_EXPORT int32_t nwbfile_read_meaning(int32_t rowIndex,
+                                               int32_t* outValue,
+                                               char* outMeaning,
+                                               int32_t outMeaningCapacity);
+FFI_PLUGIN_EXPORT int32_t nwbfile_find_meaning(int32_t value,
+                                               char* outMeaning,
+                                               int32_t outMeaningCapacity);
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples,
+                                                         int* outSamplesCount,
+                                                         int selectedChannel,
+                                                         int channelCount);
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path,
+                                                         short* outSamples,
+                                                         int* outSamplesCount,
+                                                         int* outConfig,
+                                                         int startTimeStamp,
+                                                         int endTimeStamp,
+                                                         int startChannel,
+                                                         int endChannel);
+
+FFI_PLUGIN_EXPORT int get_nwb_file_size();
+FFI_PLUGIN_EXPORT int get_nwb_file_data(uint8_t* buffer, int buffer_size);
 FFI_PLUGIN_EXPORT void cleanup_nwb_data();
-
-// NWB File Append Functions
-FFI_PLUGIN_EXPORT int32_t append_timeseries_data(const char* file_path, 
-                                                 const char* series_name,
-                                                 const double* timestamps, 
-                                                 int32_t num_timestamps,
-                                                 const void* data, 
-                                                 int32_t data_type,
-                                                 int32_t num_samples,
-                                                 int32_t num_channels);
-
-FFI_PLUGIN_EXPORT int32_t append_electrical_series_data(const char* file_path,
-                                                        const char* series_name,
-                                                        const double* timestamps,
-                                                        int32_t num_timestamps,
-                                                        const void* data,
-                                                        int32_t data_type,
-                                                        int32_t num_samples,
-                                                        int32_t num_channels);
-
-FFI_PLUGIN_EXPORT int32_t append_interval_data(const char* file_path,
-                                               const char* interval_name,
-                                               const double* start_times,
-                                               const double* stop_times,
-                                               int32_t num_intervals,
-                                               const char** tags,
-                                               int32_t num_tags);
-
-FFI_PLUGIN_EXPORT int32_t append_acquisition_data(const char* file_path,
-                                                  const char* acquisition_name,
-                                                  const double* timestamps,
-                                                  int32_t num_timestamps,
-                                                  const void* data,
-                                                  int32_t data_type,
-                                                  int32_t num_samples,
-                                                  int32_t num_channels);
-
-FFI_PLUGIN_EXPORT int32_t create_new_timeseries(const char* file_path,
-                                                const char* series_name,
-                                                int32_t data_type,
-                                                int32_t num_channels,
-                                                const char** channel_names,
-                                                float sampling_rate);
-
-FFI_PLUGIN_EXPORT int32_t create_new_interval(const char* file_path,
-                                              const char* interval_name,
-                                              const char** column_names,
-                                              int32_t num_columns);
-
-#ifdef __cplusplus
-}
-#endif
-
-
-#endif // PROCESSING_H
+FFI_PLUGIN_EXPORT int32_t debug_nwb_file_structure(const char* filePath);

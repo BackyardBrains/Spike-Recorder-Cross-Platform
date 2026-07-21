@@ -5,4 +5,5 @@ export 'draggable_widget.dart';
 export 'custom_slider_widget.dart';
 export 'show_dialog.dart';
 export 'spiker_box_button.dart';
+export 'spike_analysis_widget.dart';
 export 'water_droplet.dart';

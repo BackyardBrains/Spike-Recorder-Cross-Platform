@@ -1,68 +1,76 @@
 #!/bin/bash
+# Build AqNWB 0.4.0 + Spike-Recorder recording API for Web (Emscripten/WASM).
+# No Boost required. Uses prebuilt HDF5 in ./hdf5_build/build/bin.
+set -euo pipefail
 
-# Emscripten build script with HDF5 workarounds
+cd "$(dirname "$0")"
 
-set -e
-
-# Check if we're in the correct directory by looking for the specific file needed
 if [ ! -f "src/sz_stubs.cpp" ]; then
-    echo "Error: 'src/sz_stubs.cpp' file not found in current directory"
-    echo "Please run this script from the web directory: PLUGINS/nwbfile_plugin/web/"
-    echo "Current directory: $(pwd)"
-    exit 1
+  echo "Error: run from PLUGINS/nwbfile_plugin/web/ (sz_stubs.cpp missing)"
+  exit 1
 fi
 
-# Check if emcc is available
-if ! command -v emcc &> /dev/null; then
-    echo "Error: emcc (Emscripten compiler) not found in PATH"
-    echo "Please install Emscripten and activate it in your environment"
-    exit 1
+if ! command -v emcc >/dev/null 2>&1; then
+  echo "Error: emcc not found. Install/activate Emscripten first."
+  exit 1
 fi
 
-# Create output directory
-mkdir -p dist
+if [ ! -f "hdf5_build/build/bin/libhdf5.a" ]; then
+  echo "Error: missing HDF5 wasm libs under hdf5_build/build/bin/"
+  echo "Build HDF5 for Emscripten before running this script."
+  exit 1
+fi
 
-echo "Building NWB Plugin with Emscripten using HDF5 workarounds..."
+# web/ -> nwbfile_plugin -> PLUGINS -> nwbapplication/web/nwb
+mkdir -p dist ../../../web/nwb
 
-# Find all source files except web version and stub files (now including HDF5IO with proper WASM libraries)
-# But include sz_stubs.cpp specifically for SZ compression stubs
-SOURCES=$(find src -name "*.cpp" -o -name "*.c" | grep -v "_web" | grep -v "_stub" | tr '\n' ' ')
+echo "Collecting sources..."
+# C++ only (skip empty/commented nwbfile_plugin.c — -std=c++17 breaks emcc on .c).
+SOURCES=$(find src -name '*.cpp' \
+  | grep -v '_web' \
+  | grep -v '_stub' \
+  | tr '\n' ' ')
 SOURCES="$SOURCES src/sz_stubs.cpp"
 
-# Paths to compiled HDF5 libraries
 HDF5_LIB_PATH="./hdf5_build/build/bin"
 HDF5_INCLUDE_PATH="./hdf5_build/hdf5/src"
+# Prefer headers from plugin include/ (H5Cpp) when present
+EXTRA_INCLUDES="-I./src -I./include -I${HDF5_INCLUDE_PATH}"
+if [ -d "./hdf5_build/build/src" ]; then
+  EXTRA_INCLUDES="$EXTRA_INCLUDES -I./hdf5_build/build/src"
+fi
 
-# Build with Emscripten using compiled HDF5 but avoiding problematic code
+EXPORTS="['_sum','_sum_long_running','_processing_init','_nwbfile_add_electrical_series','_nwbfile_create_spike_event_series','_nwbfile_write_spike_event','_nwbfile_get_spike_event_count','_nwbfile_read_electrical_series','_nwbfile_seek_electrical_series','_nwbfile_add_event','_nwbfile_update_event','_nwbfile_delete_event','_nwbfile_get_event_count','_nwbfile_read_event','_nwbfile_set_meaning','_nwbfile_get_meaning_count','_nwbfile_read_meaning','_nwbfile_find_meaning','_get_nwb_file_size','_get_nwb_file_data','_cleanup_nwb_data','_debug_nwb_file_structure','_malloc','_free']"
+
+echo "Building nwbfile_plugin.wasm with emcc..."
+# shellcheck disable=SC2086
 emcc $SOURCES \
-    -I./src \
-    -I./include \
-    -I./boost \
-    -I$HDF5_INCLUDE_PATH \
-    -L$HDF5_LIB_PATH \
-    -lhdf5 \
-    -lhdf5_cpp \
-    -lhdf5_hl \
-    -s USE_BOOST_HEADERS=1 \
-    -s USE_ZLIB=1 \
-    -s ALLOW_MEMORY_GROWTH=1 \
-    -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','FS'] \
-    -s EXPORTED_FUNCTIONS=['_sum','_sum_long_running','_processing_init','_processing_update','_check_annotation_series','_get_nwb_file_size','_get_nwb_file_data','_malloc','_free'] \
-    -s EXPORT_NAME='NWBPlugin' \
-    -s MODULARIZE=1 \
-    -s WASM=1 \
-    -s FORCE_FILESYSTEM=1 \
-    -s ASSERTIONS=1 \
-    -s SAFE_HEAP=1 \
-    -s TOTAL_MEMORY=268435456 \
-    -s ALLOW_TABLE_GROWTH=1 \
-    -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
-    -s WARN_ON_UNDEFINED_SYMBOLS=0 \
-    -O2 \
-    -o dist/nwbfile_plugin.js
+  $EXTRA_INCLUDES \
+  -L"$HDF5_LIB_PATH" \
+  -lhdf5_cpp -lhdf5_hl -lhdf5 \
+  -std=c++17 \
+  -DAQNWB_CXX_STANDARD=17 \
+  -s USE_ZLIB=1 \
+  -s ALLOW_MEMORY_GROWTH=1 \
+  -s FORCE_FILESYSTEM=1 \
+  -s EXPORTED_RUNTIME_METHODS="['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8','FS','HEAP8','HEAP16','HEAP32','HEAPU8']" \
+  -s EXPORTED_FUNCTIONS="$EXPORTS" \
+  -s EXPORT_NAME='NWBPlugin' \
+  -s MODULARIZE=1 \
+  -s WASM=1 \
+  -s ASSERTIONS=1 \
+  -s INITIAL_MEMORY=268435456 \
+  -s ALLOW_TABLE_GROWTH=1 \
+  -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
+  -s WARN_ON_UNDEFINED_SYMBOLS=0 \
+  -s NO_DISABLE_EXCEPTION_CATCHING=1 \
+  -fexceptions \
+  -O2 \
+  -o dist/nwbfile_plugin.js
 
-echo "Build completed successfully!"
-echo "Generated files:"
-ls -la dist/*.js dist/*.wasm 2>/dev/null || echo "No output files found"
+# Copy into Flutter web/ so index.html can load them as static assets.
+cp -f dist/nwbfile_plugin.js dist/nwbfile_plugin.wasm ../../../web/nwb/
 
-echo "Files are ready in the dist/ directory"
+echo "Build completed."
+ls -lh dist/nwbfile_plugin.js dist/nwbfile_plugin.wasm
+ls -lh ../../../web/nwb/

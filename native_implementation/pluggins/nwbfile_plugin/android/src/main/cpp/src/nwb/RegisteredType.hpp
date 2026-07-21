@@ -7,10 +7,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../Types.hpp"
-#include "../Utils.hpp"
-#include "../io/BaseIO.hpp"
-#include "../io/ReadIO.hpp"
+#include "Types.hpp"
+#include "Utils.hpp"
+#include "io/BaseIO.hpp"
+#include "io/ReadIO.hpp"
 
 namespace AQNWB
 {
@@ -44,20 +44,9 @@ constexpr auto DatasetField = AQNWB::Types::StorageObjectType::Dataset;
  * runtime.
  *
  */
-class RegisteredType
+class RegisteredType : public std::enable_shared_from_this<RegisteredType>
 {
 public:
-  /**
-   * @brief Constructor.
-   *
-   * All registered subclasses of RegisteredType must implement a constructor
-   * with these arguments.
-   *
-   * @param path The path of the registered type.
-   * @param io A shared pointer to the IO object.
-   */
-  RegisteredType(const std::string& path, std::shared_ptr<IO::BaseIO> io);
-
   /**
    * @brief Destructor.
    */
@@ -67,7 +56,7 @@ public:
    * @brief Gets the path of the registered type.
    * @return The path of the registered type.
    */
-  inline std::string getPath() const { return m_path; }
+  inline const std::string& getPath() const { return m_path; }
 
   /**
    * @brief Get the name of the object
@@ -85,7 +74,82 @@ public:
    * @brief Get a shared pointer to the IO object.
    * @return Shared pointer to the IO object.
    */
-  inline std::shared_ptr<IO::BaseIO> getIO() const { return m_io; }
+  inline std::shared_ptr<AQNWB::IO::BaseIO> getIO() const
+  {
+    auto ioPtr = m_io.lock();
+    return ioPtr;
+  }
+
+  /**
+   * @brief Get the index of this object in m_io->m_recording_objects
+   * @return Index of the object of AQNWB::Types::SizeTypeNotSet if the object
+   * is not registered
+   */
+  SizeType getRecordingObjectIndex() const;
+
+  /**
+   * @brief Check if this RegisteredType object is registered in the
+   * RecordingObjects manager object of the I/O.
+   * @return True if the object is registered, false otherwise.
+   */
+  inline bool isRegisteredRecordingObject() const
+  {
+    return isValidIndex(getRecordingObjectIndex());
+  }
+
+  /**
+   * @brief Register this RegisteredType object with the RecordingObjects
+   * manager object of the I/O.
+   *
+   * This method should be called when this RegisteredType object is being used
+   * for recording data. Usually this should be done when the initialize()
+   * function of the type is being called. AQNWB::NWB::Container and
+   * AQNWB::NWB::Data classes automatically in the initialize() function so most
+   * subclasses do not need to call this method explicitly.
+   *
+   * @return The index at which the object was registered. The sentinel value
+   * std::numeric_limits<SizeType>::max(); is returned if the object could
+   * not be registered (e.g., if the lookup for the IO or RecordingObjects
+   * failed for some unspecified reason).
+   */
+  SizeType registerRecordingObject();
+
+  /**
+   * @brief Finalize the RegisteredType object.
+   *
+   * This method provides a standard interface for finalizing RegisteredType
+   * objects. Finalizing means that the function must ensure to generate a
+   * valid state of the type in the file. E.g., in the case of a table, the
+   * function may generate row indices, column order etc.. Finalize may be
+   * called multiple times, e.g., when starting a recording to ensure the
+   * file is in a valid state, and then again when stopping the recording to
+   * ensure the final state is valid. The default implementation does nothing
+   * and returns AQNWB::Types::Status::Success.
+   *
+   * @return AQNWB::Types::Status::Success if successful, otherwise
+   * AQNWB::Types::Status::Failure.
+   */
+  virtual AQNWB::Types::Status finalize();
+
+  /**
+   * @brief Get the cache of BaseRecordingData objects
+   * @return A reference to the cache of BaseRecordingData objects
+   */
+  inline const std::unordered_map<std::string,
+                                  std::shared_ptr<IO::BaseRecordingData>>&
+  getCacheRecordingData() const
+  {
+    return this->m_recordingDataCache;
+  }
+
+  /**
+   * @brief Clear the BaseRecordingData object cache to reset the recording
+   * state
+   */
+  inline virtual void clearRecordingDataCache()
+  {
+    this->m_recordingDataCache.clear();
+  }
 
   /**
    * @brief Get the registry of subclass names.
@@ -113,8 +177,8 @@ public:
    */
   static std::unordered_map<
       std::string,
-      std::pair<std::function<std::unique_ptr<RegisteredType>(
-                    const std::string&, std::shared_ptr<IO::BaseIO>)>,
+      std::pair<std::function<std::shared_ptr<RegisteredType>(
+                    const std::string&, std::shared_ptr<AQNWB::IO::BaseIO>)>,
                 std::pair<std::string, std::string>>>&
   getFactoryMap();
 
@@ -175,11 +239,13 @@ public:
    */
   template<typename T>
   static inline std::shared_ptr<T> create(const std::string& path,
-                                          std::shared_ptr<IO::BaseIO> io)
+                                          std::shared_ptr<AQNWB::IO::BaseIO> io)
   {
     static_assert(std::is_base_of<RegisteredType, T>::value,
                   "T must be a derived class of RegisteredType");
-    return std::shared_ptr<T>(new T(path, io));
+    auto result = std::shared_ptr<T>(new T(path, io));
+    result->registerRecordingObject();
+    return result;
   }
 
   /**
@@ -208,12 +274,12 @@ public:
   virtual std::string getNamespace() const;
 
   /**
-   * @brief Get the full name of the type, i.e., `namespace::typename`
+   * @brief Get the full name of the type, i.e., ``namespace::typename``
    *
    * This is just a simple convenience function that uses the getNamespace
    * and getTypeName methods.
    *
-   * @return The full name of the type consisting of `namespace::typename`
+   * @return The full name of the type consisting of ``namespace::typename``
    */
   inline std::string getFullTypeName() const
   {
@@ -231,7 +297,7 @@ public:
    * parameters needed by this function.
    *
    * @param fieldPath The relative path of the field within the current type,
-   * i.e., relative to `m_path`
+   * i.e., relative to ``m_path``
    * @tparam SOT The storage object type. This must be a either
    * StorageObjectType::Dataset or StorageObjectType::Attribute
    * @tparam VTYPE The value type of the field to be read.
@@ -244,25 +310,37 @@ public:
            typename VTYPE,
            typename std::enable_if<Types::IsDataStorageObjectType<SOT>::value,
                                    int>::type = 0>
-  inline std::unique_ptr<IO::ReadDataWrapper<SOT, VTYPE>> readField(
+  inline std::unique_ptr<AQNWB::IO::ReadDataWrapper<SOT, VTYPE>> readField(
       const std::string& fieldPath) const
   {
-    return std::make_unique<IO::ReadDataWrapper<SOT, VTYPE>>(
-        m_io, AQNWB::mergePaths(m_path, fieldPath));
+    auto ioPtr = getIO();
+    if (!ioPtr) {
+      std::cerr << "IO object has been deleted. Can't read field: " << fieldPath
+                << std::endl;
+      return nullptr;
+    }
+    return std::make_unique<AQNWB::IO::ReadDataWrapper<SOT, VTYPE>>(
+        ioPtr, AQNWB::mergePaths(m_path, fieldPath));
   }
 
   /**
    * @brief Read a field that is itself a RegisteredType
    *
    * @param fieldPath The relative path of the field within the current type,
-   * i.e., relative to `m_path. The field must itself be RegisteredType
+   * i.e., relative to m_path. The field must itself be RegisteredType
    *
    * @return A unique_ptr to the created instance of the subclass.
    */
   inline std::shared_ptr<AQNWB::NWB::RegisteredType> readField(
       const std::string& fieldPath) const
   {
-    return this->create(AQNWB::mergePaths(m_path, fieldPath), m_io);
+    auto ioPtr = getIO();
+    if (!ioPtr) {
+      std::cerr << "IO object has been deleted. Can't read field: " << fieldPath
+                << std::endl;
+      return nullptr;
+    }
+    return this->create(AQNWB::mergePaths(m_path, fieldPath), ioPtr);
   }
 
   /**
@@ -271,7 +349,7 @@ public:
    * this object as there closest parent with an assigned type.
    *
    * This is a shorthand for calling
-   * `getIO()->findTypes(m_path, types, IO::SearchMode::STOP_ON_TYPE, true);`
+   * ``getIO()->findTypes(m_path, types, IO::SearchMode::STOP_ON_TYPE, true);``
    *
    * @param types The set of types to search for. If an empty set is provided,
    * then all objects with an assigned type (i.e., object that have a
@@ -285,9 +363,22 @@ public:
    */
   virtual std::unordered_map<std::string, std::string> findOwnedTypes(
       const std::unordered_set<std::string>& types = {},
-      const IO::SearchMode& search_mode = IO::SearchMode::STOP_ON_TYPE) const;
+      const AQNWB::IO::SearchMode& search_mode =
+          AQNWB::IO::SearchMode::STOP_ON_TYPE) const;
 
 protected:
+  /**
+   * @brief Constructor.
+   *
+   * All registered subclasses of RegisteredType must implement a constructor
+   * with these arguments.
+   *
+   * @param path The path of the registered type.
+   * @param io A shared pointer to the IO object.
+   */
+  RegisteredType(const std::string& path,
+                 std::shared_ptr<AQNWB::IO::BaseIO> io);
+
   /// @brief Save the default RegisteredType to use for reading Group types that
   /// are not registered
   static const std::string m_defaultUnregisteredGroupTypeClass;
@@ -307,8 +398,9 @@ protected:
    */
   static void registerSubclass(
       const std::string& fullClassName,
-      std::function<std::unique_ptr<RegisteredType>(
-          const std::string&, std::shared_ptr<IO::BaseIO>)> factoryFunction,
+      std::function<std::shared_ptr<RegisteredType>(
+          const std::string&, std::shared_ptr<AQNWB::IO::BaseIO>)>
+          factoryFunction,
       const std::string& typeName,
       const std::string& typeNamespace);
 
@@ -318,36 +410,65 @@ protected:
   std::string m_path;
 
   /**
-   * @brief A shared pointer to the IO object.
+   * @brief A weak pointer to the IO object.
+   *
+   * We use weak_ptr here because the RegisteredType object should not own
+   * or keep the I/O alive. The users owns the I/O object. Using a weak
+   * pointer allows us to access the I/O object without extending its lifetime.
+   * This is important to avoid circular dependencies and memory leaks.
+   * To ensure safe usage we should always for getIO() to retrieve a shared
+   * pointer to the IO object before using it.
    */
-  std::shared_ptr<IO::BaseIO> m_io;
+  std::weak_ptr<IO::BaseIO> m_io;
+
+  /**
+   * @brief Cache for BaseRecordingData objects for datasets to retain recording
+   * state.
+   *
+   * This map stores shared pointers to BaseRecordingData objects that have been
+   * previously requested, using the field path as the key. This allows us to
+   * reuse the same object when it is requested multiple times, improving
+   * performance and more importantly, retaining the recording position so that
+   * we can append to the dataset from the last position that we recorded to.
+   * This is important for writing data to the dataset in a streaming fashion.
+   * The cache is mutable to allow modification in const methods.
+   */
+  std::unordered_map<std::string, std::shared_ptr<IO::BaseRecordingData>>
+      m_recordingDataCache;
 };
 
 /**
  * @brief Macro to register a subclass with the RegisteredType class registry.
  *
  * This macro defines:
- * - A static method `registerSubclass` that triggers registration of the
+ * - A static method ``registerSubclass`` that triggers registration of the
  * subclass type when the subclass type is loaded.
- * - A static member `registered_` that ensures the registration occurs.
+ * - A static member ``registered_`` that ensures the registration occurs.
  * - override getTypeName for the class to return the correct type name
  * - override getNamespace for the class to return the correct namespace used
  *
  * @param T The subclass type to register. The name must match the type in the
  * schema.
- * @param NAMESPACE The namespace of the subclass type in the format schema
+ * @param BASE The base class of the subclass type, which must be a subclass of
+ * RegisteredType.
+ * @param NAMESPACE_VAR The namespace of the subclass type in the format schema.
+ * May be specified via a const variable or as a literal string.
  * @param TYPENAME The name of the type (usually the class name).
  */
-#define REGISTER_SUBCLASS_WITH_TYPENAME(T, NAMESPACE, TYPENAME) \
+#define REGISTER_SUBCLASS_WITH_TYPENAME(T, BASE, NAMESPACE_VAR, TYPENAME) \
+  friend class AQNWB::NWB::RegisteredType; /* base can call constructor */ \
+protected: \
+  using BASE::BASE; /* inherit from immediate base */ \
+public: \
   static bool registerSubclass() \
   { \
     AQNWB::NWB::RegisteredType::registerSubclass( \
-        NAMESPACE "::" #T, \
-        [](const std::string& path, std::shared_ptr<IO::BaseIO> io) \
-            -> std::unique_ptr<AQNWB::NWB::RegisteredType> \
-        { return std::make_unique<T>(path, io); }, \
+        std::string(NAMESPACE_VAR) + "::" + #T, \
+        [](const std::string& path, std::shared_ptr<AQNWB::IO::BaseIO> io) \
+            -> std::shared_ptr<AQNWB::NWB::RegisteredType> \
+        { return RegisteredType::create<T>(path, io); }, \
         TYPENAME, \
-        NAMESPACE); \
+        NAMESPACE_VAR); \
     return true; \
   } \
   static bool registered_; \
@@ -357,7 +478,12 @@ protected:
   } \
   virtual std::string getNamespace() const override \
   { \
-    return NAMESPACE; \
+    return NAMESPACE_VAR; \
+  } \
+  static std::shared_ptr<T> create(const std::string& path, \
+                                   std::shared_ptr<AQNWB::IO::BaseIO> io) \
+  { \
+    return RegisteredType::create<T>(path, io); \
   }
 
 /**
@@ -368,13 +494,15 @@ protected:
  *
  * @param T The subclass type to register. The name must match the type in the
  * schema.
+ * @param BASE The base class of the subclass type. Which must be a subclass of
+ * RegisteredType.
  * @param NAMESPACE The namespace of the subclass type in the format schema
  */
-#define REGISTER_SUBCLASS(T, NAMESPACE) \
-  REGISTER_SUBCLASS_WITH_TYPENAME(T, NAMESPACE, #T)
+#define REGISTER_SUBCLASS(T, BASE, NAMESPACE) \
+  REGISTER_SUBCLASS_WITH_TYPENAME(T, BASE, NAMESPACE, #T)
 
 /**
- * @brief Macro to initialize the static member `registered_` to trigger
+ * @brief Macro to initialize the static member ``registered_`` to trigger
  * registration.
  *
  * This macro ensures that the registration of the subclass occurs when the
@@ -385,12 +513,12 @@ protected:
 #define REGISTER_SUBCLASS_IMPL(T) bool T::registered_ = T::registerSubclass();
 
 /**
- * @brief Defines a lazy-loaded field accessor function.
+ * @brief Defines a lazy-loaded attribute field accessor function.
  *
- * This macro generates a function that returns a lazy-loaded wrapper for a
- * dataset or attribute field.
+ * This macro generates a function that returns a lazy-loaded wrapper for an
+ * attribute field.
  *
- * \note
+ * @note
  * The Doxyfile.in defines a simplified expansion of this function
  * for generating the documentation for the autogenerated function.
  * This means: 1) When updating the macro here, we also need to ensure
@@ -399,38 +527,128 @@ protected:
  * Doxygen but the version generated by its on PREDEFINED expansion.
  *
  * @param name The name of the function to generate.
- * @param storageObjectType The type of storage object (Attribute or Dataset).
  * @param default_type The default type of the field.
  * @param fieldPath The path to the field.
  * @param description A detailed description of the field.
  */
-#define DEFINE_FIELD( \
-    name, storageObjectType, default_type, fieldPath, description) \
+#define DEFINE_ATTRIBUTE_FIELD(name, default_type, fieldPath, description) \
   /** \
-   * @brief Returns a lazy-loaded wrapper for the ##name field. \
+   * @brief Returns a lazy-loaded wrapper for the ##name attribute field. \
    * \
-   * @tparam VTYPE The type of the field (default: ##default_type) \
+   * @tparam VTYPE The type of the field (default: default_type) \
    * @return A unique pointer to a ReadDataWrapper for the field \
    * \
-   * description \
+   * ##description \
    */ \
   template<typename VTYPE = default_type> \
-  inline std::unique_ptr<IO::ReadDataWrapper<storageObjectType, VTYPE>> name() \
-      const \
+  inline std::unique_ptr< \
+      AQNWB::IO::ReadDataWrapper<AQNWB::NWB::AttributeField, VTYPE>> \
+  name() const \
   { \
-    return std::make_unique<IO::ReadDataWrapper<storageObjectType, VTYPE>>( \
-        m_io, AQNWB::mergePaths(m_path, fieldPath)); \
+    auto ioPtr = getIO(); \
+    if (!ioPtr) { \
+      std::cerr << "IO object has been deleted. Can't read field: " \
+                << fieldPath << std::endl; \
+      return nullptr; \
+    } \
+    return std::make_unique< \
+        AQNWB::IO::ReadDataWrapper<AQNWB::NWB::AttributeField, VTYPE>>( \
+        ioPtr, AQNWB::mergePaths(m_path, fieldPath)); \
+  }
+
+/**
+ * @brief Defines a lazy-loaded dataset field accessor function.
+ *
+ * This macro generates two functions:
+ * 1. A read function that returns a lazy-loaded wrapper for a dataset field
+ * 2. A write function that returns the dataset object directly
+ *
+ * @note
+ * The Doxyfile.in defines a simplified expansion of this function
+ * for generating the documentation for the autogenerated function.
+ * This means: 1) When updating the macro here, we also need to ensure
+ * that the expansion in the Doxyfile.in is still accurate and 2) the
+ * docstring that is defined by the macro here is not being used by
+ * Doxygen but the version generated by its on PREDEFINED expansion.
+ *
+ * @param readName The name of the read function to generate.
+ * @param writeName The name of the write function to generate.
+ * @param default_type The default type of the field.
+ * @param fieldPath The path to the field.
+ * @param description A detailed description of the field.
+ */
+#define DEFINE_DATASET_FIELD( \
+    readName, writeName, default_type, fieldPath, description) \
+  /** \
+   * @brief Returns a lazy-loaded wrapper for the ##readName dataset field. \
+   * \
+   * @tparam VTYPE The type of the field (default: default_type) \
+   * @return A unique pointer to a ReadDataWrapper for the field \
+   * \
+   * ##description \
+   */ \
+  template<typename VTYPE = default_type> \
+  inline std::unique_ptr< \
+      AQNWB::IO::ReadDataWrapper<AQNWB::NWB::DatasetField, VTYPE>> \
+  readName() const \
+  { \
+    auto ioPtr = getIO(); \
+    if (!ioPtr) { \
+      std::cerr << "IO object has been deleted. Can't read field: " \
+                << fieldPath << std::endl; \
+      return nullptr; \
+    } \
+    return std::make_unique< \
+        AQNWB::IO::ReadDataWrapper<AQNWB::NWB::DatasetField, VTYPE>>( \
+        ioPtr, AQNWB::mergePaths(m_path, fieldPath)); \
+  } \
+  /** \
+   * @brief Returns the dataset object for the ##writeName field. \
+   * \
+   * This functions modifies the m_recordingDataCache as a side effect \
+   * to retain the recording state. \
+   * \
+   * @param reset If true, the dataset will be reset to the beginning \
+   *        by creating a new BaseRecordingData object via getIO()->getDataSet \
+   * \
+   * @return A shared pointer to a BaseRecordingData for the dataset \
+   * \
+   * ##description \
+   */ \
+  inline std::shared_ptr<AQNWB::IO::BaseRecordingData> writeName(bool reset = \
+                                                                     false) \
+  { \
+    std::string fullPath = AQNWB::mergePaths(m_path, fieldPath); \
+    if (!reset) { \
+      /* Check if the dataset is already in the cache */ \
+      auto it = m_recordingDataCache.find(fullPath); \
+      if (it != m_recordingDataCache.end()) { \
+        return it->second; \
+      } \
+    } \
+    /* Get the dataset from IO and cache it */ \
+    auto ioPtr = getIO(); \
+    if (!ioPtr) { \
+      std::cerr << "IO object has been deleted. Can't access: " << fullPath \
+                << std::endl; \
+      return nullptr; \
+    } \
+    auto dataset = ioPtr->getDataSet(fullPath); \
+    if (dataset) { \
+      m_recordingDataCache[fullPath] = dataset; \
+    } \
+    return dataset; \
   }
 
 /**
  * @brief Defines a lazy-loaded accessor function for reading fields that are
  * RegisteredTypes
  *
- * This macro generates a function that returns the approbriate subtype of
+ * This macro generates a function that returns the appropriate subtype of
  * RegisteredType, e.g., to read VectorData from a DynamicTable or a
  * TimeSeries from and NWBFile.
  *
- * \note
+ * @note
  * The Doxyfile.in defines a simplified expansion of this function
  * for generating the documentation for the autogenerated function.
  * This means: 1) When updating the macro here, we also need to ensure
@@ -447,23 +665,109 @@ protected:
   /** \
    * @brief Returns the instance of the class representing the ##name field. \
    * \
-   * @tparam RTYPE The RegisteredType of the field (default: ##registeredType) \
+   * @tparam RTYPE The RegisteredType of the field (default: registeredType) \
    * In most cases this should not be changed. But in the case of templated \
    * types, e.g,. VectorData<std::any> a user may want to change this to a \
    * more specific subtype to use, e.g., VectorData<int> \
-   * @return A shared pointer to an instance of ##registeredType representing \
+   * @return A shared pointer to an instance of registeredType representing \
    * the object. May return nullptr if the path does not exist \
    * \
-   * description \
+   * ##description \
    */ \
   template<typename RTYPE = registeredType> \
   inline std::shared_ptr<RTYPE> name() const \
   { \
     std::string objectPath = AQNWB::mergePaths(m_path, fieldPath); \
-    if (m_io->objectExists(objectPath)) { \
-      return RegisteredType::create<RTYPE>(objectPath, m_io); \
+    auto ioPtr = getIO(); \
+    if (ioPtr != nullptr) { \
+      if (ioPtr->objectExists(objectPath)) { \
+        return RegisteredType::create<RTYPE>(objectPath, ioPtr); \
+      } \
     } \
     return nullptr; \
+  }
+
+/**
+ * @brief Defines a lazy-loaded accessor function for reading fields that are
+ * RegisteredTypes that do not have a fixed name in the schema
+ *
+ * This macro generates a function that returns the appropriate subtype of
+ * RegisteredType, e.g., to read VectorData from a DynamicTable or a
+ * TimeSeries from and NWBFile.
+ *
+ * @note
+ * The Doxyfile.in defines a simplified expansion of this function
+ * for generating the documentation for the autogenerated function.
+ * This means: 1) When updating the macro here, we also need to ensure
+ * that the expansion in the Doxyfile.in is still accurate and 2) the
+ * docstring that is defined by the macro here is not being used by
+ * Doxygen but the version generated by its on PREDEFINED expansion.
+ *
+ * @param readName The name of the function to read an existing object
+ * @param writeName The name of the function for creating a new instance for
+ * write
+ * @param registeredType The specific subclass of registered type to use
+ * @param fieldPrefixPath The prefix for the path to the field, e.g.,
+ * /acquisition to read from a subgroup owned by the ReferencedType.
+ * @param description A detailed description of the field.
+ */
+#define DEFINE_UNNAMED_REGISTERED_FIELD( \
+    readName, writeName, registeredType, fieldPrefixPath, description) \
+  /** \
+   * @brief Returns the instance of the class representing the ##name field. \
+   * \
+   * @tparam RTYPE The RegisteredType of the field (default: registeredType) \
+   * In most cases this should not be changed. But in the case of templated \
+   * types, e.g,. VectorData<std::any> a user may want to change this to a \
+   * more specific subtype to use, e.g., VectorData<int> \
+   * @param objectName The name of the object to retrieve \
+   * @return A shared pointer to an instance of registeredType representing \
+   * the object. May return nullptr if the path does not exist \
+   * \
+   * ##description \
+   */ \
+  template<typename RTYPE = registeredType> \
+  inline std::shared_ptr<RTYPE> readName(const std::string& objectName) const \
+  { \
+    std::string prefixPath = AQNWB::mergePaths(m_path, fieldPrefixPath); \
+    std::string objectPath = AQNWB::mergePaths(prefixPath, objectName); \
+    auto ioPtr = getIO(); \
+    if (!ioPtr) { \
+      std::cerr << "IO object has been deleted. Can't read field: " \
+                << objectPath << std::endl; \
+      return nullptr; \
+    } \
+    if (ioPtr->objectExists(objectPath)) { \
+      return RegisteredType::create<RTYPE>(objectPath, ioPtr); \
+    } \
+    return nullptr; \
+  } \
+  /** \
+   * @brief Returns the instance of the class representing the ##name field. \
+   * for write \
+   * \
+   * @tparam RTYPE The RegisteredType of the field (default: registeredType) \
+   * In most cases this should not be changed. But in the case of templated \
+   * types, e.g,. VectorData<std::any> a user may want to change this to a \
+   * more specific subtype to use, e.g., VectorData<int> \
+   * @param objectName The name of the object to retrieve \
+   * @return A shared pointer to an instance of registeredType representing \
+   * the object. \
+   * \
+   * ##description \
+   */ \
+  template<typename RTYPE = registeredType> \
+  inline std::shared_ptr<RTYPE> writeName(const std::string& objectName) const \
+  { \
+    std::string prefixPath = AQNWB::mergePaths(m_path, fieldPrefixPath); \
+    std::string objectPath = AQNWB::mergePaths(prefixPath, objectName); \
+    auto ioPtr = getIO(); \
+    if (!ioPtr) { \
+      std::cerr << "IO object has been deleted. Can't create field: " \
+                << objectPath << std::endl; \
+      return nullptr; \
+    } \
+    return RegisteredType::create<RTYPE>(objectPath, ioPtr); \
   }
 
 /**
@@ -474,7 +778,7 @@ protected:
  * RegisteredType, e.g., to read VectorData from a DynamicTable or a
  * TimeSeries from an NWBFile.
  *
- * \note
+ * @note
  * The Doxyfile.in defines a simplified expansion of this function
  * for generating the documentation for the autogenerated function.
  * This means: 1) When updating the macro here, we also need to ensure
@@ -492,25 +796,30 @@ protected:
   /** \
    * @brief Returns the instance of the class representing the ##name field. \
    * \
-   * @tparam RTYPE The RegisteredType of the field (default: ##registeredType) \
+   * @tparam RTYPE The RegisteredType of the field (default: registeredType) \
    * In most cases this should not be changed. But in the case of templated \
    * types, e.g,. VectorData<std::any> a user may want to change this to a \
    * more specific subtype to use, e.g., VectorData<int> \
-   * @return A shared pointer to an instance of ##registeredType representing \
+   * @return A shared pointer to an instance of registeredType representing \
    * the object. May return nullptr if the path does not exist \
    * \
-   * description \
+   * ##description \
    */ \
   template<typename RTYPE = registeredType> \
   inline std::shared_ptr<RTYPE> name() const \
   { \
     try { \
       std::string attrPath = AQNWB::mergePaths(m_path, fieldPath); \
-      std::string objectPath = m_io->readReferenceAttribute(attrPath); \
-      if (m_io->objectExists(objectPath)) { \
-        return RegisteredType::create<RTYPE>(objectPath, m_io); \
+      auto ioPtr = getIO(); \
+      if (ioPtr != nullptr) { \
+        std::string objectPath = ioPtr->readReferenceAttribute(attrPath); \
+        if (ioPtr->objectExists(objectPath)) { \
+          return RegisteredType::create<RTYPE>(objectPath, ioPtr); \
+        } \
       } \
     } catch (const std::exception& e) { \
+      std::cerr << "WARNING Error occurred in " << #name << " " << e.what() \
+                << std::endl; \
       return nullptr; \
     } \
     return nullptr; \

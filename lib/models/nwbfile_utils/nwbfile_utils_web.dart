@@ -17,10 +17,23 @@ class NwbFileUtilImpl implements NWBFileUtil {
   @override
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallbackPlayback;
+
+  /// Pending Completers keyed by the requestId returned from index.js helpers.
+  final Map<int, Completer<int>> _addEventCompleters = {};
+  final Map<int, Completer<int>> _getEventCountCompleters = {};
+  final Map<int, Completer<({double timestampSeconds, int eventLabel, bool deleted})?>>
+      _readEventCompleters = {};
+
+  /// Completes when the worker posts NWB_FILE_CREATED / failure ("--").
+  Completer<String>? _nwbFileCreatedCompleter;
   
   void onNwbFileCreatedCallback(String resultString){
     print("onNwbFileCreatedCallback: $resultString");
     recordedNwbFilePath = resultString;
+    final completer = _nwbFileCreatedCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete(resultString);
+    }
   }
 
   void onSeekNwbFileBufferWebCallback(config, arrSampleCount, arrSamples, isStartOpeningFileWeb){
@@ -71,7 +84,55 @@ class NwbFileUtilImpl implements NWBFileUtil {
     js.context['onSeekNwbFileBufferWebCallback'] = onSeekNwbFileBufferWebCallback;
     js.context['onSeekNwbFileBufferWebCallbackPlayback'] = onSeekNwbFileBufferWebCallbackPlayback;
     js.context['setOpenedFileName'] = setOpenedFileName;
+    js.context['onAddNwbEventResult'] = _onAddNwbEventResult;
+    js.context['onGetNwbEventCountResult'] = _onGetNwbEventCountResult;
+    js.context['onReadNwbEventResult'] = _onReadNwbEventResult;
     //SEEK_NWB_FILE_BUFFER_WEB_CALLBACK
+  }
+
+  void _onAddNwbEventResult(dynamic requestId, dynamic rowIndex, [dynamic error]) {
+    final id = (requestId as num).toInt();
+    final completer = _addEventCompleters.remove(id);
+    if (completer == null || completer.isCompleted) return;
+    if (error != null) {
+      print("addEvent web error: $error");
+    }
+    completer.complete((rowIndex as num?)?.toInt() ?? -1);
+  }
+
+  void _onGetNwbEventCountResult(dynamic requestId, dynamic count, [dynamic error]) {
+    final id = (requestId as num).toInt();
+    final completer = _getEventCountCompleters.remove(id);
+    if (completer == null || completer.isCompleted) return;
+    if (error != null) {
+      print("getEventCount web error: $error");
+    }
+    completer.complete((count as num?)?.toInt() ?? 0);
+  }
+
+  void _onReadNwbEventResult(
+    dynamic requestId,
+    dynamic ok,
+    dynamic timestampSeconds,
+    dynamic eventLabel,
+    dynamic deleted, [
+    dynamic error,
+  ]) {
+    final id = (requestId as num).toInt();
+    final completer = _readEventCompleters.remove(id);
+    if (completer == null || completer.isCompleted) return;
+    if (error != null) {
+      print("readEvent web error: $error");
+    }
+    if (ok != true) {
+      completer.complete(null);
+      return;
+    }
+    completer.complete((
+      timestampSeconds: (timestampSeconds as num).toDouble(),
+      eventLabel: (eventLabel as num).toInt(),
+      deleted: deleted == true,
+    ));
   }
 
   @override
@@ -87,8 +148,6 @@ class NwbFileUtilImpl implements NWBFileUtil {
   @override
   Future<String> processingInit(int sampleRate, int channelCount, String deviceInfo, String deviceManufacturer, List<int> visibleChannelsList, int visibleChannelCount) async {
     print("processingInit: $sampleRate, $channelCount, $deviceInfo, $deviceManufacturer");
-    // final path = "${(await getApplicationDocumentsDirectory()).path}/${DateTime.now().millisecondsSinceEpoch}";
-    // final path = (await getApplicationDocumentsDirectory()).path + "/example_recording2.nwb";
     recordedTime = DateTime.now().millisecondsSinceEpoch.toString();
     String path = "spike_recorder${recordedTime.toString()}.nwb";
     String charPointer = path.toString();
@@ -96,7 +155,14 @@ class NwbFileUtilImpl implements NWBFileUtil {
     String deviceManufacturerPointer = deviceManufacturer;
     // Worker expects a typed array (.o buffer); plain List<int> does not survive postMessage.
     final visibleSignals = Int16List.fromList(visibleChannelsList);
-    String resultString = js.context.callMethod('createNwbFile', [
+
+    // Wait for the worker callback instead of returning before the file exists
+    // (callers used to poll recordedNwbFilePath every 50ms).
+    recordedNwbFilePath = "";
+    final created = Completer<String>();
+    _nwbFileCreatedCompleter = created;
+
+    js.context.callMethod('createNwbFile', [
       charPointer,
       sampleRate,
       channelCount,
@@ -106,7 +172,25 @@ class NwbFileUtilImpl implements NWBFileUtil {
       visibleChannelCount,
     ]);
 
-    return Future.value(path);
+    // If the callback already raced ahead of this await, honor it.
+    if (recordedNwbFilePath.isNotEmpty && !created.isCompleted) {
+      created.complete(recordedNwbFilePath);
+    }
+
+    try {
+      final result = await created.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => "--",
+      );
+      if (result.isEmpty || result == "--") {
+        return "false";
+      }
+      return result;
+    } finally {
+      if (identical(_nwbFileCreatedCompleter, created)) {
+        _nwbFileCreatedCompleter = null;
+      }
+    }
   }
 
   @override
@@ -149,6 +233,36 @@ class NwbFileUtilImpl implements NWBFileUtil {
     return Future.value(true);
   }
   
+  @override
+  Future<int> addEvent(double timestampSeconds, int eventLabel) async {
+    final completer = Completer<int>();
+    final requestId = (js.context
+            .callMethod('addNwbEventWeb', [timestampSeconds, eventLabel]) as num)
+        .toInt();
+    _addEventCompleters[requestId] = completer;
+    return completer.future;
+  }
+
+  @override
+  Future<({double timestampSeconds, int eventLabel, bool deleted})?> readEvent(
+      int rowIndex) async {
+    final completer =
+        Completer<({double timestampSeconds, int eventLabel, bool deleted})?>();
+    final requestId =
+        (js.context.callMethod('readNwbEventWeb', [rowIndex]) as num).toInt();
+    _readEventCompleters[requestId] = completer;
+    return completer.future;
+  }
+
+  @override
+  Future<int> getEventCount() async {
+    final completer = Completer<int>();
+    final requestId =
+        (js.context.callMethod('getNwbEventCountWeb', []) as num).toInt();
+    _getEventCountCompleters[requestId] = completer;
+    return completer.future;
+  }
+
   @override
   Future<bool> readElectricalSeries(Int16List outSamples, Int32List outSamplesCount, int selectedChannel, int channelCount) {
     return Future.value(true);

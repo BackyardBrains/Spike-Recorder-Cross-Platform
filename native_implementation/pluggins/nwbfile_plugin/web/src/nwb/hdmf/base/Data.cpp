@@ -11,7 +11,7 @@ Data::Data(const std::string& path, std::shared_ptr<AQNWB::IO::BaseIO> io)
 {
 }
 
-Status Data::initialize(const IO::ArrayDataSetConfig& dataConfig)
+Status Data::initialize(const IO::BaseArrayDataSetConfig& dataConfig)
 {
   auto ioPtr = getIO();
   if (ioPtr == nullptr) {
@@ -19,15 +19,33 @@ Status Data::initialize(const IO::ArrayDataSetConfig& dataConfig)
               << std::endl;
     return Status::Failure;
   }
-  // Create the dataset
-  auto dataset = ioPtr->createArrayDataSet(dataConfig, this->m_path);
-  if (dataset == nullptr) {
+
+  // Create the dataset or link
+  try {
+    auto dataset = ioPtr->createArrayDataSet(dataConfig, this->m_path);
+    // Note: dataset may be nullptr for links; this is not an error.
+  } catch (const std::runtime_error& e) {
+    std::cerr << "Data::initialize: Failed to create dataset: " << e.what()
+              << std::endl;
     return Status::Failure;
   }
-  // setup common attributes
-  Status commonAttrsStatus = ioPtr->createCommonNWBAttributes(
-      m_path, this->getNamespace(), this->getTypeName());
-  return commonAttrsStatus;
+
+  if (dataConfig.isLink()) {
+    // For links, don't set attributes since we don't own the dataset.
+    // Validate that the link target has the common NWB attributes.
+    const auto* linkConfig =
+        dynamic_cast<const IO::LinkArrayDataSetConfig*>(&dataConfig);
+    if (linkConfig) {
+      return linkConfig->validateTarget(
+          *ioPtr, {}, {}, {"namespace", "object_id", "neurodata_type"});
+    }
+  } else {
+    // setup common attributes
+    Status commonAttrsStatus = ioPtr->createCommonNWBAttributes(
+        m_path, this->getNamespace(), this->getTypeName());
+    return commonAttrsStatus;
+  }
+  return Status::Success;
 }
 
 namespace AQNWB::NWB

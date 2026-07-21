@@ -1,4 +1,4 @@
-#include "SpikeEventSeries.hpp"
+#include "nwb/ecephys/SpikeEventSeries.hpp"
 
 using namespace AQNWB::NWB;
 
@@ -16,16 +16,18 @@ SpikeEventSeries::SpikeEventSeries(const std::string& path,
 /** Destructor */
 SpikeEventSeries::~SpikeEventSeries() {}
 
-void SpikeEventSeries::initialize(const IO::ArrayDataSetConfig& dataConfig,
-                                  const Types::ChannelVector& channelVector,
-                                  const std::string& description,
-                                  const float& conversion,
-                                  const float& resolution,
-                                  const float& offset)
+Status SpikeEventSeries::initialize(
+    const IO::BaseArrayDataSetConfig& dataConfig,
+    const Types::ChannelVector& channelVector,
+    const std::string& description,
+    const float& conversion,
+    const float& resolution,
+    const float& offset)
 {
-  ElectricalSeries::initialize(
+  auto esInitStatus = ElectricalSeries::initialize(
       dataConfig, channelVector, description, conversion, resolution, offset);
   this->m_eventsRecorded = 0;
+  return esInitStatus;
 }
 
 Status SpikeEventSeries::writeSpike(const SizeType& numSamples,
@@ -35,8 +37,8 @@ Status SpikeEventSeries::writeSpike(const SizeType& numSamples,
                                     const void* controlInput)
 {
   // get offsets and datashape
-  std::vector<SizeType> dataShape;
-  std::vector<SizeType> positionOffset;
+  SizeArray dataShape;
+  SizeArray positionOffset;
   if (numChannels == 1) {
     dataShape = {1, numSamples};
     positionOffset = {this->m_eventsRecorded, 0};

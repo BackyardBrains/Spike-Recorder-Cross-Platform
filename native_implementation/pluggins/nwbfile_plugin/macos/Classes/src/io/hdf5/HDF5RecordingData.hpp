@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../BaseIO.hpp"
+#include "io/BaseIO.hpp"
 
 namespace H5
 {
@@ -24,7 +24,7 @@ public:
    * @brief Constructs an HDF5RecordingData object.
    * @param data A pointer to the HDF5 dataset.
    */
-  HDF5RecordingData(std::unique_ptr<H5::DataSet> data);
+  explicit HDF5RecordingData(std::unique_ptr<H5::DataSet> data);
 
   /**
    * @brief Deleted copy constructor to prevent construction-copying.
@@ -39,7 +39,7 @@ public:
   /**
    * @brief Destroys the HDF5RecordingData object.
    */
-  ~HDF5RecordingData();
+  ~HDF5RecordingData() override;
 
   /**
    * @brief Writes a block of data to the HDF5 dataset.
@@ -49,10 +49,10 @@ public:
    * @param data A pointer to the data block.
    * @return The status of the write operation.
    */
-  Status writeDataBlock(const std::vector<SizeType>& dataShape,
-                        const std::vector<SizeType>& positionOffset,
+  Status writeDataBlock(const SizeArray& dataShape,
+                        const SizeArray& positionOffset,
                         const AQNWB::IO::BaseDataType& type,
-                        const void* data);
+                        const void* data) override;
 
   /**
    * @brief Writes a block of string data (any number of dimensions).
@@ -64,10 +64,10 @@ public:
    * @param data Vector with the string data
    * @return The status of the write operation.
    */
-  Status writeDataBlock(const std::vector<SizeType>& dataShape,
-                        const std::vector<SizeType>& positionOffset,
+  Status writeDataBlock(const SizeArray& dataShape,
+                        const SizeArray& positionOffset,
                         const AQNWB::IO::BaseDataType& type,
-                        const std::vector<std::string>& data);
+                        const std::vector<std::string>& data) override;
 
   /**
    * @brief Gets a const pointer to the HDF5 dataset.
@@ -84,15 +84,10 @@ private:
    * @param fSpace The HDF5 file space (return value)
    * @return The status of the write operation.
    */
-  Status writeDataBlockHelper(const std::vector<SizeType>& dataShape,
-                              const std::vector<SizeType>& positionOffset,
+  Status writeDataBlockHelper(const SizeArray& dataShape,
+                              const SizeArray& positionOffset,
                               H5::DataSpace& mSpace,
                               H5::DataSpace& fSpace);
-
-  /**
-   * @brief Convert int status of HDF5 operations to AQNWB status.
-   */
-  Status intToStatus(int status);
 
   /**
    * @brief Pointer to an extendable HDF5 dataset

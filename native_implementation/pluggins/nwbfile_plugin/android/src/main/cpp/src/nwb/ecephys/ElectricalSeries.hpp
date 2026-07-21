@@ -2,12 +2,13 @@
 
 #include <string>
 
-#include "../../Channel.hpp"
-#include "../../Utils.hpp"
-#include "../../io/BaseIO.hpp"
-#include "../../io/ReadIO.hpp"
-#include "../base/TimeSeries.hpp"
-#include "../file/ElectrodeTable.hpp"
+#include "Channel.hpp"
+#include "Utils.hpp"
+#include "io/BaseIO.hpp"
+#include "io/ReadIO.hpp"
+#include "nwb/base/TimeSeries.hpp"
+#include "nwb/file/ElectrodesTable.hpp"
+#include "spec/core.hpp"
 
 namespace AQNWB::NWB
 {
@@ -18,8 +19,11 @@ class ElectricalSeries : public TimeSeries
 {
 public:
   // Register the TimeSeries as a subclass of Container
-  REGISTER_SUBCLASS(ElectricalSeries, "core")
+  REGISTER_SUBCLASS(ElectricalSeries,
+                    TimeSeries,
+                    AQNWB::SPEC::CORE::namespaceName)
 
+protected:
   /**
    * @brief Constructor.
    * @param path The location of the ElectricalSeries in the file.
@@ -27,10 +31,11 @@ public:
    */
   ElectricalSeries(const std::string& path, std::shared_ptr<IO::BaseIO> io);
 
+public:
   /**
    * @brief Destructor
    */
-  ~ElectricalSeries();
+  ~ElectricalSeries() override;
 
   /**
    * @brief Initializes the Electrical Series
@@ -51,7 +56,7 @@ public:
    *               finalize its coercion to the specified 'unit'
    * @return The status of the initialization operation.
    */
-  Status initialize(const IO::ArrayDataSetConfig& dataConfig,
+  Status initialize(const IO::BaseArrayDataSetConfig& dataConfig,
                     const Types::ChannelVector& channelVector,
                     const std::string& description,
                     const float& conversion = 1.0f,
@@ -78,51 +83,85 @@ public:
                       const void* controlInput = nullptr);
 
   /**
+   * @brief Writes a block of multichannel samples to an ElectricalSeries
+   * dataset in a single operation.
+   *
+   * This method accepts interleaved multichannel data laid out in row-major
+   * (C) order: `[t0_ch0, t0_ch1, ..., t0_chK, t1_ch0, ..., tJ_chK]`,
+   * i.e. a contiguous 2D array of shape `[numSamples, numChannels]`.
+   *
+   * @note All channels must be at the same sample offset when this method is
+   * called, i.e. every channel must have the same number of samples already
+   * recorded. This condition is automatically satisfied when only
+   * `writeAllChannels` (and not `writeChannel`) is used for writing. Mixing
+   * `writeChannel` calls for a subset of channels with `writeAllChannels` will
+   * violate this requirement and result in a failure status.
+   *
+   * @param numSamples The number of time samples (rows) to write.
+   * @param dataInput Pointer to the interleaved data buffer with shape
+   *                  `[numSamples, numChannels]`.
+   * @param timestampsInput A pointer to the timestamps array of length
+   *                        `numSamples`. This pointer must be non-null when
+   *                        this ElectricalSeries is configured to use explicit
+   *                        timestamps. When the series instead uses implicit
+   *                        time via `starting_time` together with a
+   *                        `rate`/`sampling_rate`, this parameter should be
+   *                        `nullptr` (or omitted) and no timestamps are
+   *                        written.
+   * @param controlInput A pointer to the control array of length `numSamples`
+   *                     (optional). Required when control data is used in the
+   *                     TimeSeries configuration.
+   * @return The status of the write operation. Returns `Status::Failure` if
+   *         the channels are at different sample offsets.
+   */
+  Status writeAllChannels(const SizeType& numSamples,
+                          const void* dataInput,
+                          const void* timestampsInput = nullptr,
+                          const void* controlInput = nullptr);
+
+  /**
+   * @brief Checks if all channels are at the same sample offset, i.e. if every
+   * channel has the same number of samples recorded.
+   * @return True if all channels are at the same sample offset, false
+   * otherwise.
+   */
+  bool channelsAtSameSampleOffset() const;
+
+  /**
    * @brief Channel group that this time series is associated with.
    */
   Types::ChannelVector m_channelVector;
 
-  /**
-   * @brief Pointer to channel-specific conversion factor dataset.
-   */
-  std::unique_ptr<IO::BaseRecordingData> m_channelConversion;
+  DEFINE_DATASET_FIELD(readChannelConversion,
+                       recordChannelConversion,
+                       float,
+                       "channel_conversion",
+                       Channel - specific conversion factor)
 
-  /**
-   * @brief Pointer to electrodes dataset.
-   */
-  std::unique_ptr<IO::BaseRecordingData> m_electrodesDataset;
+  DEFINE_DATASET_FIELD(
+      readData, recordData, float, "data", Recorded voltage data)
 
-  DEFINE_FIELD(readChannelConversion,
-               AttributeField,
-               float,
-               "data/channel_conversion",
-               Channel - specific conversion factor)
+  DEFINE_ATTRIBUTE_FIELD(readDataUnit,
+                        std::string,
+                        "data/unit",
+                        Base unit of measurement for working with the data. 
+                        This value is fixed to volts)
 
-  DEFINE_FIELD(readData, DatasetField, float, "data", Recorded voltage data)
-
-  DEFINE_FIELD(readDataUnit,
-               AttributeField,
-               std::string,
-               "data/unit",
-               Base unit of measurement for working with the data. 
-               This value is fixed to volts)
-
-  DEFINE_FIELD(
+  DEFINE_DATASET_FIELD(
       readElectrodes,
-      DatasetField,
+      recordElectrodes,
       int,
       "electrodes",
       The indices of the electrodes that generated this electrical series.)
 
-  DEFINE_FIELD(readElectrodesDescription,
-               AttributeField,
-               std::string,
-               "electrodes/description",
-               The electrodes that generated this electrical series.)
+  DEFINE_ATTRIBUTE_FIELD(readElectrodesDescription,
+                         std::string,
+                         "electrodes/description",
+                         The electrodes that generated this electrical series.)
 
   DEFINE_REFERENCED_REGISTERED_FIELD(
       readElectrodesTable,
-      ElectrodeTable,
+      ElectrodesTable,
       "electrodes/table",
       The electrodes table retrieved from the object referenced in the 
       `electrodes / table` attribute.)

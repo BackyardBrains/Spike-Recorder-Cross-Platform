@@ -18,12 +18,9 @@ A new Flutter FFI plugin project.
   # builds of apps using this FFI plugin. Podspec does not support relative
   # paths, so Classes contains a forwarder C file that relatively imports
   # `../src/*` and then this podspec's `source_files` path is set to `Classes/`.
-  s.source_files = 'Classes/src/**/*.{h,m,mm,c,cpp}'
-  s.exclude_files = 'Classes/src/io/hdf5/HDF5IO_stub.cpp'
-  
-  # Exclude boost headers from public headers to avoid conflicts
-  s.public_header_files = 'Classes/src/**/*.{h,hpp}'
-    
+  s.source_files = 'Classes/src/**/*.{h,m,mm,c,cpp,hpp}'
+  s.public_header_files = 'Classes/src/nwbfile_plugin.h'
+
   s.dependency 'Flutter'
   s.platform = :ios, '13.0'
 
@@ -31,11 +28,12 @@ A new Flutter FFI plugin project.
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'x86_64',
-    'HEADER_SEARCH_PATHS' => '$(inherited) $(PODS_TARGET_SRCROOT)/Classes $(PODS_TARGET_SRCROOT)/Classes/src $(PODS_TARGET_SRCROOT)/Classes/include $(PODS_TARGET_SRCROOT)/Classes/boost',
-    # 'HEADER_SEARCH_PATHS' => '$(inherited) $(POD_TARGET_SRCROOT)/Classes $(POD_TARGET_SRCROOT)/Classes/src $(POD_TARGET_SRCROOT)/Classes/boost $(POD_TARGET_SRCROOT)/Classes/include $(POD_TARGET_SRCROOT)/Classes /opt/homebrew/opt/boost/include $(POD_TARGET_SRCROOT)/Classes/boost',
-      
-    # 'LIBRARY_SEARCH_PATHS' => '$(inherited) $(PODS_TARGET_SRCROOT)/Classes/lib',
-    # 'OTHER_LDFLAGS' => '$(inherited) -lhdf5 -lz -lm',
+    'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) AQNWB_CXX_STANDARD=17',
+    'USE_HEADERMAP' => 'NO',
+    'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/Classes" "$(PODS_TARGET_SRCROOT)/Classes/src" "$(PODS_TARGET_SRCROOT)/Classes/include"',
+    'USER_HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/Classes/src" "$(PODS_TARGET_SRCROOT)/Classes/include"',
+    'OTHER_CFLAGS' => '$(inherited) -I"$(PODS_TARGET_SRCROOT)/Classes/src" -I"$(PODS_TARGET_SRCROOT)/Classes/include"',
+    'OTHER_CPLUSPLUSFLAGS' => '$(inherited) -I"$(PODS_TARGET_SRCROOT)/Classes/src" -I"$(PODS_TARGET_SRCROOT)/Classes/include"',
     'OTHER_LDFLAGS' => '$(inherited) -all_load',
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',
     'CLANG_CXX_LIBRARY' => 'libc++'

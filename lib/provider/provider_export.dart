@@ -11,3 +11,4 @@ export 'sample_rate_provider.dart';
 export 'channel_color_provider.dart';
 export 'channel_filter_provider.dart';
 export 'theme_mode_provider.dart';
+export 'spike_analysis_provider.dart';

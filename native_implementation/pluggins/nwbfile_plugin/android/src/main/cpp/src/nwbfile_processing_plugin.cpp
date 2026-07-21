@@ -1,115 +1,295 @@
 #include "nwbfile_processing_plugin.hpp"
+
+#include <H5Cpp.h>
+
+#include <algorithm>
+#include <cstdarg>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
-#include <cstdarg>
-#include <algorithm>
 
-#include "Utils.hpp"
 #include "Channel.hpp"
+#include "Utils.hpp"
+#include "io/BaseIO.hpp"
+#include "io/RecordingObjects.hpp"
+#include "io/nwbio_utils.hpp"
 #include "nwb/NWBFile.hpp"
-#include "nwb/misc/AnnotationSeries.hpp"
-#include "nwb/RecordingContainers.hpp"
 #include "nwb/device/Device.hpp"
 #include "nwb/ecephys/ElectricalSeries.hpp"
-#include <H5Cpp.h>
+#include "nwb/ecephys/SpikeEventSeries.hpp"
+#include "nwb/event/EventsTable.hpp"
+#include "nwb/hdmf/table/MeaningsTable.hpp"
+#include "nwb/hdmf/table/VectorData.hpp"
+#include "nwb/misc/AnnotationSeries.hpp"
 
-#include <string>
-#define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
-void file_log_nwbfile(const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-#ifdef __ANDROID__
-    // __android_log_vprint(ANDROID_LOG_VERBOSE, "ndk", fmt, args);
-#else
-    vprintf(fmt, args);
+#if defined(__ANDROID__)
+#include <android/log.h>
 #endif
-    va_end(args);
+
+void file_log_nwbfile(const char* fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+#ifdef __ANDROID__
+  __android_log_vprint(ANDROID_LOG_VERBOSE, "ndk", fmt, args);
+#else
+  vprintf(fmt, args);
+#endif
+  va_end(args);
 }
 
-// Global buffer to store NWB file data
+namespace {
+
+std::string resolveOutputPath(const char* path)
+{
+  namespace fs = std::filesystem;
+  if (path == nullptr || path[0] == '\0') {
+#if defined(__EMSCRIPTEN__)
+    return "/nwb/example_recording.nwb";
+#else
+    return "example_recording.nwb";
+#endif
+  }
+  fs::path input(path);
+  std::error_code ec;
+  if (fs::is_directory(input, ec) || !input.has_extension()) {
+    return (input / "example_recording.nwb").string();
+  }
+  return input.string();
+}
+
+void ensureParentDirectory(const std::string& filePath)
+{
+  namespace fs = std::filesystem;
+  const fs::path parent = fs::path(filePath).parent_path();
+  if (!parent.empty()) {
+    std::error_code ec;
+    fs::create_directories(parent, ec);
+  }
+}
+
+void listHDF5Contents(H5::H5File& file,
+                      const std::string& groupName = "/",
+                      int depth = 0)
+{
+  try {
+    std::string indent(depth * 2, ' ');
+    std::cout << indent << "Group: " << groupName << std::endl;
+
+    H5::Group group =
+        (groupName == "/") ? file.openGroup("/") : file.openGroup(groupName);
+    hsize_t numObjs = group.getNumObjs();
+
+    for (hsize_t i = 0; i < numObjs; i++) {
+      std::string objName = group.getObjnameByIdx(i);
+      H5G_obj_t objType = group.getObjTypeByIdx(i);
+      std::string fullPath =
+          (groupName == "/") ? "/" + objName : groupName + "/" + objName;
+
+      if (objType == H5G_GROUP) {
+        if (depth < 3) {
+          listHDF5Contents(file, fullPath, depth + 1);
+        } else {
+          std::cout << indent << "  " << objName << " (group, not expanded)"
+                    << std::endl;
+        }
+      } else if (objType == H5G_DATASET) {
+        try {
+          H5::DataSet dataset = file.openDataSet(fullPath);
+          H5::DataSpace dataspace = dataset.getSpace();
+          int rank = dataspace.getSimpleExtentNdims();
+          std::vector<hsize_t> dims(rank);
+          dataspace.getSimpleExtentDims(dims.data(), nullptr);
+          std::cout << indent << "  " << objName << " (dataset, dims: ";
+          for (int j = 0; j < rank; j++) {
+            std::cout << dims[j];
+            if (j < rank - 1) std::cout << "x";
+          }
+          std::cout << ")" << std::endl;
+        } catch (const H5::Exception&) {
+          std::cout << indent << "  " << objName << " (dataset)" << std::endl;
+        }
+      }
+    }
+  } catch (const H5::Exception& e) {
+    std::cout << "  Error listing " << groupName << ": " << e.getDetailMsg()
+              << std::endl;
+  }
+}
+
+}  // namespace
+
 std::vector<uint8_t> g_nwb_file_data;
 bool g_nwb_file_ready = false;
 
-// Helper function to recursively list HDF5 groups and datasets
-void listHDF5Contents(H5::H5File& file, const std::string& groupName = "/", int depth = 0) {
-    try {
-        std::string indent(depth * 2, ' ');
-        std::cout << indent << "📁 Group: " << groupName << std::endl;
-        
-        H5::Group group = (groupName == "/") ? file.openGroup("/") : file.openGroup(groupName);
-        hsize_t numObjs = group.getNumObjs();
-        
-        for (hsize_t i = 0; i < numObjs; i++) {
-            std::string objName = group.getObjnameByIdx(i);
-            H5G_obj_t objType = group.getObjTypeByIdx(i);
-            std::string fullPath = (groupName == "/") ? "/" + objName : groupName + "/" + objName;
-            
-            if (objType == H5G_GROUP) {
-                if (depth < 3) {  // Limit recursion depth
-                    listHDF5Contents(file, fullPath, depth + 1);
-                } else {
-                    std::cout << indent << "  📁 " << objName << " (group, not expanded)" << std::endl;
-                }
-            } else if (objType == H5G_DATASET) {
-                try {
-                    H5::DataSet dataset = file.openDataSet(fullPath);
-                    H5::DataSpace dataspace = dataset.getSpace();
-                    int rank = dataspace.getSimpleExtentNdims();
-                    std::vector<hsize_t> dims(rank);
-                    dataspace.getSimpleExtentDims(dims.data(), nullptr);
-                    
-                    std::cout << indent << "  📊 " << objName << " (dataset, dims: ";
-                    for (int j = 0; j < rank; j++) {
-                        std::cout << dims[j];
-                        if (j < rank - 1) std::cout << "×";
-                    }
-                    std::cout << ")" << std::endl;
-                } catch (const H5::Exception& e) {
-                    std::cout << indent << "  📊 " << objName << " (dataset, could not read dimensions)" << std::endl;
-                }
-            }
-        }
-    } catch (const H5::Exception& e) {
-        std::cout << "  ❌ Error listing contents of " << groupName << ": " << e.getDetailMsg() << std::endl;
-    }
-}
-inline std::vector<AQNWB::Types::ChannelVector> getMockChannelArrays(
-    SizeType numChannels = 2,
-    SizeType numArrays = 2,
-    std::string groupName = "array")
+// Persistent recording session state (Spike-Recorder style)
+std::shared_ptr<AQNWB::IO::BaseIO> g_io;
+std::shared_ptr<AQNWB::NWB::NWBFile> g_nwbfile;
+std::shared_ptr<AQNWB::IO::RecordingObjects> g_recordingObjects;
+std::vector<AQNWB::Types::ChannelVector> g_recordingArrays;
+std::vector<AQNWB::Types::SizeType> g_containerIndexes;
+std::vector<int32_t> g_spikeContainerIndexes;
+std::vector<int32_t> g_spikeEventCounts;
+bool g_recordingStarted = false;
+std::string g_outputPath;
+AQNWB::Types::SizeType g_numSamplesCounter = 0;
+
+// EventsTable session state (row-based acquisition)
+std::shared_ptr<AQNWB::NWB::EventsTable> g_eventsTable;
+std::shared_ptr<AQNWB::NWB::MeaningsTable> g_eventMeaningsTable;
+AQNWB::Types::SizeType g_eventRowCount = 0;
+float g_eventTimestampResolution = 0.001f;
+
+// Snapshot of EventsTable rows loaded from a file during seek/open.
+// Used for review/playback because nwbfile_seek_electrical_series always
+// closes its temporary AQNWB IO handle at the end of the call, and
+// RegisteredType only holds a weak_ptr to that IO — so keeping a live
+// EventsTable across seek would crash on the next nwbfile_read_event.
+struct CachedNwbEvent {
+  float timestampSeconds;
+  int32_t eventLabel;
+  uint8_t deleted;
+};
+std::vector<CachedNwbEvent> g_cachedEvents;
+
+// In-session cache for event_type MeaningsTable (source of truth for reads).
+struct CachedMeaning {
+  int32_t value;
+  std::string meaning;
+};
+std::vector<CachedMeaning> g_cachedMeanings;
+
+namespace {
+
+bool copyCString(char* out, int32_t capacity, const std::string& src)
 {
-  std::vector<AQNWB::Types::ChannelVector> arrays(numArrays);
-  for (SizeType i = 0; i < numArrays; i++) {
-    std::vector<AQNWB::Channel> chGroup;
-    for (SizeType j = 0; j < numChannels; j++) {
-      AQNWB::Channel ch("ch" + std::to_string(j),
-                 groupName + std::to_string(i),
-                 i,
-                 j,
-                 i * numArrays + j);
-      chGroup.push_back(ch);
-    }
-    arrays[i] = chGroup;
+  if (out == nullptr || capacity <= 0) {
+    return false;
   }
-  return arrays;
+  const size_t maxCopy = static_cast<size_t>(capacity - 1);
+  const size_t n = std::min(src.size(), maxCopy);
+  if (n > 0) {
+    std::memcpy(out, src.data(), n);
+  }
+  out[n] = '\0';
+  return true;
 }
 
-// A very short-lived native function.
-//
-// For very short-lived functions, it is fine to call them on the main isolate.
-// They will block the Dart execution while running the native function, so
-// only do this for native functions which are guaranteed to be short-lived.
+// writeDataBlock always advances the append cursor; restore it after mid-row
+// overwrites so subsequent addRow appends stay contiguous.
+AQNWB::Types::Status overwriteEventCell(
+    const std::shared_ptr<AQNWB::IO::BaseRecordingData>& recordData,
+    AQNWB::Types::SizeType rowIndex,
+    const AQNWB::IO::BaseDataType& type,
+    const void* data)
+{
+  if (!recordData) {
+    return AQNWB::Types::Status::Failure;
+  }
+  auto& position =
+      const_cast<AQNWB::Types::SizeArray&>(recordData->getPosition());
+  const AQNWB::Types::SizeType savedPosition =
+      position.empty() ? 0 : position[0];
+  auto status = recordData->writeDataBlock(
+      AQNWB::Types::SizeArray {1},
+      AQNWB::Types::SizeArray {rowIndex},
+      type,
+      data);
+  if (!position.empty()) {
+    position[0] = savedPosition;
+  }
+  return status;
+}
+
+AQNWB::Types::Status overwriteMeaningString(
+    const std::shared_ptr<AQNWB::IO::BaseRecordingData>& recordData,
+    AQNWB::Types::SizeType rowIndex,
+    const std::string& meaning)
+{
+  if (!recordData) {
+    return AQNWB::Types::Status::Failure;
+  }
+  auto& position =
+      const_cast<AQNWB::Types::SizeArray&>(recordData->getPosition());
+  const AQNWB::Types::SizeType savedPosition =
+      position.empty() ? 0 : position[0];
+  std::vector<std::string> values {meaning};
+  auto status = recordData->writeDataBlock(
+      AQNWB::Types::SizeArray {1},
+      AQNWB::Types::SizeArray {rowIndex},
+      AQNWB::IO::BaseDataType::V_STR,
+      values);
+  if (!position.empty()) {
+    position[0] = savedPosition;
+  }
+  return status;
+}
+
+void resetEventsSessionState()
+{
+  g_eventsTable.reset();
+  g_eventMeaningsTable.reset();
+  g_eventRowCount = 0;
+  g_cachedEvents.clear();
+  g_cachedMeanings.clear();
+}
+
+void resetSpikeSessionState()
+{
+  g_spikeContainerIndexes.clear();
+  g_spikeEventCounts.clear();
+  g_recordingStarted = false;
+}
+
+AQNWB::Types::Status ensureRecordingStarted()
+{
+  if (g_recordingStarted) {
+    return AQNWB::Types::Status::Success;
+  }
+  if (!g_io) {
+    return AQNWB::Types::Status::Failure;
+  }
+
+  auto startRecordingStatus = g_io->startRecording();
+  if (startRecordingStatus != AQNWB::Types::Status::Success) {
+    std::cerr << "Failed to start recording" << std::endl;
+    return startRecordingStatus;
+  }
+
+  if (g_eventMeaningsTable) {
+    std::vector<AQNWB::NWB::DynamicTable::RowData> meaningsRows;
+    meaningsRows.reserve(10);
+    g_cachedMeanings.clear();
+    g_cachedMeanings.reserve(10);
+    for (int32_t label = 0; label <= 9; ++label) {
+      const std::string meaning =
+          std::string("event_") + std::to_string(label);
+      meaningsRows.push_back({{"value", label}, {"meaning", meaning}});
+      g_cachedMeanings.push_back({label, meaning});
+    }
+    auto meaningsStatus = g_eventMeaningsTable->addRows(meaningsRows);
+    if (meaningsStatus != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to write event_type meanings" << std::endl;
+      return meaningsStatus;
+    }
+  }
+
+  g_recordingStarted = true;
+  std::cout << "START RECORDING" << std::endl;
+  return AQNWB::Types::Status::Success;
+}
+
+}  // namespace
+
 FFI_PLUGIN_EXPORT int sum(int a, int b) { return a + b; }
 
-// A longer-lived native function, which occupies the thread calling it.
-//
-// Do not call these kind of native functions in the main isolate. They will
-// block Dart execution. This will cause dropped frames in Flutter applications.
-// Instead, call these native functions on a separate isolate.
-FFI_PLUGIN_EXPORT int sum_long_running(int a, int b) {
-  // Simulate work.
+FFI_PLUGIN_EXPORT int sum_long_running(int a, int b)
+{
 #if _WIN32
   Sleep(5000);
 #else
@@ -118,334 +298,736 @@ FFI_PLUGIN_EXPORT int sum_long_running(int a, int b) {
   return a + b;
 }
 
-// Processing initialization function
-std::shared_ptr<AQNWB::IO::BaseIO> io;
-std::unique_ptr<AQNWB::NWB::NWBFile> nwbfile;
-std::unique_ptr<AQNWB::NWB::RecordingContainers> recordingContainers;
-std::vector<AQNWB::Types::ChannelVector> recordingArrays;
-std::vector<AQNWB::Types::SizeType> containerIndexes;
-std::string outputPath;
+FFI_PLUGIN_EXPORT int32_t processing_init(const char* path,
+                                          int sampleRate,
+                                          int channelCount,
+                                          const char* deviceInfo,
+                                          const char* deviceManufacturer)
+{
+  try {
+    H5::Exception::dontPrint();
+    std::cout << "AQNWB 0.4.0 Recording Workflow" << std::endl;
+    std::cout << "SampleRate: " << sampleRate
+              << " ChannelCount: " << channelCount << std::endl;
 
-FFI_PLUGIN_EXPORT int32_t processing_init(const char* path, int sampleRate, int channelCount, const char* deviceInfo, const char* deviceManufacturer) {
-    try {
-        H5::Exception::dontPrint();
-        std::cout << "AQNWB Recording Workflow Example" << std::endl;
-        std::cout << "================================" << std::endl;
-    
-        // 1) Create the I/O object
-        // Use the dynamic path parameter and ensure it has proper filename
-        outputPath = std::string(path);
-        // if (outputPath.back() != '/') {
-        //     outputPath += "/";
-        // }
-        // outputPath += "example_recording_multiple_channels.nwb";
-        std::cout << "Creating NWB file at: " << outputPath << std::endl;
-        
-        // Ensure the directory exists
-        std::filesystem::path dirPath = std::filesystem::path(outputPath).parent_path();
-        if (!std::filesystem::exists(dirPath)) {
-            std::cout << "Creating directory: " << dirPath << std::endl;
-            std::filesystem::create_directories(dirPath);
-        }
-        
-        io = AQNWB::createIO("HDF5", outputPath);
-        auto openStatus = io->open(AQNWB::IO::FileMode::Overwrite);
-        
-        if (openStatus != AQNWB::Types::Success) {
-            std::cerr << "Failed to open IO" << std::endl;
-            return 1;
-        }
+    g_outputPath = resolveOutputPath(path);
+    ensureParentDirectory(g_outputPath);
+    g_numSamplesCounter = 0;
+    g_containerIndexes.clear();
+    g_recordingArrays.clear();
+    resetEventsSessionState();
+    resetSpikeSessionState();
+    g_nwb_file_ready = false;
+    g_nwb_file_data.clear();
 
-        // 2) Create the RecordingContainers object
-        recordingContainers = std::make_unique<AQNWB::NWB::RecordingContainers>();
-    
-        // 3) Create and initialize the NWBFile
-        nwbfile = std::make_unique<AQNWB::NWB::NWBFile>(io);
-        auto initStatus = nwbfile->initialize(AQNWB::generateUuid(),
-                                                "Example ecephys session",
-                                                "Generated by AqNWB example");
-        if (initStatus != AQNWB::Types::Success) {
-            std::cerr << "Failed to initialize NWB file" << std::endl;
-            return 1;
-        }
+    std::cout << "Output NWB file: " << g_outputPath << std::endl;
 
-        // 3.5) Add device information (AFTER NWBFile initialization)
-        std::cout << "Adding device information..." << std::endl;
-        std::unique_ptr<AQNWB::NWB::Device> device = 
-            std::make_unique<AQNWB::NWB::Device>("/general/devices/recording_device", io);
-        
-        // Initialize the device with description and manufacturer
-        device->initialize(deviceInfo, deviceManufacturer);
-        
-        std::cout << "Device information added successfully" << std::endl;
-        std::cout << "Init Status: " << initStatus << "  " << channelCount << std::endl;
+    g_io = AQNWB::createIO("HDF5", g_outputPath);
+    auto openStatus = g_io->open(AQNWB::IO::FileMode::Overwrite);
+    if (openStatus != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to open IO" << std::endl;
+      return 1;
+    }
 
-        // 4) Create recording metadata (ElectrodesTable)
-        // Build a mock recording array: one array with 4 channels
-        // recordingArrays.clear();
-        std::vector<AQNWB::Types::ChannelVector> tempRecordingArrays;
-        {
-            AQNWB::Types::ChannelVector array1;
-            const std::string groupName = "Array1";
-            const AQNWB::Types::SizeType groupIndex = 0;
-            for (AQNWB::Types::SizeType ch = 0; ch < channelCount; ++ch) {
-                // name, groupName, groupIndex, localIndex, globalIndex, conversion, samplingRate, bitVolts
-                array1.emplace_back(
-                    "chan_" + std::to_string(ch),
-                    groupName,
-                    groupIndex,
-                    ch,               // local index within array
-                    ch,               // global index across system (mock)
-                    1e6f,             // convert uV->V (correct conversion factor)
-                    static_cast<float>(sampleRate),  // sampling rate
-                    0.195f            // bitVolts (correct bit volts)
-                );
-            }
-            tempRecordingArrays.emplace_back(std::move(array1));
-        }
-        recordingArrays = tempRecordingArrays;
-        // Convert deviceInfo and deviceManufacturer to std::string for createElectrodesTable
-        std::string deviceInfoStr = (deviceInfo != nullptr) ? std::string(deviceInfo) : "";
-        std::string deviceManufacturerStr = (deviceManufacturer != nullptr) ? std::string(deviceManufacturer) : "";
-        auto elecTableStatus = nwbfile->createElectrodesTable(recordingArrays, deviceInfoStr, deviceManufacturerStr);
-        if (elecTableStatus != AQNWB::Types::Success) {
-            std::cerr << "Failed to create electrodes table" << std::endl;
-            return 1;
-        }
-    
-        std::cout << "Recording arrays & table created: " << channelCount << std::endl;
-        std::vector<std::string> recordingNames = {"ElectricalSeries1"};
-        
-        // Create ONE ElectricalSeries for all channels (not one per channel)
-        auto elecSeriesStatus = nwbfile->createElectricalSeries(
-            recordingArrays,
-            recordingNames,
-            AQNWB::IO::BaseDataType::I16,
-            recordingContainers.get(),
-            containerIndexes);
-        if (elecSeriesStatus != AQNWB::Types::Success) {
-            std::cerr << "Failed to create ElectricalSeries" << std::endl;
-            return 1;
-        }
-    
-        std::cout << "START RECORDING" << 111.0 << std::endl;
+    g_recordingObjects = g_io->getRecordingObjects();
+    g_nwbfile = AQNWB::NWB::NWBFile::create(g_io);
+    auto initStatus = g_nwbfile->initialize(
+        AQNWB::generateUuid(),
+        "Example ecephys session",
+        "Generated by AqNWB 0.4.0 / Spike-Recorder workflow");
+    if (initStatus != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to initialize NWB file" << std::endl;
+      return 1;
+    }
 
-        auto startRecordingStatus = io->startRecording();
-        if (startRecordingStatus != AQNWB::Types::Success) {
-            std::cerr << "Failed to start recording" << std::endl;
-            return 1;
-        }
-    
+    const std::string deviceInfoStr =
+        (deviceInfo != nullptr) ? std::string(deviceInfo) : "";
+    const std::string deviceManufacturerStr =
+        (deviceManufacturer != nullptr) ? std::string(deviceManufacturer) : "";
 
-        return 0;
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
-    }    
+    auto device = AQNWB::NWB::Device::create(
+        "/general/devices/recording_device", g_io);
+    if (device == nullptr
+        || device->initialize(deviceInfoStr, deviceManufacturerStr)
+            != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to initialize Device" << std::endl;
+      return 1;
+    }
+    std::cout << "Device: " << deviceInfoStr << " / " << deviceManufacturerStr
+              << std::endl;
+
+    {
+      AQNWB::Types::ChannelVector array1;
+      const std::string groupName = "Array1";
+      for (int ch = 0; ch < channelCount; ++ch) {
+        array1.emplace_back("chan_" + std::to_string(ch),
+                            groupName,
+                            /*groupIndex=*/0,
+                            /*localIndex=*/ch,
+                            /*globalIndex=*/ch,
+                            1e6f,
+                            static_cast<float>(sampleRate),
+                            0.195f);
+      }
+      g_recordingArrays.emplace_back(std::move(array1));
+    }
+
+    g_spikeContainerIndexes.assign(channelCount, -1);
+    g_spikeEventCounts.assign(channelCount, 0);
+
+    auto electrodesTable =
+        g_nwbfile->createElectrodesTable(g_recordingArrays, true, 50);
+    if (electrodesTable == nullptr) {
+      std::cerr << "Failed to create electrodes table" << std::endl;
+      return 1;
+    }
+
+    std::vector<std::string> recordingNames = {"ElectricalSeries1"};
+    auto elecSeriesStatus = g_nwbfile->createElectricalSeries(
+        g_recordingArrays,
+        recordingNames,
+        AQNWB::IO::BaseDataType::I16,
+        g_containerIndexes);
+    if (elecSeriesStatus != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to create ElectricalSeries" << std::endl;
+      return 1;
+    }
+
+    // EventsTable must be created before startRecording() (SWMR).
+    // Schema follows AqNWB row-based EventsTable + MeaningsTable workflow:
+    // timestamp + event_type (+ soft-delete flag for update/delete while appending).
+    g_eventTimestampResolution =
+        sampleRate > 0 ? (1.0f / static_cast<float>(sampleRate)) : 0.001f;
+    auto eventColumnSpecs = AQNWB::NWB::EventsTable::createDefaultDataSpecs(
+        g_eventTimestampResolution,
+        -1.0f,  // omit duration
+        false,  // no annotation column
+        100);
+    AQNWB::IO::ArrayDataSetConfig eventTypeConfig(AQNWB::IO::BaseDataType::I32,
+                                                  AQNWB::Types::SizeArray {0},
+                                                  AQNWB::Types::SizeArray {100});
+    eventColumnSpecs.push_back(AQNWB::NWB::VectorData::createDataSpec(
+        "event_type",
+        eventTypeConfig,
+        "Integer code identifying the Spike-Recorder event marker label."));
+    AQNWB::IO::ArrayDataSetConfig deletedConfig(AQNWB::IO::BaseDataType::U8,
+                                                AQNWB::Types::SizeArray {0},
+                                                AQNWB::Types::SizeArray {100});
+    eventColumnSpecs.push_back(AQNWB::NWB::VectorData::createDataSpec(
+        "deleted",
+        deletedConfig,
+        "Soft-delete flag: 0 = active event, 1 = deleted."));
+
+    g_eventsTable = g_nwbfile->createEventsTable(
+        "markers",
+        "Spike-Recorder keyboard / marker events.",
+        "Manual event markers entered during acquisition",
+        eventColumnSpecs);
+    if (!g_eventsTable) {
+      std::cerr << "Failed to create EventsTable" << std::endl;
+      return 1;
+    }
+
+    g_eventMeaningsTable = g_eventsTable->createMeaningsTable("event_type");
+    if (!g_eventMeaningsTable) {
+      std::cerr << "Failed to create event_type MeaningsTable" << std::endl;
+      return 1;
+    }
+
+    std::cout << "NWB session ready (call nwbfile_create_spike_event_series "
+                 "before first data write)" << std::endl;
+    return 0;
+  } catch (const H5::Exception& e) {
+    std::cerr << "HDF5 error in processing_init: " << e.getDetailMsg()
+              << std::endl;
+    return 1;
+  } catch (const std::exception& e) {
+    std::cerr << "Error in processing_init: " << e.what() << std::endl;
+    return 1;
+  } catch (...) {
+    std::cerr << "Unknown error in processing_init" << std::endl;
+    return 1;
+  }
+}
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples,
+                                                        int* samplesCount,
+                                                        int selectedChannel,
+                                                        int channelCount,
+                                                        int isFinishRecording)
+{
+  (void)selectedChannel;
+  if (!inSamples || !samplesCount || channelCount <= 0) {
+    std::cerr << "Invalid input parameters" << std::endl;
     return -1;
-}
+  }
+  if (!g_io || !g_recordingObjects || g_containerIndexes.empty()
+      || g_recordingArrays.empty()) {
+    std::cerr << "Recording session not initialized" << std::endl;
+    return -1;
+  }
 
-int mutliplier = 0;
-int numSamplesCounter = 0;
-FFI_PLUGIN_EXPORT int32_t nwbfile_add_electrical_series(short* inSamples, int* samplesCount, int selectedChannel, int channelCount, int isFinishRecording) {
-    // std::cout << "AQNWB nwbfile_add_electrical_series" << std::endl;
-    
-    // Validate input parameters
-    if (!inSamples || !samplesCount || channelCount <= 0) {
-        std::cerr << "Invalid input parameters" << std::endl;
-        return -1;
+  if (ensureRecordingStarted() != AQNWB::Types::Status::Success) {
+    return -1;
+  }
+
+  for (int i = 0; i < channelCount; i++) {
+    if (samplesCount[i] <= 0) {
+      std::cerr << "Invalid sample count for channel " << i << std::endl;
+      return -1;
     }
-    
-    // Validate sample counts to prevent buffer overruns
+  }
+
+  short** arrSamples = nullptr;
+  try {
+    arrSamples = new short*[channelCount];
     for (int i = 0; i < channelCount; i++) {
-        if (samplesCount[i] <= 0) {
-            std::cerr << "Invalid sample count for channel " << i << ": " << samplesCount[i] << std::endl;
-            return -1;
-        }
+      arrSamples[i] = nullptr;
     }
-    
-    short** arrSamples = nullptr;
-    try {
-        // Allocate memory for channel pointers
-        arrSamples = new short*[channelCount];
-        
-        // Initialize all pointers to nullptr for safe cleanup
-        for (int i = 0; i < channelCount; i++) {
-            arrSamples[i] = nullptr;
-        }
-        
-        // Allocate memory for each channel
-        for (int i = 0; i < channelCount; i++) {
-            try {
-                arrSamples[i] = new short[samplesCount[i]];
-                std::copy(inSamples + i * samplesCount[i], inSamples + (i + 1) * samplesCount[i], arrSamples[i]);
-            } catch (const std::bad_alloc& e) {
-                std::cerr << "Memory allocation failed for channel " << i << ": " << e.what() << std::endl;
-                // Clean up already allocated memory
-                for (int j = 0; j < i; j++) {
-                    delete[] arrSamples[j];
-                }
-                delete[] arrSamples;
-                return -1;
-            }
-        }
+    for (int i = 0; i < channelCount; i++) {
+      arrSamples[i] = new short[samplesCount[i]];
+      std::copy(inSamples + i * samplesCount[i],
+                inSamples + (i + 1) * samplesCount[i],
+                arrSamples[i]);
+    }
 
-    // auto elecTableStatus = nwbfile->createElectrodesTable(recordingArrays);
-    // if (elecTableStatus != AQNWB::Types::Success) {
-    //     std::cerr << "Failed to create electrodes table" << std::endl;
-    //     return 1;
-    // }
-    // std::cout << "AQNWB createdElectrodesTable" << std::endl;
+    const AQNWB::Types::SizeType containerIndex = g_containerIndexes.at(0);
+    const auto& channels = g_recordingArrays[0];
+    const AQNWB::Types::SizeType numSamples =
+        static_cast<AQNWB::Types::SizeType>(samplesCount[0]);
 
-    
-    // 6) Start the recording
-    // file_log_nwbfile("START RECORDING: %f", 111.0);
+    const AQNWB::Types::SizeType startSample = g_numSamplesCounter;
+    g_numSamplesCounter += numSamples;
 
-    // 7) Write data
-    // Simulate writing a short block of data for each channel in the first ElectricalSeries
-    const AQNWB::Types::SizeType containerIndex = containerIndexes.at(0);
-    const auto& channels = recordingArrays[0];
-    // const AQNWB::Types::SizeType numSamples = 1000; // samples per write
-    const AQNWB::Types::SizeType numSamples = samplesCount[0]; // samples per write
-
-    // std::cout << "AQNWB NUM SAMPLES " << samplesCount[0] << std::endl;
-    // timestamps at 30 kHz
-    std::vector<double> timestamps(numSamples );
-    const double samplingRate = static_cast<double>(channels[0].getSamplingRate());
+    std::vector<double> timestamps(numSamples);
+    const double samplingRate =
+        static_cast<double>(channels[0].getSamplingRate());
     const double dt = 1.0 / samplingRate;
-    // mutliplier = 0;
-    numSamplesCounter += numSamples;
-    mutliplier = numSamplesCounter / samplingRate;
     for (AQNWB::Types::SizeType i = 0; i < numSamples; ++i) {
-        timestamps[i] = (numSamplesCounter + i) * dt;
+      timestamps[i] = static_cast<double>(startSample + i) * dt;
     }
-    // file_log_nwbfile("timestamps: %f", timestamps[0]);
-    // std::cout << "TIMESTAMPS " << timestamps[0] << std::endl;
-    // std::cout << "TIMESTAMPS " << timestamps[1] << std::endl;
 
-        // Write data per-channel (original approach)
-        int channelIndex = 0;
-        for (const auto& ch : channels) {
-            auto writeStatus = recordingContainers->writeElectricalSeriesData(
-                containerIndex,
-                ch,
-                samplesCount[channelIndex],
-                static_cast<const void*>(arrSamples[channelIndex]),
-                static_cast<const void*>(timestamps.data()));
-
-            if (writeStatus != AQNWB::Types::Success) {
-                std::cout << "WRITE ERROR " << samplesCount[channelIndex] << " CHANNEL: " << channelIndex << std::endl;
-                std::cerr << "Failed to write data for channel " << ch.getName() << writeStatus << std::endl;
-                // Clean up memory before returning
-                if (arrSamples != nullptr) {
-                    for (int i = 0; i < channelCount; i++) {
-                        if (arrSamples[i] != nullptr) {
-                            delete[] arrSamples[i];
-                        }
-                    }
-                    delete[] arrSamples;
-                }
-                return 1;
-            }
-            channelIndex++;        
-        }
-
-        // Ensure data is flushed to disk
-        auto flushStatus = io->flush();
-        if (flushStatus != AQNWB::Types::Success) {
-            std::cerr << "Flush failed" << std::endl;
-            // Clean up memory before returning
-            if (arrSamples != nullptr) {
-                for (int i = 0; i < channelCount; i++) {
-                    if (arrSamples[i] != nullptr) {
-                        delete[] arrSamples[i];
-                    }
-                }
-                delete[] arrSamples;
-            }
-            return 1;
-        }
-
-        if (isFinishRecording == 1) {
-        // 8) Stop recording and finalize the file
-            auto stopRecordingStatus = io->stopRecording();
-            if (stopRecordingStatus != AQNWB::Types::Success) {
-                std::cerr << "Failed to stop recording" << std::endl;
-                return 1;
-            }
-        
-            auto finalizeStatus = nwbfile->finalize();
-            if (finalizeStatus != AQNWB::Types::Success) {
-                std::cerr << "Failed to finalize NWB file" << std::endl;
-                return 1;
-            }
-        
-            std::cout << "Successfully wrote example recording to: " << outputPath << std::endl;
-    
-            // Clean up memory
-            if (arrSamples != nullptr) {
-                for (int i = 0; i < channelCount; i++) {
-                    if (arrSamples[i] != nullptr) {
-                        delete[] arrSamples[i];
-                    }
-                }
-                delete[] arrSamples;
-            }
-        
-            // Close IO after finalization (matching reference order)
-            auto closeStatus = io->close();
-            if (closeStatus != AQNWB::Types::Success) {
-                std::cerr << "Failed to close IO" << std::endl;
-                return 1;
-            }
-            std::cout << "\n=== IO CLOSED ===" << std::endl;
-
-        } else {
-            // Clean up memory for non-finishing calls
-            if (arrSamples != nullptr) {
-                for (int i = 0; i < channelCount; i++) {
-                    if (arrSamples[i] != nullptr) {
-                        delete[] arrSamples[i];
-                    }
-                }
-                delete[] arrSamples;
-            }
-        }
-        
-    } catch (const std::exception& e) {
-        std::cerr << "Error in nwbfile_add_electrical_series: " << e.what() << std::endl;
-        // Clean up memory in case of exception
-        if (arrSamples != nullptr) {
-            for (int i = 0; i < channelCount; i++) {
-                if (arrSamples[i] != nullptr) {
-                    delete[] arrSamples[i];
-                }
-            }
-            delete[] arrSamples;
-        }
+    int channelIndex = 0;
+    for (const auto& ch : channels) {
+      if (channelIndex >= channelCount) break;
+      auto writeStatus = AQNWB::IO::writeElectricalSeriesData(
+          g_recordingObjects,
+          containerIndex,
+          ch,
+          static_cast<AQNWB::Types::SizeType>(samplesCount[channelIndex]),
+          static_cast<const void*>(arrSamples[channelIndex]),
+          static_cast<const void*>(timestamps.data()));
+      if (writeStatus != AQNWB::Types::Status::Success) {
+        std::cerr << "Failed to write channel " << ch.getName() << std::endl;
+        for (int i = 0; i < channelCount; i++) delete[] arrSamples[i];
+        delete[] arrSamples;
         return 1;
-    } catch (...) {
-        std::cerr << "Unknown error in nwbfile_add_electrical_series" << std::endl;
-        // Clean up memory in case of unknown exception
-        if (arrSamples != nullptr) {
-            for (int i = 0; i < channelCount; i++) {
-                if (arrSamples[i] != nullptr) {
-                    delete[] arrSamples[i];
-                }
-            }
-            delete[] arrSamples;
-        }
-        return 1;
+      }
+      channelIndex++;
     }
-    
-    return 0; // Success
+
+    if (g_io->flush() != AQNWB::Types::Status::Success) {
+      std::cerr << "Flush failed" << std::endl;
+      for (int i = 0; i < channelCount; i++) delete[] arrSamples[i];
+      delete[] arrSamples;
+      return 1;
+    }
+
+    if (isFinishRecording == 1) {
+      if (g_io->stopRecording() != AQNWB::Types::Status::Success) {
+        std::cerr << "Failed to stop recording" << std::endl;
+        for (int i = 0; i < channelCount; i++) delete[] arrSamples[i];
+        delete[] arrSamples;
+        return 1;
+      }
+      std::cout << "Successfully wrote recording to: " << g_outputPath
+                << std::endl;
+      if (g_io->close() != AQNWB::Types::Status::Success) {
+        std::cerr << "Failed to close IO" << std::endl;
+        for (int i = 0; i < channelCount; i++) delete[] arrSamples[i];
+        delete[] arrSamples;
+        return 1;
+      }
+      g_io.reset();
+      g_nwbfile.reset();
+      g_recordingObjects.reset();
+      resetEventsSessionState();
+      resetSpikeSessionState();
+      std::cout << "IO CLOSED" << std::endl;
+    }
+
+    for (int i = 0; i < channelCount; i++) delete[] arrSamples[i];
+    delete[] arrSamples;
+    return 0;
+  } catch (const H5::Exception& e) {
+    std::cerr << "HDF5 error in add: " << e.getDetailMsg() << std::endl;
+    if (arrSamples) {
+      for (int i = 0; i < channelCount; i++) delete[] arrSamples[i];
+      delete[] arrSamples;
+    }
+    return 1;
+  } catch (const std::exception& e) {
+    std::cerr << "Error in nwbfile_add_electrical_series: " << e.what()
+              << std::endl;
+    if (arrSamples) {
+      for (int i = 0; i < channelCount; i++) delete[] arrSamples[i];
+      delete[] arrSamples;
+    }
+    return 1;
+  }
 }
 
+FFI_PLUGIN_EXPORT int32_t nwbfile_create_spike_event_series(int32_t channelIndex)
+{
+  if (!g_io || !g_nwbfile || g_recordingArrays.empty()) {
+    std::cerr << "Recording session not initialized" << std::endl;
+    return -1;
+  }
+  if (channelIndex < 0
+      || channelIndex >= static_cast<int32_t>(g_recordingArrays[0].size())) {
+    std::cerr << "Invalid channel index for SpikeEventSeries: " << channelIndex
+              << std::endl;
+    return -1;
+  }
+  if (g_recordingStarted) {
+    std::cerr << "Cannot create SpikeEventSeries after recording has started"
+              << std::endl;
+    return -1;
+  }
+  if (channelIndex < static_cast<int32_t>(g_spikeContainerIndexes.size())
+      && g_spikeContainerIndexes[static_cast<size_t>(channelIndex)] >= 0) {
+    return g_spikeContainerIndexes[static_cast<size_t>(channelIndex)];
+  }
+
+  try {
+    AQNWB::Types::ChannelVector singleChannel;
+    singleChannel.push_back(
+        g_recordingArrays[0][static_cast<size_t>(channelIndex)]);
+
+    std::vector<AQNWB::Types::ChannelVector> arrays = {singleChannel};
+    std::vector<std::string> names = {
+        "SpikeEventSeries_ch" + std::to_string(channelIndex)};
+    std::vector<AQNWB::Types::SizeType> containerIndexes;
+    auto status = g_nwbfile->createSpikeEventSeries(
+        arrays,
+        names,
+        AQNWB::IO::BaseDataType::F32,
+        containerIndexes);
+    if (status != AQNWB::Types::Status::Success || containerIndexes.empty()) {
+      std::cerr << "Failed to create SpikeEventSeries for channel "
+                << channelIndex << std::endl;
+      return -1;
+    }
+
+    const int32_t containerIndex =
+        static_cast<int32_t>(containerIndexes.front());
+    g_spikeContainerIndexes[static_cast<size_t>(channelIndex)] = containerIndex;
+    std::cout << "Created SpikeEventSeries for channel " << channelIndex
+              << " (container " << containerIndex << ")" << std::endl;
+    return containerIndex;
+  } catch (const std::exception& e) {
+    std::cerr << "Error in nwbfile_create_spike_event_series: " << e.what()
+              << std::endl;
+    return -1;
+  } catch (...) {
+    std::cerr << "Unknown error in nwbfile_create_spike_event_series"
+              << std::endl;
+    return -1;
+  }
+}
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_write_spike_event(int32_t channelIndex,
+                                                    float timestampSeconds,
+                                                    const float* waveform,
+                                                    int32_t numSamples)
+{
+  if (waveform == nullptr || numSamples <= 0) {
+    std::cerr << "Invalid spike waveform parameters" << std::endl;
+    return -1;
+  }
+  if (!g_io || !g_recordingObjects) {
+    std::cerr << "Recording session not initialized" << std::endl;
+    return -1;
+  }
+  if (channelIndex < 0
+      || channelIndex >= static_cast<int32_t>(g_spikeContainerIndexes.size())) {
+    std::cerr << "Invalid channel index for spike write: " << channelIndex
+              << std::endl;
+    return -1;
+  }
+  if (g_spikeContainerIndexes[static_cast<size_t>(channelIndex)] < 0) {
+    std::cerr << "SpikeEventSeries not created for channel " << channelIndex
+              << std::endl;
+    return -1;
+  }
+  if (ensureRecordingStarted() != AQNWB::Types::Status::Success) {
+    return -1;
+  }
+
+  try {
+    const AQNWB::Types::SizeType containerIndex =
+        static_cast<AQNWB::Types::SizeType>(
+            g_spikeContainerIndexes[static_cast<size_t>(channelIndex)]);
+    const double timestamp = static_cast<double>(timestampSeconds);
+    auto writeStatus = AQNWB::IO::writeSpikeEventData(
+        g_recordingObjects,
+        containerIndex,
+        static_cast<AQNWB::Types::SizeType>(numSamples),
+        1,
+        waveform,
+        &timestamp);
+    if (writeStatus != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to write spike event for channel " << channelIndex
+                << std::endl;
+      return -1;
+    }
+
+    g_spikeEventCounts[static_cast<size_t>(channelIndex)]++;
+    if (g_io->flush() != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to flush after spike write" << std::endl;
+      return -1;
+    }
+    return 0;
+  } catch (const std::exception& e) {
+    std::cerr << "Error in nwbfile_write_spike_event: " << e.what() << std::endl;
+    return -1;
+  } catch (...) {
+    std::cerr << "Unknown error in nwbfile_write_spike_event" << std::endl;
+    return -1;
+  }
+}
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_get_spike_event_count(int32_t channelIndex)
+{
+  if (channelIndex < 0
+      || channelIndex >= static_cast<int32_t>(g_spikeEventCounts.size())) {
+    return -1;
+  }
+  return g_spikeEventCounts[static_cast<size_t>(channelIndex)];
+}
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_add_event(float timestampSeconds,
+                                            int32_t eventLabel)
+{
+  if (!g_io || !g_eventsTable) {
+    std::cerr << "EventsTable not initialized" << std::endl;
+    return -1;
+  }
+  if (ensureRecordingStarted() != AQNWB::Types::Status::Success) {
+    return -1;
+  }
+  try {
+    // Row-based append: each event is one EventsTable row (AqNWB addRow).
+    AQNWB::NWB::DynamicTable::RowData row = {
+        {"timestamp", timestampSeconds},
+        {"event_type", eventLabel},
+        {"deleted", static_cast<uint8_t>(0)},
+    };
+    auto status = g_eventsTable->addRow(row);
+    if (status != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to add event row" << std::endl;
+      return -1;
+    }
+    if (g_io->flush() != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to flush after add event" << std::endl;
+      return -1;
+    }
+    const int32_t rowIndex = static_cast<int32_t>(g_eventRowCount);
+    g_eventRowCount += 1;
+    return rowIndex;
+  } catch (const std::exception& e) {
+    std::cerr << "Error in nwbfile_add_event: " << e.what() << std::endl;
+    return -1;
+  }
+}
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_update_event(int32_t rowIndex,
+                                               float timestampSeconds,
+                                               int32_t eventLabel)
+{
+  if (!g_io || !g_eventsTable) {
+    std::cerr << "EventsTable not initialized" << std::endl;
+    return -1;
+  }
+  if (rowIndex < 0
+      || static_cast<AQNWB::Types::SizeType>(rowIndex) >= g_eventRowCount) {
+    std::cerr << "nwbfile_update_event invalid rowIndex: " << rowIndex
+              << std::endl;
+    return -1;
+  }
+  try {
+    const AQNWB::Types::SizeType idx =
+        static_cast<AQNWB::Types::SizeType>(rowIndex);
+    auto timestampCol = g_eventsTable->readTimestampColumn();
+    auto eventTypeCol = g_eventsTable->readColumn<int32_t>("event_type");
+    auto deletedCol = g_eventsTable->readColumn<uint8_t>("deleted");
+    if (!timestampCol || !eventTypeCol || !deletedCol
+        || !timestampCol->recordData() || !eventTypeCol->recordData()
+        || !deletedCol->recordData()) {
+      std::cerr << "Failed to open EventsTable columns for update" << std::endl;
+      return -1;
+    }
+
+    const uint8_t deleted = 0;
+    auto status = overwriteEventCell(timestampCol->recordData(),
+                                     idx,
+                                     AQNWB::IO::BaseDataType::F32,
+                                     &timestampSeconds);
+    status = status
+        && overwriteEventCell(eventTypeCol->recordData(),
+                              idx,
+                              AQNWB::IO::BaseDataType::I32,
+                              &eventLabel);
+    status = status
+        && overwriteEventCell(deletedCol->recordData(),
+                              idx,
+                              AQNWB::IO::BaseDataType::U8,
+                              &deleted);
+    if (status != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to update event row " << rowIndex << std::endl;
+      return -1;
+    }
+    if (g_io->flush() != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to flush after update event" << std::endl;
+      return -1;
+    }
+    return 0;
+  } catch (const std::exception& e) {
+    std::cerr << "Error in nwbfile_update_event: " << e.what() << std::endl;
+    return -1;
+  }
+}
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_delete_event(int32_t rowIndex)
+{
+  if (!g_io || !g_eventsTable) {
+    std::cerr << "EventsTable not initialized" << std::endl;
+    return -1;
+  }
+  if (rowIndex < 0
+      || static_cast<AQNWB::Types::SizeType>(rowIndex) >= g_eventRowCount) {
+    std::cerr << "nwbfile_delete_event invalid rowIndex: " << rowIndex
+              << std::endl;
+    return -1;
+  }
+  try {
+    // Soft-delete: keep row count / append cursor intact under SWMR.
+    auto deletedCol = g_eventsTable->readColumn<uint8_t>("deleted");
+    if (!deletedCol || !deletedCol->recordData()) {
+      std::cerr << "Failed to open deleted column" << std::endl;
+      return -1;
+    }
+    const uint8_t deleted = 1;
+    auto status = overwriteEventCell(deletedCol->recordData(),
+                                     static_cast<AQNWB::Types::SizeType>(rowIndex),
+                                     AQNWB::IO::BaseDataType::U8,
+                                     &deleted);
+    if (status != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to soft-delete event row " << rowIndex << std::endl;
+      return -1;
+    }
+    if (g_io->flush() != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to flush after delete event" << std::endl;
+      return -1;
+    }
+    return 0;
+  } catch (const std::exception& e) {
+    std::cerr << "Error in nwbfile_delete_event: " << e.what() << std::endl;
+    return -1;
+  }
+}
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_get_event_count()
+{
+  return static_cast<int32_t>(g_eventRowCount);
+}
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_set_meaning(int32_t value, const char* meaning)
+{
+  if (!g_io || !g_eventMeaningsTable) {
+    std::cerr << "MeaningsTable not initialized" << std::endl;
+    return -1;
+  }
+  if (meaning == nullptr) {
+    std::cerr << "nwbfile_set_meaning: meaning is null" << std::endl;
+    return -1;
+  }
+  try {
+    const std::string meaningStr(meaning);
+
+    // Update existing row in place when the value is already registered.
+    for (size_t i = 0; i < g_cachedMeanings.size(); ++i) {
+      if (g_cachedMeanings[i].value != value) {
+        continue;
+      }
+      auto meaningCol = g_eventMeaningsTable->readMeaningColumn();
+      if (!meaningCol || !meaningCol->recordData()) {
+        std::cerr << "Failed to open MeaningsTable meaning column" << std::endl;
+        return -1;
+      }
+      auto status = overwriteMeaningString(
+          meaningCol->recordData(),
+          static_cast<AQNWB::Types::SizeType>(i),
+          meaningStr);
+      if (status != AQNWB::Types::Status::Success) {
+        std::cerr << "Failed to update meaning for value " << value << std::endl;
+        return -1;
+      }
+      if (g_io->flush() != AQNWB::Types::Status::Success) {
+        std::cerr << "Failed to flush after update meaning" << std::endl;
+        return -1;
+      }
+      g_cachedMeanings[i].meaning = meaningStr;
+      return static_cast<int32_t>(i);
+    }
+
+    // Append a new meanings row for an unseen event_type value.
+    AQNWB::NWB::DynamicTable::RowData row = {
+        {"value", value},
+        {"meaning", meaningStr},
+    };
+    auto status = g_eventMeaningsTable->addRow(row);
+    if (status != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to add meaning row for value " << value << std::endl;
+      return -1;
+    }
+    if (g_io->flush() != AQNWB::Types::Status::Success) {
+      std::cerr << "Failed to flush after add meaning" << std::endl;
+      return -1;
+    }
+    const int32_t rowIndex = static_cast<int32_t>(g_cachedMeanings.size());
+    g_cachedMeanings.push_back({value, meaningStr});
+    return rowIndex;
+  } catch (const H5::Exception& e) {
+    std::cerr << "HDF5 error in nwbfile_set_meaning: " << e.getDetailMsg()
+              << std::endl;
+    return -1;
+  } catch (const std::exception& e) {
+    std::cerr << "Error in nwbfile_set_meaning: " << e.what() << std::endl;
+    return -1;
+  }
+}
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_get_meaning_count()
+{
+  return static_cast<int32_t>(g_cachedMeanings.size());
+}
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_read_meaning(int32_t rowIndex,
+                                               int32_t* outValue,
+                                               char* outMeaning,
+                                               int32_t outMeaningCapacity)
+{
+  if (rowIndex < 0
+      || static_cast<size_t>(rowIndex) >= g_cachedMeanings.size()) {
+    std::cerr << "nwbfile_read_meaning invalid rowIndex: " << rowIndex
+              << std::endl;
+    return -1;
+  }
+  if (outValue == nullptr) {
+    return -1;
+  }
+  const CachedMeaning& row = g_cachedMeanings[static_cast<size_t>(rowIndex)];
+  *outValue = row.value;
+  if (!copyCString(outMeaning, outMeaningCapacity, row.meaning)) {
+    return -1;
+  }
+  return 0;
+}
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_find_meaning(int32_t value,
+                                               char* outMeaning,
+                                               int32_t outMeaningCapacity)
+{
+  for (const auto& row : g_cachedMeanings) {
+    if (row.value != value) {
+      continue;
+    }
+    if (!copyCString(outMeaning, outMeaningCapacity, row.meaning)) {
+      return -1;
+    }
+    return 0;
+  }
+  return -1;
+}
+
+FFI_PLUGIN_EXPORT int32_t nwbfile_read_event(int32_t rowIndex,
+                                             float* outTimestampSeconds,
+                                             int32_t* outEventLabel,
+                                             uint8_t* outDeleted)
+{
+  if (rowIndex < 0
+      || static_cast<AQNWB::Types::SizeType>(rowIndex) >= g_eventRowCount) {
+    std::cerr << "nwbfile_read_event invalid rowIndex: " << rowIndex
+              << std::endl;
+    return -1;
+  }
+
+  // File-review path: events were snapshotted into g_cachedEvents during seek.
+  if (!g_cachedEvents.empty()) {
+    if (static_cast<size_t>(rowIndex) >= g_cachedEvents.size()) {
+      std::cerr << "nwbfile_read_event cache miss for rowIndex: " << rowIndex
+                << std::endl;
+      return -1;
+    }
+    const CachedNwbEvent& event = g_cachedEvents[static_cast<size_t>(rowIndex)];
+    *outTimestampSeconds = event.timestampSeconds;
+    *outEventLabel = event.eventLabel;
+    *outDeleted = event.deleted;
+    return 0;
+  }
+
+  // Live recording path: read from the open EventsTable.
+  if (!g_io || !g_eventsTable) {
+    std::cerr << "EventsTable not initialized" << std::endl;
+    return -1;
+  }
+  try {
+    const AQNWB::Types::SizeType idx =
+        static_cast<AQNWB::Types::SizeType>(rowIndex);
+    auto timestampCol = g_eventsTable->readTimestampColumn();
+    auto eventTypeCol = g_eventsTable->readColumn<int32_t>("event_type");
+    auto deletedCol = g_eventsTable->readColumn<uint8_t>("deleted");
+    if (!timestampCol || !eventTypeCol || !deletedCol) {
+      std::cerr << "Failed to open EventsTable columns for read" << std::endl;
+      return -1;
+    }
+
+    auto timestampReader = timestampCol->readData();
+    auto eventTypeReader = eventTypeCol->readData();
+    auto deletedReader = deletedCol->readData();
+    if (!timestampReader || !eventTypeReader || !deletedReader) {
+      std::cerr << "Failed to create dataset readers for EventsTable columns"
+                << std::endl;
+      return -1;
+    }
+
+    const AQNWB::Types::SizeArray start {idx};
+    const AQNWB::Types::SizeArray count {1};
+    auto timestampBlock = timestampReader->values(start, count);
+    auto eventTypeBlock = eventTypeReader->values(start, count);
+    auto deletedBlock = deletedReader->values(start, count);
+    if (timestampBlock.data.empty() || eventTypeBlock.data.empty()
+        || deletedBlock.data.empty()) {
+      std::cerr << "EventsTable read returned no data for row " << rowIndex
+                << std::endl;
+      return -1;
+    }
+
+    *outTimestampSeconds = timestampBlock.data[0];
+    *outEventLabel = eventTypeBlock.data[0];
+    *outDeleted = deletedBlock.data[0];
+    return 0;
+  } catch (const std::exception& e) {
+    std::cerr << "Error in nwbfile_read_event: " << e.what() << std::endl;
+    return -1;
+  }
+}
 
 FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples, int* outSamplesCount, int selectedChannel, int channelCount) {
     std::cout << "AQNWB nwbfile_read_electrical_series" << std::endl;
     
-    outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
+    // g_outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
     // 1. Open the NWB file for reading
     // std::shared_ptr<BaseIO> io = AQNWB::createIO("HDF5", filePath);
     // auto openStatus = io->open(FileMode::ReadOnly);
@@ -453,7 +1035,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples, int*
     //     std::cerr << "Failed to open NWB file: " << filePath << std::endl;
     //     return 1;
     // }
-    std::string filePath = outputPath;
+    std::string filePath = g_outputPath;
     std::shared_ptr<AQNWB::IO::BaseIO> io = AQNWB::createIO("HDF5", filePath);
     auto openStatus = io->open(AQNWB::IO::FileMode::ReadOnly);
     if (openStatus != AQNWB::Types::Success) {
@@ -494,7 +1076,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples, int*
         // For now, let's use the direct HDF5 approach we used before
         std::unique_ptr<H5::H5File> h5file;
         try {
-            h5file = std::make_unique<H5::H5File>(outputPath, H5F_ACC_RDONLY);
+            h5file = std::make_unique<H5::H5File>(g_outputPath, H5F_ACC_RDONLY);
             std::cout << "✅ Opened HDF5 file directly" << std::endl;
         } catch (const H5::FileIException& e) {
             std::cerr << "❌ Failed to open HDF5 file: " << e.getDetailMsg() << std::endl;
@@ -636,7 +1218,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples, int*
     // return 0;
 
 
-    // io = AQNWB::createIO("HDF5", outputPath);
+    // io = AQNWB::createIO("HDF5", g_outputPath);
     // auto openStatus = io->open(AQNWB::IO::FileMode::Overwrite);
     
     // if (openStatus != AQNWB::Types::Success) {
@@ -692,8 +1274,8 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples, int*
 //       // 1) Create the I/O object
 //       // /Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents
 //       // /Users/macbook/Library/Containers/com.example.nwbapplication/Data/Downloads/
-//       const std::string outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording2.nwb";
-//       std::shared_ptr<AQNWB::IO::BaseIO> io = AQNWB::createIO("HDF5", outputPath);
+//       const std::string g_outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording2.nwb";
+//       std::shared_ptr<AQNWB::IO::BaseIO> io = AQNWB::createIO("HDF5", g_outputPath);
 //       auto openStatus = io->open(AQNWB::IO::FileMode::Overwrite);
 //       if (openStatus != AQNWB::Types::Success) {
 //           std::cerr << "Failed to open IO" << std::endl;
@@ -766,7 +1348,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples, int*
   
 //       // 5) Create datasets (ElectricalSeries) and add to RecordingContainers
 // //        std::vector<AQNWB::Types::ChannelVector> mockArrays = getMockChannelArrays();
-// //        AQNWB::NWB::ElectricalSeries es = AQNWB::NWB::ElectricalSeries(outputPath, io);
+// //        AQNWB::NWB::ElectricalSeries es = AQNWB::NWB::ElectricalSeries(g_outputPath, io);
 // //        AQNWB::NWB::IO::ArrayDataSetConfig config(
 // //            dataType, SizeArray {0, mockArrays[0].size()}, SizeArray {1, 1});
 // //        es.initialize(config, mockArrays[0], "no description");
@@ -959,9 +1541,9 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples, int*
 //       }
 
   
-//       std::cout << "Successfully wrote example recording to: " << outputPath << std::endl;
+//       std::cout << "Successfully wrote example recording to: " << g_outputPath << std::endl;
         
-//       std::shared_ptr<AQNWB::IO::BaseIO> readio = AQNWB::createIO("HDF5", outputPath);
+//       std::shared_ptr<AQNWB::IO::BaseIO> readio = AQNWB::createIO("HDF5", g_outputPath);
 //       readio->open(AQNWB::IO::FileMode::ReadOnly);
 //       auto readNWBFile =
 //           AQNWB::NWB::RegisteredType::create<AQNWB::NWB::NWBFile>("/", readio);
@@ -1107,7 +1689,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_read_electrical_series(short* outSamples, int*
 //       std::string mock_nwb_content = 
 //           "NWB File WRITE\n"
 //           "Version: 2.0\n"
-//           "Created: " + outputPath + "\n"
+//           "Created: " + g_outputPath + "\n"
 //           "Electrodes: 4\n"
 //           "ElectricalSeries: 1\n"
 //           "Data Points: 1000\n"
@@ -1201,10 +1783,9 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
     int numChannelsToRead = endChannel - startChannel + 1;
     std::cout << "   Number of channels to read: " << numChannelsToRead << std::endl;
     
-    // outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_android.nwb";
-    // outputPath = "/data/user/0/com.example.spikerbox_architecture/app_flutter/example_recording_android.nwb";
-    outputPath = std::string(path);
-    std::string filePath = outputPath;
+    // g_outputPath = "/Users/macbook/Library/Containers/com.example.nwbapplication/Data/Documents/example_recording_multiple_channels.nwb";
+    g_outputPath = std::string(path);
+    std::string filePath = g_outputPath;
     
     // Open AQNWB file
     std::shared_ptr<AQNWB::IO::BaseIO> io = AQNWB::createIO("HDF5", filePath);
@@ -1232,45 +1813,110 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         metadataFile = std::make_unique<H5::H5File>(filePath, H5F_ACC_RDONLY);
         std::cout << "✅ Opened HDF5 file for metadata extraction" << std::endl;
 
-        
+        // Discover the actual ElectricalSeries name
+        std::string electricalSeriesName = "";
+        try {
+            if (H5Lexists(metadataFile->getId(), "/acquisition", H5P_DEFAULT) > 0) {
+                H5::Group acquisitionGroup = metadataFile->openGroup("/acquisition");
+                hsize_t numObjs = acquisitionGroup.getNumObjs();
+                for (hsize_t i = 0; i < numObjs; i++) {
+                    std::string objName = acquisitionGroup.getObjnameByIdx(i);
+                    H5G_obj_t objType = acquisitionGroup.getObjTypeByIdx(i);
+                    if (objType == H5G_GROUP) {
+                        // Check if it's an ElectricalSeries by looking for 'data' dataset
+                        try {
+                            H5::Group testGroup = acquisitionGroup.openGroup(objName);
+                            if (H5Lexists(testGroup.getId(), "data", H5P_DEFAULT) > 0) {
+                                electricalSeriesName = objName;
+                                break;
+                            }
+                        } catch (...) {
+                            continue;
+                        }
+                    }
+                }
+            }
+        } catch (const H5::Exception& e) {
+            std::cout << "⚠️  Could not discover ElectricalSeries: " << e.getDetailMsg() << std::endl;
+        }
+        if (electricalSeriesName.empty()) {
+            electricalSeriesName = "ElectricalSeries1"; // Fallback
+            std::cout << "⚠️  Could not find ElectricalSeries, using default: " << electricalSeriesName << std::endl;
+        } else {
+            std::cout << "✅ Found ElectricalSeries: " << electricalSeriesName << std::endl;
+        }
 
         try{
-            H5::Group deviceGroup = metadataFile->openGroup("/general/devices/recording_device");
-            std::cout << "✅ Device group opened successfully" << std::endl;
+            std::string devicePath = "/general/devices";
+            if (H5Lexists(metadataFile->getId(), devicePath.c_str(), H5P_DEFAULT) > 0) {
+                H5::Group devicesGroup = metadataFile->openGroup(devicePath);
+                hsize_t numDevices = devicesGroup.getNumObjs();
+                std::string deviceName = "";
+                // Find first device group
+                for (hsize_t i = 0; i < numDevices && deviceName.empty(); i++) {
+                    std::string objName = devicesGroup.getObjnameByIdx(i);
+                    H5G_obj_t objType = devicesGroup.getObjTypeByIdx(i);
+                    if (objType == H5G_GROUP) {
+                        deviceName = objName;
+                    }
+                }
+                if (!deviceName.empty()) {
+                    H5::Group deviceGroup = devicesGroup.openGroup(deviceName);
+                    std::cout << "✅ Device group opened successfully: " << deviceName << std::endl;
             // Read device description
-            std::string deviceDescription = "";
-            try {
-                H5::Attribute descAttr = deviceGroup.openAttribute("description");
-                H5::StrType strType(H5::PredType::C_S1, H5T_VARIABLE);
-                std::string description;
-                descAttr.read(strType, description);
-                deviceDescription = description;
-                std::cout << "📋 Device Description: " << description << std::endl;
-            } catch (const H5::Exception& e) {
-                std::cout << "⚠️  Could not read device description: " << e.getDetailMsg() << std::endl;
-            }
-            
-            // Read device manufacturer
-            try {
-                H5::Attribute manufAttr = deviceGroup.openAttribute("manufacturer");
-                H5::StrType strType(H5::PredType::C_S1, H5T_VARIABLE);
-                std::string manufacturer;
-                manufAttr.read(strType, manufacturer);
-                std::cout << "🏭 Device Manufacturer: " << manufacturer << std::endl;
-            } catch (const H5::Exception& e) {
-                std::cout << "⚠️  Could not read device manufacturer: " << e.getDetailMsg() << std::endl;
-            }
-            
-            // if (description.find("Audio|||") > -1) {
-            int res = deviceDescription.find("Audio|||");
-            if (res != std::string::npos){
-                outConfig[6] = 0;
-                std::cout << "✅ Audio Device Detected " << std::endl;
-            } else{ 
-                outConfig[6] = 1;
-                std::cerr << "✅ Serial Device Detected" << std::endl;
-            }
+                    std::string deviceDescription = "";
+                    try {
+                        H5::Attribute descAttr = deviceGroup.openAttribute("description");
+                        // Get the actual datatype from the attribute
+                        H5::StrType strType = descAttr.getStrType();
+                        // For variable-length strings, HDF5 allocates memory and returns a char*
+                        // We need to read into a char* pointer, not directly into std::string
+                        char* cstr = nullptr;
+                        descAttr.read(strType, &cstr);
+                        if (cstr != nullptr) {
+                            deviceDescription = std::string(cstr);
+                            free(cstr);  // HDF5 allocates the memory, we need to free it
+                        }
+                        std::cout << "📋 Device Description: " << deviceDescription << std::endl;
+                    } catch (const H5::Exception& e) {
+                        std::cout << "⚠️  Could not read device description: " << e.getDetailMsg() << std::endl;
+                    }
+                    
+                    // Read device manufacturer
+                    try {
+                        H5::Attribute manufAttr = deviceGroup.openAttribute("manufacturer");
+                        // Get the actual datatype from the attribute
+                        H5::StrType strType = manufAttr.getStrType();
+                        // For variable-length strings, HDF5 allocates memory and returns a char*
+                        // We need to read into a char* pointer, not directly into std::string
+                        char* cstr = nullptr;
+                        manufAttr.read(strType, &cstr);
+                        std::string manufacturer;
+                        if (cstr != nullptr) {
+                            manufacturer = std::string(cstr);
+                            free(cstr);  // HDF5 allocates the memory, we need to free it
+                        }
+                        std::cout << "🏭 Device Manufacturer: " << manufacturer << std::endl;
+                    } catch (const H5::Exception& e) {
+                        std::cout << "⚠️  Could not read device manufacturer: " << e.getDetailMsg() << std::endl;
+                    }
+                    
+                    // if (description.find("Audio|||") > -1) {
+                    int res = deviceDescription.find("Audio|||");
+                    if (res != std::string::npos){
+                        outConfig[6] = 0;
+                        std::cout << "✅ Audio Device Detected " << deviceDescription << std::endl;
+                    } else{ 
+                        outConfig[6] = 1;
+                        std::cerr << "✅ Serial Device Detected " << deviceDescription << std::endl;
+                    }
     
+                } else {
+                    std::cout << "⚠️  No devices found in /general/devices" << std::endl;
+                }
+            } else {
+                std::cout << "⚠️  /general/devices path does not exist" << std::endl;
+            }
         }catch(const H5::Exception& e){
             std::cout << "⚠️  Could not open device group: " << e.getDetailMsg() << std::endl;
         }
@@ -1284,7 +1930,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         // Try to read from ElectricalSeries starting_time attribute (rate)
         try {
             H5::Group acquisitionGroup = metadataFile->openGroup("/acquisition");
-            H5::Group electricalSeriesGroup = acquisitionGroup.openGroup("ElectricalSeries1");
+            H5::Group electricalSeriesGroup = acquisitionGroup.openGroup(electricalSeriesName);
             
             if (electricalSeriesGroup.attrExists("rate")) {
                 H5::Attribute rateAttr = electricalSeriesGroup.openAttribute("rate");
@@ -1302,7 +1948,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         if (!sampleRateFound) {
             try {
                 H5::Group acquisitionGroup = metadataFile->openGroup("/acquisition");
-                H5::Group electricalSeriesGroup = acquisitionGroup.openGroup("ElectricalSeries1");
+                H5::Group electricalSeriesGroup = acquisitionGroup.openGroup(electricalSeriesName);
                 H5::DataSet timestampsDataset = electricalSeriesGroup.openDataSet("timestamps");
                 
                 // Read first few timestamps to calculate rate
@@ -1341,7 +1987,7 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
         // 2. Read conversion factor (bitVolts)
         try {
             H5::Group acquisitionGroup = metadataFile->openGroup("/acquisition");
-            H5::Group electricalSeriesGroup = acquisitionGroup.openGroup("ElectricalSeries1");
+            H5::Group electricalSeriesGroup = acquisitionGroup.openGroup(electricalSeriesName);
             
             if (electricalSeriesGroup.attrExists("conversion")) {
                 H5::Attribute conversionAttr = electricalSeriesGroup.openAttribute("conversion");
@@ -1418,7 +2064,63 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
             std::cout << "📊 Group Name (default ID): " << outConfig[2] << std::endl;
             std::cout << "📊 Group Index (default): " << outConfig[3] << std::endl;
         }
-        
+
+        // Snapshot EventsTable rows into g_cachedEvents so that
+        // nwbfile_get_event_count()/nwbfile_read_event() work for file
+        // review/playback. We cannot keep a live EventsTable here: this
+        // function always closes its temporary AQNWB IO at the end, and
+        // RegisteredType only holds a weak_ptr to that IO — reusing it
+        // across the call would crash on the next read.
+        resetEventsSessionState();
+        try {
+            const std::string eventsTimestampPath = "/events/markers/timestamp";
+            const std::string eventsTypePath = "/events/markers/event_type";
+            const std::string eventsDeletedPath = "/events/markers/deleted";
+            if (H5Lexists(metadataFile->getId(), eventsTimestampPath.c_str(), H5P_DEFAULT) > 0
+                && H5Lexists(metadataFile->getId(), eventsTypePath.c_str(), H5P_DEFAULT) > 0
+                && H5Lexists(metadataFile->getId(), eventsDeletedPath.c_str(), H5P_DEFAULT) > 0) {
+                H5::DataSet timestampDs = metadataFile->openDataSet(eventsTimestampPath);
+                H5::DataSet typeDs = metadataFile->openDataSet(eventsTypePath);
+                H5::DataSet deletedDs = metadataFile->openDataSet(eventsDeletedPath);
+
+                H5::DataSpace timestampSpace = timestampDs.getSpace();
+                hsize_t eventDims[1] = {0};
+                timestampSpace.getSimpleExtentDims(eventDims, nullptr);
+                const hsize_t eventCount = eventDims[0];
+
+                if (eventCount > 0) {
+                    std::vector<float> timestamps(static_cast<size_t>(eventCount));
+                    std::vector<int32_t> eventTypes(static_cast<size_t>(eventCount));
+                    std::vector<uint8_t> deletedFlags(static_cast<size_t>(eventCount));
+
+                    timestampDs.read(timestamps.data(), H5::PredType::NATIVE_FLOAT);
+                    typeDs.read(eventTypes.data(), H5::PredType::NATIVE_INT32);
+                    deletedDs.read(deletedFlags.data(), H5::PredType::NATIVE_UINT8);
+
+                    g_cachedEvents.reserve(static_cast<size_t>(eventCount));
+                    for (hsize_t i = 0; i < eventCount; ++i) {
+                        g_cachedEvents.push_back(CachedNwbEvent {
+                            timestamps[static_cast<size_t>(i)],
+                            eventTypes[static_cast<size_t>(i)],
+                            deletedFlags[static_cast<size_t>(i)],
+                        });
+                    }
+                }
+                g_eventRowCount =
+                    static_cast<AQNWB::Types::SizeType>(g_cachedEvents.size());
+                std::cout << "📌 Cached " << g_eventRowCount
+                          << " EventsTable row(s) from " << filePath << std::endl;
+            } else {
+                std::cout << "ℹ️  No EventsTable found in file (path: "
+                          << eventsTimestampPath << ")" << std::endl;
+            }
+        } catch (const H5::Exception& e) {
+            std::cout << "⚠️  Could not load EventsTable: " << e.getDetailMsg()
+                      << std::endl;
+            g_cachedEvents.clear();
+            g_eventRowCount = 0;
+        }
+
         metadataFile->close();
         
     } catch (const H5::Exception& e) {
@@ -1445,11 +2147,50 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
             return -1;
         }
         
+        // Discover the actual ElectricalSeries name
+        std::string electricalSeriesNameForData = "";
+        try {
+            if (H5Lexists(h5file->getId(), "/acquisition", H5P_DEFAULT) > 0) {
+                H5::Group acquisitionGroup = h5file->openGroup("/acquisition");
+                hsize_t numObjs = acquisitionGroup.getNumObjs();
+                for (hsize_t i = 0; i < numObjs; i++) {
+                    std::string objName = acquisitionGroup.getObjnameByIdx(i);
+                    H5G_obj_t objType = acquisitionGroup.getObjTypeByIdx(i);
+                    if (objType == H5G_GROUP) {
+                        // Check if it's an ElectricalSeries by looking for 'data' dataset
+                        try {
+                            H5::Group testGroup = acquisitionGroup.openGroup(objName);
+                            if (H5Lexists(testGroup.getId(), "data", H5P_DEFAULT) > 0) {
+                                electricalSeriesNameForData = objName;
+                                break;
+                            }
+                        } catch (...) {
+                            continue;
+                        }
+                    }
+                }
+            }
+        } catch (const H5::Exception& e) {
+            std::cerr << "⚠️  Could not discover ElectricalSeries: " << e.getDetailMsg() << std::endl;
+        }
+        
+        if (electricalSeriesNameForData.empty()) {
+            electricalSeriesNameForData = "ElectricalSeries1"; // Fallback
+            std::cout << "⚠️  Using default ElectricalSeries name: " << electricalSeriesNameForData << std::endl;
+        } else {
+            std::cout << "✅ Found ElectricalSeries: " << electricalSeriesNameForData << std::endl;
+        }
+        
         // Open the dataset directly
         H5::DataSet dataset;
+        std::string dataPath = "/acquisition/" + electricalSeriesNameForData + "/data";
         try {
-            dataset = h5file->openDataSet("/acquisition/ElectricalSeries1/data");
-            std::cout << "✅ Opened electrical series dataset" << std::endl;
+            if (H5Lexists(h5file->getId(), dataPath.c_str(), H5P_DEFAULT) <= 0) {
+                std::cerr << "❌ Dataset path does not exist: " << dataPath << std::endl;
+                return -1;
+            }
+            dataset = h5file->openDataSet(dataPath);
+            std::cout << "✅ Opened electrical series dataset: " << dataPath << std::endl;
         } catch (const H5::DataSetIException& e) {
             std::cerr << "❌ Failed to open dataset: " << e.getDetailMsg() << std::endl;
             return -1;
@@ -1641,7 +2382,12 @@ FFI_PLUGIN_EXPORT int32_t nwbfile_seek_electrical_series(const char* path, short
     std::cout << "   Group Name (ID): " << outConfig[2] << std::endl;
     std::cout << "   Group Index: " << outConfig[3] << std::endl;
     std::cout << "   BitVolts (µV): " << outConfig[4] << std::endl;
-    
     std::cout << "✅ Seek operation completed successfully!" << std::endl;
     return 0;
+}
+FFI_PLUGIN_EXPORT void cleanup_nwb_data()
+{
+  g_nwb_file_data.clear();
+  g_nwb_file_data.shrink_to_fit();
+  g_nwb_file_ready = false;
 }

@@ -56,3 +56,4 @@ native_implementation/pluggins/processing_plugin/out
 /ios/Runner/GoogleService-Info.plist
 /lib/firebase_options.dart
 firebase.json
+native_implementation/pluggins/old_nwbfile_plugin

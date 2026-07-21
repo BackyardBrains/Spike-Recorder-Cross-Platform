@@ -43,7 +43,7 @@ cd build
 # Configure with CMake
 emcmake cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_CXX_FLAGS="-s USE_BOOST_HEADERS=1 -s USE_HDF5=1 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] -s EXPORTED_FUNCTIONS=['_sum','_sum_long_running','_processing_init'] -s EXPORT_NAME='NWBPlugin' -s MODULARIZE=1"
+    -DCMAKE_CXX_FLAGS="-s USE_BOOST_HEADERS=1 -s USE_HDF5=1 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAP16'] -s EXPORTED_FUNCTIONS=['_sum','_sum_long_running','_processing_init'] -s EXPORT_NAME='NWBPlugin' -s MODULARIZE=1 -s NO_DISABLE_EXCEPTION_CATCHING=1"
 
 # Build
 emmake make -j$(nproc)

@@ -1,25 +1,27 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <string>
 
-#include "../../Utils.hpp"
-#include "../../io/BaseIO.hpp"
-#include "../../io/ReadIO.hpp"
-#include "../hdmf/base/Container.hpp"
-#include "../../spec/core.hpp"
-#include "../../spec/core.hpp"
+#include "Utils.hpp"
+#include "io/BaseIO.hpp"
+#include "io/ReadIO.hpp"
+#include "nwb/base/NWBDataInterface.hpp"
+#include "spec/core.hpp"
 
 namespace AQNWB::NWB
 {
 /**
  * @brief General purpose time series.
  */
-class TimeSeries : public Container
+class TimeSeries : public NWBDataInterface
 {
 public:
-  // Register the TimeSeries as a subclass of Container
-  REGISTER_SUBCLASS(TimeSeries, AQNWB::SPEC::CORE::namespaceName)
+  // Register the TimeSeries as a subclass of NWBDataInterface
+  REGISTER_SUBCLASS(TimeSeries,
+                    NWBDataInterface,
+                    AQNWB::SPEC::CORE::namespaceName)
 
   /**
    * Used to describe the continuity of the data in a time series.
@@ -53,16 +55,9 @@ public:
   static std::map<ContinuityType, std::string> ContinuityTypeNames;
 
   /**
-   * @brief Constructor.
-   * @param path The location of the TimeSeries in the file.
-   * @param io A shared pointer to the IO object.
-   */
-  TimeSeries(const std::string& path, std::shared_ptr<IO::BaseIO> io);
-
-  /**
    * @brief Destructor
    */
-  ~TimeSeries();
+  ~TimeSeries() override;
 
   /**
    * @brief Writes a timeseries data block to the file.
@@ -75,8 +70,8 @@ public:
    * @param controlInput A pointer to the control block data (optional)
    * @return The status of the write operation.
    */
-  Status writeData(const std::vector<SizeType>& dataShape,
-                   const std::vector<SizeType>& positionOffset,
+  Status writeData(const SizeArray& dataShape,
+                   const SizeArray& positionOffset,
                    const void* dataInput,
                    const void* timestampsInput = nullptr,
                    const void* controlInput = nullptr);
@@ -110,18 +105,20 @@ public:
    * control_description data will be created (otherwise they will be nullptr).
    * We can update the control_description values later if needed via the
    * TimeSeries.control_description->writeStringDataBlock() method.
+   * @return Status::Success if successful, otherwise Status::Failure.
    */
-  void initialize(const IO::ArrayDataSetConfig& dataConfig,
-                  const std::string& unit,
-                  const std::string& description = "no description",
-                  const std::string& comments = "no comments",
-                  const float& conversion = 1.0f,
-                  const float& resolution = -1.0f,
-                  const float& offset = 0.0f,
-                  const ContinuityType& continuity = ContinuityType::Undefined,
-                  const double& startingTime = -1.0,
-                  const float& startingTimeRate = 1.0f,
-                  const std::vector<std::string>& controlDescription = {});
+  Status initialize(
+      const IO::BaseArrayDataSetConfig& dataConfig,
+      const std::string& unit,
+      const std::string& description = "no description",
+      const std::string& comments = "no comments",
+      const float& conversion = 1.0f,
+      const float& resolution = -1.0f,
+      const float& offset = 0.0f,
+      const ContinuityType& continuity = ContinuityType::Undefined,
+      const double& startingTime = -1.0,
+      const float& startingTimeRate = 1.0f,
+      const std::vector<std::string>& controlDescription = {});
 
   /**
    * @brief Data type of the data.
@@ -221,6 +218,14 @@ public:
                        std::string,
                        "control_description",
                        Description of each control value)
+
+protected:
+  /**
+   * @brief Constructor.
+   * @param path The location of the TimeSeries in the file.
+   * @param io A shared pointer to the IO object.
+   */
+  TimeSeries(const std::string& path, std::shared_ptr<IO::BaseIO> io);
 
 private:
   /**

@@ -1,6 +1,6 @@
-#include "AnnotationSeries.hpp"
+#include "nwb/misc/AnnotationSeries.hpp"
 
-#include "../../Utils.hpp"
+#include "Utils.hpp"
 
 using namespace AQNWB::NWB;
 
@@ -19,26 +19,30 @@ AnnotationSeries::AnnotationSeries(const std::string& path,
 AnnotationSeries::~AnnotationSeries() {}
 
 /** Initialization function*/
-void AnnotationSeries::initialize(const std::string& description,
-                                  const std::string& comments,
-                                  const IO::ArrayDataSetConfig& dataConfig)
+Status AnnotationSeries::initialize(
+    const std::string& description,
+    const std::string& comments,
+    const IO::BaseArrayDataSetConfig& dataConfig)
 {
-  TimeSeries::initialize(dataConfig,
-                         "n/a",  // unit fixed to "n/a"
-                         description,
-                         comments,
-                         1.0f,  // conversion fixed to 1.0, since unit is n/a
-                         -1.0f,  // resolution fixed to -1.0
-                         0.0f);  // offset fixed to 0.0, since unit is n/a
+  auto tsInitStatus = TimeSeries::initialize(
+      dataConfig,
+      "n/a",  // unit fixed to "n/a"
+      description,
+      comments,
+      1.0f,  // conversion fixed to 1.0, since unit is n/a
+      -1.0f,  // resolution fixed to -1.0
+      0.0f);  // offset fixed to 0.0, since unit is n/a
+  return tsInitStatus;
 }
 
-Status AnnotationSeries::writeAnnotation(const SizeType& numSamples,
-                                         std::vector<std::string> dataInput,
-                                         const void* timestampsInput,
-                                         const void* controlInput)
+Status AnnotationSeries::writeAnnotation(
+    const SizeType& numSamples,
+    const std::vector<std::string>& dataInput,
+    const void* timestampsInput,
+    const void* controlInput)
 {
-  std::vector<SizeType> dataShape = {numSamples};
-  std::vector<SizeType> positionOffset = {this->m_samplesRecorded};
+  SizeArray dataShape = {numSamples};
+  SizeArray positionOffset = {this->m_samplesRecorded};
 
   // Write timestamps
   Status tsStatus = Status::Success;

@@ -1,14 +1,18 @@
 #pragma once
 
 #include <any>
+#include <array>
+#include <cassert>
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <numeric>
+#include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <typeindex>
+#include <variant>
 #include <vector>
-
-#include <boost/multi_array.hpp>  // TODO move this and function def to the cpp file
 
 #include "BaseIO.hpp"
 #include "Types.hpp"
@@ -41,7 +45,7 @@ public:
    * \brief The 1D vector with the n-dimensional shape of the data.
    *        Set to empty in case of scalar data.
    */
-  std::vector<SizeType> shape;
+  SizeArray shape;
 
   /**
    * \brief Type index of the values stored in the data vector.
@@ -75,7 +79,7 @@ public:
    * \brief Parameterized constructor
    */
   DataBlockGeneric(const std::any& inData,
-                   const std::vector<SizeType>& inShape,
+                   const SizeArray& inShape,
                    const std::type_index& inTypeIndex,
                    const IO::BaseDataType inBaseDataType)
       : data(inData)
@@ -84,6 +88,13 @@ public:
       , baseDataType(inBaseDataType)
   {
   }
+
+  /**
+   * @brief Get the BaseDataType for the data
+   *
+   * @return The BaseDataType as stored in baseDataType member
+   */
+  inline BaseDataType getBaseDataType() const { return baseDataType; }
 
   /**
    * @brief Cast the data to an std::variant for convenient access.
@@ -135,6 +146,124 @@ public:
 };
 
 /**
+ * @brief Non-owning, multi-dimensional, read-only array view for contiguous
+ * data.
+ *
+ * Provides multi-dimensional access to a flat data buffer using row-major
+ * order. This class is used by DataBlock::as_multi_array for C++17/20
+ * compatibility.
+ *
+ * @tparam DTYPE The data type of the array elements.
+ * @tparam NDIMS The number of dimensions.
+ *
+ * @note For C++23 and later, prefer using std::mdspan for multi-dimensional
+ * array access.
+ * @note This class may be deprecated and removed in future releases in favor of
+ * std::mdspan.
+ */
+template<typename DTYPE, std::size_t NDIMS>
+class ConstMultiArrayView
+{
+public:
+  using size_type = std::size_t;
+
+  /**
+   * @brief Construct a multi-dimensional view over a contiguous data buffer.
+   * @param data Pointer to the data buffer (must remain valid for the lifetime
+   * of the view).
+   * @param shape Array specifying the size of each dimension.
+   * @param strides Array specifying the stride (in elements) for each
+   * dimension.
+   */
+  ConstMultiArrayView(const DTYPE* data,
+                      const std::array<size_type, NDIMS>& shape,
+                      const std::array<size_type, NDIMS>& strides)
+      : m_data(data)
+      , m_shape(shape)
+      , m_strides(strides)
+  {
+  }
+
+  /**
+   * @brief Access element at the given index for 1D arrays.
+   *
+   * @param index Index of the element to access.
+   * @return Reference to the element at the specified index.
+   * @note Only enabled for 1D arrays (NDIMS == 1).
+   */
+  template<size_type N = NDIMS, typename std::enable_if_t<N == 1, int> = 0>
+  const DTYPE& operator[](size_type index) const
+  {
+    assert(index < m_shape[0]);
+    return m_data[index * m_strides[0]];
+  }
+
+  /**
+   * @brief Access a sub-array view at the given index for multi-dimensional
+   * arrays.
+   *
+   * @param index Index of the sub-array to access (along the first dimension).
+   * @return A ConstMultiArrayView of one lower dimension.
+   * @note Only enabled for NDIMS > 1.
+   */
+  template<size_type N = NDIMS, typename std::enable_if_t<(N > 1), int> = 0>
+  ConstMultiArrayView<DTYPE, NDIMS - 1> operator[](size_type index) const
+  {
+    assert(index < m_shape[0]);
+    std::array<size_type, NDIMS - 1> sub_shape {};
+    std::array<size_type, NDIMS - 1> sub_strides {};
+    for (size_type i = 1; i < NDIMS; ++i) {
+      sub_shape[i - 1] = m_shape[i];
+      sub_strides[i - 1] = m_strides[i];
+    }
+    return ConstMultiArrayView<DTYPE, NDIMS - 1>(
+        m_data + index * m_strides[0], sub_shape, sub_strides);
+  }
+
+  /**
+   * @brief Returns a pointer to the beginning of the data for 1D arrays.
+   *
+   * @return Pointer to the first element.
+   * @note Only enabled for 1D arrays (NDIMS == 1).
+   */
+  template<size_type N = NDIMS, typename std::enable_if_t<N == 1, int> = 0>
+  const DTYPE* begin() const
+  {
+    assert(m_shape[0] == 0 || m_data != nullptr);
+    return m_data;
+  }
+
+  /**
+   * @brief Returns a pointer to one past the last element for 1D arrays.
+   *
+   * @return Pointer to one past the last element.
+   * @note Only enabled for 1D arrays (NDIMS == 1).
+   */
+  template<size_type N = NDIMS, typename std::enable_if_t<N == 1, int> = 0>
+  const DTYPE* end() const
+  {
+    assert(m_shape[0] == 0 || m_data != nullptr);
+    if (m_shape[0] == 0) {
+      return m_data;
+    }
+    return m_data + (m_shape[0] * m_strides[0]);
+  }
+
+  /**
+   * @brief Get the shape of the multi-dimensional array view.
+   *
+   * @return A const reference to the array specifying the size of each
+   * dimension.
+   */
+  const std::array<size_type, NDIMS>& shape() const { return m_shape; }
+
+private:
+  const DTYPE* m_data;  ///< Pointer to the data buffer
+  std::array<size_type, NDIMS> m_shape;  ///< Size of each dimension
+  std::array<size_type, NDIMS> m_strides;  ///< Stride per dimension
+};
+
+/**
  * @brief Structure to hold data and shape for a typed data vector
  *
  * @tparam DTYPE The data type of the vector
@@ -151,7 +280,7 @@ public:
    * \brief The 1D vector with the n-dimensional shape of the data.
    *        Set to empty in case of scalar data
    */
-  std::vector<SizeType> shape;
+  SizeArray shape;
   /**
    * \brief Type index of the values stored in the data vector.
    *        Here this is fixed to ``typeid(DTYPE)``
@@ -161,23 +290,26 @@ public:
   /**
    * Constructor
    */
-  DataBlock(const std::vector<DTYPE>& inData,
-            const std::vector<SizeType>& inShape)
+  DataBlock(const std::vector<DTYPE>& inData, const SizeArray& inShape)
       : data(inData)
       , shape(inShape)
   {
   }
 
   /**
-   * \brief Transform the data to a boost multi-dimensional array for convenient
-   * access
+   * \brief Transform the data to a multi-dimensional array view for convenient
+   * access.
    *
-   * The function uses boost::const_multi_array_ref to avoid copying of the data
+   * @note For C++23 and later, prefer using std::mdspan for multi-dimensional
+   *       array access instead.
+   * @note This function may be deprecated and removed in future releases in
+   * favor of std::mdspan once C++23 is widely adopted.
    *
    * @tparam NDIMS The number of dimensions of the array. Same as shape.size()
+   * @return A ConstMultiArrayView providing multi-dimensional access to the
    */
   template<std::size_t NDIMS>
-  inline boost::const_multi_array_ref<DTYPE, NDIMS> as_multi_array() const
+  inline ConstMultiArrayView<DTYPE, NDIMS> as_multi_array() const
   {
     if (shape.size() != NDIMS) {
       throw std::invalid_argument(
@@ -185,21 +317,26 @@ public:
     }
 
     // Calculate the total number of elements expected
-    SizeType expected_size = 1;
-    for (SizeType dim : shape) {
-      expected_size *= dim;
-    }
+    SizeType expected_size = std::accumulate(
+        shape.begin(), shape.end(), SizeType {1}, std::multiplies<SizeType> {});
 
     if (data.size() != expected_size) {
       throw std::invalid_argument("Data size does not match the shape.");
     }
 
-    // Convert the shape vector to a boost::array
-    boost::array<std::size_t, NDIMS> boost_shape;
-    std::copy(shape.begin(), shape.end(), boost_shape.begin());
+    std::array<std::size_t, NDIMS> shape_array {};
+    for (std::size_t i = 0; i < NDIMS; ++i) {
+      shape_array[i] = static_cast<std::size_t>(shape[i]);
+    }
 
-    // Construct and return the boost::const_multi_array_ref
-    return boost::const_multi_array_ref<DTYPE, NDIMS>(data.data(), boost_shape);
+    std::array<std::size_t, NDIMS> strides {};
+    std::size_t stride = 1;
+    for (std::size_t i = NDIMS; i-- > 0;) {
+      strides[i] = stride;
+      stride *= shape_array[i];
+    }
+
+    return ConstMultiArrayView<DTYPE, NDIMS>(data.data(), shape_array, strides);
   }
 
   /**
@@ -312,7 +449,7 @@ public:
    * @brief Function to return the \ref AQNWB::Types::StorageObjectType OTYPE of
    * the instance
    */
-  inline StorageObjectType getStorageObjectType() const { return OTYPE; }
+  static inline StorageObjectType getStorageObjectType() { return OTYPE; }
 
   /**
    * @brief Function to check at compile-time whether the object is of a
@@ -343,7 +480,7 @@ public:
    * @brief Gets the path of the registered type.
    * @return The path of the registered type.
    */
-  inline std::string getPath() const { return m_path; }
+  inline const std::string& getPath() const { return m_path; }
 
   /**
    * @brief Get a shared pointer to the IO object.
@@ -355,7 +492,7 @@ public:
    * @brief Get the shape of the data object.
    * @return The shape of the data object.
    */
-  inline std::vector<SizeType> getShape() const
+  inline SizeArray getShape() const
   {
     return m_io->getStorageObjectShape(m_path);
   }
@@ -365,6 +502,53 @@ public:
    * @return The number of dimensions of the data object
    */
   inline SizeType getNumDimensions() const { return this->getShape().size(); }
+
+  /**
+   * @brief Get the data type of the data object.
+   * @return The BaseDataType of the data object.
+   * @throws std::runtime_error if the data type cannot be determined.
+   */
+  inline IO::BaseDataType getDataType() const
+  {
+    return m_io->getStorageObjectDataType(m_path);
+  }
+
+  /**
+   * @brief Get the chunking configuration of the data object.
+   *
+   * Attributes are not chunked, so this will return an empty SizeArray for
+   * attributes. An empty SizeArray is also returned if the path does not exist
+   * in the file or if the dataset is contiguous (not chunked).
+   *
+   * @return The chunking configuration of the dataset, or an empty SizeArray
+   * if the dataset is not chunked, if this is an attribute, or if the object
+   * does not exist.
+   */
+  inline SizeArray getChunking() const
+  {
+    return m_io->getStorageObjectChunking(m_path);
+  }
+
+  /**
+   * @brief Constructs a \ref AQNWB::IO::LinkArrayDataSetConfig from this
+   * wrapper.
+   *
+   * This is useful for creating soft-links to the dataset represented by
+   * this wrapper and for querying the storage properties (shape, chunking,
+   * data type) of the dataset via the returned config object.
+   *
+   * We do not support creating links to attributes, so this function is
+   * disabled for attributes.
+   *
+   * @return A \ref AQNWB::IO::LinkArrayDataSetConfig with the path of this
+   * wrapper as the link target.
+   */
+  template<StorageObjectType U = OTYPE,
+           typename std::enable_if<isDataset<U>::value, int>::type = 0>
+  inline IO::LinkArrayDataSetConfig toLinkArrayDataSetConfig() const
+  {
+    return IO::LinkArrayDataSetConfig(m_path);
+  }
 
   /**
    * @brief Check that the object exists
@@ -423,11 +607,10 @@ public:
    */
   template<StorageObjectType U = OTYPE,
            typename std::enable_if<isDataset<U>::value, int>::type = 0>
-  inline DataBlockGeneric valuesGeneric(
-      const std::vector<SizeType>& start,
-      const std::vector<SizeType>& count = {},
-      const std::vector<SizeType>& stride = {},
-      const std::vector<SizeType>& block = {}) const
+  inline DataBlockGeneric valuesGeneric(const SizeArray& start,
+                                        const SizeArray& count = {},
+                                        const SizeArray& stride = {},
+                                        const SizeArray& block = {}) const
   {
     // The function is only enabled for datasets so we don't need to check
     // for attributes here.
@@ -480,10 +663,10 @@ public:
   template<typename T = VTYPE,
            StorageObjectType U = OTYPE,
            typename std::enable_if<isDataset<U>::value, int>::type = 0>
-  inline DataBlock<VTYPE> values(const std::vector<SizeType>& start,
-                                 const std::vector<SizeType>& count = {},
-                                 const std::vector<SizeType>& stride = {},
-                                 const std::vector<SizeType>& block = {}) const
+  inline DataBlock<VTYPE> values(const SizeArray& start,
+                                 const SizeArray& count = {},
+                                 const SizeArray& stride = {},
+                                 const SizeArray& block = {}) const
   {
     // The function is only enabled for datasets so we don't need to check
     // for attributes here.

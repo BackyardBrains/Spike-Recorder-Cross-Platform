@@ -3,7 +3,8 @@
 #include <memory>
 #include <string>
 
-#include "../../RegisteredType.hpp"
+#include "nwb/RegisteredType.hpp"
+#include "spec/hdmf_common.hpp"
 
 namespace AQNWB::NWB
 {
@@ -16,8 +17,11 @@ class Container : public RegisteredType
 {
 public:
   // Register the Container class as a registered type
-  REGISTER_SUBCLASS(Container, "hdmf-common")
+  REGISTER_SUBCLASS(Container,
+                    RegisteredType,
+                    AQNWB::SPEC::HDMF_COMMON::namespaceName)
 
+protected:
   /**
    * @brief Constructor.
    *
@@ -26,10 +30,11 @@ public:
    */
   Container(const std::string& path, std::shared_ptr<IO::BaseIO> io);
 
+public:
   /**
    * @brief Destructor.
    */
-  virtual ~Container();
+  ~Container() override;
 
   /**
    * @brief Initialize the container.
@@ -38,17 +43,15 @@ public:
   Status initialize();
 
   // Define the data fields to expose for lazy read access
-  DEFINE_FIELD(readNeurodataType,
-               AttributeField,
-               std::string,
-               "neurodata_type",
-               The name of the type)
+  DEFINE_ATTRIBUTE_FIELD(readNeurodataType,
+                         std::string,
+                         "neurodata_type",
+                         The name of the type)
 
-  DEFINE_FIELD(readNamespace,
-               AttributeField,
-               std::string,
-               "namespace",
-               The name of the namespace)
+  DEFINE_ATTRIBUTE_FIELD(readNamespace,
+                         std::string,
+                         "namespace",
+                         The name of the namespace)
 };
 
 }  // namespace AQNWB::NWB

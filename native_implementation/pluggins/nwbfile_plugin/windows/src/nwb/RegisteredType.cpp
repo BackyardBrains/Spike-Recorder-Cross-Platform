@@ -1,7 +1,10 @@
+#include <limits>
+
 #include "RegisteredType.hpp"
 
-#include "../Utils.hpp"
-#include "../io/ReadIO.hpp"
+#include "Utils.hpp"
+#include "io/ReadIO.hpp"
+#include "io/RecordingObjects.hpp"
 
 using namespace AQNWB::NWB;
 
@@ -29,14 +32,14 @@ std::unordered_set<std::string>& RegisteredType::getRegistry()
 
 std::unordered_map<
     std::string,
-    std::pair<std::function<std::unique_ptr<RegisteredType>(
+    std::pair<std::function<std::shared_ptr<RegisteredType>(
                   const std::string&, std::shared_ptr<AQNWB::IO::BaseIO>)>,
               std::pair<std::string, std::string>>>&
 RegisteredType::getFactoryMap()
 {
   static std::unordered_map<
       std::string,
-      std::pair<std::function<std::unique_ptr<RegisteredType>(
+      std::pair<std::function<std::shared_ptr<RegisteredType>(
                     const std::string&, std::shared_ptr<AQNWB::IO::BaseIO>)>,
                 std::pair<std::string, std::string>>>
       factoryMap;
@@ -45,7 +48,7 @@ RegisteredType::getFactoryMap()
 
 void RegisteredType::registerSubclass(
     const std::string& fullClassName,
-    std::function<std::unique_ptr<RegisteredType>(
+    std::function<std::shared_ptr<RegisteredType>(
         const std::string&, std::shared_ptr<AQNWB::IO::BaseIO>)>
         factoryFunction,
     const std::string& typeName,
@@ -75,6 +78,8 @@ std::shared_ptr<AQNWB::NWB::RegisteredType> RegisteredType::create(
     std::shared_ptr<IO::BaseIO> io,
     bool fallbackToBase)
 {
+  // If no object exists for the path, or if the existing object is of a
+  // different type, create a new instance
   //  Look up the factory RegisteredType for the fullClassName the registry
   auto it = getFactoryMap().find(fullClassName);
   if (it != getFactoryMap().end()) {
@@ -83,18 +88,23 @@ std::shared_ptr<AQNWB::NWB::RegisteredType> RegisteredType::create(
   // If the class is not found, return a base class instance by calling this
   // function again with the fallback base class to use for Group and Dataset
   // types respectively
+  std::shared_ptr<AQNWB::NWB::RegisteredType> result = nullptr;
   if (fallbackToBase) {
     StorageObjectType sot = io->getStorageObjectType(path);
     if (sot == StorageObjectType::Group) {
-      return create(m_defaultUnregisteredGroupTypeClass, path, io);
+      result = create(m_defaultUnregisteredGroupTypeClass, path, io);
     } else if (sot == StorageObjectType::Dataset) {
-      return create(m_defaultUnregisteredDatasetTypeClass, path, io);
+      result = create(m_defaultUnregisteredDatasetTypeClass, path, io);
     }
   }
 
-  // If the class is not found and we are not falling back to a base class,
-  // return nullptr
-  return nullptr;
+  // Ensure the object is registered for recording if it is not already
+  if (result != nullptr) {
+    result->registerRecordingObject();
+  }
+
+  // Return the result, which may be nullptr if creation failed
+  return result;
 }
 
 std::shared_ptr<AQNWB::NWB::RegisteredType> RegisteredType::create(
@@ -103,22 +113,8 @@ std::shared_ptr<AQNWB::NWB::RegisteredType> RegisteredType::create(
     bool fallbackToBase)
 {
   try {
-    // Read the "namespace" attribute
-    AQNWB::IO::DataBlockGeneric namespaceData =
-        io->readAttribute(AQNWB::mergePaths(path, "namespace"));
-    auto namespaceBlock =
-        AQNWB::IO::DataBlock<std::string>::fromGeneric(namespaceData);
-    std::string typeNamespace = namespaceBlock.data[0];
-
     // Read the "neurodata_type" attribute
-    AQNWB::IO::DataBlockGeneric typeData =
-        io->readAttribute(AQNWB::mergePaths(path, "neurodata_type"));
-    auto typeBlock = AQNWB::IO::DataBlock<std::string>::fromGeneric(typeData);
-    std::string typeName = typeBlock.data[0];
-
-    // Combine the namespace and type name to get the full class name
-    std::string fullClassName = typeNamespace + "::" + typeName;
-
+    std::string fullClassName = io->getFullTypeName(path);
     // Create an instance of the corresponding RegisteredType subclass
     return AQNWB::NWB::RegisteredType::create(
         fullClassName, path, io, fallbackToBase);
@@ -129,9 +125,54 @@ std::shared_ptr<AQNWB::NWB::RegisteredType> RegisteredType::create(
   }
 }
 
+SizeType RegisteredType::registerRecordingObject()
+{
+  // Add this object to the RecordingObjects object of the I/O it is associated
+  // with This ensures that all RegisteredType objects used for recording are
+  // automatically tracked
+  auto ioPtr = getIO();
+  if (ioPtr) {
+    auto recordingObjects = ioPtr->getRecordingObjects();
+    if (recordingObjects) {
+      // Get a shared pointer to this object
+      std::shared_ptr<RegisteredType> sharedThis = shared_from_this();
+      SizeType recordingIndex =
+          recordingObjects->addRecordingObject(sharedThis);
+      return recordingIndex;
+    }
+  }
+  // Return sentinel value for failure
+  return std::numeric_limits<SizeType>::max();
+}
+
+AQNWB::Types::Status RegisteredType::finalize()
+{
+  return AQNWB::Types::Status::Success;
+}
+
 std::unordered_map<std::string, std::string> RegisteredType::findOwnedTypes(
     const std::unordered_set<std::string>& types,
     const IO::SearchMode& search_mode) const
 {
-  return m_io->findTypes(m_path, types, search_mode, true);
+  auto ioPtr = getIO();
+  if (ioPtr != nullptr) {
+    return ioPtr->findTypes(m_path, types, search_mode, true);
+  } else {
+    std::cerr << "IO object has been deleted. Can't find owned types for: "
+              << m_path << std::endl;
+    return {};
+  }
+}
+
+SizeType RegisteredType::getRecordingObjectIndex() const
+{
+  auto ioPtr = getIO();
+  if (ioPtr) {
+    auto recordingObjects = ioPtr->getRecordingObjects();
+    if (recordingObjects) {
+      return recordingObjects->getRecordingIndex(shared_from_this());
+    }
+  }
+  // Return sentinel value for failure
+  return AQNWB::Types::SizeTypeNotSet;
 }

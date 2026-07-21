@@ -19,6 +19,22 @@ class NwbFileUtilImpl implements NWBFileUtil {
   List<int> _recordVisibleMask = [1];
   int _recordVisibleChannelCount = 1;
 
+  /// Cached once so record-button presses don't re-hit path_provider.
+  static String? _cachedDocumentsPath;
+  static String? _cachedDownloadsPath;
+
+  Future<String> _documentsPath() async {
+    return _cachedDocumentsPath ??=
+        (await getApplicationDocumentsDirectory()).path;
+  }
+
+  Future<String?> _downloadsPath() async {
+    if (_cachedDownloadsPath != null) return _cachedDownloadsPath;
+    final dir = await getDownloadsDirectory();
+    _cachedDownloadsPath = dir?.path;
+    return _cachedDownloadsPath;
+  }
+
   @override
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;
 
@@ -108,17 +124,15 @@ class NwbFileUtilImpl implements NWBFileUtil {
     // final path = (await getApplicationDocumentsDirectory()).path + "/example_recording2.nwb";
     print("PROCESSING INIT: $sampleRate, $channelCount, $deviceInfo, $deviceManufacturer, $visibleChannelsList, $visibleChannelCount");
     recordedTime = DateTime.now().millisecondsSinceEpoch.toString();
-    String path =
-        "${(await getApplicationDocumentsDirectory()).path}\\spike_recorder$recordedTime.nwb";
+    final docsPath = await _documentsPath();
+    String path = "$docsPath\\spike_recorder$recordedTime.nwb";
     if (Platform.isIOS) {
-      path =
-          "${(await getApplicationDocumentsDirectory()).path}/spike_recorder$recordedTime.nwb";
-    } else
-    if (Platform.isMacOS) {
-      path =
-          "${(await getDownloadsDirectory())?.path}/spike_recorder$recordedTime.nwb";
-      // String computerNamePath = (await getApplicationDocumentsDirectory()).path.split("/Library")[0];
-      // path = "${computerNamePath}/spike_recorder$recordedTime.nwb";
+      path = "$docsPath/spike_recorder$recordedTime.nwb";
+    } else if (Platform.isMacOS) {
+      final downloadsPath = await _downloadsPath();
+      path = "${downloadsPath ?? docsPath}/spike_recorder$recordedTime.nwb";
+    } else if (Platform.isAndroid || Platform.isLinux) {
+      path = "$docsPath/spike_recorder$recordedTime.nwb";
     }
     _recordVisibleMask = List<int>.from(visibleChannelsList);
     _recordVisibleChannelCount = visibleChannelCount > 0
@@ -137,17 +151,26 @@ class NwbFileUtilImpl implements NWBFileUtil {
         deviceManufacturer.toNativeUtf8().cast<Char>();
 
     print("Dart processing init start");
-    int initResult = nwb.processingInit(
-        charPointer,
-        sampleRate,
-        _recordVisibleChannelCount,
-        deviceInfoPointer,
-        deviceManufacturerPointer);
+    int initResult;
+    try {
+      initResult = nwb.processingInit(
+          charPointer,
+          sampleRate,
+          _recordVisibleChannelCount,
+          deviceInfoPointer,
+          deviceManufacturerPointer);
+    } finally {
+      malloc.free(charPointer);
+      malloc.free(deviceInfoPointer);
+      malloc.free(deviceManufacturerPointer);
+    }
     print("Dart processing init END");
     if (initResult < 0) {
       print("❌ Failed to initialize NWB file, error code: $initResult");
+      recordedNwbFilePath = "";
       return Future.value("false");
     }
+    recordedNwbFilePath = path;
     return Future.value(path);
   }
 
@@ -244,6 +267,48 @@ class NwbFileUtilImpl implements NWBFileUtil {
       calloc.free(samplesCountPtr);
     }
   }
+
+  @override
+  Future<int> addEvent(double timestampSeconds, int eventLabel) async {
+    final row = nwb.nwbfileAddEvent(timestampSeconds, eventLabel);
+    print("📌 Added NWB event: timestamp=$timestampSeconds, label=$eventLabel, row=$row");
+    return row;
+  }
+
+  @override
+  Future<({double timestampSeconds, int eventLabel, bool deleted})?> readEvent(
+      int rowIndex) async {
+    final timestampPtr = calloc<Float>();
+    final eventLabelPtr = calloc<Int32>();
+    final deletedPtr = calloc<Uint8>();
+    try {
+      final result = nwb.nwbfileReadEvent(
+        rowIndex,
+        timestampPtr,
+        eventLabelPtr,
+        deletedPtr,
+      );
+      if (result != 0) {
+        print("❌ Failed to read NWB event at row $rowIndex, error code: $result");
+        return null;
+      }
+      final event = (
+        timestampSeconds: timestampPtr.value,
+        eventLabel: eventLabelPtr.value,
+        deleted: deletedPtr.value != 0,
+      );
+      print(
+          "📖 Read NWB event: row=$rowIndex, timestamp=${event.timestampSeconds}, label=${event.eventLabel}, deleted=${event.deleted}");
+      return event;
+    } finally {
+      calloc.free(timestampPtr);
+      calloc.free(eventLabelPtr);
+      calloc.free(deletedPtr);
+    }
+  }
+
+  @override
+  Future<int> getEventCount() async => nwb.nwbfileGetEventCount();
 
   @override
   Future<bool> readElectricalSeries(Int16List outSamples,

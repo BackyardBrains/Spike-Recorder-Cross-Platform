@@ -4,11 +4,11 @@
 #include <memory>
 #include <string>
 
-#include "../../include/H5Cpp.h"
+#include <H5Opublic.h>
 
-#include "../../Types.hpp"
-#include "../../io/BaseIO.hpp"
-#include "../../io/ReadIO.hpp"
+#include "Types.hpp"
+#include "io/BaseIO.hpp"
+#include "io/ReadIO.hpp"
 
 namespace H5
 {
@@ -23,7 +23,7 @@ class DataSpace;
 }  // namespace H5
 
 /*!
- * \namespace AQNWB::HDF5
+ * \namespace AQNWB::IO::HDF5
  * \brief Namespace for all components of the HDF5 I/O backend
  */
 namespace AQNWB::IO::HDF5
@@ -41,18 +41,13 @@ public:
   /**
    * @brief Constructor for the HDF5IO class that takes a file name as input.
    * @param fileName The name of the HDF5 file.
-   * @param disableSWMRMode Disable recording of data in Single Writer
-   *                 Multiple Reader (SWMR) mode. Using SWMR ensures that the
-   *                 HDF5 file remains valid and readable at all times during
-   *                 the recording process (but does not allow for new objects
-   *                 (Groups or Datasets) to be created.
    */
-  HDF5IO(const std::string& fileName, const bool disableSWMRMode = false);
+  explicit HDF5IO(const std::string& fileName);
 
   /**
-   * @brief Destructor for the HDF5IO class.
+   * @brief Destructor.
    */
-  ~HDF5IO();
+  ~HDF5IO() override;
 
   /**
    * @brief Opens an existing file or creates a new file for writing.
@@ -102,12 +97,11 @@ public:
    *
    * @return A DataGeneric structure containing the data and shape.
    */
-  AQNWB::IO::DataBlockGeneric readDataset(
-      const std::string& dataPath,
-      const std::vector<SizeType>& start = {},
-      const std::vector<SizeType>& count = {},
-      const std::vector<SizeType>& stride = {},
-      const std::vector<SizeType>& block = {}) override;
+  AQNWB::IO::DataBlockGeneric readDataset(const std::string& dataPath,
+                                          const SizeArray& start = {},
+                                          const SizeArray& count = {},
+                                          const SizeArray& stride = {},
+                                          const SizeArray& block = {}) override;
 
   /**
    * @brief Reads a attribute  and determines the data type
@@ -200,7 +194,9 @@ public:
    * @param path The location in the file to the new link.
    * @param reference The location in the file of the object that is being
    * linked to.
-   * @return The status of the link creation operation.
+   * @return The status of the link creation operation. Link creation may fail
+   * if the reference path does not exist or if the path for the new link
+   * already exists.
    */
   Status createLink(const std::string& path,
                     const std::string& reference) override;
@@ -235,10 +231,25 @@ public:
       const std::vector<std::string>& references) override;
 
   /**
-   * @brief Start SWMR write to start recording process
+   * @brief Start SWMR write to start recording process.
    * @return The status of the start recording operation.
    */
   Status startRecording() override;
+
+  /**
+   * @brief Start recording, optionally disabling SWMR mode.
+   *
+   * This overload is specific to @ref HDF5IO and is not part of the
+   * @ref BaseIO interface. Disabling SWMR mode allows new objects (Groups,
+   * Datasets, etc.) to be created during recording, but loses the data
+   * consistency and concurrent read guarantees that SWMR mode provides.
+   * When SWMR is disabled, @ref stopRecording will flush data to disk
+   * instead of closing the file, allowing recording to be restarted.
+   *
+   * @param disableSWMRMode When true, do not switch to SWMR mode.
+   * @return The status of the start recording operation.
+   */
+  Status startRecording(bool disableSWMRMode);
 
   /**
    * @brief Stops the recording process.
@@ -257,19 +268,21 @@ public:
   /**
    * @brief Creates an extendable dataset with the given configuration and path.
    * @param config The configuration for the dataset, including type, shape, and
-   * chunking.
+   * chunking. Can also be a LinkArrayDataSetConfig to create a soft-link.
    * @param path The location in the file of the new dataset.
-   * @return A pointer to the created dataset.
+   * @return A pointer to the created dataset. Returns nullptr for links.
+   * @throws std::runtime_error if dataset or link creation fails.
    */
   std::unique_ptr<IO::BaseRecordingData> createArrayDataSet(
-      const IO::ArrayDataSetConfig& config, const std::string& path) override;
+      const IO::BaseArrayDataSetConfig& config,
+      const std::string& path) override;
 
   /**
    * @brief Returns a pointer to a dataset at a given path.
    * @param path The location in the file of the dataset.
-   * @return A pointer to the dataset.
+   * @return A shared pointer to the dataset.
    */
-  std::unique_ptr<IO::BaseRecordingData> getDataSet(
+  std::shared_ptr<IO::BaseRecordingData> getDataSet(
       const std::string& path) override;
 
   /**
@@ -277,7 +290,25 @@ public:
    * @param path The location of the dataset or attribute in the file
    * @return The shape of the dataset or attribute.
    */
-  std::vector<SizeType> getStorageObjectShape(const std::string path) override;
+  SizeArray getStorageObjectShape(const std::string& path) const override;
+
+  /**
+   * @brief Gets the chunking configuration of a dataset.
+   * @param path The path to the dataset.
+   * @return The chunking configuration of the dataset, or an empty SizeArray if
+   * the dataset is not chunked, doesn't exist, or if the path points to a Group
+   * or Attribute (which cannot be chunked).
+   */
+  SizeArray getStorageObjectChunking(const std::string& path) const override;
+
+  /**
+   * @brief Gets the BaseDataType of a dataset or attribute.
+   * @param path The path to the dataset or attribute.
+   * @return The BaseDataType of the dataset or attribute.
+   * @throws std::runtime_error if the object is a Group (which has no data
+   * type) or if the data type cannot be determined.
+   */
+  BaseDataType getStorageObjectDataType(const std::string& path) const override;
 
   /**
    * @brief Checks whether a Dataset, Group, or Link already exists at the
@@ -455,13 +486,25 @@ private:
   std::unique_ptr<H5::Attribute> getAttribute(const std::string& path) const;
 
   /**
+   * @brief Non-virtual helper that performs the actual HDF5 file close.
+   *
+   * Called from both the destructor and the virtual close() method to avoid
+   * calling a virtual function from a destructor.
+   *
+   * @return Status::Success if the file was closed successfully, or was
+   *         already closed. Returns Status::Failure if an HDF5 exception
+   *         occurs while closing.
+   */
+  Status closeFileImpl();
+
+  /**
    * @brief Unique pointer to the HDF5 file for reading
    */
   std::unique_ptr<H5::H5File> m_file;
 
   /**
-   * \brief When set true, then do not switch to SWMR mode when starting the
-   * recording
+   * \brief Tracks whether SWMR mode is disabled for the current recording.
+   * Set by @ref startRecording(bool) at the start of each recording cycle.
    */
   bool m_disableSWMRMode;
 };

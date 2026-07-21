@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 
 #include "Utils.hpp"
@@ -15,6 +16,38 @@ namespace AQNWB::NWB
 class VectorData : public Data
 {
 public:
+  /**
+   * @brief Runtime configuration for creating and initializing a VectorData
+   * column.
+   */
+  struct DataSpec : public Data::DataSpec<VectorData>
+  {
+    DataSpec(const std::string& datasetName,
+             const IO::ArrayDataSetConfig& dataConfig,
+             const std::string& columnDescription)
+        : Data::DataSpec<VectorData>(datasetName, dataConfig)
+        , description(columnDescription)
+    {
+    }
+
+    virtual ~DataSpec() = default;
+
+    std::string description;
+
+    Status initialize(Data& data) const override
+    {
+      auto* vectorData = dynamic_cast<VectorData*>(&data);
+      if (!vectorData) {
+        std::cerr << "VectorData::DataSpec::initialize received incompatible "
+                     "Data object"
+                  << std::endl;
+        return Status::Failure;
+      }
+      return vectorData->initialize(
+          static_cast<const IO::ArrayDataSetConfig&>(*this), description);
+    }
+  };
+
   REGISTER_SUBCLASS(VectorData, Data, AQNWB::SPEC::HDMF_COMMON::namespaceName)
 
 protected:
@@ -65,6 +98,23 @@ public:
   }
 
   /**
+   * @brief Create a ColumnSpec for configuring this type as a DynamicTable
+   * column.
+   *
+   * @param name The column name.
+   * @param dataConfig Dataset configuration for the column.
+   * @param description The column description attribute.
+   * @return Shared pointer to the ColumnSpec for this column type.
+   */
+  static std::shared_ptr<DataSpec> createDataSpec(
+      const std::string& name,
+      const IO::ArrayDataSetConfig& dataConfig,
+      const std::string& description)
+  {
+    return std::make_shared<DataSpec>(name, dataConfig, description);
+  }
+
+  /**
    *  @brief Initialize the dataset for the VectorData object
    *
    *  This function creates a dataset using the provided configuration
@@ -73,7 +123,7 @@ public:
    * @param description The description of the VectorData
    * @return Status::Success if successful, otherwise Status::Failure.
    */
-  Status initialize(const IO::ArrayDataSetConfig& dataConfig,
+  Status initialize(const IO::BaseArrayDataSetConfig& dataConfig,
                     const std::string& description)
   {
     auto ioPtr = getIO();
@@ -83,9 +133,22 @@ public:
       return Status::Failure;
     }
     Status dataStatus = Data::initialize(dataConfig);
-    Status attrStatus =
-        ioPtr->createAttribute(description, m_path, "description");
-    return dataStatus && attrStatus;
+    if (dataConfig.isLink()) {
+      // For links, we don't set attributes since there is no dataset to attach
+      // them to. Validate that the target has the required "description"
+      // attribute.
+      const auto* linkConfig =
+          dynamic_cast<const IO::LinkArrayDataSetConfig*>(&dataConfig);
+      if (linkConfig) {
+        return dataStatus
+            && linkConfig->validateTarget(*ioPtr, {}, {}, {"description"});
+      }
+      return dataStatus;
+    } else {
+      Status attrStatus =
+          ioPtr->createAttribute(description, m_path, "description");
+      return dataStatus && attrStatus;
+    }
   }
 
   DEFINE_ATTRIBUTE_FIELD(readDescription,

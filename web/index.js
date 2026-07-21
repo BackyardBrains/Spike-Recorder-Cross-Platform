@@ -111,6 +111,10 @@ function initializeModule() {
     } else
     if (event.data.message === "NWB_FILE_CREATE_FAILED") {
       console.error("NWB_FILE_CREATE_FAILED:", event.data.error);
+      // Unblock Dart waiters that are awaiting onNwbFileCreated.
+      if (typeof window.onNwbFileCreated === "function") {
+        window.onNwbFileCreated("--");
+      }
       pendingWavOpen = null;
     } else
     if (event.data.message == "SEEK_NWB_FILE_BUFFER_WEB_CALLBACK_PLAYBACK") {
@@ -147,6 +151,28 @@ function initializeModule() {
         alert("Failed to record file.");
       }
                       
+    } else
+    if (event.data.message === "ADD_NWB_EVENT_RESULT") {
+      if (typeof window.onAddNwbEventResult === "function") {
+        window.onAddNwbEventResult(event.data.requestId, event.data.rowIndex, event.data.error);
+      }
+    } else
+    if (event.data.message === "GET_NWB_EVENT_COUNT_RESULT") {
+      if (typeof window.onGetNwbEventCountResult === "function") {
+        window.onGetNwbEventCountResult(event.data.requestId, event.data.count, event.data.error);
+      }
+    } else
+    if (event.data.message === "READ_NWB_EVENT_RESULT") {
+      if (typeof window.onReadNwbEventResult === "function") {
+        window.onReadNwbEventResult(
+          event.data.requestId,
+          event.data.ok === true,
+          event.data.timestampSeconds,
+          event.data.eventLabel,
+          event.data.deleted === true,
+          event.data.error
+        );
+      }
     }
 
     
@@ -706,6 +732,46 @@ async function processSerialDataWebResult(data, sampleCounts, channelCount, even
     "eventLabels": eventLabels,
     "eventPositions": eventPositions,
   });
+}
+
+let _nwbEventRequestId = 1;
+function _nextNwbEventRequestId() {
+  const id = _nwbEventRequestId++;
+  if (_nwbEventRequestId > 0x7fffffff) _nwbEventRequestId = 1;
+  return id;
+}
+
+/** Append one EventsTable row via WASM. Returns requestId for the Dart Completer. */
+function addNwbEventWeb(timestampSeconds, eventLabel) {
+  const requestId = _nextNwbEventRequestId();
+  mWorker.postMessage({
+    message: "ADD_NWB_EVENT",
+    requestId: requestId,
+    timestampSeconds: timestampSeconds,
+    eventLabel: eventLabel,
+  });
+  return requestId;
+}
+
+/** Read EventsTable row count via WASM. Returns requestId for the Dart Completer. */
+function getNwbEventCountWeb() {
+  const requestId = _nextNwbEventRequestId();
+  mWorker.postMessage({
+    message: "GET_NWB_EVENT_COUNT",
+    requestId: requestId,
+  });
+  return requestId;
+}
+
+/** Read one EventsTable row via WASM. Returns requestId for the Dart Completer. */
+function readNwbEventWeb(rowIndex) {
+  const requestId = _nextNwbEventRequestId();
+  mWorker.postMessage({
+    message: "READ_NWB_EVENT",
+    requestId: requestId,
+    rowIndex: rowIndex,
+  });
+  return requestId;
 }
 
 

@@ -13,6 +13,9 @@ class WebLoadedFilePlayer {
 
   VoidCallback? onPlaybackEnded;
 
+  /// Invalidates in-flight ended callbacks when stop/play races (issue #75).
+  int _endedSession = 0;
+
   bool get isActive {
     if (!kIsWeb) return false;
     try {
@@ -40,17 +43,23 @@ class WebLoadedFilePlayer {
       js.context['dartLoadedFilePlaybackEnded'] = null;
       return;
     }
+    final session = ++_endedSession;
     js.context['dartLoadedFilePlaybackEnded'] = js.allowInterop(() {
-      if (!isActive) {
-        SchedulerBinding.instance.addPostFrameCallback((_) {
-          onPlaybackEnded?.call();
-        });
-      }
+      // Capture session so a stop()/replay cannot run a stale ended handler.
+      final endedSession = session;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (endedSession != _endedSession) return;
+        onPlaybackEnded?.call();
+      });
     });
   }
 
   void stop() {
     if (!kIsWeb) return;
+    // Invalidate before JS stop so any residual ended notification is dropped.
+    _endedSession++;
+    onPlaybackEnded = null;
+    js.context['dartLoadedFilePlaybackEnded'] = null;
     try {
       js.context.callMethod('loadedFilePlaybackStop');
     } catch (e) {

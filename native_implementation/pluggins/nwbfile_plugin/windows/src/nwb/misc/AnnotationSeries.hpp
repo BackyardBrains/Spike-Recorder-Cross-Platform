@@ -2,10 +2,11 @@
 
 #include <string>
 
-#include "../../Utils.hpp"
-#include "../../io/BaseIO.hpp"
-#include "../../io/ReadIO.hpp"
-#include "../base/TimeSeries.hpp"
+#include "Utils.hpp"
+#include "io/BaseIO.hpp"
+#include "io/ReadIO.hpp"
+#include "nwb/base/TimeSeries.hpp"
+#include "spec/core.hpp"
 
 namespace AQNWB::NWB
 {
@@ -16,8 +17,11 @@ class AnnotationSeries : public TimeSeries
 {
 public:
   // Register the AnnotationSeries
-  REGISTER_SUBCLASS(AnnotationSeries, "core")
+  REGISTER_SUBCLASS(AnnotationSeries,
+                    TimeSeries,
+                    AQNWB::SPEC::CORE::namespaceName)
 
+protected:
   /**
    * @brief Constructor.
    * @param path The location of the AnnotationSeries in the file.
@@ -25,10 +29,11 @@ public:
    */
   AnnotationSeries(const std::string& path, std::shared_ptr<IO::BaseIO> io);
 
+public:
   /**
    * @brief Destructor
    */
-  ~AnnotationSeries();
+  ~AnnotationSeries() override;
 
   /**
    * @brief Initializes the AnnotationSeries
@@ -38,10 +43,11 @@ public:
    * chunking. The shape must be a vector with one element specifying the length
    * in time. The data type is fixed to variable-length string according to
    * schema.
+   * @return Status::Success if successful, otherwise Status::Failure.
    */
-  void initialize(const std::string& description,
-                  const std::string& comments,
-                  const IO::ArrayDataSetConfig& dataConfig);
+  Status initialize(const std::string& description,
+                    const std::string& comments,
+                    const IO::BaseArrayDataSetConfig& dataConfig);
 
   /**
    * @brief Writes a channel to an AnnotationSeries dataset.
@@ -52,15 +58,15 @@ public:
    * @return The status of the write operation.
    */
   Status writeAnnotation(const SizeType& numSamples,
-                         const std::vector<std::string> dataInput,
+                         const std::vector<std::string>& dataInput,
                          const void* timestampsInput,
                          const void* controlInput = nullptr);
 
-  DEFINE_FIELD(readData,
-               DatasetField,
-               std::string,
-               "data",
-               Annotations made during an experiment.)
+  DEFINE_DATASET_FIELD(readData,
+                       recordData,
+                       std::string,
+                       "data",
+                       Annotations made during an experiment.)
 
 private:
   /**

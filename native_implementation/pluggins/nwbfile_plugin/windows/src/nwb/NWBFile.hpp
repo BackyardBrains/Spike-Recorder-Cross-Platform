@@ -7,15 +7,16 @@
 #include <string_view>
 #include <vector>
 
-#include "../Types.hpp"
-#include "../Utils.hpp"
-#include "../io/BaseIO.hpp"
-#include "../io/ReadIO.hpp"
-#include "RecordingContainers.hpp"
-#include "base/TimeSeries.hpp"
-#include "file/ElectrodesTable.hpp"
-#include "hdmf/base/Container.hpp"
-#include "../spec/core.hpp"
+#include "Types.hpp"
+#include "Utils.hpp"
+#include "io/BaseIO.hpp"
+#include "io/ReadIO.hpp"
+#include "nwb/base/NWBContainer.hpp"
+#include "nwb/base/ProcessingModule.hpp"
+#include "nwb/base/TimeSeries.hpp"
+#include "nwb/event/EventsTable.hpp"
+#include "nwb/file/ElectrodesTable.hpp"
+#include "spec/core.hpp"
 
 /*!
  * \namespace AQNWB::NWB
@@ -28,23 +29,51 @@ namespace AQNWB::NWB
  * @brief The NWBFile class provides an interface for setting up and managing
  * the NWB file.
  */
-class NWBFile : public Container
+class NWBFile : public NWBContainer
 {
 public:
-  // Register the ElectrodesTable as a subclass of Container
-  REGISTER_SUBCLASS(NWBFile, "core")
+  // Register the NWBFile as a subclass of NWBContainer
+  REGISTER_SUBCLASS(NWBFile, NWBContainer, AQNWB::SPEC::CORE::namespaceName)
 
+  // Static paths for NWB file structure
+  /// @brief The path to the acquisition group in the NWB file
+  inline const static std::string ACQUISITION_PATH = "/acquisition";
+  /// @brief The path to the specification group in the NWB file
+  inline const static std::string SPECIFICATIONS_PATH = "/specifications";
+  /// @brief The path to the processing group in the NWB file
+  inline const static std::string PROCESSING_PATH = "/processing";
+  /// @brief The path to the stimulus group in the NWB file
+  inline const static std::string STIMULUS_PATH = "/stimulus";
+  /// @brief The path to the general group in the NWB file
+  inline const static std::string GENERAL_PATH = "/general";
+  /// @brief The path to the analysis group in the NWB file
+  inline const static std::string ANALYSIS_PATH = "/analysis";
+  /// @brief The path to the root events group in the NWB file
+  inline const static std::string EVENTS_PATH = "/events";
+
+  /** \brief Convenience factor method since the path is fixed to '/'
+   * @param io A shared pointer to the IO object.
+   * @return A shared pointer to the created NWBFile object, or nullptr if
+   * creation failed.
+   */
+  static std::shared_ptr<NWBFile> create(std::shared_ptr<IO::BaseIO> io)
+  {
+    return RegisteredType::create<NWBFile>("/", io);
+  }
+
+protected:
   /**
    * @brief Constructor for NWBFile class.
    * @param io The shared pointer to the IO object.
    */
-  NWBFile(std::shared_ptr<IO::BaseIO> io);
+  explicit NWBFile(std::shared_ptr<IO::BaseIO> io);
 
   /** @brief Required constructor so we can call RegisteredType::create but the
    * path cannot be set
    */
   NWBFile(const std::string& path, std::shared_ptr<IO::BaseIO> io);
 
+public:
   /**
    * @brief Deleted copy constructor to prevent construction-copying.
    */
@@ -58,7 +87,7 @@ public:
   /**
    * @brief Destructor for NWBFile class.
    */
-  ~NWBFile();
+  ~NWBFile() override;
 
   /**
    * @brief Initializes the NWB file by setting up the file structure.
@@ -89,11 +118,6 @@ public:
   bool isInitialized() const;
 
   /**
-   * @brief Finalizes the NWB file by closing the io object.
-   */
-  Status finalize();
-
-  /**
    * @brief Create ElectrodesTable.
    * Note, this function will fail if the file is in a mode where
    * new objects cannot be added, which can be checked via
@@ -101,19 +125,75 @@ public:
    * @param recordingArrays vector of ChannelVector indicating the electrodes to
    *                        add to the table. This vector should contain all the
    *                        electrodes that are detected by the acquisition
-   * system, not only those being actively recorded from.
-   * @param deviceDescription Optional device description (defaults to "description" if empty)
-   * @param deviceManufacturer Optional device manufacturer (defaults to "unknown" if empty)
-   * @return Status The status of the object creation operation.
+   *                        system, not only those being actively recorded from.
+   * @param finalizeTable If true (default) then the table will be finalized
+   *                      after creation to write it to the file. If false, the
+   *                      caller must call finalize() on the returned table
+   *                      object to write it to the file.
+   * @param rowChunkSize The chunk size to use for the rows of the table.
+   * @return The generated ElectrodesTable or nullptr if failed.
    */
-  Status createElectrodesTable(
+  std::shared_ptr<ElectrodesTable> createElectrodesTable(
       std::vector<Types::ChannelVector> recordingArrays,
-      const std::string& deviceDescription = "description",
-      const std::string& deviceManufacturer = "unknown");
+      bool finalizeTable = true,
+      const SizeType rowChunkSize = 100);
+
+  /**
+   * @brief Create an EventsTable in the EVENTS_PATH group.
+   * Note, this function will fail if the file is in a mode where
+   * new objects cannot be added, which can be checked via
+   * nwbfile.io->canModifyObjects()
+   * @param name The name of the EventsTable to create.
+   * @param description Description of the table.
+   * @param sourceDescription Optional short text description of where the
+   * events came from.
+   * @param timestampResolution The temporal resolution of the timestamps in
+   * seconds.
+   * @param durationResolution The temporal resolution of the optional duration
+   * column in seconds.
+   * @param createAnnotationColumn Whether to create the annotation column.
+   * @param rowChunkSize The chunk size for the rows of the table.
+   * @return The generated EventsTable or nullptr if failed.
+   */
+  std::shared_ptr<EventsTable> createEventsTable(
+      const std::string& name,
+      const std::string& description,
+      const std::string& sourceDescription = "",
+      float timestampResolution = 0.001f,
+      float durationResolution = -1.0f,
+      const bool createAnnotationColumn = false,
+      const SizeType rowChunkSize = 100);
+
+  /**
+   * @brief Create an EventsTable in the EVENTS_PATH group using a pre-built
+   * column spec list.
+   *
+   * This overload is useful when the caller has already constructed a column
+   * spec vector (e.g. via EventsTable::createDefaultDataSpecs() followed by
+   * push_back() calls to add custom columns) and wants to pass it directly
+   * instead of using the individual resolution/flag parameters.
+   *
+   * Note, this function will fail if the file is in a mode where
+   * new objects cannot be added, which can be checked via
+   * nwbfile.io->canModifyObjects()
+   * @param name The name of the EventsTable to create.
+   * @param description Description of the table.
+   * @param sourceDescription Optional short text description of where the
+   * events came from.
+   * @param columnSpecs Pre-built vector of column specs (e.g. from
+   * EventsTable::createDefaultDataSpecs() with additional custom specs
+   * appended).
+   * @return The generated EventsTable or nullptr if failed.
+   */
+  std::shared_ptr<EventsTable> createEventsTable(
+      const std::string& name,
+      const std::string& description,
+      const std::string& sourceDescription,
+      const std::vector<NWB::DynamicTable::DataSpecPtr>& columnSpecs);
 
   /**
    * @brief Create ElectricalSeries objects to record data into.
-   * Created objects are stored in recordingContainers.
+   * Created objects are automatically added to the I/O's RecordingObjects.
    * Note, this function will fail if the file is in a mode where
    * new objects cannot be added, which can be checked via
    * nwbfile.io->canModifyObjects()
@@ -123,50 +203,44 @@ public:
    * @param recordingNames vector indicating the names of the ElectricalSeries
    * within the acquisition group
    * @param dataType The data type of the elements in the data block.
-   * @param recordingContainers The container to store the created TimeSeries.
-   * @param containerIndexes The indexes of the containers added to
-   * recordingContainers
+   * @param containerIndexes This vector is updated with the indexes of the
+   * created containers.
    * @return Status The status of the object creation operation.
    */
   Status createElectricalSeries(
       std::vector<Types::ChannelVector> recordingArrays,
       std::vector<std::string> recordingNames,
       const IO::BaseDataType& dataType,
-      RecordingContainers* recordingContainers,
       std::vector<SizeType>& containerIndexes);
 
   /**
    * @brief Create SpikeEventSeries objects to record data into.
-   * Created objects are stored in recordingContainers.
+   * Created objects are automatically added to the I/O's RecordingObjects.
    * @param recordingArrays vector of ChannelVector indicating the electrodes to
    *                        record from. A separate ElectricalSeries will be
    *                        created for each ChannelVector.
    * @param recordingNames vector indicating the names of the SpikeEventSeries
    * within the acquisition group
    * @param dataType The data type of the elements in the data block.
-   * @param recordingContainers The container to store the created TimeSeries.
-   * @param containerIndexes The indexes of the containers added to
-   * recordingContainers
+   * @param containerIndexes This vector is updated with the indexes of the
+   * created containers.
    * @return Status The status of the object creation operation.
    */
   Status createSpikeEventSeries(
       std::vector<Types::ChannelVector> recordingArrays,
       std::vector<std::string> recordingNames,
       const IO::BaseDataType& dataType,
-      RecordingContainers* recordingContainers,
       std::vector<SizeType>& containerIndexes);
 
   /** @brief Create AnnotationSeries objects to record data into.
-   * Created objects are stored in recordingContainers.
+   * Created objects are automatically added to the I/O's RecordingObjects.
    * @param recordingNames vector indicating the names of the AnnotationSeries
    * within the acquisition group
-   * @param recordingContainers The container to store the created TimeSeries.
-   * @param containerIndexes The indexes of the containers added to
-   * recordingContainers
+   * @param containerIndexes This vector is updated with the indexes of the
+   * created containers.
    * @return Status The status of the object creation operation.
    */
-  Status createAnnotationSeries(std::vector<std::string> recordingNames,
-                                RecordingContainers* recordingContainers,
+  Status createAnnotationSeries(const std::vector<std::string>& recordingNames,
                                 std::vector<SizeType>& containerIndexes);
 
   DEFINE_REGISTERED_FIELD(readElectrodesTable,
@@ -212,6 +286,20 @@ public:
                        Date and time corresponding to time zero of all
                            timestamps)
 
+  DEFINE_UNNAMED_REGISTERED_FIELD(readAquisitionSeries,
+                                  createAquisitionSeries,
+                                  TimeSeries,
+                                  "acquisition",
+                                  Get a TimeSeries stored in the acquisition
+                                      group)
+
+  DEFINE_UNNAMED_REGISTERED_FIELD(readProcessingModule,
+                                  createProcessingModule,
+                                  ProcessingModule,
+                                  "processing",
+                                  Get a ProcessingModule stored in the
+                                      processing group)
+
 protected:
   /**
    * @brief Creates the default file structure.
@@ -236,34 +324,12 @@ protected:
 
 private:
   /**
-   * @brief Factory method for creating recording data.
-   * @param config The configuration for the dataset including data type, shape,
-   * and chunking.
-   * @param path The location in the file of the new dataset.
-   * @return std::unique_ptr<IO::BaseRecordingData> The unique pointer to the
-   * created recording data.
-   */
-  std::unique_ptr<IO::BaseRecordingData> createRecordingData(
-      const IO::ArrayDataSetConfig& config, const std::string& path);
-
-  /**
    * @brief Saves the specification files for the schema.
-   * @param specPath The location in the file to store the spec information.
-   * @param versionNumber The version number of the specification files.
-   * @param specVariables The contents of the specification files.
-   * These values are generated from the nwb schema by
-   * `resources/generate_spec_files.py`
+   *
+   * @param namespaceInfo The NamespaceInfo object with the namespace
+   * specification
    */
-  template<SizeType N>
-  void cacheSpecifications(
-      const std::string& specPath,
-      const std::string& versionNumber,
-      const std::array<std::pair<std::string_view, std::string_view>, N>&
-          specVariables);
-
-  inline const static std::string m_acquisitionPath = "/acquisition";
-
-  inline const static std::string m_specificationsPath = "/specifications";
+  void cacheSpecifications(const Types::NamespaceInfo& namespaceInfo);
 
   /**
    * @brief The ElectrodesTable for the file

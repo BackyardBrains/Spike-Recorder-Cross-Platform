@@ -8,6 +8,7 @@ import 'package:spikerbox_architecture/models/CircularFloatArrayBuffer.dart';
 import 'package:spikerbox_architecture/models/FftDrawBuffer.dart';
 import 'package:spikerbox_architecture/models/default_config_model.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
+import 'package:spikerbox_architecture/screen/graph_template.dart';
 import 'package:spikerbox_architecture/screen/spiker_box_ui.dart';
 import 'package:spikerbox_architecture/widget/fft_painter.dart';
 
@@ -31,6 +32,23 @@ class ProcessingUtilImpl implements ProcessingUtil {
   int defaultChannelCountNoExpansionBoard = -1;
   @override
   int defaultSampleRateNoExpansionBoard = -1;
+
+  int _recordedSampleCount = 0;
+  int _lastRecordingState = 0;
+  double currentEventSecond = 0.0;
+
+  void _accumulateRecordedSamples(int frameCount) {
+    final recordingState = DraggableGraph.isRecording;
+    if (recordingState == 1 && _lastRecordingState != 1) {
+      _recordedSampleCount = 0;
+      currentEventSecond = 0.0;
+    }
+    _lastRecordingState = recordingState;
+    if (recordingState != 1 || frameCount <= 0) return;
+    _recordedSampleCount += frameCount;
+    currentEventSecond =
+        _sampleRate > 0 ? _recordedSampleCount / _sampleRate : 0.0;
+  }
 
 
   @override
@@ -123,50 +141,8 @@ class ProcessingUtilImpl implements ProcessingUtil {
     }
 
     int frameCount = (data.length / 2).floor();
-    int removedIndicesCount = 0;
-    for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {
-      if (inEventIndicesPtr[i] - frameCount > 0) {
-        inEventIndicesPtr[i] -= frameCount;
-        ProcessingUtil.eventPosition[i] = inEventIndicesPtr[i];
-        // print("ProcessingUtil.eventPosition[i] :  ${ProcessingUtil.eventPosition[i]} ${DateTime.now()}");
-      } else {
-        if (inEventIndicesPtr[i] != -1) {
-          removedIndicesCount++;
-          inEventIndicesPtr[i] = -1;
-          // DraggableGraph.eventMarkersPosition.removeAt(i);
-        }
-      }
-    }
-    // print("inEventIndicesPtr: ${inEventIndicesPtr.sublist(0,2)}");
-    for (int i = 0; i < removedIndicesCount; i++) {
-      if (inEventIndicesPtr[i] == -1) {
-        // print(
-        //     "INDEX: $i -- $removedIndicesCount __ ${inEventIndicesPtr[i]} : ${ProcessingUtil.eventLabels} @@ ${inEventIndicesPtr.sublist(0, ProcessingUtil.currentEventMarkers)}");
-        if (ProcessingUtil.eventLabels.isNotEmpty) {
-          ProcessingUtil.eventLabels.removeAt(0);
-          ProcessingUtil.eventPosition.removeAt(0);
-        }
-      }
-    }
-    if (inEventIndicesPtr.isNotEmpty && inEventIndicesPtr[0] == -1) {
-      // print("REMOVING BUFFER: ${inEventPositionPtr}");
-      int tempCurrentEvent = ProcessingUtil.currentEventMarkers;
-      ProcessingUtil.currentEventMarkers -= removedIndicesCount;
-
-      int eventPositionLen = ProcessingUtil.eventLabels.length;
-      int i = 0;
-      for (i = 0; i < eventPositionLen; i++) {
-        inEventIndicesPtr[i] = ProcessingUtil.eventPosition[i];
-        inEventPositionPtr[i] = inEventPositionPtr[i + 1];
-      }
-      inEventPositionPtr[i] = inEventPositionPtr[i + 1];
-      // print("inEventPositionPtr: $inEventPositionPtr");
-      for (int i = eventPositionLen; i < tempCurrentEvent; i++) {
-        // print("ZEROING: $eventPositionLen - $tempCurrentEvent");
-        inEventIndicesPtr[i] =
-            (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
-      }
-    }
+    _accumulateRecordedSamples(frameCount);
+    _shiftEventMarkersForInsertedFrames(frameCount);
 
     js.context.callMethod("processMicrophoneDataWeb", [
       data,
@@ -278,6 +254,80 @@ class ProcessingUtilImpl implements ProcessingUtil {
     }
   }
 
+  @override
+  void setLoadedFileEventMarkers(List<int> labels, List<int> positions) {
+    if (inEventIndicesPtr.isEmpty || inEventLabelsPtr.isEmpty) {
+      initEventMarkers(_sampleRate);
+    }
+
+    final count = labels.length < ProcessingUtil.MAX_EVENT_MARKERS
+        ? labels.length
+        : ProcessingUtil.MAX_EVENT_MARKERS;
+    ProcessingUtil.eventLabels
+      ..clear()
+      ..addAll(labels.take(count));
+    ProcessingUtil.eventPosition
+      ..clear()
+      ..addAll(positions.take(count));
+
+    for (int i = 0; i < count; i++) {
+      inEventLabelsPtr[i] = labels[i];
+      inEventIndicesPtr[i] = positions[i];
+    }
+    ProcessingUtil.currentEventMarkers = count;
+  }
+
+  @override
+  void advanceEventMarkers(int frameCount) {
+    _shiftEventMarkersForInsertedFrames(frameCount);
+  }
+
+  /// Ages [inEventIndicesPtr]/[ProcessingUtil.eventPosition] by [frameCount]
+  /// samples, dropping markers that have scrolled past the left edge.
+  /// Shared by [processMicrophoneData] (mic path) and [advanceEventMarkers]
+  /// (used by callers that paint already-decoded samples directly, e.g.
+  /// loaded-file playback ticks with live audio monitoring off).
+  void _shiftEventMarkersForInsertedFrames(int frameCount) {
+    if (frameCount <= 0 || inEventIndicesPtr.isEmpty) return;
+
+    int removedIndicesCount = 0;
+    for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {
+      if (inEventIndicesPtr[i] - frameCount > 0) {
+        inEventIndicesPtr[i] -= frameCount;
+        ProcessingUtil.eventPosition[i] = inEventIndicesPtr[i];
+      } else {
+        if (inEventIndicesPtr[i] != -1) {
+          removedIndicesCount++;
+          inEventIndicesPtr[i] = -1;
+        }
+      }
+    }
+    for (int i = 0; i < removedIndicesCount; i++) {
+      if (inEventIndicesPtr[i] == -1) {
+        if (ProcessingUtil.eventLabels.isNotEmpty) {
+          ProcessingUtil.eventLabels.removeAt(0);
+          ProcessingUtil.eventPosition.removeAt(0);
+        }
+      }
+    }
+    if (inEventIndicesPtr.isNotEmpty && inEventIndicesPtr[0] == -1) {
+      int tempCurrentEvent = ProcessingUtil.currentEventMarkers;
+      ProcessingUtil.currentEventMarkers -= removedIndicesCount;
+
+      int eventPositionLen = ProcessingUtil.eventLabels.length;
+      int i = 0;
+      for (i = 0; i < eventPositionLen; i++) {
+        inEventIndicesPtr[i] = ProcessingUtil.eventPosition[i];
+        inEventPositionPtr[i] = inEventPositionPtr[i + 1];
+      }
+      inEventPositionPtr[i] = inEventPositionPtr[i + 1];
+      for (int i = eventPositionLen; i < tempCurrentEvent; i++) {
+        inEventIndicesPtr[i] =
+            (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+      }
+    }
+  }
+
   void eventMarkerListener() {
     List<int> list = ProcessingUtil.eventMarkerNotifier.value;
     if (list[0] == -1) return;
@@ -289,6 +339,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
         inEventIndicesPtr[ProcessingUtil.currentEventMarkers] = list[1];
       }
       ProcessingUtil.eventLabels.add(list[0]);
+      if (DraggableGraph.isRecording == 1) {
+        GraphTemplate.nwbFileUtil?.addEvent(currentEventSecond, list[0]);
+      }
       // js.context.callMethod("onKeyPressEventMarker", [list[0], list[1], ProcessingUtil.currentEventMarkers, ProcessingUtil.fromSample, ProcessingUtil.toSample, _sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS]);
 
     }catch(err) {
@@ -388,6 +441,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
   void onSerialParsedCallback( int frameCount ) {
     // print("onSerialParsedCallback: ${inEventIndicesPtr[0]} - $frameCount");
+    _accumulateRecordedSamples(frameCount);
     int removedIndicesCount = 0;
     for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {
       if (inEventIndicesPtr[i] - frameCount > 0) {
@@ -773,7 +827,10 @@ class ProcessingUtilImpl implements ProcessingUtil {
     // TODO: implement initWithConfig
     // throw UnimplementedError();
     print("initWithConfig dart: $config ---");
-    js.context.callMethod("initWithConfig", [config]);
+    // Pass a plain JS Int32Array-friendly copy. Posting the Dart Int32List
+    // wrapper as `{o: …}` made the worker read channelCount as undefined,
+    // leave the circular buffer at 1 channel, and drop ch1+ on scrub.
+    js.context.callMethod("initWithConfig", [Int32List.fromList(config)]);
     _sampleRate = config[0].toInt();
     channelCount = config[1].toInt();
     ProcessingUtil.medianChannelValueAdjuster = List.generate(channelCount, (_) => 0);
@@ -823,7 +880,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
   void processingSerialDataResult(Int16List convertedData, Int32List sampleCounts, int channelCount) {
 
     js.context.callMethod("processSerialDataWebResult", [
-      convertedData, sampleCounts, channelCount,
+      Int16List.fromList(convertedData),
+      Int32List.fromList(sampleCounts),
+      channelCount,
       json.encode(ProcessingUtil.eventLabels),
       json.encode(ProcessingUtil.eventPosition)
     ]);

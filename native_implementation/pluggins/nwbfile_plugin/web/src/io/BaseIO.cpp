@@ -41,6 +41,109 @@ ArrayDataSetConfig::ArrayDataSetConfig(const BaseDataType& type,
 {
 }
 
+// LinkArrayDataSetConfig
+LinkArrayDataSetConfig::LinkArrayDataSetConfig(const std::string& targetPath)
+    : m_targetPath(targetPath)
+{
+}
+
+bool LinkArrayDataSetConfig::targetExists(const BaseIO& io) const
+{
+  return io.objectExists(m_targetPath);
+}
+
+SizeArray LinkArrayDataSetConfig::getTargetShape(const BaseIO& io) const
+{
+  return io.getStorageObjectShape(m_targetPath);
+}
+
+SizeArray LinkArrayDataSetConfig::getTargetChunking(const BaseIO& io) const
+{
+  return io.getStorageObjectChunking(m_targetPath);
+}
+
+BaseDataType LinkArrayDataSetConfig::getTargetDataType(const BaseIO& io) const
+{
+  return io.getStorageObjectDataType(m_targetPath);
+}
+
+Status LinkArrayDataSetConfig::validateTarget(
+    const BaseIO& io,
+    const std::vector<BaseDataType>& allowedTypes,
+    const std::vector<SizeType>& allowedDimensionalities,
+    const std::vector<std::string>& requiredAttributes) const
+{
+  // Check that the target dataset exists
+  if (!targetExists(io)) {
+    std::cerr << "LinkArrayDataSetConfig::validateTarget: target dataset '"
+              << m_targetPath << "' does not exist." << std::endl;
+    return Status::Failure;
+  }
+
+  // Validate data type if restrictions are specified
+  if (!allowedTypes.empty()) {
+    BaseDataType targetType;
+    try {
+      targetType = getTargetDataType(io);
+    } catch (const std::runtime_error& e) {
+      std::cerr << "LinkArrayDataSetConfig::validateTarget: failed to get "
+                   "data type of target dataset '"
+                << m_targetPath << "': " << e.what() << std::endl;
+      return Status::Failure;
+    }
+    bool typeMatch = std::any_of(allowedTypes.begin(),
+                                 allowedTypes.end(),
+                                 [&targetType](const auto& allowed)
+                                 { return targetType == allowed; });
+    if (!typeMatch) {
+      std::cerr << "LinkArrayDataSetConfig::validateTarget: data type of "
+                   "target dataset '"
+                << m_targetPath << "' is not in the list of allowed types."
+                << std::endl;
+      return Status::Failure;
+    }
+  }
+
+  // Validate dimensionality if restrictions are specified
+  if (!allowedDimensionalities.empty()) {
+    SizeArray shape;
+    try {
+      shape = getTargetShape(io);
+    } catch (const std::runtime_error& e) {
+      std::cerr << "LinkArrayDataSetConfig::validateTarget: failed to get "
+                   "shape of target dataset '"
+                << m_targetPath << "': " << e.what() << std::endl;
+      return Status::Failure;
+    }
+    SizeType ndims = static_cast<SizeType>(shape.size());
+    bool dimsMatch =
+        std::any_of(allowedDimensionalities.begin(),
+                    allowedDimensionalities.end(),
+                    [ndims](const auto& allowed) { return ndims == allowed; });
+    if (!dimsMatch) {
+      std::cerr << "LinkArrayDataSetConfig::validateTarget: dimensionality ("
+                << ndims << ") of target dataset '" << m_targetPath
+                << "' is not in the list of allowed dimensionalities."
+                << std::endl;
+      return Status::Failure;
+    }
+  }
+
+  // Validate required attributes
+  for (const auto& attrName : requiredAttributes) {
+    std::string attrPath = mergePaths(m_targetPath, attrName);
+    if (!io.attributeExists(attrPath)) {
+      std::cerr
+          << "LinkArrayDataSetConfig::validateTarget: required attribute '"
+          << attrName << "' is missing on target dataset '" << m_targetPath
+          << "'." << std::endl;
+      return Status::Failure;
+    }
+  }
+
+  return Status::Success;
+}
+
 // BaseIO
 
 BaseIO::BaseIO(const std::string& filename)
@@ -64,7 +167,7 @@ Status BaseIO::createCommonNWBAttributes(const std::string& path,
   return Status::Success;
 }
 
-std::string BaseIO::getFullTypeName(const std::string& path)
+std::string BaseIO::getFullTypeName(const std::string& path) const
 {
   // Read the "namespace" attribute
   AQNWB::IO::DataBlockGeneric namespaceData =
@@ -233,7 +336,7 @@ Status BaseIO::stopRecording()
     }
     status = status && finalizeStatus && clearStatus;
   }
-  return Status::Success;
+  return status;
 }
 
 Status BaseIO::close()
@@ -247,7 +350,7 @@ Status BaseIO::close()
 
 // Overload that uses the member variable position (works for simple data
 // extension)
-Status BaseRecordingData::writeDataBlock(const std::vector<SizeType>& dataShape,
+Status BaseRecordingData::writeDataBlock(const SizeArray& dataShape,
                                          const BaseDataType& type,
                                          const void* data)
 {

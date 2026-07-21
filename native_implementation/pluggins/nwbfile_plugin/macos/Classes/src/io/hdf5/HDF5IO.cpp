@@ -1,31 +1,47 @@
+#include <algorithm>
+#include <cassert>
 #include <codecvt>
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <numeric>
+#include <stdexcept>
 #include <vector>
 
-#include "HDF5IO.hpp"
+#include "io/hdf5/HDF5IO.hpp"
 
 #include <H5Cpp.h>
 #include <H5Fpublic.h>
 
-#include "../../Utils.hpp"
-#include "HDF5ArrayDataSetConfig.hpp"
-#include "HDF5RecordingData.hpp"
+#include "Utils.hpp"
+#include "io/hdf5/HDF5ArrayDataSetConfig.hpp"
+#include "io/hdf5/HDF5RecordingData.hpp"
 
 using namespace H5;
 using namespace AQNWB::IO::HDF5;
 
 // HDF5IO
-HDF5IO::HDF5IO(const std::string& filename, const bool disableSWMRMode)
-    : BaseIO(filename)
-    , m_disableSWMRMode(disableSWMRMode)
+HDF5IO::HDF5IO(const std::string& fileName)
+    : BaseIO(fileName)
+    , m_disableSWMRMode(false)
 {
 }
 
 HDF5IO::~HDF5IO()
 {
-  close();
+  try {
+    BaseIO::close();  // clear the recording containers
+    closeFileImpl();
+  } catch (const H5::Exception& e) {
+    std::cerr << "HDF5IO::~HDF5IO: error closing file '" << getFileName()
+              << "': " << e.getDetailMsg() << std::endl;
+  } catch (const std::exception& e) {
+    std::cerr << "HDF5IO::~HDF5IO: error closing file '" << getFileName()
+              << "': " << e.what() << std::endl;
+  } catch (...) {
+    std::cerr << "HDF5IO::~HDF5IO: unknown error closing file '"
+              << getFileName() << "'" << std::endl;
+  }
 }
 
 Status HDF5IO::open()
@@ -62,18 +78,7 @@ Status HDF5IO::open(FileMode mode)
       accFlags = H5F_ACC_RDWR;
       break;
     case FileMode::ReadOnly:
-      // Try to open with SWMR_READ first (for files created with SWMR support)
-      // If that fails, fall back to plain RDONLY (for files without SWMR)
       accFlags = H5F_ACC_RDONLY | H5F_ACC_SWMR_READ;
-      try {
-        m_file = std::make_unique<H5::H5File>(
-            getFileName(), accFlags, FileCreatPropList::DEFAULT, fapl);
-        m_opened = true;
-        return Status::Success;
-      } catch (const H5::Exception&) {
-        // File doesn't support SWMR, try opening without SWMR_READ
-        accFlags = H5F_ACC_RDONLY;
-      }
       break;
     default:
       throw std::invalid_argument("Invalid file mode");
@@ -88,21 +93,25 @@ Status HDF5IO::open(FileMode mode)
 
 Status HDF5IO::close()
 {
+  auto baseCloseStatus = BaseIO::close();  // clear the recording containers
+  return baseCloseStatus && closeFileImpl();
+}
+
+Status HDF5IO::closeFileImpl()
+{
+  // Close the file if it is open
   if (m_file != nullptr && m_opened) {
-    m_file->close();
+    try {
+      m_file->close();
+    } catch (const H5::Exception& e) {
+      std::cerr << "HDF5IO::closeFileImpl: error closing file '"
+                << getFileName() << "': " << e.getDetailMsg() << std::endl;
+      return Status::Failure;
+    }
     m_file = nullptr;
     m_opened = false;
   }
-
   return Status::Success;
-}
-
-Status intToStatus(int status)
-{
-  if (status < 0)
-    return Status::Failure;
-  else
-    return Status::Success;
 }
 
 Status HDF5IO::flush()
@@ -129,27 +138,19 @@ std::unique_ptr<H5::Attribute> HDF5IO::getAttribute(
   }
 
   // open the group or dataset
-  H5Object* loc;
-  Group gloc;
-  DataSet dloc;
   H5O_type_t objectType = getH5ObjectType(parentPath);
-  switch (objectType) {
-    case H5O_TYPE_GROUP:
-      gloc = m_file->openGroup(parentPath);
-      loc = &gloc;
-      break;
-    case H5O_TYPE_DATASET:
-      dloc = m_file->openDataSet(parentPath);
-      loc = &dloc;
-      break;
-    default:
-      return nullptr;  // not a valid dataset or group type
+  if (objectType == H5O_TYPE_GROUP) {
+    Group group = m_file->openGroup(parentPath);
+    if (group.attrExists(attrName)) {
+      return std::make_unique<H5::Attribute>(group.openAttribute(attrName));
+    }
+  } else if (objectType == H5O_TYPE_DATASET) {
+    DataSet dataset = m_file->openDataSet(parentPath);
+    if (dataset.attrExists(attrName)) {
+      return std::make_unique<H5::Attribute>(dataset.openAttribute(attrName));
+    }
   }
-  if (loc->attrExists(attrName)) {
-    return std::make_unique<H5::Attribute>(loc->openAttribute(attrName));
-  } else {
-    return nullptr;
-  }
+  return nullptr;
 }
 
 StorageObjectType HDF5IO::getStorageObjectType(std::string path) const
@@ -407,10 +408,10 @@ AQNWB::IO::DataBlockGeneric HDF5IO::readAttribute(
   }
 
   // Determine the size of the attribute from the shape
-  size_t numElements = 1;
-  for (const auto v : result.shape) {
-    numElements *= v;
-  }
+  size_t numElements = std::accumulate(result.shape.begin(),
+                                       result.shape.end(),
+                                       size_t {1},
+                                       std::multiplies<size_t> {});
 
   // Set the base data type for the attribute
   result.baseDataType = getBaseDataType(dataType);
@@ -476,10 +477,10 @@ AQNWB::IO::DataBlockGeneric HDF5IO::readAttribute(
     // Update the shape to reflect the array dimensions
     result.shape.assign(arrayDims.begin(), arrayDims.end());
 
-    size_t arrayNumElements = 1;
-    for (const auto dim : arrayDims) {
-      arrayNumElements *= dim;
-    }
+    size_t arrayNumElements = std::accumulate(arrayDims.begin(),
+                                              arrayDims.end(),
+                                              size_t {1},
+                                              std::multiplies<size_t> {});
 
     if (baseType == H5::PredType::NATIVE_INT32) {
       result.data =
@@ -513,12 +514,11 @@ AQNWB::IO::DataBlockGeneric HDF5IO::readAttribute(
   return result;
 }
 
-AQNWB::IO::DataBlockGeneric HDF5IO::readDataset(
-    const std::string& dataPath,
-    const std::vector<SizeType>& start,
-    const std::vector<SizeType>& count,
-    const std::vector<SizeType>& stride,
-    const std::vector<SizeType>& block)
+AQNWB::IO::DataBlockGeneric HDF5IO::readDataset(const std::string& dataPath,
+                                                const SizeArray& start,
+                                                const SizeArray& count,
+                                                const SizeArray& stride,
+                                                const SizeArray& block)
 {
   // Check that the dataset exists
   assert(H5Lexists(m_file->getId(), dataPath.c_str(), H5P_DEFAULT) > 0);
@@ -598,10 +598,10 @@ AQNWB::IO::DataBlockGeneric HDF5IO::readDataset(
   }
 
   // Calculate the total number of elements based on the hyperslab selection
-  size_t numElements = 1;
-  for (const auto& c : result.shape) {
-    numElements *= c;
-  }
+  size_t numElements = std::accumulate(result.shape.begin(),
+                                       result.shape.end(),
+                                       size_t {1},
+                                       std::multiplies<size_t> {});
 
   // Read the dataset into a vector of the appropriate type
   H5::DataType dataType = dataset.getDataType();
@@ -704,52 +704,55 @@ Status HDF5IO::createAttribute(const IO::BaseDataType& type,
                                const std::string& name,
                                const SizeType& size)
 {
-  H5Object* loc;
-  Group gloc;
-  DataSet dloc;
-  Attribute attr;
-  DataType H5type;
-  DataType origType;
-
   if (!canModifyObjects()) {
     return Status::Failure;
   }
 
-  // open the group or dataset
-  H5O_type_t objectType = getH5ObjectType(path);
-  switch (objectType) {
-    case H5O_TYPE_GROUP:
-      gloc = m_file->openGroup(path);
-      loc = &gloc;
-      break;
-    case H5O_TYPE_DATASET:
-      dloc = m_file->openDataSet(path);
-      loc = &dloc;
-      break;
-    default:
-      return Status::Failure;  // not a valid dataset or group type
-  }
-
-  H5type = getH5Type(type);
-  origType = getNativeType(type);
+  // For array attributes (size > 1), use the underlying element type (not
+  // ArrayType) with a 1D dataspace when the array length was historically
+  // encoded via BaseDataType::typeSize (legacy behavior). If the caller
+  // supplies a distinct element type (e.g., fixed-length array elements with
+  // typeSize > 1), preserve it instead of flattening.
+  IO::BaseDataType elementType =
+      (size > 1  // array data indicated by size > 1
+       && type.type != IO::BaseDataType::Type::T_STR  // non-string types
+       && type.type != IO::BaseDataType::Type::V_STR  // non-string types
+       && type.typeSize == static_cast<SizeType>(size)  // array-size in type
+       )
+      ? IO::BaseDataType(type.type,
+                         1)  // flatten element type for array attribute
+      : type;  // otherwise use the provided type as-is
+  DataType H5type = getH5Type(elementType);
+  DataType origType = getNativeType(elementType);
 
   DataSpace attr_dataspace;
   if (size > 1) {
     hsize_t dims = static_cast<hsize_t>(size);
     attr_dataspace = DataSpace(1, &dims);  // Create 1D dataspace of size 'dims'
   } else {
-    attr_dataspace = H5S_SCALAR;
+    attr_dataspace = DataSpace(H5S_SCALAR);
   }
 
-  if (loc->attrExists(name)) {
-    attr = loc->openAttribute(name);
-  } else {
-    attr = loc->createAttribute(name, H5type, attr_dataspace);
+  auto manage_attribute = [&](H5Object& loc)
+  {
+    Attribute attr = loc.attrExists(name)
+        ? loc.openAttribute(name)
+        : loc.createAttribute(name, H5type, attr_dataspace);
+    attr.write(origType, data);
+    return Status::Success;
+  };
+
+  // open the group or dataset
+  H5O_type_t objectType = getH5ObjectType(path);
+  if (objectType == H5O_TYPE_GROUP) {
+    Group gloc = m_file->openGroup(path);
+    return manage_attribute(gloc);
+  } else if (objectType == H5O_TYPE_DATASET) {
+    DataSet dloc = m_file->openDataSet(path);
+    return manage_attribute(dloc);
   }
 
-  attr.write(origType, data);
-
-  return Status::Success;
+  return Status::Failure;  // not a valid dataset or group type
 }
 
 Status HDF5IO::createAttribute(const std::string& data,
@@ -757,67 +760,61 @@ Status HDF5IO::createAttribute(const std::string& data,
                                const std::string& name,
                                const bool overwrite)
 {
-  H5Object* loc;
-  Group gloc;
-  DataSet dloc;
-  Attribute attr;
-
   if (!canModifyObjects()) {
     return Status::Failure;
   }
 
   // Create variable length string type
-  StrType H5type(PredType::C_S1, H5T_VARIABLE);
+  StrType H5type(PredType::C_S1, static_cast<size_t>(H5T_VARIABLE));
+
+  auto manage_attribute = [&](H5Object& loc)
+  {
+    try {
+      if (loc.attrExists(name)) {
+        if (overwrite) {
+          loc.removeAttr(name);
+        } else {
+          return Status::Failure;  // Don't allow overwriting
+        }
+      }
+
+      // Create dataspace for scalar
+      DataSpace attr_dataspace(H5S_SCALAR);
+
+      // Create the attribute
+      Attribute attr = loc.createAttribute(name, H5type, attr_dataspace);
+
+      // Write the scalar string data
+      const char* dataPtr = data.c_str();
+      attr.write(H5type, &dataPtr);
+
+    } catch (const GroupIException& error) {
+      error.printErrorStack();
+      return Status::Failure;
+    } catch (const AttributeIException& error) {
+      error.printErrorStack();
+      return Status::Failure;
+    } catch (const FileIException& error) {
+      error.printErrorStack();
+      return Status::Failure;
+    } catch (const DataSetIException& error) {
+      error.printErrorStack();
+      return Status::Failure;
+    }
+    return Status::Success;
+  };
 
   // Open the group or dataset
   H5O_type_t objectType = getH5ObjectType(path);
-  switch (objectType) {
-    case H5O_TYPE_GROUP:
-      gloc = m_file->openGroup(path);
-      loc = &gloc;
-      break;
-    case H5O_TYPE_DATASET:
-      dloc = m_file->openDataSet(path);
-      loc = &dloc;
-      break;
-    default:
-      return Status::Failure;  // Not a valid dataset or group type
+  if (objectType == H5O_TYPE_GROUP) {
+    Group gloc = m_file->openGroup(path);
+    return manage_attribute(gloc);
+  } else if (objectType == H5O_TYPE_DATASET) {
+    DataSet dloc = m_file->openDataSet(path);
+    return manage_attribute(dloc);
   }
 
-  try {
-    if (loc->attrExists(name)) {
-      if (overwrite) {
-        loc->removeAttr(name);
-      } else {
-        return Status::Failure;  // Don't allow overwriting
-      }
-    }
-
-    // Create dataspace for scalar
-    DataSpace attr_dataspace(H5S_SCALAR);
-
-    // Create the attribute
-    attr = loc->createAttribute(name, H5type, attr_dataspace);
-
-    // Write the scalar string data
-    const char* dataPtr = data.c_str();
-    attr.write(H5type, &dataPtr);
-
-  } catch (GroupIException& error) {
-    error.printErrorStack();
-    return Status::Failure;
-  } catch (AttributeIException& error) {
-    error.printErrorStack();
-    return Status::Failure;
-  } catch (FileIException& error) {
-    error.printErrorStack();
-    return Status::Failure;
-  } catch (DataSetIException& error) {
-    error.printErrorStack();
-    return Status::Failure;
-  }
-
-  return Status::Success;
+  return Status::Failure;  // Not a valid dataset or group type
 }
 
 Status HDF5IO::createAttribute(const std::vector<std::string>& data,
@@ -825,123 +822,109 @@ Status HDF5IO::createAttribute(const std::vector<std::string>& data,
                                const std::string& name,
                                const bool overwrite)
 {
-  H5Object* loc;
-  Group gloc;
-  DataSet dloc;
-  Attribute attr;
-  hsize_t dims[1];
-
   if (!canModifyObjects()) {
     return Status::Failure;
   }
 
   // Create variable length string type
-  StrType H5type(PredType::C_S1, H5T_VARIABLE);
+  StrType H5type(PredType::C_S1, static_cast<size_t>(H5T_VARIABLE));
+
+  auto manage_attribute = [&](H5Object& loc)
+  {
+    try {
+      if (loc.attrExists(name)) {
+        if (overwrite) {
+          // Delete the existing attribute
+          loc.removeAttr(name);
+        } else {
+          return Status::Failure;  // don't allow overwriting
+        }
+      }
+
+      // Create dataspace based on number of strings
+      hsize_t dims[1];
+      dims[0] = data.size();
+      DataSpace attr_dataspace(1, dims);
+
+      // Create the attribute
+      Attribute attr = loc.createAttribute(name, H5type, attr_dataspace);
+
+      // Write the data directly from the vector of strings.
+      // Note: c_str() pointers are valid only while 'data' is unchanged.
+      std::vector<const char*> dataPtrs(data.size());
+      std::transform(data.begin(),
+                     data.end(),
+                     dataPtrs.begin(),
+                     [](const std::string& str) { return str.c_str(); });
+      attr.write(H5type, dataPtrs.data());
+
+    } catch (const GroupIException& error) {
+      error.printErrorStack();
+      return Status::Failure;
+    } catch (const AttributeIException& error) {
+      error.printErrorStack();
+      return Status::Failure;
+    } catch (const FileIException& error) {
+      error.printErrorStack();
+      return Status::Failure;
+    } catch (const DataSetIException& error) {
+      error.printErrorStack();
+      return Status::Failure;
+    }
+    return Status::Success;
+  };
 
   // open the group or dataset
   H5O_type_t objectType = getH5ObjectType(path);
-  switch (objectType) {
-    case H5O_TYPE_GROUP:
-      gloc = m_file->openGroup(path);
-      loc = &gloc;
-      break;
-    case H5O_TYPE_DATASET:
-      dloc = m_file->openDataSet(path);
-      loc = &dloc;
-      break;
-    default:
-      return Status::Failure;  // not a valid dataset or group type
+  if (objectType == H5O_TYPE_GROUP) {
+    Group gloc = m_file->openGroup(path);
+    return manage_attribute(gloc);
+  } else if (objectType == H5O_TYPE_DATASET) {
+    DataSet dloc = m_file->openDataSet(path);
+    return manage_attribute(dloc);
   }
 
-  try {
-    if (loc->attrExists(name)) {
-      if (overwrite) {
-        // Delete the existing attribute
-        loc->removeAttr(name);
-      } else {
-        return Status::Failure;  // don't allow overwriting
-      }
-    }
-
-    // Create dataspace based on number of strings
-    DataSpace attr_dataspace;
-    dims[0] = data.size();
-    attr_dataspace = DataSpace(1, dims);
-
-    // Create the attribute
-    attr = loc->createAttribute(name, H5type, attr_dataspace);
-
-    // Write the data directly from the vector of strings
-    std::vector<const char*> dataPtrs;
-    dataPtrs.reserve(data.size());
-    for (const auto& str : data) {
-      dataPtrs.push_back(str.c_str());
-    }
-    attr.write(H5type, dataPtrs.data());
-
-  } catch (GroupIException error) {
-    error.printErrorStack();
-    return Status::Failure;
-  } catch (AttributeIException error) {
-    error.printErrorStack();
-    return Status::Failure;
-  } catch (FileIException error) {
-    error.printErrorStack();
-    return Status::Failure;
-  } catch (DataSetIException error) {
-    error.printErrorStack();
-    return Status::Failure;
-  }
-
-  return Status::Success;
+  return Status::Failure;  // not a valid dataset or group type
 }
 
 Status HDF5IO::createReferenceAttribute(const std::string& referencePath,
                                         const std::string& path,
                                         const std::string& name)
 {
-  H5Object* loc;
-  Group gloc;
-  DataSet dloc;
-  Attribute attr;
-
   if (!canModifyObjects()) {
     return Status::Failure;
   }
 
+  auto manage_attribute = [&](H5Object& loc)
+  {
+    try {
+      Attribute attr = loc.attrExists(name)
+          ? loc.openAttribute(name)
+          : loc.createAttribute(
+                name, H5::PredType::STD_REF_OBJ, DataSpace(H5S_SCALAR));
+
+      hobj_ref_t rdata;
+      m_file->reference(&rdata, referencePath.c_str());
+
+      attr.write(H5::PredType::STD_REF_OBJ, &rdata);
+    } catch (const H5::Exception& error) {
+      error.printErrorStack();
+      return Status::Failure;
+    }
+    return Status::Success;
+  };
+
   // open the group or dataset
   H5O_type_t objectType = getH5ObjectType(path);
-  switch (objectType) {
-    case H5O_TYPE_GROUP:
-      gloc = m_file->openGroup(path);
-      loc = &gloc;
-      break;
-    case H5O_TYPE_DATASET:
-      dloc = m_file->openDataSet(path);
-      loc = &dloc;
-      break;
-    default:
-      return Status::Failure;  // not a valid dataset or group type
+  if (objectType == H5O_TYPE_GROUP) {
+    Group gloc = m_file->openGroup(path);
+    return manage_attribute(gloc);
+  } else if (objectType == H5O_TYPE_DATASET) {
+    DataSet dloc = m_file->openDataSet(path);
+    return manage_attribute(dloc);
   }
 
-  try {
-    if (loc->attrExists(name)) {
-      attr = loc->openAttribute(name);
-    } else {
-      DataSpace attr_space(H5S_SCALAR);
-      attr = loc->createAttribute(name, H5::PredType::STD_REF_OBJ, attr_space);
-    }
-
-    hobj_ref_t rdata;
-    m_file->reference(&rdata, referencePath.c_str());
-
-    attr.write(H5::PredType::STD_REF_OBJ, &rdata);
-  } catch (const H5::Exception& error) {
-    error.printErrorStack();
-    return Status::Failure;
-  }
-
-  return Status::Success;
+  return Status::Failure;  // not a valid dataset or group type
 }
 
 Status HDF5IO::createGroup(const std::string& path)
@@ -952,10 +935,10 @@ Status HDF5IO::createGroup(const std::string& path)
 
   try {
     m_file->createGroup(path);
-  } catch (FileIException error) {
+  } catch (const FileIException& error) {
     error.printErrorStack();
     return Status::Failure;
-  } catch (GroupIException error) {
+  } catch (const GroupIException& error) {
     error.printErrorStack();
     return Status::Failure;
   }
@@ -969,7 +952,7 @@ Status HDF5IO::createGroupIfDoesNotExist(const std::string& path)
   }
   try {
     m_file->childObjType(path);
-  } catch (FileIException) {
+  } catch (const FileIException&) {
     return createGroup(path);
   }
   return Status::Success;
@@ -980,6 +963,11 @@ Status HDF5IO::createLink(const std::string& path, const std::string& reference)
 {
   if (!canModifyObjects()) {
     return Status::Failure;
+  }
+  if (!objectExists(reference)) {
+    std::cerr << "HDF5IO::createLink Reference target does not exist: "
+              << reference << std::endl;
+    return Status::Failure;  // Reference target must exist
   }
 
   herr_t error = H5Lcreate_soft(reference.c_str(),
@@ -1016,8 +1004,12 @@ Status HDF5IO::createReferenceDataSet(
                          H5P_DEFAULT,
                          H5P_DEFAULT);
 
-  herr_t writeStatus =
-      H5Dwrite(dset, H5T_STD_REF_OBJ, H5S_ALL, H5S_ALL, H5P_DEFAULT, rdata);
+  herr_t writeStatus = H5Dwrite(dset,
+                                H5T_STD_REF_OBJ,
+                                H5S_ALL,
+                                H5S_ALL,
+                                H5P_DEFAULT,
+                                static_cast<const void*>(rdata));
 
   delete[] rdata;
 
@@ -1062,38 +1054,55 @@ Status HDF5IO::createStringDataSet(const std::string& path,
   std::unique_ptr<IO::BaseRecordingData> dataset;
   IO::ArrayDataSetConfig config(
       IO::BaseDataType::V_STR, SizeArray {values.size()}, SizeArray {1});
-  dataset =
-      std::unique_ptr<IO::BaseRecordingData>(createArrayDataSet(config, path));
+  try {
+    dataset = createArrayDataSet(config, path);
+    if (!dataset) {
+      return Status::Failure;
+    }
+  } catch (const std::runtime_error&) {
+    return Status::Failure;
+  }
 
-  dataset->writeDataBlock(std::vector<SizeType> {1},
-                          std::vector<SizeType> {0},
-                          IO::BaseDataType::V_STR,
-                          values);
+  dataset->writeDataBlock(
+      SizeArray {1}, SizeArray {0}, IO::BaseDataType::V_STR, values);
 
   return Status::Success;
 }
 
 Status HDF5IO::startRecording()
 {
-  if (!m_opened)
-    return Status::Failure;
+  return startRecording(m_disableSWMRMode);
+}
 
-  if (!m_disableSWMRMode) {
-    herr_t status = H5Fstart_swmr_write(m_file->getId());
-    return intToStatus(status);
+Status HDF5IO::startRecording(bool disableSWMRMode)
+{
+  if (!m_opened) {
+    return Status::Failure;
   }
-  return Status::Success;
+  m_disableSWMRMode = disableSWMRMode;
+  // Call the base class method to pre-finalize all recording objects
+  Status status = BaseIO::startRecording();
+  // Start SWMR mode if it is not disabled
+  if (!m_disableSWMRMode) {
+    herr_t swmr_status = H5Fstart_swmr_write(m_file->getId());
+    status = status && intToStatus(swmr_status);
+  }
+  return status;
 }
 
 Status HDF5IO::stopRecording()
 {
+  // Call the base class method to finalize all recording objects
+  Status baseStatus = BaseIO::stopRecording();
+
   // if SWMR mode is disabled, stopping the recording will leave the file open
   if (!m_disableSWMRMode) {
     close();  // SWMR mode cannot be disabled so close the file
   } else {
     this->flush();
   }
-  return Status::Success;
+
+  return baseStatus;
 }
 
 bool HDF5IO::canModifyObjects()
@@ -1189,13 +1198,23 @@ HDF5IO::getStorageObjects(const std::string& path,
   return objects;
 }
 
-std::vector<SizeType> HDF5IO::getStorageObjectShape(const std::string path)
+SizeArray HDF5IO::getStorageObjectShape(const std::string& path) const
 {
+  // Check the object type and handle groups and missing objects
+  auto objectType = getStorageObjectType(path);
+  if (objectType == StorageObjectType::Group) {
+    return SizeArray();  // Groups don't have a shape
+  } else if (objectType == StorageObjectType::Undefined) {
+    throw std::runtime_error("HDF5IO::getStorageObjectShape: Object at '" + path
+                             + "' does not exist.");
+  }
+
+  // For datasets and attributes, get the dataspace and extract the dimensions
   H5::DataSpace dataspace;
   try {
     H5::DataSet dataset = m_file->openDataSet(path);
     dataspace = dataset.getSpace();
-  } catch (H5::Exception& e) {
+  } catch (H5::Exception&) {
     // Read the attribute
     std::unique_ptr<H5::Attribute> attributePtr = this->getAttribute(path);
     dataspace = attributePtr->getSpace();
@@ -1204,7 +1223,85 @@ std::vector<SizeType> HDF5IO::getStorageObjectShape(const std::string path)
   std::vector<hsize_t> dims(static_cast<size_t>(rank));
   dataspace.getSimpleExtentDims(dims.data());
 
-  return std::vector<SizeType>(dims.begin(), dims.end());
+  return SizeArray(dims.begin(), dims.end());
+}
+
+SizeArray HDF5IO::getStorageObjectChunking(const std::string& path) const
+{
+  // First check what type of object we're dealing with
+  StorageObjectType objectType = getStorageObjectType(path);
+
+  // Only datasets can have chunking - return empty for groups and attributes
+  if (objectType != StorageObjectType::Dataset) {
+    return SizeArray();
+  }
+
+  try {
+    H5::DataSet dataset = m_file->openDataSet(path);
+    H5::DSetCreatPropList plist = dataset.getCreatePlist();
+
+    // Check if the dataset is chunked
+    if (plist.getLayout() != H5D_CHUNKED) {
+      return SizeArray();
+    }
+
+    // Get the chunk dimensions
+    int rank = dataset.getSpace().getSimpleExtentNdims();
+    std::vector<hsize_t> chunk_dims(static_cast<size_t>(rank));
+    plist.getChunk(rank, chunk_dims.data());
+
+    return SizeArray(chunk_dims.begin(), chunk_dims.end());
+  } catch (H5::Exception& e) {
+    std::cerr << "HDF5IO::getStorageObjectChunking: Could not get chunking for "
+                 "dataset at "
+              << path << ": " << e.getDetailMsg() << std::endl;
+    return SizeArray();
+  }
+}
+
+AQNWB::IO::BaseDataType HDF5IO::getStorageObjectDataType(
+    const std::string& path) const
+{
+  StorageObjectType objType = getStorageObjectType(path);
+
+  // Handle datasets
+  if (objType == StorageObjectType::Dataset) {
+    try {
+      H5::DataSet dataset = m_file->openDataSet(path);
+      H5::DataType dataType = dataset.getDataType();
+      return getBaseDataType(dataType);
+    } catch (H5::Exception& e) {
+      throw std::runtime_error(
+          "HDF5IO::getStorageObjectDataType: Could not get data type for "
+          + Types::storageObjectTypeToString(objType) + " at '" + path
+          + "': " + e.getDetailMsg());
+    }
+  }
+
+  // Handle attributes
+  if (objType == StorageObjectType::Attribute) {
+    try {
+      std::unique_ptr<H5::Attribute> attributePtr = getAttribute(path);
+      if (!attributePtr) {
+        throw std::runtime_error(
+            "HDF5IO::getStorageObjectDataType: Could not open "
+            + Types::storageObjectTypeToString(objType) + " at '" + path + "'");
+      }
+      H5::DataType dataType = attributePtr->getDataType();
+      return getBaseDataType(dataType);
+    } catch (H5::Exception& e) {
+      throw std::runtime_error(
+          "HDF5IO::getStorageObjectDataType: Could not get data type for "
+          + Types::storageObjectTypeToString(objType) + " at '" + path
+          + "': " + e.getDetailMsg());
+    }
+  }
+
+  // Groups don't have data types
+  throw std::runtime_error("HDF5IO::getStorageObjectDataType: Object at '"
+                           + path + "' is a "
+                           + Types::storageObjectTypeToString(objType)
+                           + ". Groups do not have data types.");
 }
 
 std::shared_ptr<AQNWB::IO::BaseRecordingData> HDF5IO::getDataSet(
@@ -1218,37 +1315,61 @@ std::shared_ptr<AQNWB::IO::BaseRecordingData> HDF5IO::getDataSet(
   try {
     data = std::make_unique<H5::DataSet>(m_file->openDataSet(path));
     return std::make_shared<HDF5RecordingData>(std::move(data));
-  } catch (DataSetIException error) {
+  } catch (const DataSetIException& error) {
     error.printErrorStack();
     return nullptr;
-  } catch (FileIException error) {
+  } catch (const FileIException& error) {
     error.printErrorStack();
     return nullptr;
-  } catch (DataSpaceIException error) {
+  } catch (const DataSpaceIException& error) {
     error.printErrorStack();
     return nullptr;
   }
 }
 
 std::unique_ptr<AQNWB::IO::BaseRecordingData> HDF5IO::createArrayDataSet(
-    const IO::ArrayDataSetConfig& config, const std::string& path)
+    const IO::BaseArrayDataSetConfig& config, const std::string& path)
 {
-  std::unique_ptr<DataSet> data;
-  DSetCreatPropList prop;
-  DataType H5type = getH5Type(config.getType());
-
   if (!canModifyObjects()) {
-    std::cerr << "Cannot modify objects" << std::endl;
-    return nullptr;
+    throw std::runtime_error(
+        "Cannot create dataset at '" + path
+        + "' because objects cannot be modified in this file.");
   }
 
-  const SizeArray& size = config.getShape();
-  const SizeArray& chunking = config.getChunking();
+  // Check if this is a link configuration
+  if (config.isLink()) {
+    const IO::LinkArrayDataSetConfig* linkConfig =
+        dynamic_cast<const IO::LinkArrayDataSetConfig*>(&config);
+    if (linkConfig) {
+      Status status = createLink(path, linkConfig->getTargetPath());
+      if (status != Status::Success) {
+        throw std::runtime_error("Failed to create link from " + path + " to "
+                                 + linkConfig->getTargetPath());
+      }
+      // Return nullptr for links as they don't provide a recordable dataset
+      return nullptr;
+    }
+  }
+
+  // Regular dataset creation
+  const IO::ArrayDataSetConfig* arrayConfig =
+      dynamic_cast<const IO::ArrayDataSetConfig*>(&config);
+  if (!arrayConfig) {
+    throw std::runtime_error(
+        "Invalid configuration type for dataset creation. Expected "
+        "ArrayDataSetConfig or LinkArrayDataSetConfig.");
+  }
+
+  std::unique_ptr<DataSet> data;
+  DSetCreatPropList prop;
+  DataType H5type = getH5Type(arrayConfig->getType());
+
+  const SizeArray& size = arrayConfig->getShape();
+  const SizeArray& chunking = arrayConfig->getChunking();
 
   SizeType dimension = size.size();
   if (dimension < 1) {
-    std::cerr << "Invalid dimension size" << std::endl;
-    return nullptr;
+    throw std::runtime_error("Invalid dimension size");
   }
 
   // Ensure chunking is properly allocated and has at least 'dimension' elements
@@ -1285,15 +1406,15 @@ std::unique_ptr<AQNWB::IO::BaseRecordingData> HDF5IO::createArrayDataSet(
       }
     }
 
-    if (config.getType().type == IO::BaseDataType::Type::T_STR) {
-      H5type = StrType(PredType::C_S1, config.getType().typeSize);
+    if (arrayConfig->getType().type == IO::BaseDataType::Type::T_STR) {
+      H5type = StrType(PredType::C_S1, arrayConfig->getType().typeSize);
     }
 
     data = std::make_unique<DataSet>(
         m_file->createDataSet(path, H5type, dSpace, prop));
   } catch (const H5::Exception& e) {
-    std::cerr << "HDF5 error: " << e.getDetailMsg() << std::endl;
-    return nullptr;
+    throw std::runtime_error("Failed to create dataset at path '" + path
+                             + "': " + e.getDetailMsg());
   }
 
   return std::make_unique<HDF5RecordingData>(std::move(data));
@@ -1362,7 +1483,7 @@ H5::DataType HDF5IO::getNativeType(IO::BaseDataType type)
     case IO::BaseDataType::Type::T_STR:
       return H5::StrType(H5::PredType::C_S1, type.typeSize);
     case IO::BaseDataType::Type::V_STR:
-      return H5::StrType(H5::PredType::C_S1, H5T_VARIABLE);
+      return H5::StrType(H5::PredType::C_S1, static_cast<size_t>(H5T_VARIABLE));
     default:
       baseType = H5::PredType::NATIVE_INT32;
   }
@@ -1457,7 +1578,7 @@ H5::DataType HDF5IO::getH5Type(IO::BaseDataType type)
       return StrType(PredType::C_S1, type.typeSize);
       break;
     case BaseDataType::Type::V_STR:
-      return StrType(PredType::C_S1, H5T_VARIABLE);
+      return StrType(PredType::C_S1, static_cast<size_t>(H5T_VARIABLE));
       break;
     default:
       return PredType::STD_I32LE;

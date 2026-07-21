@@ -33,7 +33,7 @@ public:
   /**
    * @brief Destructor
    */
-  ~AnnotationSeries();
+  ~AnnotationSeries() override;
 
   /**
    * @brief Initializes the AnnotationSeries
@@ -47,7 +47,7 @@ public:
    */
   Status initialize(const std::string& description,
                     const std::string& comments,
-                    const IO::ArrayDataSetConfig& dataConfig);
+                    const IO::BaseArrayDataSetConfig& dataConfig);
 
   /**
    * @brief Writes a channel to an AnnotationSeries dataset.
@@ -58,7 +58,7 @@ public:
    * @return The status of the write operation.
    */
   Status writeAnnotation(const SizeType& numSamples,
-                         const std::vector<std::string> dataInput,
+                         const std::vector<std::string>& dataInput,
                          const void* timestampsInput,
                          const void* controlInput = nullptr);
 

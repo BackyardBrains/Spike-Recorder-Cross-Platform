@@ -23,13 +23,14 @@ SOURCES="src/nwbfile_processing_plugin_web.cpp"
 emcc $SOURCES \
     -I./src \
     -s ALLOW_MEMORY_GROWTH=1 \
-    -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] \
+    -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAP16'] \
     -s EXPORTED_FUNCTIONS=['_sum','_sum_long_running','_processing_init'] \
     -s EXPORT_NAME='NWBPlugin' \
     -s MODULARIZE=1 \
     -s WASM=1 \
     -s ASSERTIONS=1 \
     -s SAFE_HEAP=1 \
+    -s NO_DISABLE_EXCEPTION_CATCHING=1 \
     -O2 \
     -o dist/nwbfile_plugin.js
 

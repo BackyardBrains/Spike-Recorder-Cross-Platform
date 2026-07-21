@@ -1,4 +1,5 @@
 #include <codecvt>
+#include <cstring>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -17,32 +18,19 @@ using namespace AQNWB::IO::HDF5;
 HDF5RecordingData::HDF5RecordingData(std::unique_ptr<H5::DataSet> data)
 {
   DataSpace dSpace = data->getSpace();
-  DSetCreatPropList prop = data->getCreatePlist();
 
   SizeType numDimensions = static_cast<SizeType>(dSpace.getSimpleExtentNdims());
-  std::vector<hsize_t> dims(numDimensions), chunk(numDimensions);
+  std::vector<hsize_t> dims(numDimensions);
 
   numDimensions =
       static_cast<SizeType>(dSpace.getSimpleExtentDims(dims.data()));
 
-  // Check if the dataset is chunked before trying to get chunk information
-  H5D_layout_t layout = prop.getLayout();
-  if (layout == H5D_CHUNKED) {
-    // Only get chunk information for chunked datasets
-    prop.getChunk(static_cast<int>(numDimensions), chunk.data());
-  } else {
-    // For non-chunked datasets, use the dataset dimensions as the chunk size
-    for (SizeType i = 0; i < numDimensions; ++i) {
-      chunk[i] = dims[i];
-    }
-  }
-
-  m_shape = std::vector<SizeType>(numDimensions);
+  m_shape = SizeArray(numDimensions);
   for (SizeType i = 0; i < numDimensions; ++i) {
     m_shape[i] = static_cast<SizeType>(dims[i]);
   }
-  m_position = std::vector<SizeType>(
-      numDimensions, 0);  // Initialize position with 0 for each dimension
+  m_position = SizeArray(numDimensions,
+                         0);  // Initialize position with 0 for each dimension
   m_dataset = std::make_unique<H5::DataSet>(*data);
 }
 
@@ -52,11 +40,10 @@ HDF5RecordingData::~HDF5RecordingData()
   m_dataset->flush(H5F_SCOPE_GLOBAL);
 }
 
-Status HDF5RecordingData::writeDataBlock(
-    const std::vector<SizeType>& dataShape,
-    const std::vector<SizeType>& positionOffset,
-    const BaseDataType& type,
-    const void* data)
+Status HDF5RecordingData::writeDataBlock(const SizeArray& dataShape,
+                                         const SizeArray& positionOffset,
+                                         const BaseDataType& type,
+                                         const void* data)
 {
   try {
     // check type. Strings should use the other variant of this function
@@ -106,11 +93,10 @@ Status HDF5RecordingData::writeDataBlock(
   return Status::Success;
 }
 
-Status HDF5RecordingData::writeDataBlock(
-    const std::vector<SizeType>& dataShape,
-    const std::vector<SizeType>& positionOffset,
-    const AQNWB::IO::BaseDataType& type,
-    const std::vector<std::string>& data)
+Status HDF5RecordingData::writeDataBlock(const SizeArray& dataShape,
+                                         const SizeArray& positionOffset,
+                                         const AQNWB::IO::BaseDataType& type,
+                                         const std::vector<std::string>& data)
 {
   try {
     // validate and allocate space
@@ -175,11 +161,10 @@ Status HDF5RecordingData::writeDataBlock(
   return Status::Success;
 }
 
-Status HDF5RecordingData::writeDataBlockHelper(
-    const std::vector<SizeType>& dataShape,
-    const std::vector<SizeType>& positionOffset,
-    DataSpace& mSpace,
-    DataSpace& fSpace)
+Status HDF5RecordingData::writeDataBlockHelper(const SizeArray& dataShape,
+                                               const SizeArray& positionOffset,
+                                               DataSpace& mSpace,
+                                               DataSpace& fSpace)
 {
   // Check that the dataShape and positionOffset inputs match the dimensions
   // of the dataset

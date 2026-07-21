@@ -28,6 +28,34 @@ function parseVisibleSignalsList(visibleSignalsList, channelCount) {
     return new Int16Array(channelCount).fill(1);
 }
 
+/**
+ * Flutter web often posts TypedData as `{ o: TypedArray }`. Unwrap to a real
+ * typed array so `.length` / `.set` / index access work in the worker.
+ */
+function unwrapDartTypedArray(value, TypedArrayCtor) {
+    if (value == null) return null;
+    if (value instanceof TypedArrayCtor) return value;
+    if (value.o != null) {
+        if (value.o instanceof TypedArrayCtor) return value.o;
+        return TypedArrayCtor.from(value.o);
+    }
+    if (ArrayBuffer.isView(value)) {
+        return new TypedArrayCtor(value.buffer, value.byteOffset, Math.floor(value.byteLength / TypedArrayCtor.BYTES_PER_ELEMENT));
+    }
+    if (Array.isArray(value) || typeof value.length === "number") {
+        return TypedArrayCtor.from(value);
+    }
+    return null;
+}
+
+function unwrapInt16(value) {
+    return unwrapDartTypedArray(value, Int16Array);
+}
+
+function unwrapInt32(value) {
+    return unwrapDartTypedArray(value, Int32Array);
+}
+
 let startingCounter = 0;
 let startingTimer = 0;
 let isOpeningFile = false;
@@ -43,6 +71,16 @@ let loadedSamplesCountBuffer;
 let loadedConfigBuffer;
 // NWB Plugin module (modularized)
 let NwbModule;
+
+// Resolved once cprocessing.js's WASM runtime (Module._processing_*) is
+// ready. self.onmessage awaits this before touching Module, since the main
+// thread doesn't wait for the worker's INITIALIZE_WASM message before
+// sending things like INITIALIZE_MICROPHONE.
+let isWasmModuleReady = false;
+let _resolveWasmModuleReady;
+const wasmModuleReadyPromise = new Promise((resolve) => {
+    _resolveWasmModuleReady = resolve;
+});
 
 /**
  * Load a fresh NWB WASM instance. Required before each CREATE_NWB_FILE because
@@ -366,28 +404,25 @@ function resolveSerialFrameCount(serialResult, outSampleCountsBuffer, totalChann
 }
 
 function buildSerialLiveChunkViews(inSamplesBuffer, outSampleCountsBuffer, totalChannel, serialPacketLen, frameCount) {
+    // WASM planar layout: channel i starts at i * serialPacketLen (the capacity
+    // passed in out_sample_counts before processing_process_sample_stream).
     const chunkViews = [];
-    let offset = 0;
     for (let i = 0; i < totalChannel; i++) {
         let n = outSampleCountsBuffer[i] | 0;
         if (n <= 0 || n >= serialPacketLen) {
             n = frameCount;
         }
         if (n <= 0) continue;
-        chunkViews.push(inSamplesBuffer.slice(offset, offset + n));
-        offset += n;
-    }
-    if (chunkViews.length === 0 && frameCount > 0) {
-        for (let i = 0; i < totalChannel; i++) {
-            const start = i * serialPacketLen;
-            chunkViews.push(inSamplesBuffer.slice(start, start + frameCount));
-        }
+        const start = i * serialPacketLen;
+        chunkViews.push(inSamplesBuffer.slice(start, start + n));
     }
     if (chunkViews.length === 0 && frameCount > 0) {
         chunkViews.push(inSamplesBuffer.slice(0, Math.min(frameCount, inSamplesBuffer.length)));
     }
     return chunkViews;
 }
+
+
 
 function postSerialLivePlaybackChunk(inSamplesBuffer, outSampleCountsBuffer, serialResult, totalChannel, serialPacketLen, byteLength) {
     if (!canPostLivePlayback() || !serialProcessingOk(serialResult)) {
@@ -516,8 +551,40 @@ let out_frequency_counterPtr;
 let inSamplesFftPtr;
 let inSampleCountsFftPtr;
 
+// High-frequency real-time data messages. If these arrive before the WASM
+// module is ready we deliberately DROP them instead of awaiting/queueing
+// them - queueing would let a backlog build up in the worker's mailbox and
+// then get flushed all at once the moment the module becomes ready, which
+// looks like the graph/audio "fast forwarding" through buffered data before
+// settling into real-time. Losing a few startup frames is harmless since
+// there's nothing on screen yet anyway.
+const DROP_IF_WASM_NOT_READY = new Set([
+    "INPUT_MICROPHONE_BUFFER",
+    "DISPLAY_MICROPHONE_DATA",
+    "SEND_SERIAL_DATA_WEB",
+    "DISPLAY_SERIAL_DATA_WEB",
+    "PROCESS_FFT_MICROPHONE_DATA",
+    "PROCESS_PREPARE_FFT_DRAWING",
+    "PROCESS_SERIAL_DATA_WEB_RESULT",
+]);
+
 var tempOnMessage = self.onmessage;
 self.onmessage = async function (eventFromMain) {
+    // Guard against the race where the main thread starts sending messages
+    // (e.g. INITIALIZE_MICROPHONE) before the cprocessing WASM module has
+    // finished loading (self.Module.onRuntimeInitialized below). Without
+    // this, calls like Module._processing_init() throw because the exported
+    // WASM functions aren't attached yet, silently breaking the whole
+    // microphone drawing pipeline (empty graph, no data ever arrives).
+    if (!isWasmModuleReady) {
+        if (DROP_IF_WASM_NOT_READY.has(eventFromMain.data.message)) {
+            return;
+        }
+        // One-off setup/control messages (INITIALIZE_MICROPHONE, filters,
+        // thresholding, file open/save, etc.) are infrequent, so awaiting
+        // here just delays them slightly - it never builds up a backlog.
+        await wasmModuleReadyPromise;
+    }
     switch (eventFromMain.data.message) {
         case "INIT_FFT":
             let fftChannelCount = eventFromMain.data.channelCount;
@@ -897,8 +964,10 @@ self.onmessage = async function (eventFromMain) {
             outSampleCountsBuffer = Module.HEAP32.subarray(outSampleCountsPtrStart, (outSampleCountsPtrStart + totalChannel));
 
 
+            // Same planar-capacity rule as serial: WASM uses
+            // &_out_samples[ch * out_sample_counts[ch]] before overwriting counts.
             for (let i = 0; i < totalChannel; i++) {
-                outSampleCountsBuffer[i] = data.length / 2;
+                outSampleCountsBuffer[i] = packetLen;
             }
             inDataArr.set(data);
 
@@ -954,22 +1023,74 @@ self.onmessage = async function (eventFromMain) {
             }
 
             if (isRecording == 0) {
-                let samplesLength = outSampleCountsBuffer[0];
-                let channelsLength = 1;
+                // Write every visible channel (planar [ch0…][ch1…]…), matching the
+                // serial recording path. The old code hard-coded channelCount=1 so
+                // multi-channel recordings only persisted ch0.
+                if (!NwbModule) {
+                    console.error("NwbModule not ready for mic recording");
+                } else {
+                    const writeChannelCount =
+                        recordChannelCount > 0 ? recordChannelCount : totalChannel;
+                    const frameCount = outSampleCountsBuffer[0] | 0;
+                    if (frameCount > 0 && writeChannelCount > 0) {
+                        const planar = new Int16Array(writeChannelCount * frameCount);
+                        const counts = new Int32Array(writeChannelCount);
+                        let recordIdx = 0;
+                        let segmentIndex = 0;
+                        for (let i = 0; i < totalChannel && recordIdx < writeChannelCount; i++) {
+                            if (recordSignalsList && recordSignalsList[i] === 0) continue;
+                            const srcStart = i * packetLen;
+                            const available = outSampleCountsBuffer[i] | 0;
+                            const copyLen = Math.min(
+                                frameCount,
+                                available > 0 ? available : frameCount,
+                                Math.max(0, inSamplesBuffer.length - srcStart)
+                            );
+                            if (copyLen > 0) {
+                                planar.set(
+                                    inSamplesBuffer.subarray(srcStart, srcStart + copyLen),
+                                    segmentIndex
+                                );
+                            }
+                            counts[recordIdx] = frameCount;
+                            recordIdx++;
+                            segmentIndex += frameCount;
+                        }
+                        if (recordIdx === writeChannelCount && segmentIndex > 0) {
+                            const samplesPtr = NwbModule._malloc(
+                                segmentIndex * NwbModule.HEAP16.BYTES_PER_ELEMENT
+                            );
+                            const samplesPtrStart =
+                                samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
+                            const samplesBuffer = NwbModule.HEAP16.subarray(
+                                samplesPtrStart,
+                                samplesPtrStart + segmentIndex
+                            );
+                            samplesBuffer.set(planar);
 
-                let samplesPtr = NwbModule._malloc(samplesLength * NwbModule.HEAP16.BYTES_PER_ELEMENT);
-                let samplesPtrStart = samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
-                let samplesBuffer = NwbModule.HEAP16.subarray(samplesPtrStart, (samplesPtrStart + samplesLength));
-                samplesBuffer.set(inSamplesBuffer.subarray(0, samplesLength));
-                
-                let samplesCtrPtr = NwbModule._malloc(channelsLength * NwbModule.HEAP32.BYTES_PER_ELEMENT);
-                let samplesCtrPtrStart = samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
-                let samplesCtrBuffer = NwbModule.HEAP32.subarray(samplesCtrPtrStart, (samplesCtrPtrStart + channelsLength));
-                samplesCtrBuffer[0] = samplesLength;
+                            const samplesCtrPtr = NwbModule._malloc(
+                                writeChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT
+                            );
+                            const samplesCtrPtrStart =
+                                samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
+                            const samplesCtrBuffer = NwbModule.HEAP32.subarray(
+                                samplesCtrPtrStart,
+                                samplesCtrPtrStart + writeChannelCount
+                            );
+                            samplesCtrBuffer.set(counts);
 
-                NwbModule._nwbfile_add_electrical_series(samplesPtr, samplesCtrPtr, 0, 1, isRecording);
-                NwbModule._free(samplesPtr);
-                NwbModule._free(samplesCtrPtr);
+                            NwbModule._nwbfile_add_electrical_series(
+                                samplesPtr,
+                                samplesCtrPtr,
+                                0,
+                                writeChannelCount,
+                                0
+                            );
+                            NwbModule._free(samplesPtr);
+                            NwbModule._free(samplesCtrPtr);
+                        }
+                    }
+                }
             }
             if (isThresholding) {
             
@@ -1217,9 +1338,14 @@ self.onmessage = async function (eventFromMain) {
             outSampleCountsPtrStart = outSampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
             outSampleCountsBuffer = Module.HEAP32.subarray(outSampleCountsPtrStart, (outSampleCountsPtrStart + totalChannel));
 
-            // Slot stride expected by WASM (see processing_process_sample_stream).
+            // WASM sets out_samples[ch] = &_out_samples[ch * out_sample_counts[ch]]
+            // BEFORE process overwrites the counts. Capacity must be the planar
+            // slot size (serialPacketLen). Using data.length here made ch1+ land
+            // at the wrong offset while recording still read i * serialPacketLen
+            // — so multi-channel serial NWB files only contained ch0.
+            const channelStride = serialPacketLen;
             for (let i = 0; i < totalChannel; i++) {
-                outSampleCountsBuffer[i] = data.length;
+                outSampleCountsBuffer[i] = channelStride;
             }
             inDataArr.set(data);
             // console.log("inDataArr:::: ", inDataArr.subarray(0,5));
@@ -1279,11 +1405,14 @@ self.onmessage = async function (eventFromMain) {
 
                             for (let i = 0; i < totalChannel; i++) {
                                 if (recordSignalsList[i] == 0) continue;
-                                const srcStart = i * serialPacketLen;
+                                // Must match the capacity passed into WASM above.
+                                const srcStart = i * channelStride;
                                 const available = outSampleCountsBuffer[i] | 0;
                                 const copyLen = Math.min(
                                     frameCount,
-                                    available > 0 ? available : frameCount,
+                                    available > 0 && available < channelStride
+                                        ? available
+                                        : frameCount,
                                     Math.max(0, inSamplesBuffer.length - srcStart)
                                 );
                                 if (copyLen > 0) {
@@ -1298,7 +1427,12 @@ self.onmessage = async function (eventFromMain) {
                                 segmentIndex += frameCount;
                             }
 
-                            if (recordIdx === recordChannelCount && segmentIndex > 0) {
+                            if (recordIdx !== recordChannelCount) {
+                                console.warn(
+                                    "Serial record channel mismatch",
+                                    { recordIdx, recordChannelCount, totalChannel, frameCount }
+                                );
+                            } else if (segmentIndex > 0) {
                                 const samplesPtr = NwbModule._malloc(
                                     segmentIndex * NwbModule.HEAP16.BYTES_PER_ELEMENT
                                 );
@@ -1754,16 +1888,50 @@ self.onmessage = async function (eventFromMain) {
 
 
             let nwbSampleRate = eventFromMain.data.sampleRate;
-            let nwbChannelCount = eventFromMain.data.channelCount;
+            // Prefer live worker channelCount when Dart still reports 1 after
+            // expansion-board discovery (common on serial web).
+            let nwbChannelCount = Number(eventFromMain.data.channelCount) || 0;
+            if (channelCount > nwbChannelCount) {
+                console.warn(
+                    "CREATE_NWB_FILE: raising channelCount from Dart",
+                    nwbChannelCount,
+                    "to live",
+                    channelCount
+                );
+                nwbChannelCount = channelCount;
+            }
+            if (nwbChannelCount <= 0) {
+                nwbChannelCount = channelCount > 0 ? channelCount : 1;
+            }
             recordSignalsList = parseVisibleSignalsList(
                 eventFromMain.data.visibleSignalsList,
                 nwbChannelCount
             );
-            recordChannelCount = eventFromMain.data.visibleChannelCount;
             if (recordSignalsList.length < nwbChannelCount) {
                 const padded = new Int16Array(nwbChannelCount).fill(1);
                 padded.set(recordSignalsList);
                 recordSignalsList = padded;
+            }
+            // Prefer the mask over Dart's visibleChannelCount — a stale count of 1
+            // with a [1,1,…] mask used to create a 1-electrode NWB and drop ch1+.
+            let maskVisibleCount = 0;
+            for (let i = 0; i < recordSignalsList.length; i++) {
+                if (recordSignalsList[i] !== 0) maskVisibleCount++;
+            }
+            const reportedVisible = Number(eventFromMain.data.visibleChannelCount) || 0;
+            recordChannelCount =
+                maskVisibleCount > 0
+                    ? maskVisibleCount
+                    : reportedVisible > 0
+                      ? reportedVisible
+                      : nwbChannelCount;
+            if (reportedVisible > 0 && reportedVisible !== recordChannelCount) {
+                console.warn(
+                    "CREATE_NWB_FILE visibleChannelCount mismatch; using mask count",
+                    reportedVisible,
+                    "→",
+                    recordChannelCount
+                );
             }
             console.log(
                 "CREATE_NWB_FILE visible channels:",
@@ -1903,28 +2071,46 @@ self.onmessage = async function (eventFromMain) {
             makeFilePublicWeb(osFilePath);
             console.log("OS FILE PATH : $osFilePath");
         break;
-        case "PROCESS_SERIAL_DATA_WEB_RESULT":
-            let sampleData = eventFromMain.data.data;
-            let sampleCounts = eventFromMain.data.sampleCounts;
-            let serialChannelCount = eventFromMain.data.channelCount;
-            // console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Serial Channel Count: ", serialChannelCount);
-            let serialEventLabels = JSON.parse(eventFromMain.data.eventLabels);
-            let serialEventPositions = JSON.parse(eventFromMain.data.eventPositions);
-            
-            // console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Sample Data: ", sampleData);
-            // console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Sample Counts: ", sampleCounts);
-            // console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Serial Event Labels: ", serialEventLabels);
-            // console.log("PROCESS_SERIAL_DATA_WEB_RESULT - Serial Event Positions: ", serialEventPositions);
+        case "PROCESS_SERIAL_DATA_WEB_RESULT": {
+            const sampleData = unwrapInt16(eventFromMain.data.data);
+            const sampleCounts = unwrapInt32(eventFromMain.data.sampleCounts);
+            let serialChannelCount = Number(eventFromMain.data.channelCount) | 0;
+            const serialEventLabels = JSON.parse(eventFromMain.data.eventLabels);
+            const serialEventPositions = JSON.parse(eventFromMain.data.eventPositions);
 
-            let sampleDataPtr = Module._malloc(sampleData.length * Module.HEAP16.BYTES_PER_ELEMENT);
-            let sampleDataPtrStart = sampleDataPtr / Module.HEAP16.BYTES_PER_ELEMENT;
-            let sampleDataBuffer = Module.HEAP16.subarray(sampleDataPtrStart, (sampleDataPtrStart + sampleData.length));
+            if (!sampleData || !sampleCounts || sampleData.length === 0 || sampleCounts.length === 0) {
+                console.error("PROCESS_SERIAL_DATA_WEB_RESULT: invalid planar payload", {
+                    data: eventFromMain.data.data,
+                    counts: eventFromMain.data.sampleCounts,
+                    channelCount: serialChannelCount,
+                });
+                break;
+            }
+            if (serialChannelCount <= 0) {
+                serialChannelCount = sampleCounts.length;
+            }
+            // Ensure WASM circular buffer has every channel before inject.
+            if (serialChannelCount > 0 && channelCount !== serialChannelCount) {
+                channelCount = serialChannelCount;
+                Module._processing_set_channel_count(serialChannelCount);
+            }
+
+            const sampleDataPtr = Module._malloc(sampleData.length * Module.HEAP16.BYTES_PER_ELEMENT);
+            const sampleDataPtrStart = sampleDataPtr / Module.HEAP16.BYTES_PER_ELEMENT;
+            const sampleDataBuffer = Module.HEAP16.subarray(sampleDataPtrStart, (sampleDataPtrStart + sampleData.length));
             sampleDataBuffer.set(sampleData);
 
-            let sampleCountsPtr = Module._malloc(sampleCounts.length * Module.HEAP32.BYTES_PER_ELEMENT);
-            let sampleCountsPtrStart = sampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
-            let sampleCountsBuffer = Module.HEAP32.subarray(sampleCountsPtrStart, (sampleCountsPtrStart + sampleCounts.length));
+            const sampleCountsPtr = Module._malloc(sampleCounts.length * Module.HEAP32.BYTES_PER_ELEMENT);
+            const sampleCountsPtrStart = sampleCountsPtr / Module.HEAP32.BYTES_PER_ELEMENT;
+            const sampleCountsBuffer = Module.HEAP32.subarray(sampleCountsPtrStart, (sampleCountsPtrStart + sampleCounts.length));
             sampleCountsBuffer.set(sampleCounts);
+
+            // console.log("PROCESS_SERIAL_DATA_WEB_RESULT inject", {
+            //     planarLen: sampleData.length,
+            //     counts: Array.from(sampleCounts),
+            //     serialChannelCount,
+            //     moduleChannelCount: channelCount,
+            // });
 
             const resultSerialInject = Module.ccall(
                 'processing_serial_data_result',
@@ -1947,6 +2133,7 @@ self.onmessage = async function (eventFromMain) {
 
             Module._free(sampleDataPtr);
             Module._free(sampleCountsPtr);
+        }
         break;
         case "SEEK_OPENING_FILE_WEB":
             try {
@@ -1996,6 +2183,127 @@ self.onmessage = async function (eventFromMain) {
                 postSeekOpenFailed(eventFromMain.data.isStartOpeningFileWeb, false);
             }
         break;
+        case "ADD_NWB_EVENT": {
+            const requestId = eventFromMain.data.requestId;
+            if (!NwbModule || typeof NwbModule._nwbfile_add_event !== "function") {
+                postMessage({
+                    message: "ADD_NWB_EVENT_RESULT",
+                    requestId: requestId,
+                    rowIndex: -1,
+                    error: "NwbModule._nwbfile_add_event unavailable",
+                });
+                break;
+            }
+            try {
+                const timestampSeconds = Number(eventFromMain.data.timestampSeconds);
+                const eventLabel = Number(eventFromMain.data.eventLabel) | 0;
+                const rowIndex = NwbModule._nwbfile_add_event(timestampSeconds, eventLabel);
+                postMessage({
+                    message: "ADD_NWB_EVENT_RESULT",
+                    requestId: requestId,
+                    rowIndex: rowIndex,
+                });
+            } catch (err) {
+                console.error("ADD_NWB_EVENT error:", err);
+                postMessage({
+                    message: "ADD_NWB_EVENT_RESULT",
+                    requestId: requestId,
+                    rowIndex: -1,
+                    error: String(err),
+                });
+            }
+        }
+        break;
+        case "GET_NWB_EVENT_COUNT": {
+            const requestId = eventFromMain.data.requestId;
+            if (!NwbModule || typeof NwbModule._nwbfile_get_event_count !== "function") {
+                postMessage({
+                    message: "GET_NWB_EVENT_COUNT_RESULT",
+                    requestId: requestId,
+                    count: 0,
+                    error: "NwbModule._nwbfile_get_event_count unavailable",
+                });
+                break;
+            }
+            try {
+                const count = NwbModule._nwbfile_get_event_count();
+                postMessage({
+                    message: "GET_NWB_EVENT_COUNT_RESULT",
+                    requestId: requestId,
+                    count: count,
+                });
+            } catch (err) {
+                console.error("GET_NWB_EVENT_COUNT error:", err);
+                postMessage({
+                    message: "GET_NWB_EVENT_COUNT_RESULT",
+                    requestId: requestId,
+                    count: 0,
+                    error: String(err),
+                });
+            }
+        }
+        break;
+        case "READ_NWB_EVENT": {
+            const requestId = eventFromMain.data.requestId;
+            if (!NwbModule || typeof NwbModule._nwbfile_read_event !== "function") {
+                postMessage({
+                    message: "READ_NWB_EVENT_RESULT",
+                    requestId: requestId,
+                    ok: false,
+                    error: "NwbModule._nwbfile_read_event unavailable",
+                });
+                break;
+            }
+            let outTimestampPtr = 0;
+            let outLabelPtr = 0;
+            let outDeletedPtr = 0;
+            try {
+                const rowIndex = Number(eventFromMain.data.rowIndex) | 0;
+                outTimestampPtr = NwbModule._malloc(4);
+                outLabelPtr = NwbModule._malloc(4);
+                outDeletedPtr = NwbModule._malloc(1);
+                const result = NwbModule._nwbfile_read_event(
+                    rowIndex,
+                    outTimestampPtr,
+                    outLabelPtr,
+                    outDeletedPtr
+                );
+                if (result !== 0) {
+                    postMessage({
+                        message: "READ_NWB_EVENT_RESULT",
+                        requestId: requestId,
+                        ok: false,
+                        error: "nwbfile_read_event returned " + result,
+                    });
+                } else {
+                    const heapView = new DataView(NwbModule.HEAPU8.buffer);
+                    const timestampSeconds = heapView.getFloat32(outTimestampPtr, true);
+                    const eventLabel = heapView.getInt32(outLabelPtr, true);
+                    const deleted = NwbModule.HEAPU8[outDeletedPtr] !== 0;
+                    postMessage({
+                        message: "READ_NWB_EVENT_RESULT",
+                        requestId: requestId,
+                        ok: true,
+                        timestampSeconds: timestampSeconds,
+                        eventLabel: eventLabel,
+                        deleted: deleted,
+                    });
+                }
+            } catch (err) {
+                console.error("READ_NWB_EVENT error:", err);
+                postMessage({
+                    message: "READ_NWB_EVENT_RESULT",
+                    requestId: requestId,
+                    ok: false,
+                    error: String(err),
+                });
+            } finally {
+                if (outTimestampPtr) NwbModule._free(outTimestampPtr);
+                if (outLabelPtr) NwbModule._free(outLabelPtr);
+                if (outDeletedPtr) NwbModule._free(outDeletedPtr);
+            }
+        }
+        break;
         default:
     }
 }
@@ -2007,6 +2315,12 @@ if ('function' === typeof importScripts) {
     // cprocessing.js (no modularize) - automatically sets up self.Module
     self.Module.onRuntimeInitialized = async _ => {
         console.log("cprocessing Module initialized, ccall: ", self.Module.ccall);
+
+        // Module._processing_* exports are usable now, so let any queued
+        // self.onmessage handlers (e.g. INITIALIZE_MICROPHONE) proceed even
+        // if NWB Plugin initialization below is still pending/fails.
+        isWasmModuleReady = true;
+        _resolveWasmModuleReady();
         
         // Initialize NWB Plugin (modularize=1) - NWBPlugin is a factory function
         try {
@@ -2369,22 +2683,76 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
 
     const tempLoadedChannelCount = outConfigBuffer[1];
     let loadedChannelCount = endChannel - startChannel + 1; // +1 because endChannel is inclusive
-    let outSamplesStart = outSamples / NwbModule.HEAP16.BYTES_PER_ELEMENT;
-    let outSamplesBuffer = NwbModule.HEAP16.subarray(outSamplesStart, (outSamplesStart + samplesLength * loadedChannelCount));
 
+    // Re-read HEAP views after ccall (memory may have grown during seek).
     let outSamplesCountStart = outSamplesCount / NwbModule.HEAP32.BYTES_PER_ELEMENT;
-    let outSamplesCountBuffer = NwbModule.HEAP32.subarray(outSamplesCountStart, (outSamplesCountStart + tempLoadedChannelCount));
+    let outSamplesCountBuffer = NwbModule.HEAP32.subarray(outSamplesCountStart, (outSamplesCountStart + Math.max(tempLoadedChannelCount | 0, 1)));
     console.log("outSamplesCountBuffer", outSamplesCountBuffer);
+
+    // C++ nwbfile_seek_electrical_series writes samples-per-channel into
+    // outSamplesCount[0] only (planar [ch0…][ch1…]…). Native Dart expands that
+    // single count to every channel before unpacking; do the same here so
+    // scrub/playback don't treat channels > 0 as length 0.
+    const samplesPerChannel = outSamplesCountBuffer[0] | 0;
+    const countLen = Math.max(loadedChannelCount, tempLoadedChannelCount | 0, 1);
+    const expandedCounts = new Int32Array(countLen);
+    expandedCounts.fill(samplesPerChannel);
+
+    // Slice the actual written planar payload (not the requested samplesLength,
+    // which can be larger than samplesPerChannel near EOF).
+    const planarSampleCount = Math.max(samplesPerChannel, 0) * loadedChannelCount;
+    let outSamplesStart = outSamples / NwbModule.HEAP16.BYTES_PER_ELEMENT;
+    let outSamplesBuffer = NwbModule.HEAP16.subarray(
+        outSamplesStart,
+        outSamplesStart + planarSampleCount
+    );
 
     // loadedSamplesBuffer = (outSamplesBuffer).slice();
     // loadedSamplesCountBuffer = (outSamplesCountBuffer).slice();
     // loadedConfigBuffer = (outConfigBuffer).slice();
     loadedSamplesBuffer = (outSamplesBuffer).slice();
-    loadedSamplesCountBuffer = (outSamplesCountBuffer).slice();
-    if (isStartOpeningFileWeb) {
-        loadedConfigBuffer = (outConfigBuffer).slice();
+    loadedSamplesCountBuffer = expandedCounts;
+    // Always refresh config from this seek — scrub used to keep a stale
+    // loadedConfigBuffer, and a wrong channelCount leaves ch1+ empty after
+    // processing_init resets the circular buffer to 1 channel.
+    loadedConfigBuffer = Int32Array.from(outConfigBuffer);
+    // nwbfile_seek_electrical_series never writes outConfig[7] (draw width),
+    // so it is malloc garbage. If we pass that into initWithConfig, drawing
+    // buffers are reallocated at the wrong size and the waveform envelope
+    // downsampling changes — classic "looks smaller / different after play".
+    // Preserve the worker's current sane width (set by mic/serial init or
+    // Dart's INIT_WITH_CONFIG with MediaQuery width).
+    // if (!(loadedConfigBuffer[7] > 0 && loadedConfigBuffer[7] <= 4096)) {
+    //     loadedConfigBuffer[7] = (drawSurfaceWidth > 0 && drawSurfaceWidth <= 4096)
+    //         ? drawSurfaceWidth
+    //         : 0;
+    // }
+    console.log("seekNwbFileBufferWeb planar", {
+        samplesPerChannel,
+        loadedChannelCount,
+        planarSampleCount,
+        configChannels: loadedConfigBuffer[1],
+        drawSurfaceWidth: loadedConfigBuffer[7],
+        samplePreviewCh0: loadedSamplesBuffer[0],
+        samplePreviewCh1: loadedChannelCount > 1 ? loadedSamplesBuffer[samplesPerChannel] : undefined,
+    });
+    // Only re-init processing when rate/channels actually change. Re-init on
+    // every seek wipes the circular buffer and reallocates drawing buffers,
+    // which is what makes play/pause look different from the post-load scrub.
+    const seekNeedsReinit =
+        sampleRate !== loadedConfigBuffer[0] ||
+        channelCount !== loadedConfigBuffer[1] ||
+        !Array.isArray(drawingDataPtrList) ||
+        drawingDataPtrList.length !== loadedConfigBuffer[1];
+    if (seekNeedsReinit) {
+        initWithConfig(loadedConfigBuffer);
+    } else {
+        console.log("seekNwbFileBufferWeb: skip initWithConfig (rate/channels unchanged)", {
+            sampleRate,
+            channelCount,
+            drawSurfaceWidth,
+        });
     }
-    initWithConfig(loadedConfigBuffer);
 
 
 
@@ -2423,17 +2791,36 @@ async function seekNwbFileBufferWeb(filePath, outSamples, outSamplesCount, outCo
 
 
 function initWithConfig(config) {
-    let initConfig = config;
-    console.log("INIT_WITH_CONFIGZzz: ", initConfig);
-    if (!initConfig || initConfig[0] <= 0 || initConfig[1] <= 0) {
-        console.error("initWithConfig: invalid config, skipping processing init", initConfig);
+    // Dart Int32List often arrives as `{ o: Int32Array }` via postMessage.
+    let initConfig = unwrapInt32(config);
+    if (!initConfig && config != null && typeof config.length === "number") {
+        initConfig = Int32Array.from(config);
+    }
+    console.log("INIT_WITH_CONFIGZzz: ", initConfig, "raw:", config);
+    if (!initConfig || initConfig.length < 2 || initConfig[0] <= 0 || initConfig[1] <= 0) {
+        console.error("initWithConfig: invalid config, skipping processing init", initConfig, config);
         return;
     }
     sampleRate = initConfig[0];
     channelCount = initConfig[1];
+    // NWB seek only fills outConfig[0..6]. Index 7 (draw width) is often
+    // uninitialized malloc garbage. Never adopt it; never replace an already
+    // valid width (e.g. 1920 from MediaQuery) with the 800 fallback — that
+    // shrinks drawing buffers and makes the waveform look different/smaller.
+    // const MAX_DRAW_WIDTH = 4096;
+    // if (initConfig[7] > 0 && initConfig[7] <= MAX_DRAW_WIDTH) {
+    //     drawSurfaceWidth = initConfig[7];
+    // } else if (initConfig[7] > MAX_DRAW_WIDTH) {
+    //     console.warn("initWithConfig: ignoring garbage drawSurfaceWidth", initConfig[7], "config=", Array.from(initConfig));
+    // }
+    // if (!drawSurfaceWidth || drawSurfaceWidth <= 0 || drawSurfaceWidth > MAX_DRAW_WIDTH) {
+    //     drawSurfaceWidth = 800;
+    // }
     Module._processing_init();
+    console.log("INIT_WITH_CONFIG: ", initConfig[0], initConfig);
     Module._processing_set_sample_rate(initConfig[0]);
-    Module._processing_set_channel_count(initConfig[1]);
+    const setCh = Module._processing_set_channel_count(initConfig[1]);
+    console.log("initWithConfig applied", { sampleRate, channelCount, drawSurfaceWidth, setCh });
 
     // DRAWING BUFFER SETUP
     try{

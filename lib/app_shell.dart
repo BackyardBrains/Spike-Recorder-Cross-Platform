@@ -49,6 +49,7 @@ Widget buildRootApp() {
       ChangeNotifierProvider(create: (_) => FftStatusProvider()),
       ChangeNotifierProvider(create: (_) => ThresholdStatusProvider()),
       ChangeNotifierProvider(create: (_) => ThemeModeProvider()),
+      ChangeNotifierProvider(create: (_) => SpikeAnalysisProvider()),
     ],
     child: const MyApp(),
   );

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <cstddef>
+#include <limits>
+#include <string>
+#include <type_traits>
 #include <vector>
 
 namespace AQNWB
@@ -20,7 +23,7 @@ public:
    */
   enum Status
   {
-    Success = 0,
+    Success = 1,
     Failure = -1
   };
 
@@ -58,6 +61,27 @@ public:
   };
 
   /**
+   * @brief Convert StorageObjectType enum value to string
+   * @param type The StorageObjectType value to convert
+   * @return String representation of the StorageObjectType
+   */
+  static std::string storageObjectTypeToString(StorageObjectType type)
+  {
+    switch (type) {
+      case Group:
+        return "Group";
+      case Dataset:
+        return "Dataset";
+      case Attribute:
+        return "Attribute";
+      case Undefined:
+        return "Undefined";
+      default:
+        return "Unknown";
+    }
+  }
+
+  /**
    *  \brief Helper struct to check if a value is a data field, i.e.,
    * Dataset or Attribute
    *
@@ -76,13 +100,37 @@ public:
   using SizeType = size_t;
 
   /**
+   * @brief Value to use to indicate that a SizeType index is not set.
+   */
+  static constexpr SizeType SizeTypeNotSet =
+      (std::numeric_limits<SizeType>::max)();
+
+  /**
    * @brief Alias for an array of size types used in the project.
    */
-  using SizeArray = std::vector<size_t>;
+  using SizeArray = std::vector<SizeType>;
 
   /**
    * @brief Alias for a vector of channels.
    */
   using ChannelVector = std::vector<Channel>;
+
+  /**
+   * @brief Struct to hold namespace information.
+   */
+  struct NamespaceInfo
+  {
+    std::string name;  ///< The name of the namespace.
+    std::string version;  ///< The version of the namespace.
+
+    /** @brief The specVariables of the namespace.
+     *
+     * This is a vector of pairs, where each pair consists of 1) the
+     * name of the specification filed (e.g., "nwb.base") and 2) the
+     * string with the JSON specification of the format schema.
+     **/
+    std::vector<std::pair<std::string_view, std::string_view>>
+        specVariables;  ///< The specVariables of the namespace.
+  };
 };
 }  // namespace AQNWB

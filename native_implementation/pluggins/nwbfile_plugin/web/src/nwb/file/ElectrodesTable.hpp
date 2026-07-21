@@ -27,7 +27,7 @@ protected:
    * @param io The shared pointer to the BaseIO object.
    * extracellular electrodes").
    */
-  ElectrodesTable(std::shared_ptr<IO::BaseIO> io);
+  explicit ElectrodesTable(std::shared_ptr<IO::BaseIO> io);
 
   // required so we can call create
   ElectrodesTable(const std::string& path, std::shared_ptr<IO::BaseIO> io);
@@ -48,7 +48,15 @@ public:
   /**
    * @brief Destructor.
    */
-  ~ElectrodesTable();
+  ~ElectrodesTable() override;
+
+  /**
+   * @brief Creates the default data specs for the ElectrodesTable.
+   * @param rowChunkSize The chunk size for the rows of the table.
+   * @return A vector of DataSpecPtr containing the default specs.
+   */
+  static std::vector<DataSpecPtr> createDefaultDataSpecs(
+      const SizeType rowChunkSize = 100);
 
   /**
    * @brief Initializes the ElectrodesTable.
@@ -58,10 +66,12 @@ public:
    *
    * @param description The description of the table (default: "metadata about
    * extracellular electrodes")
+   * @param columnSpecs The column specifications to use for initialization.
    * @return Status::Success if successful, otherwise Status::Failure.
    */
   Status initialize(const std::string& description =
-                        "metadata about extracellular electrodes");
+                        "metadata about extracellular electrodes",
+                    const std::vector<DataSpecPtr>& columnSpecs = {});
 
   /**
    * @brief Finalizes the ElectrodesTable.
@@ -76,7 +86,7 @@ public:
    * @brief Sets up the ElectrodesTable by adding electrodes and their metadata.
    * @param channelsInput The vector of Channel objects to add to the table.
    */
-  void addElectrodes(std::vector<Channel> channelsInput);
+  void addElectrodes(const std::vector<Channel>& channelsInput);
 
   /**
    * @brief The path to the ElectrodesTable.
@@ -123,15 +133,6 @@ private:
    */
   inline const static std::string m_groupPathBase =
       "/general/extracellular_ephys";
-
-  /**
-   * @brief The group names column for write
-   */
-  std::shared_ptr<VectorData> m_groupNamesVectorData;
-
-  /**
-   * @brief The locations column for write
-   */
-  std::shared_ptr<VectorData> m_locationsVectorData;
 };
+
 }  // namespace AQNWB::NWB

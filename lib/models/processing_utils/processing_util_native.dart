@@ -73,6 +73,41 @@ class ProcessingUtilImpl implements ProcessingUtil {
   Pointer<Int32>? inEventIndicesPtr;
   Pointer<Int32>? inEventLabelsPtr;
 
+  /// Total samples accumulated since the current recording session started.
+  /// Reset to 0 whenever [DraggableGraph.isRecording] transitions into 1, so
+  /// it always reflects the position (in samples) within the active
+  /// recording rather than since app start.
+  int _recordedSampleCount = 0;
+  int _lastRecordingState = 0;
+
+  /// Elapsed time (in seconds) into the current recording, derived from
+  /// [_recordedSampleCount] / sample rate so NWB event timestamps stay in
+  /// sync with the samples actually written to the recording (as opposed to
+  /// wall-clock time, which can drift).
+  double currentEventSecond = 0.0;
+
+  /// Keeps [currentEventSecond] in sync with the samples that have actually
+  /// been ingested. Must be called with the frame count of every batch of
+  /// newly-inserted samples (mic and serial paths).
+  void _accumulateRecordedSamples(int frameCount) {
+    final recordingState = DraggableGraph.isRecording;
+    if (recordingState == 1 && _lastRecordingState != 1) {
+      // Recording just started: restart the sample-based clock from zero.
+      _recordedSampleCount = 0;
+      currentEventSecond = 0.0;
+    }
+    _lastRecordingState = recordingState;
+
+    if (recordingState != 1 || frameCount <= 0) return;
+
+    _recordedSampleCount += frameCount;
+    currentEventSecond =
+        _sampleRate > 0 ? _recordedSampleCount / _sampleRate : 0.0;
+    if (DraggableGraph.isOpeningFile == 1) {
+      
+    }
+  }
+
   // @override
   // var currentDataBuffer;
   @override
@@ -508,8 +543,9 @@ class ProcessingUtilImpl implements ProcessingUtil {
     if (result.status != 0) {
       return List.generate(_channelCount, (_) => Int16List(0));
     }
-
+    // print("RESULT FRAME COUNT: ${result.frameCount}");
     _shiftEventMarkersForInsertedFrames(result.frameCount);
+    _accumulateRecordedSamples(result.frameCount);
     return result.channels;
   }
 
@@ -703,6 +739,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
       }
     }
     _pendingSerialInserts.clear();
+  }
+
+  @override
+  void advanceEventMarkers(int frameCount) {
+    _shiftEventMarkersForInsertedFrames(frameCount);
   }
 
   void _shiftEventMarkersForInsertedFrames(int frameCount) {
@@ -933,6 +974,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
 
     // frameCount from decoded outSampleCounts — not raw bytes / channelCount.
     _shiftEventMarkersForInsertedFrames(result.frameCount);
+    _accumulateRecordedSamples(result.frameCount);
     return result.channels;
   }
 
@@ -1037,6 +1079,27 @@ class ProcessingUtilImpl implements ProcessingUtil {
     //     "inEventIndicesPtr : ${inEventIndicesPtr!.asTypedList(ProcessingUtil.MAX_EVENT_MARKERS)}");
   }
 
+  @override
+  void setLoadedFileEventMarkers(List<int> labels, List<int> positions) {
+    if (inEventIndicesPtr == null || inEventLabelsPtr == null) {
+      initEventMarkers(_sampleRate);
+    }
+
+    final count = min(labels.length, ProcessingUtil.MAX_EVENT_MARKERS);
+    ProcessingUtil.eventLabels
+      ..clear()
+      ..addAll(labels.take(count));
+    ProcessingUtil.eventPosition
+      ..clear()
+      ..addAll(positions.take(count));
+
+    for (int i = 0; i < count; i++) {
+      inEventLabelsPtr![i] = labels[i];
+      inEventIndicesPtr![i] = positions[i];
+    }
+    ProcessingUtil.currentEventMarkers = count;
+  }
+
   void eventMarkerListener() {
     List<int> list = ProcessingUtil.eventMarkerNotifier.value;
     if (list[0] == -1) return;
@@ -1053,6 +1116,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
     }
 
     ProcessingUtil.eventLabels.add(list[0]);
+    print("EVENT PRESSED : ${DraggableGraph.isRecording == 1}");
+    if (DraggableGraph.isRecording == 1) {
+      GraphTemplate.nwbFileUtil?.addEvent(currentEventSecond, list[0]);
+    }
+
     // print("ADD LISTENER :  ${ProcessingUtil.eventLabels} === ${ProcessingUtil.eventPosition}");
   }
 

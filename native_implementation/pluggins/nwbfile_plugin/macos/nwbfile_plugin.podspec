@@ -30,50 +30,31 @@ A new Flutter FFI plugin project.
   # s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
   s.swift_version = '5.0'
   
-  # BOOST
-  # s.source_files = 'Classes/**/*.{h,m,mm,cpp}', 'src/**/*.{h,cpp}'
-  s.source_files = 'Classes/**/*.{h,m,mm,cpp}'
-  s.public_header_files = 'Classes/**/*.{h,hpp}'
-  
+  # AqNWB 0.4.0 sources (Boost no longer required).
+  # Only expose the FFI C header publicly to avoid CocoaPods flattening AqNWB paths.
+  s.source_files = 'Classes/**/*.{h,m,mm,cpp,hpp}'
+  s.public_header_files = 'Classes/src/nwbfile_plugin.h'
+
   s.pod_target_xcconfig = {
-    'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17', # Use a modern C++ standard
-    'CLANG_CXX_LIBRARY' => 'libc++',          # Use the libc++ standard library
+    'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',
+    'CLANG_CXX_LIBRARY' => 'libc++',
     'DEFINES_MODULE' => 'YES',
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386',
-    # BOOST2
-    # 'HEADER_SEARCH_PATHS' => '$(inherited) $(POD_TARGET_SRCROOT)/Classes/src $(POD_TARGET_SRCROOT)/Classes/src/include $(PODS_ROOT)/boost'
-    # 'HEADER_SEARCH_PATHS' => '$(inherited) $(POD_TARGET_SRCROOT)/Classes/src $(POD_TARGET_SRCROOT)/Classes/src/include $(PODS_ROOT)/boost'
-    # 'HEADER_SEARCH_PATHS' => '$(inherited) $(POD_TARGET_SRCROOT)/Classes $(POD_TARGET_SRCROOT)/Classes/src $(POD_TARGET_SRCROOT)/Classes/boost $(POD_TARGET_SRCROOT)/Classes/include $(POD_TARGET_SRCROOT)/Classes /opt/homebrew/opt/boost/include $(POD_TARGET_SRCROOT)/Classes/boost',
-    # Use bundled Boost headers first (they have C++17 compatibility fix)
-    # Include path should point to directory containing 'boost' folder, not the 'boost' folder itself
-    # Add Homebrew Boost as fallback but with compatibility flag to avoid C++17 issues
-    # Note: Use PODS_TARGET_SRCROOT (plural) - same as iOS podspec
-    'HEADER_SEARCH_PATHS' => '$(inherited) $(PODS_TARGET_SRCROOT)/Classes $(PODS_TARGET_SRCROOT)/Classes/src $(PODS_TARGET_SRCROOT)/Classes/include /opt/homebrew/opt/boost/include',
-    # Force Homebrew Boost to use compatibility mode for C++17 (if it gets used)
-    'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) _HAS_AUTO_PTR_ETC=0',
-    # Put bundled lib directory first to prioritize bundled HDF5 over Homebrew
-    'LIBRARY_SEARCH_PATHS' => '$(inherited) $(PODS_TARGET_SRCROOT)/Classes/lib /opt/homebrew/opt/boost/lib',
+    'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) AQNWB_CXX_STANDARD=17',
+    # CocoaPods defines PODS_TARGET_SRCROOT (not POD_TARGET_SRCROOT).
+    # Disable header maps — they break quoted includes like "Types.hpp" / "nwb/...".
+    'USE_HEADERMAP' => 'NO',
+    'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/Classes" "$(PODS_TARGET_SRCROOT)/Classes/src" "$(PODS_TARGET_SRCROOT)/Classes/include"',
+    'USER_HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/Classes/src" "$(PODS_TARGET_SRCROOT)/Classes/include"',
+    'LIBRARY_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/Classes/lib"',
+    'OTHER_CFLAGS' => '$(inherited) -I"$(PODS_TARGET_SRCROOT)/Classes/src" -I"$(PODS_TARGET_SRCROOT)/Classes/include"',
+    'OTHER_CPLUSPLUSFLAGS' => '$(inherited) -I"$(PODS_TARGET_SRCROOT)/Classes/src" -I"$(PODS_TARGET_SRCROOT)/Classes/include"',
     'OTHER_LDFLAGS' => '$(inherited) -Wl,-all_load'
   }
-  # BOOST  
+
   s.vendored_libraries = 'Classes/lib/libhdf5.a', 'Classes/lib/libhdf5_cpp.a'
-  # s.vendored_frameworks = 'Classes/lib/libhdf5.dylib Classes/lib/libhdf5_cpp.dylib'
 
   s.library = 'c++'
-  s.library = 'boost_system'
-  s.library = 'boost_date_time'
   s.library = 'z'
   s.library = 'dl'
-  # s.library = 'c++'
-  # s.library = 'boost_system'
-  # s.library = 'boost_date_time'
-  # s.library = 'z'
-  # s.library = 'dl'
-
-  
-  # s.library = 'hdf5'
-  # s.library = 'hdf5_cpp'
-
-  # target_link_libraries(nwbfile_plugin PRIVATE Classes/src/lib/libhdf5.a)
-    
 end

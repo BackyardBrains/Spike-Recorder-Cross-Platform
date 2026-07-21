@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <string>
 
 #include "Utils.hpp"
@@ -56,7 +57,7 @@ public:
   /**
    * @brief Destructor
    */
-  ~TimeSeries();
+  ~TimeSeries() override;
 
   /**
    * @brief Writes a timeseries data block to the file.
@@ -69,8 +70,8 @@ public:
    * @param controlInput A pointer to the control block data (optional)
    * @return The status of the write operation.
    */
-  Status writeData(const std::vector<SizeType>& dataShape,
-                   const std::vector<SizeType>& positionOffset,
+  Status writeData(const SizeArray& dataShape,
+                   const SizeArray& positionOffset,
                    const void* dataInput,
                    const void* timestampsInput = nullptr,
                    const void* controlInput = nullptr);
@@ -107,7 +108,7 @@ public:
    * @return Status::Success if successful, otherwise Status::Failure.
    */
   Status initialize(
-      const IO::ArrayDataSetConfig& dataConfig,
+      const IO::BaseArrayDataSetConfig& dataConfig,
       const std::string& unit,
       const std::string& description = "no description",
       const std::string& comments = "no comments",

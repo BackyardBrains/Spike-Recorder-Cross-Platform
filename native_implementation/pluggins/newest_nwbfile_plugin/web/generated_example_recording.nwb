@@ -1,8 +1,0 @@
-NWB File Header
-Version: 2.0
-Created: example_recording.nwb
-Electrodes: 4
-ElectricalSeries: 1
-Data Points: 1000
-Sampling Rate: 30000 Hz
-File Size: Mock Data

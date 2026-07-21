@@ -35,7 +35,7 @@ public:
   /**
    * @brief Destructor
    */
-  ~SpikeEventSeries();
+  ~SpikeEventSeries() override;
 
   /**
    * @brief Initializes the SpikeEventSeries
@@ -56,7 +56,7 @@ public:
    * @param offset Scalar to add to the data after scaling by 'conversion' to
    *               finalize its coercion to the specified 'unit'
    */
-  Status initialize(const IO::ArrayDataSetConfig& dataConfig,
+  Status initialize(const IO::BaseArrayDataSetConfig& dataConfig,
                     const Types::ChannelVector& channelVector,
                     const std::string& description,
                     const float& conversion = 1.0f,
@@ -93,6 +93,6 @@ private:
   /**
    * @brief The number of events already written.
    */
-  SizeType m_eventsRecorded;
+  SizeType m_eventsRecorded = 0;
 };
 }  // namespace AQNWB::NWB

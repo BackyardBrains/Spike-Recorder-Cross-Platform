@@ -23,6 +23,131 @@ class NwbfilePluginBindings {
   // NWB processing functions
   int processing_init(Pointer<Char> path, int sampleRate, int channelCount, Pointer<Char> deviceInfo, Pointer<Char> deviceManufacturer) => _dylib.lookupFunction<ffi.Int32 Function(Pointer<Char>, ffi.Int32, ffi.Int32, Pointer<Char>, Pointer<Char>), int Function(Pointer<Char>, int, int, Pointer<Char>, Pointer<Char>)>('processing_init')(path, sampleRate, channelCount, deviceInfo, deviceManufacturer);
   int nwbfile_add_electrical_series(Pointer<Int16> inSamples, Pointer<Int32> samplesCount, int selectedChannel, int channelCount, int isFinishRecording) => _dylib.lookupFunction<ffi.Int32 Function(Pointer<Int16>, Pointer<Int32>, ffi.Int32, ffi.Int32, ffi.Int32), int Function(Pointer<Int16>, Pointer<Int32>, int, int, int)>('nwbfile_add_electrical_series')(inSamples, samplesCount, selectedChannel, channelCount, isFinishRecording);
+
+  /// Returns recording container index (>= 0), or -1 on failure.
+  int nwbfile_create_spike_event_series(int channelIndex) =>
+      _dylib.lookupFunction<ffi.Int32 Function(ffi.Int32), int Function(int)>(
+          'nwbfile_create_spike_event_series')(channelIndex);
+
+  /// Returns 0 on success, -1 on failure.
+  int nwbfile_write_spike_event(
+    int channelIndex,
+    double timestampSeconds,
+    Pointer<Float> waveform,
+    int numSamples,
+  ) =>
+      _dylib.lookupFunction<
+          ffi.Int32 Function(
+              ffi.Int32, ffi.Float, Pointer<Float>, ffi.Int32),
+          int Function(int, double, Pointer<Float>, int)>(
+          'nwbfile_write_spike_event')(
+        channelIndex,
+        timestampSeconds,
+        waveform,
+        numSamples,
+      );
+
+  /// Returns spike count for channelIndex, or -1 on failure.
+  int nwbfile_get_spike_event_count(int channelIndex) =>
+      _dylib.lookupFunction<ffi.Int32 Function(ffi.Int32), int Function(int)>(
+          'nwbfile_get_spike_event_count')(channelIndex);
+
+  /// Returns new EventsTable row index (>= 0), or -1 on failure.
+  int nwbfile_add_event(double timestampSeconds, int eventLabel) =>
+      _dylib.lookupFunction<
+          ffi.Int32 Function(ffi.Float, ffi.Int32),
+          int Function(double, int)>('nwbfile_add_event')(
+        timestampSeconds,
+        eventLabel,
+      );
+
+  /// Returns 0 on success, -1 on failure.
+  int nwbfile_update_event(int rowIndex, double timestampSeconds, int eventLabel) =>
+      _dylib.lookupFunction<
+          ffi.Int32 Function(ffi.Int32, ffi.Float, ffi.Int32),
+          int Function(int, double, int)>('nwbfile_update_event')(
+        rowIndex,
+        timestampSeconds,
+        eventLabel,
+      );
+
+  /// Soft-deletes the EventsTable row. Returns 0 on success, -1 on failure.
+  int nwbfile_delete_event(int rowIndex) =>
+      _dylib.lookupFunction<ffi.Int32 Function(ffi.Int32), int Function(int)>(
+          'nwbfile_delete_event')(rowIndex);
+
+  /// Reads one EventsTable row by index into the output params.
+  /// Returns 0 on success, -1 on failure (e.g. invalid rowIndex).
+  int nwbfile_read_event(
+    int rowIndex,
+    Pointer<Float> outTimestampSeconds,
+    Pointer<Int32> outEventLabel,
+    Pointer<Uint8> outDeleted,
+  ) =>
+      _dylib.lookupFunction<
+          ffi.Int32 Function(ffi.Int32, Pointer<Float>, Pointer<Int32>,
+              Pointer<Uint8>),
+          int Function(int, Pointer<Float>, Pointer<Int32>,
+              Pointer<Uint8>)>('nwbfile_read_event')(
+        rowIndex,
+        outTimestampSeconds,
+        outEventLabel,
+        outDeleted,
+      );
+
+  /// Returns the total number of EventsTable rows added so far (including
+  /// soft-deleted rows).
+  int nwbfile_get_event_count() =>
+      _dylib.lookupFunction<ffi.Int32 Function(), int Function()>(
+          'nwbfile_get_event_count')();
+
+  /// Upsert a MeaningsTable row for event_type [value]. Returns row index, or -1.
+  int nwbfile_set_meaning(int value, Pointer<Char> meaning) =>
+      _dylib.lookupFunction<
+          ffi.Int32 Function(ffi.Int32, Pointer<Char>),
+          int Function(int, Pointer<Char>)>('nwbfile_set_meaning')(
+        value,
+        meaning,
+      );
+
+  /// Number of MeaningsTable rows for event_type.
+  int nwbfile_get_meaning_count() =>
+      _dylib.lookupFunction<ffi.Int32 Function(), int Function()>(
+          'nwbfile_get_meaning_count')();
+
+  /// Read one MeaningsTable row by index into [outValue] / [outMeaning].
+  /// Returns 0 on success, -1 on failure.
+  int nwbfile_read_meaning(
+    int rowIndex,
+    Pointer<Int32> outValue,
+    Pointer<Char> outMeaning,
+    int outMeaningCapacity,
+  ) =>
+      _dylib.lookupFunction<
+          ffi.Int32 Function(
+              ffi.Int32, Pointer<Int32>, Pointer<Char>, ffi.Int32),
+          int Function(int, Pointer<Int32>, Pointer<Char>,
+              int)>('nwbfile_read_meaning')(
+        rowIndex,
+        outValue,
+        outMeaning,
+        outMeaningCapacity,
+      );
+
+  /// Lookup meaning label for an event_type [value]. Returns 0 if found, -1 if not.
+  int nwbfile_find_meaning(
+    int value,
+    Pointer<Char> outMeaning,
+    int outMeaningCapacity,
+  ) =>
+      _dylib.lookupFunction<
+          ffi.Int32 Function(ffi.Int32, Pointer<Char>, ffi.Int32),
+          int Function(int, Pointer<Char>, int)>('nwbfile_find_meaning')(
+        value,
+        outMeaning,
+        outMeaningCapacity,
+      );
+
   int nwbfile_read_electrical_series(Pointer<Int16> outSamples, Pointer<Int32> outSampleCounts, int selectedChannel, int channelCount) => _dylib.lookupFunction<ffi.Int32 Function(Pointer<Int16>, Pointer<Int32>, ffi.Int32, ffi.Int32), int Function(Pointer<Int16>, Pointer<Int32>, int, int)>('nwbfile_read_electrical_series')(outSamples, outSampleCounts, selectedChannel, channelCount);
 
   int nwbfile_seek_electrical_series(Pointer<Char> path, Pointer<Int16> outSamples, Pointer<Int32> outSampleCounts, Pointer<Int32> outConfig, int startTimeStamp, int endTimeStamp, int startChannel, int endChannel) => _dylib.lookupFunction<ffi.Int32 Function(Pointer<Char>, Pointer<Int16>, Pointer<Int32>, Pointer<Int32>, ffi.Int32, ffi.Int32, ffi.Int32, ffi.Int32), int Function(Pointer<Char>, Pointer<Int16>, Pointer<Int32>, Pointer<Int32>, int, int, int, int)>('nwbfile_seek_electrical_series')(path, outSamples, outSampleCounts, outConfig, startTimeStamp, endTimeStamp, startChannel, endChannel);

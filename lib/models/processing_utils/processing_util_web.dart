@@ -382,6 +382,15 @@ class ProcessingUtilImpl implements ProcessingUtil {
         [board.maxSampleRate, board.maxNumberOfChannels, drawSurfaceWidth]);
   }
 
+  /// Latest DISPLAY args when a paint is requested while one is already in flight.
+  int _pendingDisplayTimeMs = 0;
+  int _pendingDisplayDeviceType = 0;
+  int _pendingDisplayDeviceWidth = 0;
+  int _pendingDisplayStartIdx = 0;
+  int _pendingDisplayEndIdx = 0;
+  bool _webSerialDisplayInFlight = false;
+  bool _webSerialDisplayCoalesce = false;
+
   @override
   Future<List<Int16List>> processSerialData(Uint8List samples, int displayTimeMs,
       int deviceType, int deviceWidth, GraphDataProvider provider) async {
@@ -392,7 +401,10 @@ class ProcessingUtilImpl implements ProcessingUtil {
           json.encode(ProcessingUtil.eventLabels),
           json.encode(ProcessingUtil.eventPosition)
         ]);
-    return Future.value([Int16List(1)]);
+    // Paint gating uses [ProcessingUtil.webSerialFramesIngestedListener] with the
+    // real WASM frame count. Returning an empty channel avoids the old Int16List(1)
+    // stub that treated every UART chunk as one sample.
+    return Future.value([Int16List(0)]);
   }
 
   @override
@@ -403,16 +415,49 @@ class ProcessingUtilImpl implements ProcessingUtil {
       GraphDataProvider provider,
       startPositionIdx,
       endPositionIdx) async {
+    _pendingDisplayTimeMs = displayTimeMs;
+    _pendingDisplayDeviceType = deviceType;
+    _pendingDisplayDeviceWidth = deviceWidth;
+    _pendingDisplayStartIdx = (startPositionIdx as num).toInt();
+    _pendingDisplayEndIdx = (endPositionIdx as num).toInt();
+
+    if (_webSerialDisplayInFlight) {
+      // Keep only the latest window; drop intermediate DISPLAY messages.
+      _webSerialDisplayCoalesce = true;
+      return Future.value(Uint8List(0));
+    }
+    _postWebSerialDisplay();
+    return Future.value(Uint8List(0));
+  }
+
+  void _postWebSerialDisplay() {
+    _webSerialDisplayInFlight = true;
+    _webSerialDisplayCoalesce = false;
     js.context.callMethod("displaySerialDataWeb", [
-      displayTimeMs,
-      deviceType,
-      deviceWidth,
-      startPositionIdx,
-      endPositionIdx,
+      _pendingDisplayTimeMs,
+      _pendingDisplayDeviceType,
+      _pendingDisplayDeviceWidth,
+      _pendingDisplayStartIdx,
+      _pendingDisplayEndIdx,
       json.encode(ProcessingUtil.eventLabels),
       json.encode(ProcessingUtil.eventPosition)
     ]);
-    return Future.value(Uint8List(0));
+  }
+
+  @override
+  void notifyWebSerialDisplayFinished() {
+    if (_webSerialDisplayCoalesce) {
+      _postWebSerialDisplay();
+      return;
+    }
+    _webSerialDisplayInFlight = false;
+    ProcessingUtil.webSerialDisplayReadyListener?.call();
+  }
+
+  @override
+  void resetWebSerialDisplayState() {
+    _webSerialDisplayInFlight = false;
+    _webSerialDisplayCoalesce = false;
   }
 
   void processSerialDataIsolate(sendPort) async {
@@ -440,13 +485,19 @@ class ProcessingUtilImpl implements ProcessingUtil {
     // ProcessingUtil.eventMarkerNotifier.value = [-1, -1];
     
   }
-  void onSerialParsedCallback( int frameCount ) {
-    // print("onSerialParsedCallback: ${inEventIndicesPtr[0]} - $frameCount");
-    _accumulateRecordedSamples(frameCount);
+  void onSerialParsedCallback(frameCount) {
+    final frames = frameCount is int
+        ? frameCount
+        : (frameCount is num ? frameCount.toInt() : 0);
+    // print("onSerialParsedCallback: ${inEventIndicesPtr[0]} - $frames");
+    if (frames > 0) {
+      ProcessingUtil.webSerialFramesIngestedListener?.call(frames);
+    }
+    _accumulateRecordedSamples(frames);
     int removedIndicesCount = 0;
     for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {
-      if (inEventIndicesPtr[i] - frameCount > 0) {
-        inEventIndicesPtr[i] -= frameCount;
+      if (inEventIndicesPtr[i] - frames > 0) {
+        inEventIndicesPtr[i] -= frames;
         ProcessingUtil.eventPosition[i] = inEventIndicesPtr[i];
         // print("ProcessingUtil.eventPosition[i] :  ${ProcessingUtil.eventPosition[i]} ${DateTime.now()}");
       } else {
@@ -896,6 +947,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
   @override
   void setupDartCallbacks() {
     js.context['onWebLivePlayback'] = onWebLivePlayback;
+    js.context['onSerialParsedCallback'] = onSerialParsedCallback;
   }
 
   void onWebLivePlayback(channelData) {

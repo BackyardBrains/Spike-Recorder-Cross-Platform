@@ -27,6 +27,18 @@ abstract class ProcessingUtil {
   /// Web only: worker posts processed PCM chunks after WASM processing.
   static void Function(List<Int16List> chunks)? webLivePlaybackListener;
 
+  /// Web only: real frames ingested after WASM serial decode (not Dart stub length).
+  static void Function(int frameCount)? webSerialFramesIngestedListener;
+
+  /// Web only: draw buffers are ready after [INPUT_SERIAL_BUFFER_FINISHED].
+  static void Function()? webSerialDisplayReadyListener;
+
+  /// Web only: [INPUT_SERIAL_BUFFER_FINISHED] arrived (coalesce / unlock paint).
+  void notifyWebSerialDisplayFinished() {}
+
+  /// Web only: clear coalesced DISPLAY state on disconnect / pipeline reset.
+  void resetWebSerialDisplayState() {}
+
   static int positionIndex = 0;
   // Maximum display time in seconds
   static const double MAX_DISPLAY_SECONDS = 10.0;

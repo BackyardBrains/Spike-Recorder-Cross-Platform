@@ -389,16 +389,30 @@ function serialProcessingOk(serialResult) {
 }
 
 function resolveSerialFrameCount(serialResult, outSampleCountsBuffer, totalChannel, serialPacketLen, byteLength) {
-    let frameCount = serialResult > 0 ? serialResult : 0;
+    // Capacity passed into WASM is serialPacketLen; after process, counts must be
+    // strictly less than capacity. Treating capacity (or serialResult==capacity)
+    // as a frame count writes huge mostly-zero slabs and corrupts multi-ch NWB.
+    const isPlausible = (c) => (c | 0) > 0 && (c | 0) < serialPacketLen;
+
+    let frameCount = isPlausible(serialResult) ? (serialResult | 0) : 0;
+    let minPositive = Infinity;
     for (let i = 0; i < totalChannel; i++) {
         const c = outSampleCountsBuffer[i] | 0;
-        if (c > 0 && c < serialPacketLen) {
-            frameCount = c;
-            break;
+        if (isPlausible(c)) {
+            minPositive = Math.min(minPositive, c);
         }
     }
+    if (minPositive !== Infinity) {
+        // Equal-length planar writes: never read past the shortest valid channel.
+        frameCount = frameCount > 0 ? Math.min(frameCount, minPositive) : minPositive;
+    }
     if (frameCount <= 0) {
-        frameCount = Math.max(1, Math.floor((byteLength / 2) / Math.max(1, totalChannel)));
+        // UART bytes are framed, not raw PCM — keep this emergency estimate small.
+        const est = Math.floor((byteLength / 2) / Math.max(1, totalChannel));
+        frameCount = Math.max(1, Math.min(est > 0 ? est : 1, 256, serialPacketLen - 1));
+        console.warn("resolveSerialFrameCount: fallback", {
+            frameCount, byteLength, totalChannel, serialResult, serialPacketLen
+        });
     }
     return frameCount;
 }
@@ -1382,94 +1396,106 @@ self.onmessage = async function (eventFromMain) {
 
                 if (isRecording == 0) {
                     // Write equal-length planar frames every packet.
-                    // Old path buffered into a 300-sample array and returned early when any
-                    // channel had 0 samples — that truncated recordings and used the wrong
-                    // stride (data.length instead of serialPacketLen).
+                    // Planar layout: channel i starts at i * serialPacketLen (WASM
+                    // sets out_samples[ch] = &_out_samples[ch * capacity] before
+                    // overwriting counts with the real per-channel lengths).
                     if (!NwbModule) {
                         console.error("NwbModule not ready for serial recording");
                     } else if (!recordSignalsList || recordChannelCount <= 0) {
                         console.error("Serial recording mask not initialized");
                     } else {
-                        const frameCount = resolveSerialFrameCount(
-                            serialResult,
-                            outSampleCountsBuffer,
-                            totalChannel,
-                            serialPacketLen,
-                            data.length
-                        );
-                        if (frameCount > 0) {
-                            let segmentIndex = 0;
-                            const planar = new Int16Array(recordChannelCount * frameCount);
-                            const counts = new Int32Array(recordChannelCount);
-                            let recordIdx = 0;
-
-                            for (let i = 0; i < totalChannel; i++) {
-                                if (recordSignalsList[i] == 0) continue;
-                                // Must match the capacity passed into WASM above.
-                                const srcStart = i * channelStride;
+                        const visibleIndices = [];
+                        for (let i = 0; i < totalChannel; i++) {
+                            if (recordSignalsList[i] == 0) continue;
+                            visibleIndices.push(i);
+                        }
+                        if (visibleIndices.length === 0) {
+                            console.warn("Serial record: no visible channels in mask");
+                        } else if (visibleIndices.length !== recordChannelCount) {
+                            // Expansion-board / mask drift — writing the wrong
+                            // electrode count corrupts the NWB. Skip this packet.
+                            console.warn(
+                                "Serial record channel mismatch; skip packet",
+                                {
+                                    visibleIndices: visibleIndices.length,
+                                    recordChannelCount,
+                                    totalChannel,
+                                    mask: Array.from(recordSignalsList),
+                                }
+                            );
+                        } else {
+                            const frameCount = resolveSerialFrameCount(
+                                serialResult,
+                                outSampleCountsBuffer,
+                                totalChannel,
+                                serialPacketLen,
+                                data.length
+                            );
+                            // Require every visible channel to have a plausible
+                            // count for this packet (avoid zero-filling gaps as
+                            // fake multi-channel samples).
+                            let allChannelsReady = frameCount > 0;
+                            for (let vi = 0; vi < visibleIndices.length && allChannelsReady; vi++) {
+                                const i = visibleIndices[vi];
                                 const available = outSampleCountsBuffer[i] | 0;
-                                const copyLen = Math.min(
-                                    frameCount,
+                                const usable =
                                     available > 0 && available < channelStride
                                         ? available
-                                        : frameCount,
-                                    Math.max(0, inSamplesBuffer.length - srcStart)
-                                );
-                                if (copyLen > 0) {
+                                        : (serialResult > 0 && serialResult < channelStride
+                                            ? serialResult
+                                            : 0);
+                                if (usable < frameCount) {
+                                    allChannelsReady = false;
+                                }
+                            }
+                            if (allChannelsReady) {
+                                let segmentIndex = 0;
+                                const planar = new Int16Array(recordChannelCount * frameCount);
+                                const counts = new Int32Array(recordChannelCount);
+
+                                for (let vi = 0; vi < visibleIndices.length; vi++) {
+                                    const i = visibleIndices[vi];
+                                    const srcStart = i * channelStride;
                                     planar.set(
-                                        inSamplesBuffer.subarray(srcStart, srcStart + copyLen),
+                                        inSamplesBuffer.subarray(srcStart, srcStart + frameCount),
                                         segmentIndex
                                     );
+                                    counts[vi] = frameCount;
+                                    segmentIndex += frameCount;
                                 }
-                                // Pad remainder with zeros so every channel has frameCount samples.
-                                counts[recordIdx] = frameCount;
-                                recordIdx++;
-                                segmentIndex += frameCount;
-                            }
 
-                            if (recordIdx !== recordChannelCount) {
-                                console.warn(
-                                    "Serial record channel mismatch",
-                                    { recordIdx, recordChannelCount, totalChannel, frameCount }
-                                );
-                            } else if (segmentIndex > 0) {
-                                const samplesPtr = NwbModule._malloc(
-                                    segmentIndex * NwbModule.HEAP16.BYTES_PER_ELEMENT
-                                );
-                                const samplesPtrStart =
-                                    samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
-                                const samplesBuffer = NwbModule.HEAP16.subarray(
-                                    samplesPtrStart,
-                                    samplesPtrStart + segmentIndex
-                                );
-                                samplesBuffer.set(planar);
+                                if (segmentIndex > 0) {
+                                    const samplesPtr = NwbModule._malloc(
+                                        segmentIndex * NwbModule.HEAP16.BYTES_PER_ELEMENT
+                                    );
+                                    const samplesPtrStart =
+                                        samplesPtr / NwbModule.HEAP16.BYTES_PER_ELEMENT;
+                                    const samplesBuffer = NwbModule.HEAP16.subarray(
+                                        samplesPtrStart,
+                                        samplesPtrStart + segmentIndex
+                                    );
+                                    samplesBuffer.set(planar);
 
-                                const samplesCtrPtr = NwbModule._malloc(
-                                    recordChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT
-                                );
-                                const samplesCtrPtrStart =
-                                    samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
-                                const samplesCtrBuffer = NwbModule.HEAP32.subarray(
-                                    samplesCtrPtrStart,
-                                    samplesCtrPtrStart + recordChannelCount
-                                );
-                                samplesCtrBuffer.set(counts);
+                                    const samplesCtrPtr = NwbModule._malloc(
+                                        recordChannelCount * NwbModule.HEAP32.BYTES_PER_ELEMENT
+                                    );
+                                    const samplesCtrPtrStart =
+                                        samplesCtrPtr / NwbModule.HEAP32.BYTES_PER_ELEMENT;
+                                    const samplesCtrBuffer = NwbModule.HEAP32.subarray(
+                                        samplesCtrPtrStart,
+                                        samplesCtrPtrStart + recordChannelCount
+                                    );
+                                    samplesCtrBuffer.set(counts);
 
-                                NwbModule._nwbfile_add_electrical_series(
-                                    samplesPtr,
-                                    samplesCtrPtr,
-                                    0,
-                                    recordChannelCount,
-                                    0
-                                );
-                                NwbModule._free(samplesPtr);
-                                NwbModule._free(samplesCtrPtr);
-                            }
-
-                            // Keep legacy buffers empty; finish path no longer relies on them.
-                            for (let i = 0; i < totalChannel; i++) {
-                                if (bufferedSerialEmptyCount[i] !== undefined) {
-                                    bufferedSerialEmptyCount[i] = 0;
+                                    NwbModule._nwbfile_add_electrical_series(
+                                        samplesPtr,
+                                        samplesCtrPtr,
+                                        0,
+                                        recordChannelCount,
+                                        0
+                                    );
+                                    NwbModule._free(samplesPtr);
+                                    NwbModule._free(samplesCtrPtr);
                                 }
                             }
                         }
@@ -1534,9 +1560,17 @@ self.onmessage = async function (eventFromMain) {
                     Module._free(inEventLabelsPtr);
 
                 }
+                // Prefer resolved frame count (handles serialResult===0 with valid out counts).
+                const ingestedFrameCount = resolveSerialFrameCount(
+                    serialResult,
+                    outSampleCountsBuffer,
+                    totalChannel,
+                    serialPacketLen,
+                    data.length
+                );
                 postMessage({
                     "message": "SERIAL_DATA_TRANSFER",
-                    "frameCount": serialResult,
+                    "frameCount": ingestedFrameCount,
                 });
                 
             }
@@ -1907,10 +1941,24 @@ self.onmessage = async function (eventFromMain) {
                 eventFromMain.data.visibleSignalsList,
                 nwbChannelCount
             );
-            if (recordSignalsList.length < nwbChannelCount) {
-                const padded = new Int16Array(nwbChannelCount).fill(1);
+            // Keep mask aligned with the live processing channel count so
+            // SEND_SERIAL_DATA_WEB visibleIndices.length === recordChannelCount.
+            const liveChannels = channelCount > 0 ? channelCount : nwbChannelCount;
+            if (recordSignalsList.length < liveChannels) {
+                const padded = new Int16Array(liveChannels).fill(1);
                 padded.set(recordSignalsList);
                 recordSignalsList = padded;
+            } else if (recordSignalsList.length > liveChannels) {
+                recordSignalsList = recordSignalsList.slice(0, liveChannels);
+            }
+            if (nwbChannelCount < liveChannels) {
+                console.warn(
+                    "CREATE_NWB_FILE: raising nwbChannelCount to live",
+                    nwbChannelCount,
+                    "→",
+                    liveChannels
+                );
+                nwbChannelCount = liveChannels;
             }
             // Prefer the mask over Dart's visibleChannelCount — a stale count of 1
             // with a [1,1,…] mask used to create a 1-electrode NWB and drop ch1+.

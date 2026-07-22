@@ -17,13 +17,11 @@ Future<void> main() async {
     app_shell.registerDeferredStartupTasks();
     runApp(app_shell.buildRootApp());
     return;
-  } else
-  if (Platform.isIOS) {
+  } else if (Platform.isIOS) {
     await waitForNativeIosUIKitReady(timeout: const Duration(seconds: 5));
     runApp(const _IosMetalBootstrap());
     return;
-  } else
-  if (Platform.isWindows || Platform.isMacOS) {
+  } else if (Platform.isWindows || Platform.isMacOS) {
     await windowManager.ensureInitialized();
 
     WindowOptions windowOptions = WindowOptions(
@@ -35,7 +33,8 @@ Future<void> main() async {
     );
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       if (Platform.isWindows) {
-        double titleBarHeight = await windowManager.getTitleBarHeight() as double;
+        double titleBarHeight =
+            (await windowManager.getTitleBarHeight()).toDouble();
         await windowManager.setSize(Size(800, 600 + titleBarHeight));
       }
       await windowManager.show();

@@ -3,10 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:mic_stream/mic_stream.dart';
-/*
 import 'package:record/record.dart';
-*/
-// import 'package:mic_stream/mic_stream.dart';
 import 'package:spikerbox_architecture/screen/graph_template.dart';
 
 import 'microphone_stream_check.dart';
@@ -17,6 +14,8 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
   @override
   // Stream<Uint8List>? micStream;
   ValueNotifier<Uint8List> micStream = ValueNotifier(Uint8List(0));
+  // WINDOWS
+  final record = AudioRecorder();
 
   @override
   // StreamController<Uint8List> addListenAudioStreamController =  StreamController();
@@ -28,10 +27,6 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
 
   @override
   double sampleRate = 44100;
-  /*
-  final record = AudioRecorder();
-  */
-
   @override
   Future<void> stopListeningToMicrophone({bool resetStream = false}) async {
     await micStatus?.cancel();
@@ -51,7 +46,7 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
     if (Platform.isWindows) {
       micStatus?.cancel();
       sampleRate = 48000;
-      /*
+      // /*
       final stream = await record.startStream(RecordConfig(
           numChannels: 1,
           sampleRate: sampleRate.toInt(),
@@ -62,7 +57,7 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
           micStream?.value = onData;
         }
       });
-      */
+      // */
     } else {
       // /*
 

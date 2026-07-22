@@ -157,24 +157,20 @@ class LocalPluginWeb implements LocalPlugin {
     }
   }
 
-  /// Called from JS when processing completed on a packet
-  void onProcessingDone(channelData, channelCounts) {
-    // Int16List returnList = Int16List(_dataBuffer[channelIdx]?.length ?? 0);
-    // for (int i = 0; i < returnList.length; i++) {
-    //   returnList[i] = _dataBuffer[channelIdx]![i];
-    // }
-    // int len = channelData.length;
-    // for (int i = 0; i < len; i++) {
+  /// Called from JS when processing completed on a packet.
+  /// [drawingBuffers] / counts are SharedArrayBuffer views updated in-place by
+  /// the worker — do not copy or replace those references here.
+  void onProcessingDone(channelData, [channelCounts]) {
+    if (channelCounts != null) {
+      GraphTemplate.processingUtil?.notifyWebSerialDisplayFinished();
+      // Fallback refresh if the display-ready listener is not registered yet.
+      if (ProcessingUtil.webSerialDisplayReadyListener == null) {
+        postFilterStreamController.add(Uint8List(0));
+      }
+      return;
+    }
 
-    //   ProcessingUtil.drawingBuffers[i].setAll(0, channelData[0]);
-    //   ProcessingUtil.drawingBufferCounts[i] = channelCounts[i];
-    // }
-
-    // postFilterStreamController.add(returnList.buffer.asUint8List());
     postFilterStreamController.add(Uint8List(0));
-
-    // _bufferHandlerOnDemand[channelIdx]?.toFetchBytes = true;
-    // _bufferHandlerOnDemand[channelIdx]?.requestData();
   }
 
   void setExpansionBoardTypeDart(expBoardType) {

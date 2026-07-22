@@ -1213,6 +1213,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     print("GraphTemplate dispose: cleaning up resources...");
     if (kIsWeb) {
       ProcessingUtil.webLivePlaybackListener = null;
+      ProcessingUtil.webSerialFramesIngestedListener = null;
+      ProcessingUtil.webSerialDisplayReadyListener = null;
     }
 
     // Cancel all timers
@@ -2837,6 +2839,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     if (_serialDisplayDeferred || _serialGraphPaintInFlight) {
       await _flushDeferredSerialDisplay(provider, drawSurfaceWidth);
     }
+    if (kIsWeb) return;
     if (mounted &&
         (_serialDisplayDeferred ||
             DateTime.now().difference(_lastSuccessfulSerialPaintAt ??
@@ -7004,6 +7007,11 @@ class _GraphTemplateState extends State<GraphTemplate> {
     print("setGraphResumePlay PLAYBACK PAUSE BUTTON $isPlay");
     if (isPlay) {
       await _pauseLiveMonitorForFilePlayback();
+      if (kIsWeb) {
+        processingUtil.resetWebSerialDisplayState();
+        _serialGraphPaintInFlight = false;
+        _serialDisplayDeferred = false;
+      }
       if (isThresholdingButton) {
         processingUtil.resetThresholdBuffer();
       }
@@ -8212,6 +8220,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _serialChunksDrainedSinceLastPaint = 0;
     _serialPaintWatchdogTimer?.cancel();
     _serialPaintWatchdogTimer = null;
+    if (kIsWeb) {
+      processingUtil.resetWebSerialDisplayState();
+    }
   }
 
   void _syncCarouselSliderControllers(int channelCount) {
@@ -8241,6 +8252,48 @@ class _GraphTemplateState extends State<GraphTemplate> {
   void _registerWebLivePlaybackListener() {
     if (!kIsWeb) return;
     ProcessingUtil.webLivePlaybackListener = _onWebLivePlaybackChunks;
+    ProcessingUtil.webSerialFramesIngestedListener = _onWebSerialFramesIngested;
+    ProcessingUtil.webSerialDisplayReadyListener = _onWebSerialDisplayReady;
+  }
+
+  void _onWebSerialFramesIngested(int frameCount) {
+    if (!mounted || frameCount <= 0) return;
+    if (GraphTemplate.isPlayerPaused || GraphTemplate.isLoadingFile != 0) {
+      return;
+    }
+    if (context.read<DataStatusProvider>().isMicrophoneData) return;
+
+    totalSampleCount += frameCount;
+    _serialChunksDrainedSinceLastPaint++;
+    final provider = Provider.of<GraphDataProvider>(context, listen: false);
+    final drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+    _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
+  }
+
+  void _onWebSerialDisplayReady() {
+    if (!mounted) return;
+    final provider = Provider.of<GraphDataProvider>(context, listen: false);
+    provider.inputListener(Uint8List(0));
+    _markSerialPaintSuccess('web-display');
+    _serialGraphPaintInFlight = false;
+
+    final drawSurfaceWidth = MediaQuery.of(context).size.width.toInt();
+
+    // File open/playback: at most one follow-up paint (don't chase live backlog).
+    if (isOpeningFile || GraphTemplate.isLoadingFile != 0) {
+      if (_serialDisplayDeferred) {
+        _serialDisplayDeferred = false;
+        if (isOpeningFile) {
+          _serialGraphPaintInFlight = true;
+          unawaited(_paintSerialFileGraph(provider, drawSurfaceWidth));
+        }
+      }
+      return;
+    }
+
+    if (_serialDisplayDeferred && _shouldPaintSerialGraphNow()) {
+      _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
+    }
   }
 
   /// Live monitor and loaded-file playback share [SoLoud.instance]; stop live streams before file play.
@@ -8392,6 +8445,18 @@ class _GraphTemplateState extends State<GraphTemplate> {
     if (isThresholdingButton && kIsWeb) {
       arr = [_effectiveSerialThresholdSpan()];
     }
+    // File playback/scrub: still schedule paints, but never drop the deferred
+    // follow-up forever (that left a stale/flat frame on screen).
+    if (kIsWeb && isOpeningFile) {
+      if (_serialGraphPaintInFlight) {
+        _serialDisplayDeferred = true;
+        return;
+      }
+      _serialGraphPaintInFlight = true;
+      _serialDisplayDeferred = false;
+      unawaited(_paintSerialFileGraph(provider, drawSurfaceWidth));
+      return;
+    }
     totalSampleCount += channels[0].length;
     _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
   }
@@ -8464,8 +8529,17 @@ class _GraphTemplateState extends State<GraphTemplate> {
         // );
         // Audio first; do not await graph paint (that was blocking the next chunk).
         _enqueueLiveSerialAudio(samples);
-        _accumulateSerialSamplesForDisplay(samples, drawSurfaceWidth);
-        _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
+        // Web: paint gating uses real WASM frame counts via
+        // [ProcessingUtil.webSerialFramesIngestedListener] (SERIAL_DATA_TRANSFER),
+        // not the empty stub returned by processSerialData.
+        // Still tick recordingNotifier here — NWB bytes are written in the worker,
+        // but the UI timer only advances from this Dart notifier.
+        if (!kIsWeb) {
+          _accumulateSerialSamplesForDisplay(samples, drawSurfaceWidth);
+          _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
+        } else {
+          _handleSerialRecording(samples);
+        }
       }
     } finally {
       _serialIngestDraining = false;
@@ -8568,6 +8642,10 @@ class _GraphTemplateState extends State<GraphTemplate> {
         if (gateReason != null) {
           _serialDisplayDeferred = true;
           // _logSerialPaint('run deferred ($gateReason)');
+          if (kIsWeb) {
+            // DISPLAY was not posted; do not leave paint locked.
+            _serialGraphPaintInFlight = false;
+          }
           return;
         }
         totalSampleCount = 0;
@@ -8575,16 +8653,24 @@ class _GraphTemplateState extends State<GraphTemplate> {
         _lastSerialDisplayAt = DateTime.now();
         // _logSerialPaint('run paint begin width=$drawSurfaceWidth');
         await _paintLiveSerialGraph(provider, drawSurfaceWidth);
-        if (mounted) {
-          provider.inputListener(Uint8List(0));
-          _markSerialPaintSuccess('run');
+        if (!mounted) return;
+        if (kIsWeb) {
+          // UI refresh + inFlight unlock happen in [_onWebSerialDisplayReady]
+          // after INPUT_SERIAL_BUFFER_FINISHED.
+          return;
         }
+        provider.inputListener(Uint8List(0));
+        _markSerialPaintSuccess('run');
       } while (
           mounted && _serialDisplayDeferred && _shouldPaintSerialGraphNow());
     } finally {
-      _serialGraphPaintInFlight = false;
-      if (mounted && _serialDisplayDeferred && _shouldPaintSerialGraphNow()) {
-        _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
+      if (!kIsWeb) {
+        _serialGraphPaintInFlight = false;
+        if (mounted && _serialDisplayDeferred && _shouldPaintSerialGraphNow()) {
+          _scheduleSerialGraphPaint(provider, drawSurfaceWidth);
+        }
+      } else if (!mounted) {
+        _serialGraphPaintInFlight = false;
       }
     }
   }
@@ -8627,14 +8713,20 @@ class _GraphTemplateState extends State<GraphTemplate> {
     totalSampleCount = 0;
     _serialDisplayDeferred = false;
     _lastSerialDisplayAt = DateTime.now();
+    if (kIsWeb) {
+      if (_serialGraphPaintInFlight) {
+        _serialDisplayDeferred = true;
+        return;
+      }
+      _serialGraphPaintInFlight = true;
+      await _paintLiveSerialGraph(provider, drawSurfaceWidth);
+      // Refresh via [_onWebSerialDisplayReady].
+      return;
+    }
     await _paintLiveSerialGraph(provider, drawSurfaceWidth);
     if (mounted) {
-      if (!kIsWeb) {
-        if (Platform.isIOS) {
-          provider.inputListener(Uint8List(0));
-        } else {
-          setState(() {});
-        }
+      if (Platform.isIOS) {
+        provider.inputListener(Uint8List(0));
       } else {
         setState(() {});
       }

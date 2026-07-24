@@ -392,8 +392,13 @@ function resolveSerialFrameCount(serialResult, outSampleCountsBuffer, totalChann
     // Capacity passed into WASM is serialPacketLen; after process, counts must be
     // strictly less than capacity. Treating capacity (or serialResult==capacity)
     // as a frame count writes huge mostly-zero slabs and corrupts multi-ch NWB.
+    //
+    // IMPORTANT: never invent frames from UART byteLength. Human SpikerBox bytes
+    // are framed protocol, not raw PCM. A byte-length fallback aged event markers
+    // even when 0 samples were decoded → markers drifted off the waveform (#77).
     const isPlausible = (c) => (c | 0) > 0 && (c | 0) < serialPacketLen;
 
+    // Prefer ch0 when serialResult carries a real count (native returns counts[0]).
     let frameCount = isPlausible(serialResult) ? (serialResult | 0) : 0;
     let minPositive = Infinity;
     for (let i = 0; i < totalChannel; i++) {
@@ -403,18 +408,13 @@ function resolveSerialFrameCount(serialResult, outSampleCountsBuffer, totalChann
         }
     }
     if (minPositive !== Infinity) {
-        // Equal-length planar writes: never read past the shortest valid channel.
+        // Multi-ch (e.g. HUMANSB 2ch): age/write by the shortest valid channel so
+        // markers stay locked to what every channel actually advanced.
         frameCount = frameCount > 0 ? Math.min(frameCount, minPositive) : minPositive;
     }
-    if (frameCount <= 0) {
-        // UART bytes are framed, not raw PCM — keep this emergency estimate small.
-        const est = Math.floor((byteLength / 2) / Math.max(1, totalChannel));
-        frameCount = Math.max(1, Math.min(est > 0 ? est : 1, 256, serialPacketLen - 1));
-        console.warn("resolveSerialFrameCount: fallback", {
-            frameCount, byteLength, totalChannel, serialResult, serialPacketLen
-        });
-    }
-    return frameCount;
+    // No samples decoded (escape/HWT-only chunk, empty parse) → 0. Callers must
+    // not age markers or write NWB for this packet.
+    return frameCount > 0 ? frameCount : 0;
 }
 
 function buildSerialLiveChunkViews(inSamplesBuffer, outSampleCountsBuffer, totalChannel, serialPacketLen, frameCount) {
@@ -1561,6 +1561,8 @@ self.onmessage = async function (eventFromMain) {
 
                 }
                 // Prefer resolved frame count (handles serialResult===0 with valid out counts).
+                // Only notify Dart when real samples were inserted — otherwise markers
+                // would age with no matching waveform advance (#77).
                 const ingestedFrameCount = resolveSerialFrameCount(
                     serialResult,
                     outSampleCountsBuffer,
@@ -1568,10 +1570,12 @@ self.onmessage = async function (eventFromMain) {
                     serialPacketLen,
                     data.length
                 );
-                postMessage({
-                    "message": "SERIAL_DATA_TRANSFER",
-                    "frameCount": ingestedFrameCount,
-                });
+                if (ingestedFrameCount > 0) {
+                    postMessage({
+                        "message": "SERIAL_DATA_TRANSFER",
+                        "frameCount": ingestedFrameCount,
+                    });
+                }
                 
             }
 

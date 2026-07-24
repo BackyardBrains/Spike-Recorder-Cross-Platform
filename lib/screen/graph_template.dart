@@ -1946,7 +1946,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.25',
+                                            'SpikeRecorder App ver. 2.1.26',
                                             style: TextStyle(
                                               color: appColors.textSecondary,
                                               fontSize: 14,

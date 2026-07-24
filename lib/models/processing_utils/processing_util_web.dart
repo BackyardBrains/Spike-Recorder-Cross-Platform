@@ -490,9 +490,10 @@ class ProcessingUtilImpl implements ProcessingUtil {
         ? frameCount
         : (frameCount is num ? frameCount.toInt() : 0);
     // print("onSerialParsedCallback: ${inEventIndicesPtr[0]} - $frames");
-    if (frames > 0) {
-      ProcessingUtil.webSerialFramesIngestedListener?.call(frames);
-    }
+    // Only age markers / recording clock when real samples were inserted.
+    // Fake or zero counts would walk markers off the waveform (#77).
+    if (frames <= 0) return;
+    ProcessingUtil.webSerialFramesIngestedListener?.call(frames);
     _accumulateRecordedSamples(frames);
     int removedIndicesCount = 0;
     for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {

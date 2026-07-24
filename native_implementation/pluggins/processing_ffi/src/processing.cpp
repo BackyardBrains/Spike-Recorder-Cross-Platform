@@ -653,27 +653,39 @@ int32_t processing_process_sample_stream(int16_t** out_samples, int32_t* out_sam
                                      event_indices, event_labels, event_count,
                                      current_channel_count, hardware_type);
         // platform_log_processing("PROCESS SAMPLE STREAM DEBUG C++ PROCESS CALLED\n");
-        // Add processed data to circular buffer
-        // return -199;
+        // Add processed data to circular buffer.
+        // Multi-channel UART chunks can end mid-frame so per-channel counts differ
+        // by 1. Advancing each head by its own count makes channel timelines skew;
+        // event markers use one shared frame count and then drift off the spike.
+        // Truncate all channels to the shortest count before insert (and return that).
         if (circularBuffer != nullptr) {
-            // if (out_sample_counts[0]>0) {
+            int32_t minCount = out_sample_counts[0];
+            for (int i = 1; i < current_channel_count; i++) {
+                if (out_sample_counts[i] < minCount) {
+                    minCount = out_sample_counts[i];
+                }
+            }
+            if (minCount < 0) {
+                minCount = 0;
+            }
+            for (int i = 0; i < current_channel_count; i++) {
+                out_sample_counts[i] = minCount;
+            }
+            if (minCount > 0) {
                 circularBuffer->addData(out_samples, out_sample_counts);
-            // }
+            }
         } else {
             delete[] event_indices;
             delete[] event_labels;
             return -100;
         }
-        
 
-
-
-        
         // Free allocated memory before returning
         delete[] event_indices;
         delete[] event_labels;
-        
-        return 0; // Success
+
+        // Match native iOS/macOS: return frames actually added (0 if none).
+        return out_sample_counts[0];
     } catch (const std::exception &) {
         if (event_indices != nullptr) delete[] event_indices;
         if (event_labels != nullptr) delete[] event_labels;

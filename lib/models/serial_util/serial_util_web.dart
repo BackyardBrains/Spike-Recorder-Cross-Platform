@@ -113,7 +113,7 @@ class SerialUtilWeb implements SerialUtil {
   /// Confirmed near-baud HWT reply but wrong canonical baud — don't sit for 3s×2.
   static const Duration _probeFrameTimeoutWrongBaud =
       Duration(milliseconds: 800);
-  static const int _probeAttemptsPerBaud = 1;
+  static const int _probeAttemptsPerBaud = 2;
 
   Duration _probeFrameTimeoutForBaud(int baud) =>
       baud == 500000 ? _probeFrameTimeout500k : _probeFrameTimeoutDefault;

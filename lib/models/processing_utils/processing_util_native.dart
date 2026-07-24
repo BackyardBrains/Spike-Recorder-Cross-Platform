@@ -1234,6 +1234,12 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   @override
+  void notifyWebSerialDisplayFinished() {}
+
+  @override
+  void resetWebSerialDisplayState() {}
+
+  @override
   void resetThresholdBuffer() {
     pb.processingBindings.resetThresholdBuffer();
   }

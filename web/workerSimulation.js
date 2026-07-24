@@ -909,8 +909,16 @@ self.onmessage = async function (eventFromMain) {
                 
                 if (resultDrawing == 0) {
                     try{
-                        if (inTotalEvents > 0) {
-                            outEventPositionBuffer.set(outEventIndicesBuffer.subarray(0, inTotalEvents));
+                        const outEventCount = (outEventCountBuffer[0] | 0);
+                        if (outEventCount > 0 && outEventCount <= inTotalEvents) {
+                            outEventPositionBuffer.set(
+                                outEventIndicesBuffer.subarray(0, outEventCount)
+                            );
+                            if (outEventCount < outEventPositionBuffer.length) {
+                                outEventPositionBuffer.fill(0, outEventCount);
+                            }
+                        } else if (inTotalEvents > 0) {
+                            outEventPositionBuffer.fill(0);
                         }
                             // console.log("outSampleCountsDrawingBuffer: " , channelCount, outSampleCountsDrawingBuffer.length, outSampleCountsDrawingBuffer);
                         for (let i = 0; i < channelCount; i++) {
@@ -1664,8 +1672,12 @@ self.onmessage = async function (eventFromMain) {
                         endPositionIdx = endPositionIdx == 0 ? 1 : endPositionIdx;
                     }
 
-                    if (inTotalEvents > 0) {
-                        inEventIndicesBuffer.set(eventPositions);
+                    // Always start clean — a short/mismatched eventPositions array
+                    // previously left malloc garbage in unused slots (#77 drift).
+                    inEventIndicesBuffer.fill(0);
+                    if (inTotalEvents > 0 && eventPositions && eventPositions.length > 0) {
+                        const copyLen = Math.min(inTotalEvents, eventPositions.length);
+                        inEventIndicesBuffer.set(eventPositions.slice(0, copyLen));
                     }
                 }catch(err) {
                     console.log("ERR111", eventPositions, inEventIndicesBuffer);
@@ -1694,9 +1706,18 @@ self.onmessage = async function (eventFromMain) {
 
                 // console.log("resultDrawing: ", resultDrawing, outSampleCountsDrawingBuffer);
                 if (resultDrawing == 0) {
-                    if (inTotalEvents > 0) {
-                        // console.log("outEventIndicesBuffer: ", outEventIndicesBuffer.subarray(0, inTotalEvents), inEventIndicesBuffer, eventPositions);
-                        outEventPositionBuffer.set(outEventIndicesBuffer.subarray(0, inTotalEvents));
+                    // Only publish the events actually placed in-range; zero the
+                    // rest so Dart does not pair labels with stale pixel Xs.
+                    const outEventCount = (outEventCountBuffer[0] | 0);
+                    if (outEventCount > 0 && outEventCount <= inTotalEvents) {
+                        outEventPositionBuffer.set(
+                            outEventIndicesBuffer.subarray(0, outEventCount)
+                        );
+                        if (outEventCount < outEventPositionBuffer.length) {
+                            outEventPositionBuffer.fill(0, outEventCount);
+                        }
+                    } else {
+                        outEventPositionBuffer.fill(0);
                     }
 
                     for (let i = 0; i < channelCount; i++) {
@@ -1705,9 +1726,6 @@ self.onmessage = async function (eventFromMain) {
                         const slicedArray = outSamplesBuffer.slice( i * startPosMultiplier, i * startPosMultiplier + outSampleCount);
                         drawingDataBufferList[i].set(slicedArray);
                         drawingCountBufferList[i] = outSampleCount;
-                        // if (isThresholding) {
-                        //     console.log("outSampleCountsDrawingPtr: ", i, " channel:", totalChannel, " ==== ", slicedArray, outSamplesBuffer.length, startPosMultiplier);
-                        // }
                     }
 
                     const data = {

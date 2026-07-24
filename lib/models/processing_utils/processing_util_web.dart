@@ -136,7 +136,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
         0,
         data.length,
         json.encode(ProcessingUtil.eventLabels),
-        json.encode(ProcessingUtil.eventPosition),
+        json.encode(_activeEventPositions()),
       ]);
       return [Int16List(0)];
     }
@@ -150,7 +150,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       0,
       data.length,
       json.encode(ProcessingUtil.eventLabels),
-      json.encode(ProcessingUtil.eventPosition)
+      json.encode(_activeEventPositions())
     ]);
     // DraggableGraph.eventMarkersPosition.clear();
     // DraggableGraph.eventMarkersPosition.addAll(_eventPositionList.toList());
@@ -208,7 +208,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       startPositionIdx,
       endPositionIdx,
       json.encode(ProcessingUtil.eventLabels),
-      json.encode(ProcessingUtil.eventPosition)
+      json.encode(_activeEventPositions())
     ]);
     return [];
   }
@@ -219,40 +219,39 @@ class ProcessingUtilImpl implements ProcessingUtil {
   }
 
   void initEventMarkers(int sampleRate) {
-    if (inEventIndicesPtr.length > 0) {
-      // print("AFter Zero");
-      // inEventIndicesPtr.clear();
-      // inEventLabelsPtr.clear();
-      // inEventIndicesPtr =
-      //     List<int>.generate(ProcessingUtil.MAX_EVENT_MARKERS, (_) => sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor());
-      // inEventLabelsPtr =
-      //     List<int>.generate(ProcessingUtil.MAX_EVENT_MARKERS, (_) => 0);
-      int maxSamples = sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor();
-      inEventPositionPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
-      inEventPositionPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), maxSamples);
+    final maxSamples =
+        sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor();
+    final markerSlots = ProcessingUtil.MAX_EVENT_MARKERS.floor();
 
-      inEventIndicesPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
-      inEventIndicesPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), maxSamples);
+    inEventPositionPtr = Int32List(markerSlots);
+    inEventPositionPtr.fillRange(0, markerSlots, maxSamples);
 
-      inEventLabelsPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
-      ProcessingUtil.eventPosition.clear();
+    inEventIndicesPtr = Int32List(markerSlots);
+    inEventIndicesPtr.fillRange(0, markerSlots, maxSamples);
 
-      // ProcessingUtil.eventPosition = [];
-      // for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
-      //   inEventIndicesPtr[i] = sampleRate * 10;
-      // }
-    } else {
-      // print("in Zero");
-      inEventPositionPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
-      inEventIndicesPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
-      inEventLabelsPtr = Int32List(ProcessingUtil.MAX_EVENT_MARKERS.floor());
+    inEventLabelsPtr = Int32List(markerSlots);
 
-      inEventIndicesPtr.fillRange(0, ProcessingUtil.MAX_EVENT_MARKERS.floor(), sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor());
+    // Parallel growable lists — must stay same length as eventLabels.
+    // (Previously web cleared eventPosition and never appended on keypress, so
+    // DISPLAY sent [] and WASM drew markers from garbage indices → drift #77.)
+    ProcessingUtil.eventPosition.clear();
+    ProcessingUtil.eventLabels.clear();
+    ProcessingUtil.currentEventMarkers = 0;
+  }
 
-      // for (int i = 0; i < ProcessingUtil.MAX_EVENT_MARKERS; i++) {
-      //   inEventIndicesPtr[i] = sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS.floor();
-      // }
+  /// Sample indices for active markers only (same length as [eventLabels]).
+  List<int> _activeEventPositions() {
+    final n = ProcessingUtil.eventLabels.length;
+    if (n <= 0) return const [];
+    if (ProcessingUtil.eventPosition.length >= n) {
+      return ProcessingUtil.eventPosition.sublist(0, n);
     }
+    final maxSamples =
+        (_sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS).floor();
+    return List<int>.generate(n, (i) {
+      if (i < inEventIndicesPtr.length) return inEventIndicesPtr[i];
+      return maxSamples;
+    });
   }
 
   @override
@@ -291,68 +290,89 @@ class ProcessingUtilImpl implements ProcessingUtil {
   void _shiftEventMarkersForInsertedFrames(int frameCount) {
     if (frameCount <= 0 || inEventIndicesPtr.isEmpty) return;
 
-    int removedIndicesCount = 0;
-    for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {
+    final maxSamples =
+        (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+    var active = ProcessingUtil.eventLabels.length;
+    if (active > ProcessingUtil.MAX_EVENT_MARKERS) {
+      active = ProcessingUtil.MAX_EVENT_MARKERS;
+    }
+    // Repair parallel list if a keypress only appended the label (legacy bug).
+    while (ProcessingUtil.eventPosition.length < active) {
+      final i = ProcessingUtil.eventPosition.length;
+      ProcessingUtil.eventPosition.add(
+        i < inEventIndicesPtr.length ? inEventIndicesPtr[i] : maxSamples,
+      );
+    }
+    ProcessingUtil.currentEventMarkers = active;
+    if (active <= 0) return;
+
+    var removedIndicesCount = 0;
+    for (var i = 0; i < active; i++) {
       if (inEventIndicesPtr[i] - frameCount > 0) {
         inEventIndicesPtr[i] -= frameCount;
         ProcessingUtil.eventPosition[i] = inEventIndicesPtr[i];
-      } else {
-        if (inEventIndicesPtr[i] != -1) {
-          removedIndicesCount++;
-          inEventIndicesPtr[i] = -1;
-        }
+      } else if (inEventIndicesPtr[i] != -1) {
+        removedIndicesCount++;
+        inEventIndicesPtr[i] = -1;
       }
     }
-    for (int i = 0; i < removedIndicesCount; i++) {
-      if (inEventIndicesPtr[i] == -1) {
-        if (ProcessingUtil.eventLabels.isNotEmpty) {
-          ProcessingUtil.eventLabels.removeAt(0);
+    for (var i = 0; i < removedIndicesCount; i++) {
+      if (inEventIndicesPtr[0] == -1 && ProcessingUtil.eventLabels.isNotEmpty) {
+        ProcessingUtil.eventLabels.removeAt(0);
+        if (ProcessingUtil.eventPosition.isNotEmpty) {
           ProcessingUtil.eventPosition.removeAt(0);
         }
       }
     }
-    if (inEventIndicesPtr.isNotEmpty && inEventIndicesPtr[0] == -1) {
-      int tempCurrentEvent = ProcessingUtil.currentEventMarkers;
-      ProcessingUtil.currentEventMarkers -= removedIndicesCount;
-
-      int eventPositionLen = ProcessingUtil.eventLabels.length;
-      int i = 0;
-      for (i = 0; i < eventPositionLen; i++) {
+    final tempCurrentEvent = active;
+    ProcessingUtil.currentEventMarkers =
+        ProcessingUtil.eventLabels.length.clamp(0, ProcessingUtil.MAX_EVENT_MARKERS);
+    if (inEventIndicesPtr[0] == -1 || removedIndicesCount > 0) {
+      final eventPositionLen = ProcessingUtil.eventLabels.length;
+      for (var i = 0; i < eventPositionLen; i++) {
         inEventIndicesPtr[i] = ProcessingUtil.eventPosition[i];
-        inEventPositionPtr[i] = inEventPositionPtr[i + 1];
+        if (i + 1 < inEventPositionPtr.length) {
+          inEventPositionPtr[i] = inEventPositionPtr[i + 1];
+        }
       }
-      inEventPositionPtr[i] = inEventPositionPtr[i + 1];
-      for (int i = eventPositionLen; i < tempCurrentEvent; i++) {
-        inEventIndicesPtr[i] =
-            (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+      for (var i = eventPositionLen; i < tempCurrentEvent; i++) {
+        inEventIndicesPtr[i] = maxSamples;
       }
     }
   }
 
   void eventMarkerListener() {
-    List<int> list = ProcessingUtil.eventMarkerNotifier.value;
+    final list = ProcessingUtil.eventMarkerNotifier.value;
     if (list[0] == -1) return;
 
-
-    try{
-      inEventLabelsPtr[ProcessingUtil.currentEventMarkers] = list[0];
-      if (list[1] != -1) {
-        inEventIndicesPtr[ProcessingUtil.currentEventMarkers] = list[1];
+    try {
+      if (inEventIndicesPtr.isEmpty) {
+        initEventMarkers(_sampleRate);
       }
+      final idx = ProcessingUtil.eventLabels.length;
+      if (idx >= ProcessingUtil.MAX_EVENT_MARKERS) return;
+
+      final maxSamples =
+          (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
+      // Keyboard markers pass position=-1 → place at live right edge ("now").
+      // Envelope uses exclusive end (j < endPositionIdx), so use maxSamples-1.
+      final pos = list[1] != -1
+          ? list[1]
+          : (maxSamples > 0 ? maxSamples - 1 : 0);
+
+      inEventLabelsPtr[idx] = list[0];
+      inEventIndicesPtr[idx] = pos;
       ProcessingUtil.eventLabels.add(list[0]);
+      ProcessingUtil.eventPosition.add(pos);
+      ProcessingUtil.currentEventMarkers = ProcessingUtil.eventLabels.length;
+
       if (DraggableGraph.isRecording == 1) {
         GraphTemplate.nwbFileUtil?.addEvent(currentEventSecond, list[0]);
       }
-      // js.context.callMethod("onKeyPressEventMarker", [list[0], list[1], ProcessingUtil.currentEventMarkers, ProcessingUtil.fromSample, ProcessingUtil.toSample, _sampleRate * ProcessingUtil.MAX_DISPLAY_SECONDS]);
-
-    }catch(err) {
+    } catch (err) {
       print("err marker listener");
       print(err);
     }
-    ProcessingUtil.currentEventMarkers =
-        (ProcessingUtil.currentEventMarkers + 1) %
-            ProcessingUtil.MAX_EVENT_MARKERS;
-
   }
 
   int MAX_DISPLAY_SECONDS = 10000;
@@ -399,7 +419,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
         "processSerialDataWeb", [
           samples, displayTimeMs, deviceType,
           json.encode(ProcessingUtil.eventLabels),
-          json.encode(ProcessingUtil.eventPosition)
+          json.encode(_activeEventPositions())
         ]);
     // Paint gating uses [ProcessingUtil.webSerialFramesIngestedListener] with the
     // real WASM frame count. Returning an empty channel avoids the old Int16List(1)
@@ -440,7 +460,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       _pendingDisplayStartIdx,
       _pendingDisplayEndIdx,
       json.encode(ProcessingUtil.eventLabels),
-      json.encode(ProcessingUtil.eventPosition)
+      json.encode(_activeEventPositions())
     ]);
   }
 
@@ -489,78 +509,44 @@ class ProcessingUtilImpl implements ProcessingUtil {
     final frames = frameCount is int
         ? frameCount
         : (frameCount is num ? frameCount.toInt() : 0);
-    // print("onSerialParsedCallback: ${inEventIndicesPtr[0]} - $frames");
     // Only age markers / recording clock when real samples were inserted.
-    // Fake or zero counts would walk markers off the waveform (#77).
     if (frames <= 0) return;
     ProcessingUtil.webSerialFramesIngestedListener?.call(frames);
     _accumulateRecordedSamples(frames);
-    int removedIndicesCount = 0;
-    for (int i = 0; i < ProcessingUtil.currentEventMarkers; i++) {
-      if (inEventIndicesPtr[i] - frames > 0) {
-        inEventIndicesPtr[i] -= frames;
-        ProcessingUtil.eventPosition[i] = inEventIndicesPtr[i];
-        // print("ProcessingUtil.eventPosition[i] :  ${ProcessingUtil.eventPosition[i]} ${DateTime.now()}");
-      } else {
-        if (inEventIndicesPtr[i] != -1) {
-          removedIndicesCount++;
-          inEventIndicesPtr[i] = -1;
-          // DraggableGraph.eventMarkersPosition.removeAt(i);
-        }
-      }
-    }
-    // print("inEventIndicesPtr: ${inEventIndicesPtr.sublist(0,5)}");
-    for (int i = 0; i < removedIndicesCount; i++) {
-      if (inEventIndicesPtr[i] == -1) {
-        // print(
-        //     "INDEX: $i -- $removedIndicesCount __ ${inEventIndicesPtr[i]} : ${ProcessingUtil.eventLabels} @@ ${inEventIndicesPtr.sublist(0, ProcessingUtil.currentEventMarkers)}");
-        if (ProcessingUtil.eventLabels.isNotEmpty) {
-          ProcessingUtil.eventLabels.removeAt(0);
-          ProcessingUtil.eventPosition.removeAt(0);
-        }
-      }
-    }
-    if (inEventIndicesPtr.isNotEmpty && inEventIndicesPtr[0] == -1) {
-      int tempCurrentEvent = ProcessingUtil.currentEventMarkers;
-      ProcessingUtil.currentEventMarkers -= removedIndicesCount;
-      int eventPositionLen = ProcessingUtil.eventLabels.length;
-      int i = 0;
-      for (i = 0; i < eventPositionLen; i++) {
-        inEventIndicesPtr[i] = ProcessingUtil.eventPosition[i];
-        inEventPositionPtr[i] = inEventPositionPtr[i + 1];
-      }
-      inEventPositionPtr[i] = inEventPositionPtr[i + 1];
-      
-      // print("inEventPositionPtr: $inEventPositionPtr");
-      for (int i = eventPositionLen; i < tempCurrentEvent; i++) {
-        // print("ZEROING: $eventPositionLen - $tempCurrentEvent");
-        inEventIndicesPtr[i] =
-            (ProcessingUtil.MAX_DISPLAY_SECONDS * _sampleRate).floor();
-      }
-    }
-    
+    _shiftEventMarkersForInsertedFrames(frames);
   }
 
   void onEventPositionCalculated() {
-    // print("DateTime: ${DateTime.now()} ${_eventPositionList.sublist(0, ProcessingUtil.eventLabels.length)}");
     DraggableGraph.eventMarkersPosition.clear();
-    // print("ProcessingUtil.eventLabels.length: ${ProcessingUtil.eventLabels.length} && ${_eventPositionList.length}");
-    if (ProcessingUtil.eventLabels.isNotEmpty) {
-      DraggableGraph.eventMarkersPosition.addAll(_eventPositionList.sublist(0, ProcessingUtil.eventLabels.length));
+    DraggableGraph.eventMarkersLabels.clear();
+
+    final startPositionIdx = DraggableGraph.startPositionIdx;
+    final endPositionIdx = DraggableGraph.endPositionIdx;
+    final n = ProcessingUtil.eventLabels.length <
+            ProcessingUtil.eventPosition.length
+        ? ProcessingUtil.eventLabels.length
+        : ProcessingUtil.eventPosition.length;
+
+    // Visible markers in sample-index order (left → right). WASM emits pixel X
+    // in the same order for in-range events — keep them zipped 1:1.
+    final visibleLabels = <int>[];
+    for (var i = 0; i < n; i++) {
+      final samplePos = ProcessingUtil.eventPosition[i];
+      // Match DrawingUtils::envelope (j < toSample), not inclusive end.
+      if (samplePos >= startPositionIdx && samplePos < endPositionIdx) {
+        visibleLabels.add(ProcessingUtil.eventLabels[i]);
+      }
     }
 
-    DraggableGraph.eventMarkersLabels.clear();
-    int len = ProcessingUtil.eventLabels.length;
-    if (len > ProcessingUtil.eventPosition.length) {
-      len = ProcessingUtil.eventPosition.length;
-    }
-    int startPositionIdx = DraggableGraph.startPositionIdx;
-    int endPositionIdx = DraggableGraph.endPositionIdx;
-    for (int i = 0; i < len; i++) {
-      // print("RANGE : $startPositionIdx - $endPositionIdx");
-      if (ProcessingUtil.eventPosition[i] >= startPositionIdx && ProcessingUtil.eventPosition[i] <= endPositionIdx ) {
-        DraggableGraph.eventMarkersLabels.add(ProcessingUtil.eventLabels[i]);
-      }
+    final pixelLimit = visibleLabels.length < _eventPositionList.length
+        ? visibleLabels.length
+        : _eventPositionList.length;
+    for (var i = 0; i < pixelLimit; i++) {
+      final px = _eventPositionList[i];
+      // Shared buffer is zero-filled past outEventCount; stop at the tail.
+      if (px <= 0) break;
+      DraggableGraph.eventMarkersLabels.add(visibleLabels[i]);
+      DraggableGraph.eventMarkersPosition.add(px);
     }
   }
 
@@ -937,7 +923,7 @@ class ProcessingUtilImpl implements ProcessingUtil {
       Int32List.fromList(sampleCounts),
       channelCount,
       json.encode(ProcessingUtil.eventLabels),
-      json.encode(ProcessingUtil.eventPosition)
+      json.encode(_activeEventPositions())
     ]);
   }
   

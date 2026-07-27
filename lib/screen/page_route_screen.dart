@@ -40,7 +40,10 @@ class _DashBoardPageRouteState extends State<DashBoardPageRoute> {
                         builder: (context) => const DashBoardPannel()),
                   );
                 },
-                childWidget: const Text("Download Prototypes", style: TextStyle(color: Colors.black),),
+                childWidget: const Text(
+                  "Download Prototypes",
+                  style: TextStyle(color: Colors.black),
+                ),
               ),
             ),
             Consumer<ConstantProvider>(builder: (context, data, child) {
@@ -63,7 +66,10 @@ class _DashBoardPageRouteState extends State<DashBoardPageRoute> {
                       ),
                     );
                   },
-                  childWidget: const Text("Web application Version 2.1.26", style: TextStyle(color: Colors.black),),
+                  childWidget: const Text(
+                    "Web application Version 2.1.28",
+                    style: TextStyle(color: Colors.black),
+                  ),
                 ),
               );
             })

@@ -529,7 +529,7 @@ async function addElectricalSeriesWeb(samples, samplesCount, selectedChannel, ch
     });
 
     const newDate = new Date();
-    const newFileName = "spike_recorder"+newDate.getFullYear()+"-"+newDate.getMonth()+"-"+newDate.getDate()+"_"+newDate.getHours()+"."+newDate.getMinutes()+"."+newDate.getSeconds();
+    const newFileName = "spike_recorder"+newDate.getFullYear()+"-"+newDate.getMonth()+"-"+newDate.getDate()+"-"+newDate.getHours()+"-"+newDate.getMinutes()+"-"+newDate.getSeconds();
     const options = {
       excludeAcceptAllOption:true,
       suggestedName: newFileName,

@@ -1,0 +1,150 @@
+# frozen_string_literal: true
+
+require "fileutils"
+require "shellwords"
+
+# TestFlight upload for Spike Recorder (iOS + macOS).
+# Secrets: see scripts/testflight/env.example
+
+opt_out_usage
+default_platform(:ios)
+
+def repo_root
+  File.expand_path("..", __dir__)
+end
+
+def esc(value)
+  Shellwords.escape(value.to_s)
+end
+
+def asc_api_key
+  key_id = ENV.fetch("APP_STORE_CONNECT_KEY_ID")
+  issuer_id = ENV.fetch("APP_STORE_CONNECT_ISSUER_ID")
+  key_content = ENV["APP_STORE_CONNECT_KEY_CONTENT"]
+  key_path = ENV["APP_STORE_CONNECT_KEY_PATH"]
+
+  # Never UI.message / print key material.
+  if key_content && !key_content.empty?
+    app_store_connect_api_key(
+      key_id: key_id,
+      issuer_id: issuer_id,
+      key_content: key_content.gsub("\\n", "\n"),
+      is_key_content_base64: ENV["APP_STORE_CONNECT_KEY_IS_BASE64"] == "true",
+      duration: 1200,
+      in_house: false
+    )
+  elsif key_path && File.exist?(key_path)
+    repo = repo_root
+    abs = File.expand_path(key_path)
+    if abs.start_with?(repo + File::SEPARATOR)
+      UI.user_error!("APP_STORE_CONNECT_KEY_PATH must be outside the repository")
+    end
+    app_store_connect_api_key(
+      key_id: key_id,
+      issuer_id: issuer_id,
+      key_filepath: key_path,
+      duration: 1200,
+      in_house: false
+    )
+  else
+    UI.user_error!("Set APP_STORE_CONNECT_KEY_CONTENT or APP_STORE_CONNECT_KEY_PATH (outside repo)")
+  end
+end
+
+def pubspec_version_parts
+  line = File.read(File.join(repo_root, "pubspec.yaml"))[/^version:\s*(.+)$/, 1]&.strip
+  UI.user_error!("Could not read version from pubspec.yaml") if line.nil? || line.empty?
+
+  name, number = line.split("+", 2)
+  [name, number || "1"]
+end
+
+def build_name
+  ENV["BUILD_NAME"] || pubspec_version_parts[0]
+end
+
+def build_number
+  ENV["BUILD_NUMBER"] || pubspec_version_parts[1]
+end
+
+def skip_wait?
+  ENV["SKIP_WAITING_FOR_BUILD_PROCESSING"] != "false"
+end
+
+platform :ios do
+  desc "Upload an existing IPA to TestFlight"
+  lane :upload_ipa do |options|
+    ipa = options[:ipa] || Dir[File.join(repo_root, "build/ios/ipa/*.ipa")].max_by { |p| File.mtime(p) }
+    UI.user_error!("No IPA found under build/ios/ipa/") if ipa.nil? || !File.exist?(ipa)
+
+    upload_to_testflight(
+      api_key: asc_api_key,
+      ipa: ipa,
+      skip_waiting_for_build_processing: skip_wait?,
+      distribute_external: false,
+      notify_external_testers: false
+    )
+  end
+
+  desc "Build Flutter IPA and upload to TestFlight"
+  lane :beta do
+    sh(
+      "cd #{esc(repo_root)} && " \
+      "flutter build ipa --release --no-tree-shake-icons " \
+      "--build-name=#{esc(build_name)} --build-number=#{esc(build_number)} " \
+      "--export-options-plist=ios/ExportOptions.plist"
+    )
+    upload_ipa
+  end
+end
+
+platform :mac do
+  desc "Upload an existing macOS .pkg to TestFlight"
+  lane :upload_pkg do |options|
+    pkg = options[:pkg]
+    pkg ||= Dir[File.join(repo_root, "build/macos/ipa/*.pkg")].max_by { |p| File.mtime(p) }
+    pkg ||= Dir[File.join(repo_root, "build/macos/**/*.pkg")].max_by { |p| File.mtime(p) }
+    UI.user_error!("No macOS .pkg found under build/macos/") if pkg.nil? || !File.exist?(pkg)
+
+    upload_to_testflight(
+      api_key: asc_api_key,
+      pkg: pkg,
+      skip_waiting_for_build_processing: skip_wait?,
+      distribute_external: false,
+      notify_external_testers: false,
+      app_platform: "osx"
+    )
+  end
+
+  desc "Build Flutter macOS, archive for App Store, upload to TestFlight"
+  lane :beta do
+    sh(
+      "cd #{esc(repo_root)} && " \
+      "flutter build macos --release --no-tree-shake-icons " \
+      "--build-name=#{esc(build_name)} --build-number=#{esc(build_number)}"
+    )
+
+    archive_path = File.join(repo_root, "build/macos/archive/Runner.xcarchive")
+    export_path = File.join(repo_root, "build/macos/ipa")
+    FileUtils.rm_rf(archive_path)
+    FileUtils.mkdir_p(File.dirname(archive_path))
+    FileUtils.mkdir_p(export_path)
+
+    gym(
+      workspace: File.join(repo_root, "macos/Runner.xcworkspace"),
+      scheme: "Runner",
+      configuration: "Release",
+      destination: "generic/platform=macOS",
+      clean: false,
+      skip_package_pkg: false,
+      export_method: "app-store",
+      export_options: File.join(repo_root, "macos/ExportOptions.plist"),
+      output_directory: export_path,
+      archive_path: archive_path,
+      build_path: File.join(repo_root, "build/macos/gym"),
+      xcargs: "FLUTTER_BUILD_NAME=#{build_name} FLUTTER_BUILD_NUMBER=#{build_number}"
+    )
+
+    upload_pkg
+  end
+end

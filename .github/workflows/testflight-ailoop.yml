@@ -1,0 +1,122 @@
+name: TestFlight (ailoop)
+
+on:
+  push:
+    branches:
+      - ailoop
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platforms to upload"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - ios
+          - macos
+
+concurrency:
+  group: testflight-ailoop
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to TestFlight
+    runs-on: macos-latest
+    timeout-minutes: 120
+    env:
+      # Non-secret config only at job scope
+      ASC_APP_IDENTIFIER_IOS: com.backyardbrains.Backyard-Brains
+      ASC_APP_IDENTIFIER_MAC: com.example.spikerboxArchitecture
+      ASC_TEAM_ID: MLGRKD657P
+      SKIP_WAITING_FOR_BUILD_PROCESSING: "true"
+      ALLOW_PARTIAL_DEPLOY: "true"
+      BUILD_NUMBER: ${{ github.run_number }}
+      KEYCHAIN_NAME: build.keychain-db
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Credential safety scan
+        run: bash scripts/testflight/check_no_secrets.sh
+
+      - name: Guard required secrets exist
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
+        run: |
+          set +x
+          missing=0
+          for v in APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_CONTENT; do
+            if [ -z "${!v}" ]; then
+              echo "Missing required GitHub secret: $v"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Add App Store Connect API key secrets on this repo (Settings → Secrets), then re-run."
+            echo "Do not put key material in the repository."
+            exit 1
+          fi
+          echo "Required secrets are present (values not printed)."
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Setup Ruby / Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: false
+
+      - name: Install Fastlane
+        run: gem install fastlane --no-document
+
+      - name: Import signing material
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          BUILD_MAC_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_MAC_PROVISION_PROFILE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: bash scripts/testflight/setup_signing.sh
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: CocoaPods
+        run: |
+          (cd ios && pod install --repo-update)
+          (cd macos && pod install --repo-update)
+
+      - name: Deploy
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
+          APP_STORE_CONNECT_KEY_IS_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_IS_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set +x
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PLATFORM="${{ inputs.platform }}"
+          else
+            PLATFORM="all"
+          fi
+          bash scripts/testflight/deploy.sh "$PLATFORM"
+
+      - name: Cleanup signing material
+        if: always()
+        env:
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: bash scripts/testflight/cleanup_signing.sh

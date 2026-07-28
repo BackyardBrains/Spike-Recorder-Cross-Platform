@@ -37,6 +37,33 @@ ios/build/ios/XCBuildData/PIFCache/workspace/
 .pub/
 /build/
 
+# --- Credentials / signing / App Store Connect (never commit) ---
+.env
+.env.*
+!.env.example
+scripts/testflight/env.local
+scripts/testflight/*.local
+fastlane/.env
+fastlane/.env.*
+**/AuthKey_*.p8
+*.p8
+*.p12
+*.pem
+*.mobileprovision
+*.provisionprofile
+*.jks
+**/key.properties
+secrets/
+.secrets/
+**/credentials.json
+**/service-account*.json
+# ASC / Fastlane runtime artifacts
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/README.md
+
 # Symbolication related
 app.*.symbols
 

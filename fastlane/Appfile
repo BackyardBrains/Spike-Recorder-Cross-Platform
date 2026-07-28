@@ -1,0 +1,13 @@
+# App Store Connect / Apple Developer identifiers.
+# Override via env: ASC_APP_IDENTIFIER_IOS, ASC_APP_IDENTIFIER_MAC, ASC_TEAM_ID, ASC_ITUNES_TEAM_ID
+
+team_id(ENV.fetch("ASC_TEAM_ID", "MLGRKD657P"))
+itc_team_id(ENV["ASC_ITUNES_TEAM_ID"]) if ENV["ASC_ITUNES_TEAM_ID"]
+
+for_platform :ios do
+  app_identifier(ENV.fetch("ASC_APP_IDENTIFIER_IOS", ENV.fetch("ASC_APP_IDENTIFIER", "com.backyardbrains.Backyard-Brains")))
+end
+
+for_platform :mac do
+  app_identifier(ENV.fetch("ASC_APP_IDENTIFIER_MAC", "com.example.spikerboxArchitecture"))
+end

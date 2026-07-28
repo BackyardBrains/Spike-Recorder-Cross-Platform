@@ -1,0 +1,33 @@
+You are deploying Spike Recorder (Flutter) to Apple TestFlight for iOS and macOS.
+
+Context
+- Branch: ailoop (push trigger). Repo: BackyardBrains/Spike-Recorder-Cross-Platform
+- Bundle ids: iOS com.backyardbrains.Backyard-Brains, macOS com.example.spikerboxArchitecture (team MLGRKD657P)
+- Orchestrator: scripts/testflight/deploy.sh
+- Fastlane lanes: ios beta, mac beta (fastlane/)
+
+Required secrets (must already be configured as GitHub Secrets / env; never print or write them to disk in the repo)
+- APP_STORE_CONNECT_KEY_ID
+- APP_STORE_CONNECT_ISSUER_ID
+- APP_STORE_CONNECT_KEY_CONTENT (or APP_STORE_CONNECT_KEY_PATH outside the repo)
+- Optional CI signing: BUILD_CERTIFICATE_BASE64, P12_PASSWORD, BUILD_PROVISION_PROFILE_BASE64, BUILD_MAC_PROVISION_PROFILE_BASE64, KEYCHAIN_PASSWORD
+
+What to do
+1. Confirm you are on ailoop and working tree is usable for a release build.
+2. Run: bash scripts/testflight/check_no_secrets.sh — stop if it fails.
+3. If BUILD_CERTIFICATE_BASE64 is set, run: bash scripts/testflight/setup_signing.sh
+4. flutter pub get
+5. Export BUILD_NUMBER from GITHUB_RUN_NUMBER when present; otherwise keep pubspec build number.
+6. Run: bash scripts/testflight/deploy.sh all
+   - If iOS succeeds and macOS fails on missing Mac App Store record/signing, set ALLOW_PARTIAL_DEPLOY=true once, report clearly, and do not invent signing fixes.
+7. Always run: bash scripts/testflight/cleanup_signing.sh when finished (success or failure).
+8. On failure: read the last ~80 lines of logs, redact any secret-looking substrings before summarizing, fix only obvious project issues (pods, missing flutter, wrong path), retry once. Then stop and summarize.
+9. On success: report version (name+number), platforms uploaded, and that builds are processing in App Store Connect / TestFlight. Never include key ids beyond confirming "configured", never paste PEM/base64/passwords.
+
+Do not
+- Commit secrets, .p8/.p12/.pem, env.local, .env, provisioning profiles, or key.properties
+- Echo, log, or paste secret values (including into PR comments)
+- Force-push, amend history, or change unrelated files
+- Bump marketing version unless the push commit already did
+- Distribute to external testers automatically
+- Store AuthKey_*.p8 inside the repository tree

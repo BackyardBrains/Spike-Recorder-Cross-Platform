@@ -81,6 +81,35 @@ class GraphTemplate extends StatefulWidget {
   static Board? selectedBoard;
   static ProcessingUtil? processingUtil;
   static NWBFileUtil? nwbFileUtil;
+  static _GraphTemplateState? _activeInstance;
+
+  /// Best-effort release of mic/serial/audio/isolates before process exit.
+  /// Windows keeps the exe alive if SoLoud or [record] capture threads remain.
+  static Future<void> shutdownForAppExit() async {
+    final active = _activeInstance;
+    if (active != null) {
+      await active._shutdownNativeResourcesForExit();
+      return;
+    }
+    try {
+      final engine = SoLoud.SoLoud.instance;
+      if (engine.isInitialized) {
+        engine.deinit();
+      }
+    } catch (e) {
+      debugPrint('GraphTemplate.shutdownForAppExit soloud: $e');
+    }
+    try {
+      final util = processingUtil;
+      if (util is ProcessingUtilImpl) {
+        await util.dispose();
+      }
+    } catch (e) {
+      debugPrint('GraphTemplate.shutdownForAppExit processing: $e');
+    }
+    processingUtil = null;
+  }
+
   GraphTemplate(
       {super.key,
       required this.bitsData,
@@ -453,6 +482,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   @override
   void initState() {
     super.initState();
+    GraphTemplate._activeInstance = this;
 
     print("BYB IOS LOG - INIT STATE - GRAPH TEMPLATE");
 
@@ -1208,9 +1238,73 @@ class _GraphTemplateState extends State<GraphTemplate> {
     setState(() {});
   }
 
+  Future<void> _shutdownNativeResourcesForExit() async {
+    print("GraphTemplate shutdown: releasing native resources...");
+    _portCheckTimer?.cancel();
+    _dummyDataTimer?.cancel();
+    periodicTimerSerial?.cancel();
+    timerPlaybackLoadedFile?.cancel();
+    _stopWebPlaybackAudioFeed();
+    _stopNativePlaybackAudioFeed();
+    _stopWebLoadedFileAudioPlayback();
+
+    try {
+      microphoneUtil.micStream.removeListener(micListener);
+    } catch (_) {}
+    try {
+      if (!kIsWeb) {
+        await microphoneUtil
+            .stopListeningToMicrophone()
+            .timeout(const Duration(seconds: 2));
+      }
+    } catch (e) {
+      print("Error stopping microphone on exit: $e");
+    }
+
+    serialDataSubscription?.cancel();
+    _cancelSerialStaleWatchdog();
+    _resetSerialIngestPipeline();
+    microphoneSubscription?.cancel();
+
+    try {
+      await _serialUtil.closePort().timeout(const Duration(seconds: 2));
+    } catch (e) {
+      print("Error closing serial on exit: $e");
+    }
+
+    try {
+      await _processedSamplePlayer?.dispose(deinitEngine: true);
+    } catch (e) {
+      print("Error disposing ProcessedSamplePlayer: $e");
+    }
+    _processedSamplePlayer = null;
+
+    try {
+      if (soloud != null && soloud!.isInitialized) {
+        soloud!.deinit();
+      }
+    } catch (e) {
+      print("Error deinit SoLoud: $e");
+    }
+    soloud = null;
+
+    try {
+      final util = processingUtil;
+      if (util is ProcessingUtilImpl) {
+        await util.dispose();
+      }
+    } catch (e) {
+      print("Error disposing processingUtil on exit: $e");
+    }
+    GraphTemplate.processingUtil = null;
+  }
+
   @override
   void dispose() {
     print("GraphTemplate dispose: cleaning up resources...");
+    if (GraphTemplate._activeInstance == this) {
+      GraphTemplate._activeInstance = null;
+    }
     if (kIsWeb) {
       ProcessingUtil.webLivePlaybackListener = null;
       ProcessingUtil.webSerialFramesIngestedListener = null;
@@ -1262,6 +1356,22 @@ class _GraphTemplateState extends State<GraphTemplate> {
     _cancelSerialStaleWatchdog();
     _resetSerialIngestPipeline();
     microphoneSubscription?.cancel();
+
+    try {
+      unawaited(_processedSamplePlayer?.dispose(deinitEngine: true) ??
+          Future<void>.value());
+    } catch (e) {
+      print("Error disposing ProcessedSamplePlayer: $e");
+    }
+    _processedSamplePlayer = null;
+    try {
+      if (soloud != null && soloud!.isInitialized) {
+        soloud!.deinit();
+      }
+    } catch (e) {
+      print("Error deinit SoLoud: $e");
+    }
+    soloud = null;
 
     // Dispose processing util
     try {
@@ -1946,7 +2056,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                               size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'SpikeRecorder App ver. 2.1.26',
+                                            'SpikeRecorder App ver. 2.1.30',
                                             style: TextStyle(
                                               color: appColors.textSecondary,
                                               fontSize: 14,
@@ -1974,17 +2084,18 @@ class _GraphTemplateState extends State<GraphTemplate> {
               ),
               child4: !kIsWeb && (Platform.isAndroid || Platform.isIOS)
                   ? SizedBox()
-                  : !isThresholdingButton
-                      ? SizedBox()
-                      : Positioned(
-                          left: 10,
-                          top: 80,
-                          child: SafeArea(
-                            child: Row(
-                              children: generateThresholdSlider(false),
-                            ),
-                          ),
-                        ),
+                  : SizedBox(),
+              // : !isThresholdingButton
+              //     ? SizedBox()
+              //     : Positioned(
+              //         left: 10,
+              //         top: 80,
+              //         child: SafeArea(
+              //           child: Row(
+              //             children: generateThresholdSlider(false),
+              //           ),
+              //         ),
+              //       ),
               child2: (!kIsWeb && (Platform.isIOS || Platform.isAndroid))
                   ? mobileNativeButtons()
                   : Positioned(
@@ -2036,8 +2147,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
                                             width: 10,
                                           ),
                                           isRecording == 1 ||
-                                                  GraphTemplate
-                                                          .isLoadingFile ==
+                                                  GraphTemplate.isLoadingFile ==
                                                       0
                                               ? SizedBox()
                                               : generateSpikeAnalysisButton(),
@@ -3242,8 +3352,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         final actual = sampleCounts[0].clamp(0, samples.length);
         final channelSamples = samples.sublist(0, actual);
         final peaks = _detectSpikePeaks(channelSamples, sampleRateHz);
-        provider.setChannelData(
-            channel, channelSamples, sampleRateHz,
+        provider.setChannelData(channel, channelSamples, sampleRateHz,
             peaks: peaks);
       } else {
         seekElectricalSeriesWebCompleter = Completer<Map<String, dynamic>>();
@@ -3264,8 +3373,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
         final actual = seekedCounts[0].clamp(0, seekedSamples.length);
         final channelSamples = seekedSamples.sublist(0, actual);
         final peaks = _detectSpikePeaks(channelSamples, sampleRateHz);
-        provider.setChannelData(
-            channel, channelSamples, sampleRateHz,
+        provider.setChannelData(channel, channelSamples, sampleRateHz,
             peaks: peaks);
       }
     } catch (err) {
@@ -3274,7 +3382,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
     }
   }
 
-  List<SpikePeak> _detectSpikePeaks(Int16List channelSamples, int sampleRateHz) {
+  List<SpikePeak> _detectSpikePeaks(
+      Int16List channelSamples, int sampleRateHz) {
     try {
       return processingUtil
           .findSampleSpike(channelSamples, sampleRateHz)
@@ -3296,8 +3405,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       return td.buffer.asInt16List(td.offsetInBytes, td.lengthInBytes ~/ 2);
     }
     if (value is List) {
-      return Int16List.fromList(
-          value.map((e) => (e as num).toInt()).toList());
+      return Int16List.fromList(value.map((e) => (e as num).toInt()).toList());
     }
     try {
       final len = (value.length as num).toInt();
@@ -3321,8 +3429,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       return td.buffer.asInt32List(td.offsetInBytes, td.lengthInBytes ~/ 4);
     }
     if (value is List) {
-      return Int32List.fromList(
-          value.map((e) => (e as num).toInt()).toList());
+      return Int32List.fromList(value.map((e) => (e as num).toInt()).toList());
     }
     try {
       final len = (value.length as num).toInt();
@@ -3390,8 +3497,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
       channelIdx++;
       return list;
     }).toList());
-    print(
-        "Inject loaded file samples: channels=${loadedArrSamples.length} "
+    print("Inject loaded file samples: channels=${loadedArrSamples.length} "
         "counts=$samplesCount planarLen=${flattened.length} "
         "ch0[0]=${loadedArrSamples[0].isNotEmpty ? loadedArrSamples[0][0] : 'empty'} "
         "ch1[0]=${loadedArrSamples.length > 1 && loadedArrSamples[1].isNotEmpty ? loadedArrSamples[1][0] : 'empty'}");
@@ -3475,8 +3581,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     final arrSampleCountInitial = Int32List(widget.channelCount);
     final arrSamplesInitial =
         Int16List((endInitialIndex - startInitialIndex) * widget.channelCount);
-    print(
-        "START SEEK SAMPLE INITIAL $startInitialIndex | $endInitialIndex | "
+    print("START SEEK SAMPLE INITIAL $startInitialIndex | $endInitialIndex | "
         "playhead=$startPlaybackSeekSampleIdx max=$loadedMaxSamples");
 
     seekElectricalSeriesWebCompleter = Completer<Map<String, dynamic>>();
@@ -3726,8 +3831,8 @@ class _GraphTemplateState extends State<GraphTemplate> {
         if (loadedArrSamples.length > 1) {
           _injectLoadedFileSamplesIntoProcessing();
         } else if (loadedArrSamples.isNotEmpty) {
-          await processingUtil.processMicrophoneData(
-              loadedArrSamples[0].buffer.asUint8List());
+          await processingUtil
+              .processMicrophoneData(loadedArrSamples[0].buffer.asUint8List());
         }
         microphoneUtil.micStream.value = Uint8List(0);
         if (isThresholdingButton) {
@@ -5051,8 +5156,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     arrSampleCountList = _coerceJsInt32List(arrSampleCount);
     arrSamplesList = _coerceJsInt16List(arrSamples);
     if (arrSampleCountList.isEmpty && arrSamplesList.isEmpty) {
-      print(
-          "ERROR: arrSampleCount/arrSamples could not be coerced "
+      print("ERROR: arrSampleCount/arrSamples could not be coerced "
           "(types: ${arrSampleCount.runtimeType}, ${arrSamples.runtimeType})");
       return;
     }
@@ -5060,8 +5164,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
     print("Validate Array Sizes 2");
     _setLoadedArrSamplesFromChannels(_unpackPlanarLoadedSamples(
         arrSamplesList, arrSampleCountList, widget.channelCount));
-    print(
-        "Loaded Arr Samples Status: ${loadedArrSamples.length} | "
+    print("Loaded Arr Samples Status: ${loadedArrSamples.length} | "
         "lens=${loadedArrSamples.map((e) => e.length).toList()} | "
         "arrSampleCount: $arrSampleCountList");
 
@@ -7059,8 +7162,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           await processingUtil.initWithConfig(loadedConfig);
           await _injectPlaybackLookbackWindow(
             loadedConfig,
-            isAudioListen:
-                context.read<DataStatusProvider>().isMicrophoneData,
+            isAudioListen: context.read<DataStatusProvider>().isMicrophoneData,
           );
         }
       } else {
@@ -7178,8 +7280,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           }
           _syncLoadedFileEventMarkers(startPlaybackSeekSampleIdx);
 
-          print(
-              "ADDED DATA STREAM Channel Count: ${widget.channelCount} | "
+          print("ADDED DATA STREAM Channel Count: ${widget.channelCount} | "
               "lens=${loadedArrSamples.map((e) => e.length).toList()}");
 
           // Init + lookback inject MUST finish before audio/timer. Previously
@@ -7191,8 +7292,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
           await processingUtil.initWithConfig(loadedConfig);
           await _injectPlaybackLookbackWindow(
             loadedConfig,
-            isAudioListen:
-                context.read<DataStatusProvider>().isMicrophoneData,
+            isAudioListen: context.read<DataStatusProvider>().isMicrophoneData,
             // Starting/restarting playback (as opposed to pausing) should
             // show an empty graph that fills in as playback advances, not a
             // preview of the whole file — otherwise pressing Play again
@@ -7576,12 +7676,26 @@ class _GraphTemplateState extends State<GraphTemplate> {
                 duration: Duration(seconds: 7),
               ));
             } else {
-              String recordedFilePathProcessed = recordedFilePath!
-                  .substring(recordedFilePath!.lastIndexOf("/") + 1);
+              final rawPath = recordedFilePath!;
+              final slashIdx = rawPath.lastIndexOf('/');
+              final backslashIdx = rawPath.lastIndexOf('\\');
+              final sepIdx = slashIdx > backslashIdx ? slashIdx : backslashIdx;
+              final fileName =
+                  sepIdx >= 0 ? rawPath.substring(sepIdx + 1) : rawPath;
+
+              String recordedFilePathProcessed = fileName;
               if (!kIsWeb) {
-                if (Platform.isWindows || Platform.isMacOS) {
-                  recordedFilePathProcessed =
-                      "~/Downloads/$recordedFilePathProcessed";
+                if (Platform.isMacOS) {
+                  recordedFilePathProcessed = "~/Downloads/$fileName";
+                } else if (Platform.isWindows) {
+                  final appData = Platform.environment['APPDATA'];
+                  if (appData != null &&
+                      rawPath.toLowerCase().startsWith(appData.toLowerCase())) {
+                    recordedFilePathProcessed =
+                        "~\\AppData\\Roaming${rawPath.substring(appData.length)}";
+                  } else {
+                    recordedFilePathProcessed = rawPath;
+                  }
                 }
               }
 
@@ -9721,6 +9835,7 @@ class _GraphTemplateState extends State<GraphTemplate> {
   }
 
   generateSpikeAnalysisButton() {
+    return SizedBox();
     // `widget.channelCount` is the authoritative count for the currently
     // loaded session/file. `ProcessingUtil.drawingBuffers` can briefly (or
     // stalely) hold more entries than that if it wasn't trimmed down from a
@@ -9841,6 +9956,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
           if (isRecording == 0) {
             _setRecordButtonBusy(true);
             try {
+              // Let the busy/disabled state paint before native init.
+              await Future<void>.delayed(Duration.zero);
+              await WidgetsBinding.instance.endOfFrame;
               if (kIsWeb) {
               } else if (Platform.isIOS) {
                 // CHECK
@@ -9854,6 +9972,18 @@ class _GraphTemplateState extends State<GraphTemplate> {
                   context.read<ChannelColorProvider>().getVisibleChannel();
               visibleChannelCount =
                   context.read<ChannelColorProvider>().getVisibleChannelCount();
+              if (visibleChannelCount <= 0) {
+                if (mounted) {
+                  ScaffoldMessenger.of(widgetContext).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          "Cannot start recording: enable at least one channel."),
+                    ),
+                  );
+                }
+                _setRecordButtonBusy(false);
+                return;
+              }
 
               final String deviceInfo =
                   isAudioListen ? "Audio|||" : "SpikeRecorder Device|||";
@@ -9867,21 +9997,37 @@ class _GraphTemplateState extends State<GraphTemplate> {
 
               // processingInit returns only when the NWB session is ready
               // (native: after FFI init; web: after worker NWB_FILE_CREATED).
-              recordedFilePath = await GraphTemplate.nwbFileUtil?.processingInit(
-                  _sampleRate,
-                  widget.channelCount,
-                  deviceInfo,
-                  deviceManufacturer,
-                  visibleSignalsList,
-                  visibleChannelCount);
+              recordedFilePath = await GraphTemplate.nwbFileUtil
+                  ?.processingInit(
+                      _sampleRate,
+                      widget.channelCount,
+                      deviceInfo,
+                      deviceManufacturer,
+                      visibleSignalsList,
+                      visibleChannelCount);
 
               if (!mounted) {
                 _isRecordButtonBusy = false;
                 return;
               }
               if (!_isRecordInitPathOk(recordedFilePath)) {
-                print(
-                    "RECORDING: NWB init failed (path=$recordedFilePath)");
+                final errorCode = GraphTemplate.nwbFileUtil?.lastInitErrorCode;
+                final logPath = GraphTemplate.nwbFileUtil?.debugLogFilePath;
+                print("RECORDING: NWB init failed (path=$recordedFilePath, "
+                    "code=$errorCode, log=$logPath)");
+                if (mounted) {
+                  final codeSuffix = (errorCode != null && errorCode != 0)
+                      ? " (error $errorCode)"
+                      : "";
+                  ScaffoldMessenger.of(widgetContext).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                          "Unable to start recording$codeSuffix. Close any leftover Spike Recorder processes and try again."
+                          "${(logPath != null && logPath.isNotEmpty) ? " Details saved to: $logPath" : ""}"),
+                      duration: const Duration(seconds: 8),
+                    ),
+                  );
+                }
                 _setRecordButtonBusy(false);
                 return;
               }
@@ -9898,6 +10044,14 @@ class _GraphTemplateState extends State<GraphTemplate> {
               _beginRecordingSession();
             } catch (e, st) {
               print("RECORD START FAILED: $e\n$st");
+              if (mounted) {
+                ScaffoldMessenger.of(widgetContext).showSnackBar(
+                  SnackBar(
+                    content: Text("Recording failed to start: $e"),
+                    duration: const Duration(seconds: 6),
+                  ),
+                );
+              }
               _setRecordButtonBusy(false);
             }
           } else {
@@ -9907,7 +10061,9 @@ class _GraphTemplateState extends State<GraphTemplate> {
           }
         },
         iconData: Icons.fiber_manual_record,
-        iconColor: isRecording == 1 ? Colors.red : Colors.white,
+        iconColor: _isRecordButtonBusy
+            ? Colors.amber
+            : (isRecording == 1 ? Colors.red : Colors.white),
       ),
     );
   }

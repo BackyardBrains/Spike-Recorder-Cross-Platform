@@ -3,6 +3,7 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_file_saver/flutter_file_saver.dart';
 import 'package:nwbfile_plugin/nwbfile_plugin.dart' as nwb;
 import 'package:path_provider/path_provider.dart';
@@ -14,6 +15,10 @@ class NwbFileUtilImpl implements NWBFileUtil {
   String recordedNwbFilePath = "";
   @override
   String openedNwbFilePath = "";
+  @override
+  int lastInitErrorCode = 0;
+  @override
+  String debugLogFilePath = "";
 
   /// Per-physical-channel mask: 1 = record, 0 = skip (from [ChannelColorProvider]).
   List<int> _recordVisibleMask = [1];
@@ -22,6 +27,7 @@ class NwbFileUtilImpl implements NWBFileUtil {
   /// Cached once so record-button presses don't re-hit path_provider.
   static String? _cachedDocumentsPath;
   static String? _cachedDownloadsPath;
+  static String? _cachedWindowsRecordingsPath;
 
   Future<String> _documentsPath() async {
     return _cachedDocumentsPath ??=
@@ -33,6 +39,79 @@ class NwbFileUtilImpl implements NWBFileUtil {
     final dir = await getDownloadsDirectory();
     _cachedDownloadsPath = dir?.path;
     return _cachedDownloadsPath;
+  }
+
+  /// Human-readable meaning of the numeric codes returned by the native
+  /// `processing_init()` (see `nwbfile_processing_plugin.cpp`). Kept in sync
+  /// manually since the codes are plain ints across the FFI boundary.
+  static const Map<int, String> _initErrorMeanings = {
+    1: "Could not open/create the NWB file (open IO failed)",
+    2: "NWB file structure initialization failed",
+    3: "Recording device metadata initialization failed",
+    4: "Electrodes table creation failed",
+    5: "Electrical series creation failed",
+    6: "Events table creation failed",
+    7: "Event meanings table creation failed",
+    8: "HDF5 library exception",
+    9: "Unexpected C++ exception",
+    10: "Unknown native error",
+  };
+
+  /// Plain-text log so a non-technical user can find and send this file
+  /// without needing a terminal/console attached (release Windows builds
+  /// have no visible stdout/stderr).
+  Future<void> _appendDebugLog(String message) async {
+    try {
+      final dir = Platform.isWindows
+          ? await _windowsRecordingsDirectory()
+          : await _documentsPath();
+      final logFile =
+          File('$dir${Platform.pathSeparator}spike_recorder_debug.log');
+      debugLogFilePath = logFile.path;
+      final line = '[${DateTime.now().toIso8601String()}] $message\n';
+      await logFile.writeAsString(line,
+          mode: FileMode.append, flush: true);
+    } catch (e) {
+      debugPrint('Failed to write debug log: $e');
+    }
+  }
+
+  /// Windows: avoid OneDrive-backed Documents (can hang/fail HDF5 create).
+  /// Default to local AppData\Roaming\<app>\Downloads.
+  Future<String> _windowsRecordingsDirectory() async {
+    if (_cachedWindowsRecordingsPath != null) {
+      return _cachedWindowsRecordingsPath!;
+    }
+
+    final candidates = <Directory>[
+      Directory(
+          '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}Downloads'),
+      Directory(
+          '${(await getTemporaryDirectory()).path}${Platform.pathSeparator}spike_recorder_Downloads'),
+    ];
+
+    for (final dir in candidates) {
+      try {
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+        final probe = File(
+            '${dir.path}${Platform.pathSeparator}.write_probe_${DateTime.now().microsecondsSinceEpoch}');
+        await probe.writeAsString('ok', flush: true);
+        await probe.delete();
+        _cachedWindowsRecordingsPath = dir.path;
+        debugPrint('NWB Windows recordings dir: ${dir.path}');
+        return dir.path;
+      } catch (e) {
+        debugPrint('NWB Windows recordings dir unusable (${dir.path}): $e');
+      }
+    }
+
+    final fallback =
+        '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}Downloads';
+    await Directory(fallback).create(recursive: true);
+    _cachedWindowsRecordingsPath = fallback;
+    return fallback;
   }
 
   @override
@@ -126,7 +205,11 @@ class NwbFileUtilImpl implements NWBFileUtil {
     recordedTime = DateTime.now().millisecondsSinceEpoch.toString();
     final docsPath = await _documentsPath();
     String path = "$docsPath\\spike_recorder$recordedTime.nwb";
-    if (Platform.isIOS) {
+    if (Platform.isWindows) {
+      final recordingsDir = await _windowsRecordingsDirectory();
+      path =
+          "$recordingsDir${Platform.pathSeparator}spike_recorder$recordedTime.nwb";
+    } else if (Platform.isIOS) {
       path = "$docsPath/spike_recorder$recordedTime.nwb";
     } else if (Platform.isMacOS) {
       final downloadsPath = await _downloadsPath();
@@ -165,8 +248,15 @@ class NwbFileUtilImpl implements NWBFileUtil {
       malloc.free(deviceManufacturerPointer);
     }
     print("Dart processing init END");
-    if (initResult < 0) {
-      print("❌ Failed to initialize NWB file, error code: $initResult");
+    lastInitErrorCode = initResult;
+    if (initResult != 0) {
+      final meaning = _initErrorMeanings[initResult] ?? "Unrecognized error";
+      print(
+          "❌ Failed to initialize NWB file, error code: $initResult ($meaning)");
+      await _appendDebugLog(
+          "processingInit FAILED code=$initResult ($meaning) path=$path "
+          "sampleRate=$sampleRate channelCount=$channelCount "
+          "visibleChannelCount=$_recordVisibleChannelCount");
       recordedNwbFilePath = "";
       return Future.value("false");
     }
@@ -241,6 +331,13 @@ class NwbFileUtilImpl implements NWBFileUtil {
     // print("FILTERED CHANNEL COUNT: ${filtered.channelCount} IS FINISH RECORDING: $isFinishRecording");
     if (filtered.channelCount == 0 && isFinishRecording != 1) {
       return Future.value(false);
+    }
+
+    // calloc(0) can return nullptr on Windows; never pass that into native fwrite/HDF5.
+    if (filtered.data.isEmpty || filtered.counts.isEmpty) {
+      print(
+          "⚠️ Skipping addElectricalSeries: empty data (finish=$isFinishRecording)");
+      return Future.value(isFinishRecording == 1);
     }
 
     Pointer<Int16> dataPtr = calloc<Int16>(filtered.data.length);
@@ -502,30 +599,35 @@ class NwbFileUtilImpl implements NWBFileUtil {
       
   @override
   Future<List<String>> fetchNwbFiles() async {
-    // return Future.value([]);
     try {
-      // 1. Get the Application Documents Directory
-final directory = await getApplicationDocumentsDirectory();
-      final files = directory.listSync();
-      
-      // 1. Create a temporary structure to hold the File and its DateTime
-      List<Map<String, dynamic>> fileWithDates = [];
+      final directories = <Directory>[
+        await getApplicationDocumentsDirectory(),
+      ];
+      if (Platform.isWindows) {
+        directories.add(Directory(await _windowsRecordingsDirectory()));
+      }
 
-      for (var file in files) {
-        if (file is File && file.path.endsWith('.nwb')) {
-          final stat = file.statSync();
-          fileWithDates.add({
-            'path': file.path,
-            'date': stat.modified, // Store as DateTime object for easy comparison
-          });
+      List<Map<String, dynamic>> fileWithDates = [];
+      final seen = <String>{};
+
+      for (final directory in directories) {
+        if (!await directory.exists()) continue;
+        final files = directory.listSync();
+        for (var file in files) {
+          if (file is File && file.path.endsWith('.nwb')) {
+            if (!seen.add(file.path)) continue;
+            final stat = file.statSync();
+            fileWithDates.add({
+              'path': file.path,
+              'date': stat.modified,
+            });
+          }
         }
       }
 
-      // 2. Sort the list: newest date first
-      // b['date'].compareTo(a['date']) gives a descending order (newest to oldest)
-      fileWithDates.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+      fileWithDates.sort((a, b) =>
+          (b['date'] as DateTime).compareTo(a['date'] as DateTime));
 
-      // 3. Map the sorted list into your requested 'path@@@dateTime' format
       List<String> sortedCombinedData = fileWithDates.map((item) {
         final path = item['path'] as String;
         final dateTimeStr = (item['date'] as DateTime).toIso8601String();
@@ -533,10 +635,9 @@ final directory = await getApplicationDocumentsDirectory();
       }).toList();
 
       return Future.value(sortedCombinedData);
-      // return Future.value(nwbFiles.map((file) => (file.path + "@@@" + file.)).toList());
     } catch (e) {
       print("Error fetching files: $e");
-    };    
+    }
     return Future.value([]);
   }
 }

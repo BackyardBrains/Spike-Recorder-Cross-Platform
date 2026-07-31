@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, exit;
 
 import 'package:byb_accessory/byb_accessory.dart';
 // import 'package:firebase_core/firebase_core.dart';
@@ -15,6 +15,7 @@ import 'package:spikerbox_architecture/provider/fft_status_provider.dart';
 import 'package:spikerbox_architecture/provider/threshold_status_provider.dart';
 import 'package:spikerbox_architecture/constant/app_theme.dart';
 import 'package:spikerbox_architecture/screen/page_route_screen.dart';
+import 'package:window_manager/window_manager.dart';
 import 'firebase_options.dart';
 import 'ios_startup_bridge.dart';
 import 'provider/provider_export.dart';
@@ -90,7 +91,8 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+class _MyAppState extends State<MyApp>
+    with WidgetsBindingObserver, WindowListener {
   String platForm = '';
   late int sumResult;
   late Future<int> sumAsyncResult;
@@ -100,11 +102,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   bool _iosUiPaintReadyForAccessory = false;
   Timer? _accessoryInitRetryTimer;
   Timer? _iosAccessoryFallbackTimer;
+  bool _isExiting = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (!kIsWeb && (Platform.isWindows || Platform.isMacOS)) {
+      windowManager.addListener(this);
+      unawaited(windowManager.setPreventClose(true));
+    }
     if (!kIsWeb) {
       SystemChrome.setEnabledSystemUIMode(
         SystemUiMode.immersiveSticky,
@@ -141,8 +148,35 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _accessoryInitRetryTimer?.cancel();
     _iosAccessoryFallbackTimer?.cancel();
     disposeIosColdLaunchRepaintBurst();
+    if (!kIsWeb && (Platform.isWindows || Platform.isMacOS)) {
+      windowManager.removeListener(this);
+    }
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void onWindowClose() {
+    unawaited(_handleDesktopWindowClose());
+  }
+
+  Future<void> _handleDesktopWindowClose() async {
+    if (_isExiting) return;
+    _isExiting = true;
+    try {
+      await deferred_graph.loadLibrary();
+      await deferred_graph.GraphTemplate.shutdownForAppExit()
+          .timeout(const Duration(seconds: 3));
+    } catch (e) {
+      debugPrint('Desktop exit cleanup failed: $e');
+    }
+    try {
+      await windowManager.destroy();
+    } catch (e) {
+      debugPrint('windowManager.destroy failed: $e');
+    }
+    // Native audio/serial threads can otherwise keep the process in Task Manager.
+    exit(0);
   }
 
   @override

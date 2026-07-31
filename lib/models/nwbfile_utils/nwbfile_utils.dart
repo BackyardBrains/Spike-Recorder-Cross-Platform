@@ -33,6 +33,15 @@ class NWBEvent {
 abstract class NWBFileUtil {
   String recordedNwbFilePath = "";
   String openedNwbFilePath = "";
+
+  /// Native error code from the last failed [processingInit] call (0 = no
+  /// error / not applicable). See `processing_init()` in
+  /// `nwbfile_processing_plugin.cpp` for what each code means.
+  int lastInitErrorCode = 0;
+
+  /// Path to the plain-text debug log file that records init failures, so a
+  /// non-technical user can find and send it without needing a console.
+  String debugLogFilePath = "";
   
   // Callback for file opening completion (used by GraphTemplate)
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;

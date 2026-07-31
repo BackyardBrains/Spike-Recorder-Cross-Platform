@@ -191,11 +191,31 @@ class ProcessedSamplePlayer {
       }
     }
 
+    for (final stream in _streams) {
+      if (stream == null) continue;
+      try {
+        await _engine.disposeSource(stream);
+      } catch (e) {
+        debugPrint('ProcessedSamplePlayer: disposeSource failed: $e');
+      }
+    }
+
     _handles.clear();
     _streams.clear();
     _playing = false;
     _initialized = false;
   }
 
-  Future<void> dispose() => stop();
+  /// Stops playback and shuts down the shared SoLoud/miniaudio engine.
+  /// Call on app exit so native audio threads do not keep the process alive.
+  Future<void> dispose({bool deinitEngine = false}) async {
+    await stop();
+    if (deinitEngine && _engine.isInitialized) {
+      try {
+        _engine.deinit();
+      } catch (e) {
+        debugPrint('ProcessedSamplePlayer: deinit failed: $e');
+      }
+    }
+  }
 }

@@ -43,6 +43,8 @@ class PolygonWaveform extends AudioWaveform {
     this.strokeWidth = 1,
     this.eventMarkersNumber = const [],
     this.eventMarkersPosition = const [],
+    this.canvasOffsetY = 0,
+    this.screenHeight = 0,
   }) : super(
           key: key,
           samples: samples,
@@ -78,6 +80,8 @@ class PolygonWaveform extends AudioWaveform {
 
   final List<int> eventMarkersNumber;
   final List<double> eventMarkersPosition;
+  final double canvasOffsetY;
+  final double screenHeight;
 
   @override
   AudioWaveformState<PolygonWaveform> createState() => _PolygonWaveformState();
@@ -111,6 +115,8 @@ class _PolygonWaveformState extends AudioWaveformState<PolygonWaveform> {
           strokeWidth: widget.strokeWidth,
           eventMarkersNumber: widget.eventMarkersNumber,
           eventMarkersPosition: widget.eventMarkersPosition,
+          canvasOffsetY: widget.canvasOffsetY,
+          screenHeight: widget.screenHeight,
         ),
       ),
     );

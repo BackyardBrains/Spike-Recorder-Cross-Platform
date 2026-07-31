@@ -100,6 +100,9 @@ elseif(WIN32)
     "${CMAKE_CURRENT_SOURCE_DIR}/../windows/src")
   add_library(nwbfile_plugin SHARED ${_plugin_sources})
 
+  # windows.h defines min/max macros that break std::min/std::max
+  target_compile_definitions(nwbfile_plugin PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+
   # Boost removed in AqNWB 0.4; bcrypt used for UUID helpers.
   target_link_libraries(nwbfile_plugin
     ${CMAKE_CURRENT_SOURCE_DIR}/../windows/src/lib/hdf5.lib

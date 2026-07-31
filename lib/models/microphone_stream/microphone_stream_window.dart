@@ -33,6 +33,15 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
     micStatus = null;
     micStream.value = Uint8List(0);
     addListenAudioStreamController.value = Uint8List(0);
+    // record.startStream keeps a native WASAPI capture thread alive until stop.
+    // Without this, closing the window leaves spikerbox_flutter.exe in Task Manager.
+    try {
+      if (await record.isRecording()) {
+        await record.stop();
+      }
+    } catch (e) {
+      debugPrint('MicrophoneUtilWindow: record.stop failed: $e');
+    }
     if (resetStream) {
       MicStream.resetCachedStream();
     }

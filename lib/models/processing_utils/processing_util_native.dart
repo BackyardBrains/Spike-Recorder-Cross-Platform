@@ -627,8 +627,11 @@ class ProcessingUtilImpl implements ProcessingUtil {
     postChannelCountController.close();
     unawaited(_shutdownDisplayDataIsolate());
     cleanupDartCallbacks();
-    _processingIsolate?.kill();
+    _processingIsolate?.kill(priority: Isolate.immediate);
+    _processingIsolate = null;
     portProcessingIsolateToMain?.close();
+    portProcessingIsolateToMain = null;
+    portMainToProcessingIsolate = null;
     await _dataController.close();
 
     // Free allocated memory

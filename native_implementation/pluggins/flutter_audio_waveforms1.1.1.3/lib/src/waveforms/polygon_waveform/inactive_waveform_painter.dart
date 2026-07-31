@@ -24,6 +24,8 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
     this.strokeWidth = 0.5,
     this.eventMarkersNumber = const [],
     this.eventMarkersPosition = const [],
+    this.canvasOffsetY = 0,
+    this.screenHeight = 0,
   }) : super(
           samples: samples,
           color: color,
@@ -65,6 +67,8 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
   final double strokeWidth;
   final List<int> eventMarkersNumber;
   final List<double> eventMarkersPosition;
+  final double canvasOffsetY;
+  final double screenHeight;
 
   double prevMax = 0;
   double curMax = 0;
@@ -117,23 +121,18 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
         var n = eventMarkersNumber.length;
         double prevX = -1;
         double counterStacked = 10;
-        double evY = 0;
-        // if (channelIdx == 2) {
-        //   evY = -50;
-        // }
 
-        // try{
-        // print(
-        //     "eventMarkersPosition : $eventMarkersNumber, $eventMarkersPosition");
-        // print("eventMarkersNumber[0]: ${MARKER_PAINT[eventMarkersNumber[0]]}");
+        final double lineTop = -canvasOffsetY;
+        final double lineBottom =
+            screenHeight > 0 ? screenHeight - canvasOffsetY : size.height;
+
         for (i = 0; i < n; i++) {
           if (eventMarkersPosition[i] <= 0) {
             continue;
           }
           final evX = eventMarkersPosition[i];
-          // print(evX);
-          final offset1 = Offset(evX, evY);
-          final offset2 = Offset(evX, 2900);
+          final offset1 = Offset(evX, lineTop);
+          final offset2 = Offset(evX, lineBottom);
 
           canvas.drawLine(
             offset1,
@@ -144,7 +143,7 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
           if (i > 0 && evX - 20 <= prevX) {
             counterStacked += 30;
           } else {
-            counterStacked = 100;
+            counterStacked = lineTop + 100;
           }
           prevX = evX;
           tp.paint(canvas, Offset(evX - 3, counterStacked));

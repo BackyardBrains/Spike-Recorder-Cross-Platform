@@ -577,6 +577,9 @@ class _DraggableGraphState extends State<DraggableGraph> {
   List<bool> showWaveform = [];
   double widthChart = 800;
   double heightChart = 600;
+  /// Last MediaQuery size used to lay out channel handlers / chart tops.
+  double _layoutScreenHeight = 0;
+  double _layoutScreenWidth = 0;
   // double defaultGain = 0.25;
   double defaultGain = 0.125;
   
@@ -659,13 +662,15 @@ class _DraggableGraphState extends State<DraggableGraph> {
   }
 
   void initializeGraph() {
-    widthChart = MediaQuery.of(context).size.width;
+    final Size size = MediaQuery.of(context).size;
+    widthChart = size.width;
+    _layoutScreenWidth = size.width;
+    _layoutScreenHeight = size.height;
 
     // channelCount = ProcessingUtil.drawingBuffers.length == 0 ? 1 : ProcessingUtil.drawingBuffers.length;
     channelCount = context.read<ConstantProvider>().getChannelCount();
 
-    heightChart = MediaQuery.of(context).size.height /
-        (channelCount == 0 ? 1 : channelCount);
+    heightChart = size.height / (channelCount == 0 ? 1 : channelCount);
     topChartY.clear();
     midChartY.clear();
     gainChannel.clear();
@@ -682,6 +687,59 @@ class _DraggableGraphState extends State<DraggableGraph> {
     isInitializedGraph = true;
     _refreshThresholdLayoutScalars();
     // double topChartY = heightChart * idx;
+  }
+
+  /// Scales channel handler / chart Y layout when the window size changes.
+  /// Absolute pixel positions (midChartY, threshold markers, medians) stay
+  /// correct relative to the new height; threshold sample values are preserved.
+  void _syncLayoutToWindowSize(Size size) {
+    if (!isInitializedGraph || channelCount <= 0) return;
+    if (midChartY.length < channelCount || topChartY.length < channelCount) {
+      return;
+    }
+    if (size.height <= 0 || size.width <= 0) return;
+
+    final double oldHeight = _layoutScreenHeight > 0
+        ? _layoutScreenHeight
+        : heightChart * channelCount;
+    final double oldWidth =
+        _layoutScreenWidth > 0 ? _layoutScreenWidth : widthChart;
+
+    if ((size.height - oldHeight).abs() < 0.5 &&
+        (size.width - oldWidth).abs() < 0.5) {
+      return;
+    }
+
+    final double heightScale = oldHeight > 0 ? size.height / oldHeight : 1.0;
+
+    heightChart = size.height / channelCount;
+    widthChart = size.width;
+    _layoutScreenHeight = size.height;
+    _layoutScreenWidth = size.width;
+
+    if ((heightScale - 1.0).abs() < 0.0001) return;
+
+    for (int i = 0; i < channelCount; i++) {
+      midChartY[i] *= heightScale;
+      topChartY[i] =
+          midChartY[i] + thresholdIconTopDifference - heightChart / 2;
+
+      if (levelMedian[i] != -1) {
+        levelMedian[i] *= heightScale;
+      }
+      if (initialLevelMedian[i] != 0) {
+        initialLevelMedian[i] *= heightScale;
+      }
+      listMedianDistance[i] *= heightScale;
+      if (thresholdMarkerTop[i] != -10000) {
+        thresholdMarkerTop[i] *= heightScale;
+      }
+      thresholdPositionY[i] *= heightScale;
+      // thresholdValue ~= |multiplier * pixelDistance|; keep sample value stable.
+      if (heightScale != 0 && signalMultiplierChannel[i] != 0) {
+        signalMultiplierChannel[i] /= heightScale;
+      }
+    }
   }
 
   double _channelMedian(int c) {
@@ -1188,6 +1246,7 @@ class _DraggableGraphState extends State<DraggableGraph> {
     //       builder: (context, graphGainProvider, _) {
     final colorProvider = context.watch<ChannelColorProvider>();
     final dataStatus = context.watch<DataStatusProvider>();
+    final Size windowSize = MediaQuery.of(context).size;
 
     // Cold accessory launch can mount before MediaQuery has non-zero size.
     final bool isDimensionZero = widthChart == 0 || heightChart == 0;
@@ -1201,6 +1260,10 @@ class _DraggableGraphState extends State<DraggableGraph> {
           isLoading = false;
         });
       });
+    } else if (isInitializedGraph) {
+      // heightChart was updated on resize without moving midChartY/topChartY,
+      // which left the channel handler (water drop) at the old absolute Y.
+      _syncLayoutToWindowSize(windowSize);
     }
     
     // final thresholdStatus = context.watch<ThresholdStatusProvider>();
@@ -1341,8 +1404,8 @@ class _DraggableGraphState extends State<DraggableGraph> {
                           .eventMarkersPosition.isEmpty || isThresholding
                       ? []
                       : (DraggableGraph.eventMarkersPosition),
-                  // eventMarkersNumber: List.generate(100, (idx) => (idx + 1) % 7),
-                  // eventMarkersPosition: List.generate(100, (idx) => idx * 4),
+                  canvasOffsetY: topChartY[idx].toDouble(),
+                  screenHeight: MediaQuery.of(context).size.height,
                 ),
               ),
             ),

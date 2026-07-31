@@ -13,6 +13,10 @@ class NwbFileUtilImpl implements NWBFileUtil {
   String recordedNwbFilePath = "";
   @override
   String openedNwbFilePath = "";
+  @override
+  int lastInitErrorCode = 0;
+  @override
+  String debugLogFilePath = "";
   
   @override
   Function(dynamic, dynamic, dynamic, dynamic)? onStartOpeningFileWebCallback;

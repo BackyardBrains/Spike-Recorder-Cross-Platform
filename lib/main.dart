@@ -35,7 +35,8 @@ Future<void> main() async {
       if (Platform.isWindows) {
         double titleBarHeight =
             (await windowManager.getTitleBarHeight()).toDouble();
-        await windowManager.setSize(Size(800, 600 + titleBarHeight));
+        // await windowManager.setSize(Size(800, 600 + titleBarHeight));
+        await windowManager.setSize(Size(800, 600));
       }
       await windowManager.show();
       await windowManager.focus();

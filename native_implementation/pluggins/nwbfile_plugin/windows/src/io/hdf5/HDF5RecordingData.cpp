@@ -69,6 +69,20 @@ Status HDF5RecordingData::writeDataBlock(const SizeArray& dataShape,
       return Status::Failure;
     }
 
+    // MSVC Debug CRT asserts on fwrite(nullptr, ...) even when count is 0.
+    if (data == nullptr) {
+      SizeType totalElements = 1;
+      for (SizeType i = 0; i < dataShape.size(); ++i) {
+        totalElements *= dataShape[i];
+      }
+      if (totalElements == 0) {
+        return Status::Success;
+      }
+      std::cerr << "HDF5RecordingData::writeDataBlock null data pointer"
+                << std::endl;
+      return Status::Failure;
+    }
+
     // Write the data
     DataType nativeType = HDF5IO::getNativeType(type);
     m_dataset->write(data, nativeType, mSpace, fSpace);
@@ -114,6 +128,10 @@ Status HDF5RecordingData::writeDataBlock(const SizeArray& dataShape,
     // Write the data
     if (type.type == BaseDataType::Type::V_STR) {
       // Handle variable length strings
+      if (data.empty()) {
+        // Avoid fwrite(nullptr) Debug CRT assert from empty vector::data().
+        return Status::Success;
+      }
       DataType nativeType = StrType(0, H5T_VARIABLE);
       std::vector<const char*> cstrBuffer(data.size());
       for (size_t i = 0; i < data.size(); ++i) {
@@ -123,6 +141,9 @@ Status HDF5RecordingData::writeDataBlock(const SizeArray& dataShape,
       m_dataset->write(cstrBuffer.data(), nativeType, mSpace, fSpace);
     } else if (type.type == BaseDataType::Type::T_STR) {
       // Handle fixed-length strings
+      if (data.empty() || type.typeSize == 0) {
+        return Status::Success;
+      }
       DataType nativeType = HDF5IO::getNativeType(type);
       std::vector<char> buffer(data.size() * type.typeSize, '\0');
       size_t bufferIndex = 0;

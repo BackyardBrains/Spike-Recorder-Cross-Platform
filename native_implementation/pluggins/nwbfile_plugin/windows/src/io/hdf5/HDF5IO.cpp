@@ -849,14 +849,17 @@ Status HDF5IO::createAttribute(const std::vector<std::string>& data,
       // Create the attribute
       Attribute attr = loc.createAttribute(name, H5type, attr_dataspace);
 
-      // Write the data directly from the vector of strings.
-      // Note: c_str() pointers are valid only while 'data' is unchanged.
-      std::vector<const char*> dataPtrs(data.size());
-      std::transform(data.begin(),
-                     data.end(),
-                     dataPtrs.begin(),
-                     [](const std::string& str) { return str.c_str(); });
-      attr.write(H5type, dataPtrs.data());
+      // Empty VL-string attributes must not call write() with a null buffer.
+      // On MSVC Debug CRT, fwrite(nullptr, ...) asserts even when count is 0
+      // (std::vector::data() is nullptr for an empty vector).
+      if (!data.empty()) {
+        std::vector<const char*> dataPtrs(data.size());
+        std::transform(data.begin(),
+                       data.end(),
+                       dataPtrs.begin(),
+                       [](const std::string& str) { return str.c_str(); });
+        attr.write(H5type, dataPtrs.data());
+      }
 
     } catch (const GroupIException& error) {
       error.printErrorStack();

@@ -6,6 +6,37 @@
 #include "SampleStreamUtils.h"
 #include <iostream>
 #include <fstream>
+#include <cstring>
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+
+#define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
+#ifdef _WIN32
+#include <windows.h>
+#include <cstdio>
+#endif
+
+#define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
+void platform_log_stream(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+#ifdef __ANDROID__
+    __android_log_vprint(ANDROID_LOG_VERBOSE, "ndk", fmt, args);
+#elif defined(_WIN32)
+    // On Windows, use OutputDebugString for visible logging
+    char buffer[1024];
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    OutputDebugStringA(buffer);
+    // Also print to stdout in case console is attached
+    vprintf(fmt, args);
+    fflush(stdout);
+#else
+    vprintf(fmt, args);
+    fflush(stdout);
+#endif
+    va_end(args);
+}
 
 
 namespace backyardbrains {
@@ -18,6 +49,7 @@ namespace backyardbrains {
                                                                               0x01, 0x80, 0xFF};
         const unsigned char SampleStreamProcessor::ESCAPE_SEQUENCE_END[] = {0xFF, 0xFF, 0x01, 0x01,
                                                                             0x81, 0xFF};
+        constexpr int SampleStreamProcessor::MAX_SAMPLES;
 
         SampleStreamProcessor::SampleStreamProcessor(
                 backyardbrains::utils::OnEventListenerListener *listener)
@@ -35,7 +67,8 @@ namespace backyardbrains {
                                             int &outEventCount, const int channelCount,
                                             int hardwareType) {
 //            batchCounter++;
-
+            // platform_log_stream("PROCESS SAMPLE STREAM PROCESSOR C++ START\n");
+            // platform_log_stream("PROCESS SAMPLE STREAM PROCESSOR C++ CHANNEL COUNT: %d --- %d \n", channelCount, escapeSequenceIndex);
             if (prevChannelCount != channelCount) { // number of channels changed during processing of previous batch
                 frameStarted = false;
                 sampleStarted = false;
@@ -54,11 +87,17 @@ namespace backyardbrains {
             byte lsb; // last significant byte
             byte b; // temp variable to hold currently processed bytes
             unsigned char uc; // temp variable to hold currently processed bytes as unsigned char
-
             for (int i = 0; i < length; i++) {
                 uc = inData[i];
-
+                // platform_log_stream("uc: %d | escapeSequenceIndex: %d | ", uc, escapeSequenceIndex);
+                // platform_log_stream("insideEscapeSequence: %d", insideEscapeSequence);
+                // platform_log_stream("val: %d, is_true: %s", 
+                    // (int)insideEscapeSequence, 
+                    // insideEscapeSequence ? "YES" : "NO");
                 // and next byte to custom message sent by SpikerBox
+                if (escapeSequenceIndex >= MAX_SEQUENCE_LENGTH) {
+                    reset();
+                }
                 escapeSequence[escapeSequenceIndex++] = uc;
 
                 if (insideEscapeSequence) { // we are inside escape sequence
@@ -70,7 +109,7 @@ namespace backyardbrains {
                         std::copy(eventMessage, eventMessage + eventMessageIndex, copy);
                         copy[eventMessageIndex] = 0;
                         // let's process incoming message
-                        processEscapeSequenceMessage(copy, sampleIndex, hardwareType);
+                        processEscapeSequenceMessage(copy, sampleIndex, hardwareType, eventMessageIndex);
 
                         delete[] copy;
                         reset();
@@ -81,15 +120,23 @@ namespace backyardbrains {
                             std::copy(eventMessage, eventMessage + eventMessageIndex, copy);
                             copy[eventMessageIndex] = 0;
                             // let's process incoming message
-                            processEscapeSequenceMessage(copy, sampleIndex, hardwareType);
+                            processEscapeSequenceMessage(copy, sampleIndex, hardwareType, eventMessageIndex);
 
                             delete[] copy;
                             reset();
                         }
                     } else {
-                        eventMessage[eventMessageIndex++] = uc;
+                        // Bounds check before writing to prevent buffer overflow
+                        if (eventMessageIndex < EVENT_MESSAGE_LENGTH) {
+                            eventMessage[eventMessageIndex++] = uc;
+                        } else {
+                            // Buffer overflow - reset to prevent corruption
+                            reset();
+                        }
+                        // __android_log_print(ANDROID_LOG_DEBUG, TAG, "EVENT MESSAGE %d", eventMessageIndex);
                     }
                 } else {
+
                     if (ESCAPE_SEQUENCE_START[tmpIndex] == uc) {
                         tmpIndex++;
                         if (tmpIndex == ESCAPE_SEQUENCE_START_END_LENGTH) {
@@ -98,62 +145,74 @@ namespace backyardbrains {
                         }
                         continue;
                     }
+                    // platform_log_stream("tmpIndex: %d", tmpIndex);
 
-                    auto *sequence = new unsigned char[escapeSequenceIndex];
-                    std::copy(escapeSequence, escapeSequence + escapeSequenceIndex, sequence);
-                    for (int j = 0; j < escapeSequenceIndex; j++) {
-                        b = sequence[j];
+                    // CRITICAL FIX: Avoid unnecessary allocation - process directly from escapeSequence
+                    // Only process if we have data to process
+                    if (escapeSequenceIndex > 0) {
+                        for (int j = 0; j < escapeSequenceIndex; j++) {
+                            b = escapeSequence[j];
                         // check if we have unfinished frame
-                        if (frameStarted) {
-                            // check if we have unfinished sample
-                            if (sampleStarted) {
-                                lsb = b & CLEANER;
+                            if (frameStarted) {
+                                // check if we have unfinished sample
+                                if (sampleStarted) {
+                                    lsb = b & CLEANER;
 
-                                // if less significant byte is also grater then 127 drop whole frame
-                                if (lsb > 127) {
-                                    //__android_log_print(ANDROID_LOG_DEBUG, TAG, "LSB > 127! DROP WHOLE FRAME!");
-                                    frameStarted = false;
+                                    // if less significant byte is also grater then 127 drop whole frame
+                                    if (lsb > 127) {
+                                        //__android_log_print(ANDROID_LOG_DEBUG, TAG, "LSB > 127! DROP WHOLE FRAME!");
+                                        frameStarted = false;
+                                        sampleStarted = false;
+                                        currentChannel = 0;
+                                        continue;
+                                    }
+
+                                    // get sample value from most and least significant bytes
+                                    msb = msb & REMOVER;
+                                    msb = msb << 7u;
+                                    lsb = lsb & REMOVER;
+                                    if (backyardbrains::utils::SampleStreamUtils::HUMAN_HARDWARE == hardwareType
+                                        || backyardbrains::utils::SampleStreamUtils::NEURON_PRO_HARDWARE == hardwareType) {
+                                            sample = (short) (((msb | lsb) - 8192));
+                                    } else {
+                                    sample = (short) (((msb | lsb) - 512) * 30);
+                                    }
+
+                                    // calculate average sample
+                                    average = 0.0001 * sample + 0.9999 * average;
+                                    // use average to remove offset
+                                    sample = (short) (sample - average);
+
+                                    if (currentChannel >= 0 && currentChannel < channelCount &&
+                                        currentChannel < MAX_CHANNELS &&
+                                        sampleCounters[currentChannel] < MAX_SAMPLES) {
+                                        channels[currentChannel][sampleCounters[currentChannel]++] = sample;
+                                    } else {
+                                        // Buffer overflow - drop frame to prevent corruption
+                                        frameStarted = false;
+                                        sampleStarted = false;
+                                        currentChannel = 0;
+                                        continue;
+                                    }
+
                                     sampleStarted = false;
-                                    currentChannel = 0;
-                                    continue;
-                                }
-
-                                // get sample value from most and least significant bytes
-                                msb = msb & REMOVER;
-                                msb = msb << 7u;
-                                lsb = lsb & REMOVER;
-                                if (backyardbrains::utils::SampleStreamUtils::HUMAN_HARDWARE ==
-                                    hardwareType) {
-                                    sample = (short) (((msb | lsb) - 8192));
+                                    if (currentChannel >= channelCount - 1) frameStarted = false;
                                 } else {
-                                sample = (short) (((msb | lsb) - 512) * 30);
+                                    msb = b & CLEANER;
+                                    // we already started the frame so if msb is greater then 127 drop whole frame
+                                    if (msb > 127) {
+                                        //__android_log_print(ANDROID_LOG_DEBUG, TAG,"MSB > 127 WITHIN THE FRAME! DROP WHOLE FRAME!");
+
+                                        frameStarted = false;
+                                        sampleStarted = false;
+                                        currentChannel = 0;
+                                    } else {
+                                        currentChannel++;
+
+                                        sampleStarted = true;
+                                    }
                                 }
-
-                                // calculate average sample
-                                average = 0.0001 * sample + 0.9999 * average;
-                                // use average to remove offset
-                                sample = (short) (sample - average);
-
-                                channels[currentChannel][sampleCounters[currentChannel]++] = sample;
-
-                                sampleStarted = false;
-                                if (currentChannel >= channelCount - 1) frameStarted = false;
                             } else {
-                                msb = b & CLEANER;
-                                // we already started the frame so if msb is greater then 127 drop whole frame
-                                if (msb > 127) {
-                                    //__android_log_print(ANDROID_LOG_DEBUG, TAG,"MSB > 127 WITHIN THE FRAME! DROP WHOLE FRAME!");
-
-                                    frameStarted = false;
-                                    sampleStarted = false;
-                                    currentChannel = 0;
-                                } else {
-                                    currentChannel++;
-
-                                    sampleStarted = true;
-                                }
-                            }
-                        } else {
                             msb = b & CLEANER;
                             if (msb > 127) {
                                 currentChannel = 0;
@@ -199,17 +258,17 @@ namespace backyardbrains {
                                 currentChannel = 0;
                             }
                         }
+                        }
                     }
-
-                    delete[] sequence;
-
                     reset();
                 }
             }
+            // platform_log_stream("PROCESS SAMPLE STREAM PROCESS333 C++ START\n");
 
 //            std::copy(inData, inData + length, inDataPrev);
 //            inDataPrevLength = length;
 
+            // platform_log_stream("Looping Stream");
             bool avoidFilteringOfChannels = stopFilteringAfterChannelIndex >= 0;
             for (int i = 0; i < channelCount; i++) {
                 // apply additional filtering if necessary
@@ -217,26 +276,40 @@ namespace backyardbrains {
                     applyFilters(i, channels[i], sampleCounters[i]);
                 // }
 
-                outSamples[i] = new short[sampleCounters[i]];
-                std::copy(channels[i], channels[i] + sampleCounters[i], outSamples[i]);
-                outSampleCounts[i] = sampleCounters[i];
+                // STEVANUS FIX
+                // outSamples[i] = new short[sampleCounters[i]];
+                const int copyCount = std::min(sampleCounters[i], MAX_SAMPLES);
+                if (outSamples[i] != nullptr && copyCount > 0) {
+                    std::copy(channels[i], channels[i] + copyCount, outSamples[i]);
+                }
+                outSampleCounts[i] = copyCount;
             }
-            std::copy(eventIndices, eventIndices + eventCounter, outEventIndices);
+            // DEBUG STEVE
+            // std::copy(eventIndices, eventIndices + eventCounter, outEventIndices);
             std::copy(eventLabels, eventLabels + eventCounter, outEventLabels);
             outEventCount = eventCounter;
+            // outEventIndices[0] = eventMessageIndex;
 
             prevChannelCount = channelCount;
         }
 
         int SampleStreamProcessor::processEscapeSequenceMessage(unsigned char *messageBytes,
-                                                                int sampleIndex, int hardwareType) {
+                                                                int sampleIndex, int hardwareType, int eventMessageLength) {
             // check if it's board type message
-            std::string message = reinterpret_cast<char *>(messageBytes);
+            // Safely construct string from null-terminated buffer
+            if (messageBytes == nullptr) {
+                return hardwareType;
+            }
+            // Use strnlen to safely find length with max bound (prevents reading past buffer)
+            size_t len = strnlen(reinterpret_cast<const char *>(messageBytes), EVENT_MESSAGE_LENGTH);
+            // Construct string with explicit length (safer than relying on null termination)
+            std::string message(reinterpret_cast<const char *>(messageBytes), len);
             //__android_log_print(ANDROID_LOG_DEBUG, TAG, "ESCAPE SEQUENCE MESSAGE %s AT %d",message.c_str(),sampleIndex);
 
             std::string logMessage =
                     "ESCAPE SEQUENCE MESSAGE " + message + " AT " + std::to_string(sampleIndex);
 
+            try {
             if (backyardbrains::utils::SampleStreamUtils::isHardwareTypeMsg(message)) {
                 int type = backyardbrains::utils::SampleStreamUtils::getHardwareType(message);
                 //__android_log_print(ANDROID_LOG_DEBUG, "HARD_CPP", "Hardware typpe %d ",type);
@@ -251,9 +324,22 @@ namespace backyardbrains {
                 listener->onMaxSampleRateAndNumOfChannelsReply(sampleRate, channelCount);
                 setSampleRateAndChannelCount(sampleRate, channelCount);
             } else if (backyardbrains::utils::SampleStreamUtils::isEventMsg(message)) {
+                // Check bounds to prevent array overrun
+                if (eventCounter >= MAX_EVENTS) {
+                    return hardwareType; // Skip if we've reached max events
+                }
                 eventIndices[eventCounter] = sampleIndex;
-                eventLabels[eventCounter++] = backyardbrains::utils::SampleStreamUtils::getEventNumber(
+                eventLabels[eventCounter] = backyardbrains::utils::SampleStreamUtils::getEventNumber(
                         message);
+                try {
+                    int num = std::stoi(eventLabels[eventCounter]);    
+                    listener->onEventFound(sampleIndex, num);
+                    eventCounter++;
+                } catch (const std::exception&) {
+                    // If stoi fails, skip this event
+                    return hardwareType;
+                }
+
             } else if (backyardbrains::utils::SampleStreamUtils::isExpansionBoardTypeMsg(message)) {
                 const int expansionBoardType = backyardbrains::utils::SampleStreamUtils::getExpansionBoardType(
                         message);
@@ -273,6 +359,9 @@ namespace backyardbrains {
                 const int audioState = backyardbrains::utils::SampleStreamUtils::getHumanSpikerBoxType300Audio(
                         message);
                 listener->onHumanSpikerBoardAudioState(audioState);
+            }
+            } catch (const std::exception &) {
+                // Malformed escape payload — drop message, keep stream alive.
             }
             return hardwareType;
         }

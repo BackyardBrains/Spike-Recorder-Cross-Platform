@@ -107,7 +107,6 @@ class MyAudioProcessor extends AudioWorkletProcessor {
                 this.readingIdx = 0;
                 // console.log("this.sampleBuffer1: ", this.readingIdx, this.arrProcessorState[STATE.OB_READ_INDEX], this.arrProcessorState[STATE.IB_WRITE_INDEX], this.arrProcessorState[STATE.RING_BUFFER_LENGTH]);
                 this._pullOutputChannelData(0, this.sampleBuffer);
-                // console.log("this.sampleBuffer2: ", this.readingIdx, this.arrProcessorState[STATE.OB_READ_INDEX], this.arrProcessorState[STATE.IB_WRITE_INDEX], this.arrProcessorState[STATE.RING_BUFFER_LENGTH]);
                 this.port.postMessage({ bufferReady: true });
             }
             // let readingIdx = this.arrProcessorState[STATE.IB_READING_INDEX];

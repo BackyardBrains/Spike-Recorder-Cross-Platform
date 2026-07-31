@@ -1,93 +1,138 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import 'package:spikerbox_architecture/provider/custom_slider_provider.dart';
-import 'package:spikerbox_architecture/screen/page_route_screen.dart';
-import 'provider/provider_export.dart';
-import 'screen/graph_template.dart';
+import 'ios_startup_bridge.dart';
+import 'app_shell.dart' deferred as app_shell;
+import 'package:window_manager/window_manager.dart';
 
-enum Command {
-  start,
-  stop,
-  change,
-}
-
-int screenWidth = 0;
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  resetIosStartupBridgeForNewLaunch();
+  installIosStartupChannelHandler();
 
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => ConstantProvider()),
-        ChangeNotifierProvider(create: (_) => GraphDataProvider()),
-        ChangeNotifierProvider(create: (_) => VerticalDragProvider()),
-        ChangeNotifierProvider(create: (_) => GraphGainProvider()),
-        ChangeNotifierProvider(create: (_) => GraphResumePlayProvider()),
-        ChangeNotifierProvider(create: (_) => DataStatusProvider()),
-        ChangeNotifierProvider(create: (_) => SoftwareConfigProvider()),
-        ChangeNotifierProvider(create: (_) => SerialDataProvider()),
-        ChangeNotifierProvider(create: (_) => PortScanProvider()),
-        ChangeNotifierProvider(create: (_) => SampleRateProvider()),
-        ChangeNotifierProvider(create: (_) => CustomRangeSliderProvider()),
-      ],
-      child: const MyApp(),
-    ),
-  );
+  if (kIsWeb) {
+    await app_shell.loadLibrary();
+    app_shell.registerDeferredStartupTasks();
+    runApp(app_shell.buildRootApp());
+    return;
+  } else if (Platform.isIOS) {
+    await waitForNativeIosUIKitReady(timeout: const Duration(seconds: 5));
+    runApp(const _IosMetalBootstrap());
+    return;
+  } else if (Platform.isWindows || Platform.isMacOS) {
+    await windowManager.ensureInitialized();
+
+    WindowOptions windowOptions = WindowOptions(
+      size: Size(800, 600),
+      center: true,
+      backgroundColor: Colors.transparent,
+      skipTaskbar: false,
+      titleBarStyle: TitleBarStyle.normal,
+    );
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      if (Platform.isWindows) {
+        double titleBarHeight =
+            (await windowManager.getTitleBarHeight()).toDouble();
+        // await windowManager.setSize(Size(800, 600 + titleBarHeight));
+        await windowManager.setSize(Size(800, 600));
+      }
+      await windowManager.show();
+      await windowManager.focus();
+    });
+
+    await app_shell.loadLibrary();
+    await app_shell.preloadGraphModule();
+    app_shell.registerDeferredStartupTasks();
+    runApp(app_shell.buildRootApp());
+    return;
+  }
+
+  await app_shell.loadLibrary();
+  await app_shell.preloadGraphModule();
+  app_shell.registerDeferredStartupTasks();
+  runApp(app_shell.buildRootApp());
 }
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+/// Mount a trivial tree first so Metal can present before [GraphTemplate] loads.
+class _IosMetalBootstrap extends StatefulWidget {
+  const _IosMetalBootstrap();
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  State<_IosMetalBootstrap> createState() => _IosMetalBootstrapState();
 }
 
-class _MyAppState extends State<MyApp> {
-  // late JavascriptRuntime jsRunTime = getJavascriptRuntime();
-
-  String platForm = '';
-  late int sumResult;
-  late Future<int> sumAsyncResult;
-  final number = ValueNotifier(0);
+class _IosMetalBootstrapState extends State<_IosMetalBootstrap> {
+  bool _showFullApp = false;
 
   @override
   void initState() {
     super.initState();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky,
-        overlays: []);
-    // SchedulerBinding.instance.addTimingsCallback((timings) async {
-    //   await requestToMic();
-    // });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_warmMetalThenMountFullApp());
+    });
+  }
+
+  Future<void> _waitForFrames(int count) async {
+    for (var i = 0; i < count; i++) {
+      final gate = Completer<void>();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!gate.isCompleted) gate.complete();
+      });
+      nudgeIosDartFrameScheduling();
+      await gate.future;
+    }
+  }
+
+  Future<void> _warmMetalThenMountFullApp() async {
+    forceIosDartLifecycleResumedForColdLaunch();
+    await _waitForFrames(2);
+    if (!mounted) return;
+
+    await notifyNativeDartFrameScheduled();
+    await notifyNativeFirstFrameReady('bootstrap');
+    nudgeIosDartFrameScheduling();
+    await _waitForFrames(1);
+
+    var gotGpu = await waitForIosNativeGpuFrame(
+      timeout: const Duration(seconds: 8),
+    );
+    if (!gotGpu) {
+      debugPrint('BYB DART bootstrap GPU wait timed out — recycling surface');
+      await notifyNativeSurfaceRecycle();
+      nudgeIosDartFrameScheduling();
+      await _waitForFrames(2);
+      gotGpu = await waitForIosNativeGpuFrame(
+        timeout: const Duration(seconds: 8),
+      );
+    }
+    debugPrint('BYB DART bootstrap GPU ready=$gotGpu');
+
+    await app_shell.loadLibrary();
+    app_shell.registerDeferredStartupTasks();
+    if (!mounted) return;
+    setState(() {
+      _showFullApp = true;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Flutter Demo',
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-          textTheme: const TextTheme(
-
-              // for the body2 text
-              // You can add other text styles here as needed
-              ),
+    if (_showFullApp) {
+      return app_shell.buildRootApp();
+    }
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: Color(0xFF222222),
+        body: Center(
+          child: Text(
+            'Starting Spike Recorder…',
+            style: TextStyle(color: Colors.white, fontSize: 16),
+          ),
         ),
-        home: kIsWeb
-            ? const DashBoardPageRoute()
-            // HomePage()
-            : Consumer<ConstantProvider>(
-                builder: (context, data, child) {
-                  return GraphTemplate(
-                    channelCount: data.getChannelCount(),
-                    bitsData: data.getBitData(),
-                    baudRate: data.getBaudRate(),
-                  );
-                },
-              ));
+      ),
+    );
   }
 }

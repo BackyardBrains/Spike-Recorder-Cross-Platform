@@ -70,8 +70,9 @@ PROCESSING_API int32_t processing_set_bits_per_sample(int32_t bits_per_sample);
 PROCESSING_API int32_t processing_set_selected_channel(int32_t selected_channel);
 
 // Filter configuration
-PROCESSING_API int32_t processing_set_band_filter(float low_cut_off_freq, float high_cut_off_freq);
+PROCESSING_API int32_t processing_set_band_filter(int32_t channel_idx, float low_cut_off_freq, float high_cut_off_freq);
 PROCESSING_API int32_t processing_set_notch_filter(float center_freq);
+PROCESSING_API int32_t processing_set_channel_filter_enabled(int32_t channel, bool enabled);
 
 // Stream processing
 PROCESSING_API int32_t processing_process_sample_stream(int16_t* out_samples, int32_t* out_sample_counts,
@@ -87,17 +88,13 @@ PROCESSING_API int32_t processing_process_playback_stream(int16_t* out_samples, 
                                          int32_t event_count, int64_t start, int64_t end,
                                          int32_t prepend_samples);
 
+
+PROCESSING_API int32_t processing_get_most_right(int chan, int from_sample, int to_sample, int bufferSize);
+
 // Signal analysis
 // PROCESSING_API float processing_rms(const int16_t* data, int32_t length);
 PROCESSING_API int32_t processing_map(float* out_data, const float* in_data, int32_t length,
                       float in_min, float in_max, float out_min, float out_max);
-
-// FFT processing
-// STEVE COMMENTED THIS OUT
-// PROCESSING_API int32_t processing_process_fft(float** out_fft, int32_t* out_window_count,
-//                              int32_t* out_window_size, const int16_t** in_samples,
-//                              const int32_t* in_sample_counts);
-PROCESSING_API void processing_reset_fft_normalization();
 
 // AM modulation detection
 PROCESSING_API int32_t processing_is_audio_stream_am_modulated();
@@ -111,6 +108,12 @@ PROCESSING_API void processing_set_threshold(float threshold);
 PROCESSING_API void processing_reset_threshold();
 PROCESSING_API void processing_resume_threshold();
 PROCESSING_API void processing_pause_threshold();
+PROCESSING_API void processing_set_is_thresholding(bool flag);
+PROCESSING_API int32_t processing_process_threshold(int16_t* out_samples, int32_t* out_sample_counts,
+                                   int16_t* in_samples, int32_t* in_sample_counts,
+                                   const int32_t* in_event_indices, const int32_t* in_event_labels, int32_t in_event_count,
+                                   bool average_samples);
+
 // STEVE COMMENTED THIS OUT
 // PROCESSING_API int32_t processing_process_threshold(int16_t** out_samples, int32_t* out_sample_counts,
 //                                    const int16_t** in_samples, const int32_t* in_sample_counts,
@@ -196,8 +199,54 @@ PROCESSING_API int32_t processing_prepare_for_signal_drawing(
 //                                      int32_t batch_spike_count);
 PROCESSING_API short processing_pass_pointers(short* ptrExpBoardType);
 
+// FFT processing
+// STEVE COMMENTED THIS OUT
+PROCESSING_API int32_t processing_process_fft(float* out_fft, int32_t* out_window_count,
+    int32_t* out_window_size, int32_t* out_frequency_counter, 
+    int16_t* in_samples,
+    const int32_t* in_sample_counts);
+PROCESSING_API void processing_reset_fft_normalization();
+
+PROCESSING_API int32_t processing_prepare_fft_for_drawing(float* out_vertices, int16_t* out_indices,
+                                         float* out_colors, int32_t* out_vertex_count,
+                                         int32_t* out_index_count, int32_t* out_color_count,
+                                         float* _fft_data, int32_t window_count,
+                                         int32_t window_size, float width, float height);
+                                           
+// NWB file data injection
+PROCESSING_API int32_t processing_nwbfile_inject_data_result(short* inSamplesRaw, int* samplesCountRaw, int selectedChannel, int channelCount);
+
+// Serial data processing result
+PROCESSING_API int32_t processing_serial_data_result(short* inSamplesRaw, int* samplesCountRaw, int channelCount);
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif // PROCESSING_H
+
+
+
+
+// public class FftDrawData {
+
+//     public float[] vertices;
+//     public short[] indices;
+//     public float[] colors;
+
+//     public int vertexCount;
+//     public int indexCount;
+//     public int colorCount;
+
+//     public float scaleX;
+//     public float scaleY;
+
+//     public FftDrawData(int maxSegments) {
+//         vertices = new float[maxSegments * 2];
+//         indices = new short[maxSegments * 6];
+//         colors = new float[maxSegments * 4];
+//         vertexCount = 0;
+//         indexCount = 0;
+//         colorCount = 0;
+//     }
+// }

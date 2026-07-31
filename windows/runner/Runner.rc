@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "spikerbox_flutter" "\0"
+            VALUE "FileDescription", "Spike Recorder" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "spikerbox_flutter" "\0"
+            VALUE "InternalName", "Spike Recorder" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2023 com.example. All rights reserved." "\0"
             VALUE "OriginalFilename", "spikerbox_flutter.exe" "\0"
-            VALUE "ProductName", "spikerbox_flutter" "\0"
+            VALUE "ProductName", "Spike Recorder" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

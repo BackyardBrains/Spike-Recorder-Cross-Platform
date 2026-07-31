@@ -1,15 +1,10 @@
-#ifdef __EMSCRIPTEN__
-    #include <emscripten/bind.h>
-    using namespace emscripten;
-    #include <emscripten.h>
-    #include <wasm_simd128.h>
-#endif
 //
 // Created by Tihomir Leka <tihomir at backyardbrains.com>
 //
 
 #include "SampleStreamProcessor.h"
 #include "SampleStreamUtils.h"
+#include <cstring>
 #include <iostream>
 #include <fstream>
 
@@ -29,6 +24,9 @@ namespace backyardbrains {
                 backyardbrains::utils::OnEventListenerListener *listener)
                 : Processor(DEFAULT_SAMPLE_RATE, DEFAULT_CHANNEL_COUNT, DEFAULT_BITS_PER_SAMPLE) {
             SampleStreamProcessor::listener = listener;
+            currentExpansionBoardType = -1;
+            currentExpansionBoardAdjustedValue = 0;
+            currentExpansionBoardAdjustedChannel = 0;
         }
 
         SampleStreamProcessor::~SampleStreamProcessor() = default;
@@ -65,6 +63,9 @@ namespace backyardbrains {
                 uc = inData[i];
 
                 // and next byte to custom message sent by SpikerBox
+                if (escapeSequenceIndex >= MAX_SEQUENCE_LENGTH) {
+                    reset();
+                }
                 escapeSequence[escapeSequenceIndex++] = uc;
 
                 if (insideEscapeSequence) { // we are inside escape sequence
@@ -93,7 +94,13 @@ namespace backyardbrains {
                             reset();
                         }
                     } else {
-                        eventMessage[eventMessageIndex++] = uc;
+                        // Bounds check before writing to prevent buffer overflow
+                        if (eventMessageIndex < EVENT_MESSAGE_LENGTH) {
+                            eventMessage[eventMessageIndex++] = uc;
+                        } else {
+                            // Buffer overflow - reset to prevent corruption
+                            reset();
+                        }
                     }
                 } else {
                     if (ESCAPE_SEQUENCE_START[tmpIndex] == uc) {
@@ -105,10 +112,11 @@ namespace backyardbrains {
                         continue;
                     }
 
-                    auto *sequence = new unsigned char[escapeSequenceIndex];
-                    std::copy(escapeSequence, escapeSequence + escapeSequenceIndex, sequence);
-                    for (int j = 0; j < escapeSequenceIndex; j++) {
-                        b = sequence[j];
+                    // CRITICAL FIX: Avoid unnecessary allocation - process directly from escapeSequence
+                    // Only process if we have data to process
+                    if (escapeSequenceIndex > 0) {
+                        for (int j = 0; j < escapeSequenceIndex; j++) {
+                            b = escapeSequence[j];
                         // check if we have unfinished frame
                         if (frameStarted) {
                             // check if we have unfinished sample
@@ -128,8 +136,8 @@ namespace backyardbrains {
                                 msb = msb & REMOVER;
                                 msb = msb << 7u;
                                 lsb = lsb & REMOVER;
-                                if (backyardbrains::utils::SampleStreamUtils::HUMAN_HARDWARE ==
-                                    hardwareType) {
+                                if (backyardbrains::utils::SampleStreamUtils::HUMAN_HARDWARE == hardwareType
+                                    || backyardbrains::utils::SampleStreamUtils::NEURON_PRO_HARDWARE == hardwareType) {
                                     sample = (short) (((msb | lsb) - 8192));
                                 } else {
                                 sample = (short) (((msb | lsb) - 512) * 30);
@@ -139,11 +147,20 @@ namespace backyardbrains {
                                 average = 0.0001 * sample + 0.9999 * average;
                                 // use average to remove offset
                                 sample = (short) (sample - average);
+
+                                if (currentChannel >= 0 && currentChannel < channelCount &&
+                                    currentChannel < MAX_CHANNELS &&
+                                    sampleCounters[currentChannel] < MAX_SAMPLES) {
+                                    channels[currentChannel][sampleCounters[currentChannel]++] = sample;
+                                } else {
+                                    // Buffer overflow - drop frame to prevent corruption
+                                    frameStarted = false;
+                                    sampleStarted = false;
+                                    currentChannel = 0;
+                                    continue;
+                                }
  
-                                channels[currentChannel][sampleCounters[currentChannel]++] = sample;
-                                // EM_ASM({
-                                //     console.log("SAMPLE : ", $0, $1, $2, $3);
-                                // }, msb, lsb, msb | lsb,frameStarted);
+                                
 
                                 sampleStarted = false;
                                 if (currentChannel >= channelCount - 1) frameStarted = false;
@@ -210,8 +227,7 @@ namespace backyardbrains {
                             }
                         }
                     }
-
-                    delete[] sequence;
+                    }
 
                     reset();
                 }
@@ -221,19 +237,21 @@ namespace backyardbrains {
 //            inDataPrevLength = length;
 
             bool avoidFilteringOfChannels = stopFilteringAfterChannelIndex >= 0;
+
             for (int i = 0; i < channelCount; i++) {
                 // apply additional filtering if necessary
                 // if (avoidFilteringOfChannels && i <= stopFilteringAfterChannelIndex) {
                     applyFilters(i, channels[i], sampleCounters[i]);
                 // }
 
-                outSamples[i] = new short[sampleCounters[i]];
-                std::copy(channels[i], channels[i] + sampleCounters[i], outSamples[i]);
-                // EM_ASM({
-                //     console.log("SAMPLE : ", $0, $1, $2, $3);
-                // }, i, sampleCounters[i], channels[i][0], outSamples[i][0]);
-
-                outSampleCounts[i] = sampleCounters[i];
+                // STEVANUS
+                // we lost the address if using below code, just create another one.
+                // outSamples[i] = new short[sampleCounters[i]];
+                const int copyCount = std::min(sampleCounters[i], MAX_SAMPLES);
+                if (outSamples[i] != nullptr && copyCount > 0) {
+                    std::copy(channels[i], channels[i] + copyCount, outSamples[i]);
+                }
+                outSampleCounts[i] = copyCount;
             }
             std::copy(eventIndices, eventIndices + eventCounter, outEventIndices);
             std::copy(eventLabels, eventLabels + eventCounter, outEventLabels);
@@ -244,13 +262,17 @@ namespace backyardbrains {
 
         int SampleStreamProcessor::processEscapeSequenceMessage(unsigned char *messageBytes,
                                                                 int sampleIndex, int hardwareType) {
-            // check if it's board type message
-            std::string message = reinterpret_cast<char *>(messageBytes);
+            if (messageBytes == nullptr) {
+                return hardwareType;
+            }
+            size_t len = strnlen(reinterpret_cast<const char *>(messageBytes), EVENT_MESSAGE_LENGTH);
+            std::string message(reinterpret_cast<const char *>(messageBytes), len);
             //__android_log_print(ANDROID_LOG_DEBUG, TAG, "ESCAPE SEQUENCE MESSAGE %s AT %d",message.c_str(),sampleIndex);
 
             std::string logMessage =
                     "ESCAPE SEQUENCE MESSAGE " + message + " AT " + std::to_string(sampleIndex);
 
+            try {
             if (backyardbrains::utils::SampleStreamUtils::isHardwareTypeMsg(message)) {
                 int type = backyardbrains::utils::SampleStreamUtils::getHardwareType(message);
                 //__android_log_print(ANDROID_LOG_DEBUG, "HARD_CPP", "Hardware typpe %d ",type);
@@ -265,16 +287,41 @@ namespace backyardbrains {
                 listener->onMaxSampleRateAndNumOfChannelsReply(sampleRate, channelCount);
                 setSampleRateAndChannelCount(sampleRate, channelCount);
             } else if (backyardbrains::utils::SampleStreamUtils::isEventMsg(message)) {
+                if (eventCounter >= MAX_EVENTS) {
+                    return hardwareType;
+                }
                 eventIndices[eventCounter] = sampleIndex;
-                eventLabels[eventCounter++] = backyardbrains::utils::SampleStreamUtils::getEventNumber(
+                eventLabels[eventCounter] = backyardbrains::utils::SampleStreamUtils::getEventNumber(
                         message);
+                try {
+                    int num = std::stoi(eventLabels[eventCounter]);
+                    listener->onEventFound(sampleIndex, num);
+                    eventCounter++;
+                } catch (const std::exception&) {
+                    return hardwareType;
+                }
             } else if (backyardbrains::utils::SampleStreamUtils::isExpansionBoardTypeMsg(message)) {
                 const int expansionBoardType = backyardbrains::utils::SampleStreamUtils::getExpansionBoardType(
                         message);
+                // EM_ASM({
+                //     console.log("Expansion Board FOUND0000", $0);
+                // }, expansionBoardType);                        
                 listener->onExpansionBoardTypeDetection(expansionBoardType);
+                currentExpansionBoardType = expansionBoardType;
                 if (backyardbrains::utils::SampleStreamUtils::HUMAN_HARDWARE ==
                     hardwareType || backyardbrains::utils::SampleStreamUtils::HHIBOX_HARDWARE ==
                                     hardwareType) {
+
+                    switch (expansionBoardType) {
+                        default:
+                        case backyardbrains::utils::SampleStreamUtils::HAMMER_EXPANSION_BOARD:
+                            setSampleRateAndChannelCount(EXPANSION_BOARDS_SAMPLE_RATE,
+                                                        HAMMER_JOYSTICK_CHANNEL_COUNT);
+                            stopFilteringAfterChannelIndex = 1;
+                            currentExpansionBoardAdjustedValue = 128;                    
+                            currentExpansionBoardAdjustedChannel = 2; // 0-indexed array
+                        break;
+                    }                                        
                 } else {
                     updateProcessingParameters(expansionBoardType);
                 }
@@ -288,10 +335,14 @@ namespace backyardbrains {
                         message);
                 listener->onHumanSpikerBoardAudioState(audioState);
             }
+            } catch (const std::exception &) {
+                // Malformed escape payload — drop message, keep stream alive.
+            }
             return hardwareType;
         }
 
         void SampleStreamProcessor::updateProcessingParameters(int expansionBoardType) {
+            currentExpansionBoardType = expansionBoardType;
             switch (expansionBoardType) {
                 default:
                 case backyardbrains::utils::SampleStreamUtils::NONE_BOARD_DETACHED:
@@ -309,11 +360,17 @@ namespace backyardbrains {
                     stopFilteringAfterChannelIndex = 1;
                     break;
                 case backyardbrains::utils::SampleStreamUtils::HAMMER_EXPANSION_BOARD:
+                    setSampleRateAndChannelCount(EXPANSION_BOARDS_SAMPLE_RATE,
+                                                HAMMER_JOYSTICK_CHANNEL_COUNT);
+                    stopFilteringAfterChannelIndex = 1;
+                    currentExpansionBoardAdjustedValue = 512;                    
+                    currentExpansionBoardAdjustedChannel = 2; // 0-indexed array
+                break;
                 case backyardbrains::utils::SampleStreamUtils::JOYSTICK_EXPANSION_BOARD:
                     setSampleRateAndChannelCount(EXPANSION_BOARDS_SAMPLE_RATE,
                                                  HAMMER_JOYSTICK_CHANNEL_COUNT);
                     stopFilteringAfterChannelIndex = 1;
-                    break;
+                break;
             }
         }
 

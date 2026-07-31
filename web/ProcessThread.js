@@ -555,15 +555,42 @@ self.onmessage = async function (eventFromMain) {
                 // console.log("resultDrawing: ", resultDrawing, outSamplesBuffer);
                 if (resultDrawing == 0) {
                     for (let i = 0; i < channelCount; i++) {
-                        const outSampleCount = outSampleCountsDrawingBuffer[i];
-                        const slicedArray = outSamplesBuffer.slice( i * startPosMultiplier, i * startPosMultiplier + outSampleCount);
-                        // const slicedCountArray = outSampleCountsBuffer.subarray(i, i + 1).slice();
-                        // console.log("drawingCountBufferList: ", outSampleCount, slicedArray.length, totalChannel);
-                        drawingDataBufferList[i].set(slicedArray);
+                        let outSampleCount = outSampleCountsDrawingBuffer[i];
+                        // Validate and clamp outSampleCount to prevent RangeError
+                        const maxBufferSize = drawSurfaceWidth * 5; // Size of drawingDataBufferList[i]
+                        if (outSampleCount < 0 || outSampleCount > maxBufferSize) {
+                            console.warn(`Invalid outSampleCount for channel ${i}: ${outSampleCount}, clamping to valid range`);
+                            outSampleCount = Math.max(0, Math.min(outSampleCount, maxBufferSize));
+                        }
+                        
+                        const startIdx = i * startPosMultiplier;
+                        const endIdx = startIdx + outSampleCount;
+                        
+                        // Ensure slice indices are within bounds
+                        if (startIdx < 0 || endIdx > outSamplesBuffer.length || startIdx >= endIdx) {
+                            console.warn(`Invalid slice indices for channel ${i}: start=${startIdx}, end=${endIdx}, bufferLength=${outSamplesBuffer.length}`);
+                            // Use safe defaults
+                            const safeCount = Math.min(maxBufferSize, outSamplesBuffer.length - startIdx);
+                            if (safeCount > 0 && startIdx >= 0 && startIdx < outSamplesBuffer.length) {
+                                const slicedArray = outSamplesBuffer.slice(startIdx, startIdx + safeCount);
+                                const copyLength = Math.min(slicedArray.length, maxBufferSize);
+                                drawingDataBufferList[i].set(slicedArray.subarray(0, copyLength));
+                                drawingCountBufferList[i] = copyLength;
+                            } else {
+                                // Fallback: zero out the buffer
+                                drawingDataBufferList[i].fill(0);
+                                drawingCountBufferList[i] = 0;
+                            }
+                        } else {
+                            const slicedArray = outSamplesBuffer.slice(startIdx, endIdx);
+                            // Ensure we don't exceed target buffer size
+                            const copyLength = Math.min(slicedArray.length, maxBufferSize);
+                            drawingDataBufferList[i].set(slicedArray.subarray(0, copyLength));
+                            drawingCountBufferList[i] = copyLength;
+                        }
                         // if (i == 1) {
                         //     console.log("drawingDataBufferList  VS  ", drawingDataBufferList[0].subarray(0,10), drawingDataBufferList[1].subarray(0,10), outSamplesBuffer.subarray( i * outSampleCount , i * outSampleCount + 10));
                         // }
-                        drawingCountBufferList[i] = outSampleCount;
                     }
 
                     const data = {

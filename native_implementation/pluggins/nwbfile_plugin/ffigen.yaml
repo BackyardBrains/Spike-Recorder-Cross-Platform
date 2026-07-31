@@ -1,0 +1,13 @@
+# Run with `dart run ffigen --config ffigen.yaml`.
+name: NwbfilePluginBindings
+description: Bindings for nwbfile_plugin
+
+output: 'lib/nwbfile_plugin_bindings_generated.dart'
+
+headers:
+  entry-points:
+    - 'src/nwbfile_plugin_simple.h'
+  include-directives:
+    - 'ignore_for_file: always_specify_types'
+    - 'ignore_for_file: camel_case_types'
+    - 'ignore_for_file: non_constant_identifier_names'

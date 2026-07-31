@@ -3,13 +3,15 @@ import 'package:flutter/foundation.dart';
 class ConstantProvider extends ChangeNotifier {
   int _bitData = 10;
   int _channelCount = 1;
-  int _baudRate = 222222;
+  // int _baudRate = 222222;
+  int _baudRate = 500000;
 
   int getBitData() {
     return _bitData;
   }
 
   int getChannelCount() {
+    // print("GET CHANNEL COUNT: $_channelCount");
     return _channelCount;
   }
 
@@ -23,6 +25,7 @@ class ConstantProvider extends ChangeNotifier {
   }
 
   setChannelCount(int channelCount) {
+    print("SET CHANNEL COUNT: $channelCount");
     _channelCount = channelCount;
     notifyListeners();
   }

@@ -14,7 +14,8 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
   @override
   // StreamController<Uint8List> addListenAudioStreamController =
   //     StreamController<Uint8List>();
-  ValueNotifier<Uint8List> addListenAudioStreamController = ValueNotifier(Uint8List(0));
+  ValueNotifier<Uint8List> addListenAudioStreamController =
+      ValueNotifier(Uint8List(0));
 
   @override
   ValueNotifier<Uint8List> micStream = ValueNotifier(Uint8List(0));
@@ -22,45 +23,83 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
   @override
   double sampleRate = 44100;
 
-  @override
-  Future<void> init() async {
-    try {
-      final mediaStream = await html.window.navigator.mediaDevices?.getUserMedia({
-        'audio': true,
-      });
+  var mediaStream;
 
-      if (mediaStream != null) {
-        html.MediaStreamTrack audioTrack = mediaStream.getAudioTracks()[0];
-        Map<dynamic, dynamic> trackSettings = audioTrack.getSettings();
-        sampleRate = trackSettings["sampleRate"];
+  @override
+  Future<void> stopListeningToMicrophone({bool resetStream = false}) async {
+    js.context.callMethod('stopListeningToMicrophone', []);
+    micStream.value = Uint8List(0);
+    addListenAudioStreamController.value = Uint8List(0);
+  }
+
+  @override
+  Future<void> init({bool forceRestart = false}) async {
+    if (forceRestart) {
+      await stopListeningToMicrophone();
+    }
+    try {
+      print("INITTIALLLIIIZZZEEE");
+      if (mediaStream == null) {
+        mediaStream = await html.window.navigator.mediaDevices?.getUserMedia({
+          'audio': true,
+        });
+        if (mediaStream != null) {
+          html.MediaStreamTrack audioTrack = mediaStream.getAudioTracks()[0];
+          Map<dynamic, dynamic> trackSettings = audioTrack.getSettings();
+          if (trackSettings["sampleRate"] != null) {
+            sampleRate = trackSettings["sampleRate"];
+          } else {
+            final audioContextClass =
+                js.context['AudioContext'] ?? js.context['webkitAudioContext'];
+            final tempContext = js.JsObject(audioContextClass);
+            final rate = tempContext['sampleRate'] as num;
+            print("MEDIA CONTEXT 2233: $rate");
+            tempContext.callMethod('close', []);
+            sampleRate = rate.toDouble();
+          }
+        }
+      } else {
+        final audioContextClass =
+            js.context['AudioContext'] ?? js.context['webkitAudioContext'];
+        final tempContext = js.JsObject(audioContextClass);
+        final rate = tempContext['sampleRate'] as num;
+        print("MEDIA CONTEXT: $rate");
+        tempContext.callMethod('close', []);
+        sampleRate = rate.toDouble();
       }
+
+      print("INIT sampleRate: $sampleRate");
       // micStream = ValueNotifier(Uint8List(0));
-    } catch(err) {
+    } catch (err) {
       print("err mic");
       print(err);
     }
-    
+
     // micStream = addListenAudioStreamController;
     js.context['onDataBufferAllocated'] = onDataBufferAllocated;
-    js.context['onDataReceived'] = onDataReceived;
+    // Wrap in closure to preserve 'this' context when called from JavaScript
+    js.context['onDataReceived'] = () => onDataReceived();
     await Future.delayed(const Duration(seconds: 1));
-    print("startListeningToMicrophone");    
-    js.context.callMethod('startListeningToMicrophone', []);
+    print("startListeningToMicrophone | sampleRate: $sampleRate");
+    js.context.callMethod('startListeningToMicrophone', [sampleRate]);
   }
 
   /// Called only once in the beginning to send address of buffer to dart
-  void onDataBufferAllocated(Int16List dataBuffer, int channelIdx, pSampleRate) {
+  void onDataBufferAllocated(
+      Int16List dataBuffer, int channelIdx, pSampleRate) {
     print("ON DATA BUFFER ALLOCATED MICROPHONE UTILS");
     _micDataBuffer = dataBuffer;
-    if (pSampleRate != null) {
-      sampleRate = pSampleRate.toDouble();
-    }
-    print("_micDataBuffer allocated ${_micDataBuffer?.length} ");
+    // if (pSampleRate != null) {
+    //   sampleRate = pSampleRate.toDouble();
+    // }
+    print("_micDataBuffer allocated ${_micDataBuffer?.length} $sampleRate");
   }
 
   void onDataReceived() {
     // var time = DateTime.now().millisecondsSinceEpoch;
+    // print("ON DATA RECEIVED MICROPHONE UTILS");
     if (_micDataBuffer == null) {
+      // print("MIC DATA BUFFER IS NULL");
       return;
     }
 
@@ -71,4 +110,7 @@ class MicrophoneUtilWeb implements MicrophoneUtil {
 
   @override
   Future<void> checkPointerValue() async {}
+
+  @override
+  StreamSubscription? micStatus;
 }

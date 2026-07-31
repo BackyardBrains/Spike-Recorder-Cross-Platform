@@ -1,12 +1,16 @@
 buildscript {
-    ext.kotlin_version = '1.7.10'
+    ext.kotlin_version = '2.0.0'
     repositories {
         google()
         mavenCentral()
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.2.0'
+        // START: FlutterFire Configuration
+        classpath 'com.google.gms:google-services:4.3.15'
+        classpath 'com.google.firebase:firebase-crashlytics-gradle:2.8.1'
+        // END: FlutterFire Configuration
+        classpath 'com.android.tools.build:gradle:8.5.2'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
@@ -22,8 +26,40 @@ rootProject.buildDir = '../build'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
+// Removed evaluationDependsOn which can cause circular dependencies and hangs
+
+// Fix for old plugins missing namespace (required by AGP 8+)
+// Also set Java 17 compatibility and Kotlin options for all plugins
+// Made more defensive to prevent hangs during configuration
 subprojects {
-    project.evaluationDependsOn(':app')
+    afterEvaluate { project ->
+        pluginManager.withPlugin('com.android.library') {
+            try {
+                if (android.namespace == null) {
+                    def manifest = file("${projectDir}/src/main/AndroidManifest.xml")
+                    if (manifest.exists()) {
+                        def packageName = new XmlParser().parse(manifest).@package
+                        if (packageName) {
+                            android.namespace = packageName
+                        }
+                    }
+                }
+                android.compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_17
+                    targetCompatibility JavaVersion.VERSION_17
+                }
+                // Configure Kotlin options if Kotlin plugin is applied
+                if (project.plugins.hasPlugin('org.jetbrains.kotlin.android')) {
+                    android.kotlinOptions {
+                        jvmTarget = '17'
+                    }
+                }
+            } catch (Exception e) {
+                // Silently ignore configuration errors to prevent hangs
+                println "Warning: Could not configure ${project.name}: ${e.message}"
+            }
+        }
+    }
 }
 
 tasks.register("clean", Delete) {

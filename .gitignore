@@ -11,7 +11,10 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
-
+build/ios/XCBuildData/PIFCache/target/
+ios/build/ios/XCBuildData/PIFCache/project/
+ios/build/ios/XCBuildData/PIFCache/target/
+ios/build/ios/XCBuildData/PIFCache/workspace/
 # IntelliJ related
 *.iml
 *.ipr
@@ -47,3 +50,10 @@ app.*.map.json
 /native_implementation/pluggins/processing_plugin/.vs
 native_implementation/pluggins/processing_plugin/out
 /windows/.vs
+
+
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
+/lib/firebase_options.dart
+firebase.json
+native_implementation/pluggins/old_nwbfile_plugin

@@ -5,20 +5,40 @@ import 'package:spikerbox_architecture/models/serial_util/serial_util.dart'
 
 abstract class SerialUtil {
   factory SerialUtil() => getSerialUtil();
+  bool isOpeningFile = false;
 
-  Future<void> getAvailablePorts(int baudRate, Function audioCallback) async => [];
+  /// Non-zero after [openPortToListen] with baud `0` (auto-detect) succeeds.
+  int get detectedBaudRate => 0;
+
+  int vendorId = 0;
+  int productId = 0;
+
+  // static SerialPort? serialPort;
+
+  Future<void> getAvailablePorts(int baudRate, Function audioCallback) async =>
+      [];
+  Future<List<String>> getAvailablePortsWeb(
+          int baudRate, Function audioCallback) async =>
+      [];
 
   void writeToPort({required Uint8List bytesMessage, String? address}) async {}
-
-  void connectToPort() {}
-  void closePort() {}
+  Future<void> changePortBaudRate(int baudRate) async {}
+  Future<void> connectToPort() async {}
+  Future<void> closePort() async {}
+  Future<void> resetPort() async {}
 
   void setConfig() {}
+  void setBaudRate(int baudRate) {}
 
   Future<Stream<Uint8List>?> openPortToListen(
-      String? portName, int baudRate) async {
+    String? portName,
+    int baudRate, {
+    List<int>? baudProbeCandidates,
+  }) async {
     return null;
   }
+
+  Stream<String?> deviceStatusStreamListener();
 
   List<String> availablePorts = [];
 

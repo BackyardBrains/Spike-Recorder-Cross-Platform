@@ -1,13 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.spikerbox_architecture">
-    <uses-feature android:name="android.hardware.usb.host" />
+    package="com.backyardbrains">
+    
 
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.USB_PERMISSION"/>
-    <uses-permission android:name="android.permission.MANAGE_USB"/>
+    <!-- <uses-permission android:name="android.permission.USB_PERMISSION"/> -->
+    <!-- <uses-permission android:name="android.permission.MANAGE_USB"/> -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
@@ -21,18 +21,19 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission-group.HARDWARE_CONTROLS"/>
-    <uses-permission android:name="android.permission.ACCESS_SERIAL_PORT" />
+    <!-- <uses-permission android:name="android.permission.ACCESS_SERIAL_PORT" />
     <uses-permission android:name="android.permission.READ_SERIAL_PORT" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/> -->
 
 
-    <uses-feature android:name="android.hardware.usb.host"/>
+    <uses-feature android:name="android.hardware.usb.host" android:required="true"/>
     <uses-feature android:name="android.hardware.usb.accessory" />
 
    <application
-        android:label="spikerbox_architecture"
+        android:label="Spike Recorder"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:largeHeap="true">
         <activity
             android:directBootAware="true"
             android:name=".MainActivity"

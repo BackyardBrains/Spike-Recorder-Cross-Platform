@@ -2,6 +2,12 @@
 // Created by Tihomir Leka <tihomir at backyardbrains.com>
 //
 
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/bind.h>
+    using namespace emscripten;
+    #include <emscripten.h>
+    #include <wasm_simd128.h>
+#endif
 #include "DrawingUtils.h"
 
 namespace backyardbrains {
@@ -9,17 +15,26 @@ namespace backyardbrains {
     namespace utils {
 
         void DrawingUtils::prepareSignalForDrawing(float **outSamples, int *outSampleCounts, float *outEventIndices,
-                                                   int outEventCount, short **inSamples, int channelCount,
+                                                   int* outEventCount, short **inSamples, int channelCount,
                                                    const int *inEventIndices, int inEventCount, int fromSample,
                                                    int toSample, int drawSurfaceWidth) {
             auto **envelopedSamples = new short *[channelCount];
             for (int i = 0; i < channelCount; i++) {
                 envelopedSamples[i] = new short[drawSurfaceWidth * 5];
             }
-            envelope(envelopedSamples, outSampleCounts, outEventIndices, outEventCount, inSamples, channelCount,
+
+            // EM_ASM({
+            //     console.log( "BEFORE: ", $0, $1 );
+            // }, inEventIndices[0], inEventCount);        
+            envelope(envelopedSamples, outSampleCounts, outEventIndices, outEventCount[0], inSamples, channelCount,
                      inEventIndices, inEventCount, fromSample, toSample, drawSurfaceWidth);
 
             float xStep = (float) drawSurfaceWidth / (outSampleCounts[0] - 1);
+            // if (inEventCount > 0 ) {
+            //     EM_ASM({
+            //         console.log( "AFTER : ", $0, $1, $2, $3 );
+            //     }, outEventIndices[0], outEventCount[0], xStep, outEventIndices[0] * xStep);
+            // }
             int sampleIndex = 0;
             for (int i = 0; i < inEventCount; i++)
                 outEventIndices[i] *= xStep;
@@ -53,6 +68,12 @@ namespace backyardbrains {
             float yOffset = 0;
             float xWidth = width / widthSegments;
             float yHeight = height / heightSegments;
+
+            // EM_ASM({
+            //     // Width / Width Segments:  256 255 256 128
+            //     console.log( "Width / Width Segments: ", $0, $1, $2, $3 );
+            // }, width, widthSegments, windowCount, windowSize);        
+    
             int currentVertex = 0;
             int currentIndex = 0;
             int currentColor = 0;

@@ -18,13 +18,27 @@ A new Flutter FFI plugin project.
   # paths, so Classes contains a forwarder C file that relatively imports
   # `../src/*` so that the C sources can be shared among all target platforms.
   s.source           = { :path => '.' }
-  # s.source_files = 'Classes/**/*'
-  s.source_files = ['Classes/**/*', "../src/**/*"]
-  # s.source_files = '../src/**/*'
-  # s.public_header_files = '../src/**/*'
+  # Include all source files from Classes and src directories
+  s.source_files = [
+    'Classes/**/*.{h,cpp,c,m,mm}',
+    '../src/**/*.{h,cpp,c}',
+    '../src/internal/**/*.h'
+  ]
   s.dependency 'FlutterMacOS'
 
   s.platform = :osx, '10.14'
-  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
+  s.pod_target_xcconfig = { 
+    'DEFINES_MODULE' => 'YES',
+    'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) DART_SHARED_LIB=1',
+    'OTHER_CFLAGS' => '$(inherited) -fvisibility=default',
+    'OTHER_CPLUSPLUSFLAGS' => '$(inherited) -fvisibility=default',
+    'HEADER_SEARCH_PATHS' => [
+      '$(inherited)',
+      '$(PODS_TARGET_SRCROOT)/../src',
+      '$(PODS_TARGET_SRCROOT)/../src/internal',
+      '$(PODS_TARGET_SRCROOT)/Classes',
+      '$(PODS_TARGET_SRCROOT)/Classes/internal'
+    ].join(' ')
+  }
   s.swift_version = '5.0'
 end

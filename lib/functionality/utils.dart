@@ -12,8 +12,11 @@ screenPositionToElementPosition(
   int tail = cBuffIdx;
 
   // int prevSegment = (envelopeSize / divider).floor();
-  
+  // if (displayTimeMs == 0 || displayTimeWidth == 0 ) {
+  //   return 0;
+  // }
   double screenMs = displayTimeMs * surfaceWidth / displayTimeWidth;
+  print("displayTimeMs: $displayTimeMs, surfaceWidth: $surfaceWidth, displayTimeWidth: $displayTimeWidth");
   double totalSamplesScreen = screenMs * sampleRate;
   double samplesPerPixel = totalSamplesScreen / surfaceWidth;
   // if (kIsWeb) {

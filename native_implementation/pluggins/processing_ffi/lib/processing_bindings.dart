@@ -3,6 +3,15 @@ import 'dart:ffi';
 import 'dart:io';
 
 
+typedef ProcessingRegisterDartPortNative = Int32 Function(Int64 port);
+typedef ProcessingRegisterDartPort = int Function(int port);
+
+typedef ProcessingUnregisterDartPortNative = Void Function();
+typedef ProcessingUnregisterDartPort = void Function();
+
+typedef ProcessingSetDartPostCobjectFuncNative = Void Function(Pointer<Void> funcPtr);
+typedef ProcessingSetDartPostCobjectFunc = void Function(Pointer<Void> funcPtr);
+
 // typedef DartCallbackNative = Void Function(Int32);
 // typedef DartCallbackDart = void Function(int);
 
@@ -27,12 +36,14 @@ typedef ProcessingSetSelectedChannelNative = Int32 Function(
 typedef ProcessingSetSelectedChannel = int Function(int selectedChannel);
 
 typedef ProcessingSetBandFilterNative = Int32 Function(
-    Float lowCutOffFreq, Float highCutOffFreq);
+    Int32 channelIdx, Float lowCutOffFreq, Float highCutOffFreq);
 typedef ProcessingSetBandFilter = int Function(
-    double lowCutOffFreq, double highCutOffFreq);
+    int channelIdx, double lowCutOffFreq, double highCutOffFreq);
 
 typedef ProcessingSetNotchFilterNative = Int32 Function(Float centerFreq);
 typedef ProcessingSetNotchFilter = int Function(double centerFreq);
+typedef ProcessingSetChannelFilterEnabledNative = Int32 Function(Int32 channel, Int32 enabled);
+typedef ProcessingSetChannelFilterEnabled = int Function(int channel, int enabled);
 typedef ProcessingProcessMicrophoneStreamNative = Int32 Function(
     Pointer<Pointer<Int16>> outSamples, 
     Pointer<Int32> outSampleCounts,
@@ -43,6 +54,18 @@ typedef ProcessingProcessMicrophoneStream = int Function(
     Pointer<Int32> outSampleCounts,
     Pointer<Uint8> inData, 
     int length);
+
+// typedef ProcessingProcessThresholdStreamNative = Int32 Function(
+//     Pointer<Pointer<Int16>> outSamples,
+//     Pointer<Int32> outSampleCounts,
+//     Pointer<Uint8> inData,
+//     Int32 length);
+// typedef ProcessingProcessThresholdStream = int Function(
+//     Pointer<Pointer<Int16>> outSamples,
+//     Pointer<Int32> outSampleCounts,
+//     Pointer<Uint8> inData,
+//     int length);
+
 typedef ProcessingProcessSampleStreamNative = Int32 Function(
     Pointer<Pointer<Int16>> outSamples, 
     Pointer<Int32> outSampleCounts,
@@ -55,6 +78,18 @@ typedef ProcessingProcessSampleStream = int Function(
     Pointer<Uint8> inData, 
     int length,
     int deviceType);
+
+
+typedef ProcessingProcessSerialDataResultNative = Int32 Function(
+    Pointer<Int16> inData, 
+    Pointer<Int32> inDataCounts,
+    Int32 channelCount,
+    );
+typedef ProcessingProcessSerialDataResult = int Function(
+    Pointer<Int16> inData, 
+    Pointer<Int32> inDataCounts,
+    int channelCount,
+    );
 
 typedef ProcessingFilterDataNative = Int32 Function(
     Pointer<Double> data, Int32 length);
@@ -84,6 +119,7 @@ typedef ProcessingProcessFftNative = Int32 Function(
     Pointer<Pointer<Float>> outFft,
     Pointer<Int32> outWindowCount,
     Pointer<Int32> outWindowSize,
+    Pointer<Int32> outFrequencyCounter,
     Pointer<Pointer<Int16>> inSamples,
     Pointer<Int32> inSampleCounts
 );
@@ -91,8 +127,39 @@ typedef ProcessingProcessFft = int Function(
     Pointer<Pointer<Float>> outFft,
     Pointer<Int32> outWindowCount,
     Pointer<Int32> outWindowSize,
+    Pointer<Int32> outFrequencyCounter,
     Pointer<Pointer<Int16>> inSamples,
     Pointer<Int32> inSampleCounts
+);
+
+typedef ProcessingPrepareFftDrawingNative= Int32 Function(
+    Pointer<Float> outVertices,
+    Pointer<Int16> outIndices,
+    Pointer<Float> outColors,
+    Pointer<Int32> outVertexCount,
+    Pointer<Int32> outIndexCount,
+    Pointer<Int32> outColorCount,
+    Pointer<Pointer<Float>> fftData,
+    Int32 windowCount,
+    Int32 windowSize,  
+    Int32 targetWindowCount,
+    Float width,
+    Float height,
+);
+
+typedef ProcessingPrepareFftDrawing = int Function(
+    Pointer<Float> outVertices,
+    Pointer<Int16> outIndices,
+    Pointer<Float> outColors,
+    Pointer<Int32> outVertexCount,
+    Pointer<Int32> outIndexCount,
+    Pointer<Int32> outColorCount,
+    Pointer<Pointer<Float>> fftData,
+    int windowCount,
+    int windowSize,
+    int targetWindowCount,
+    double width,
+    double height,
 );
 
 typedef ProcessingGetInformationNative = Int32 Function(
@@ -101,6 +168,14 @@ typedef ProcessingGetInformationNative = Int32 Function(
 typedef ProcessingGetInformation = int Function(
     Pointer<Int32> outInfo,
 );
+
+typedef ProcessingSetIsThresholdingNative = Int32 Function(
+    Bool outInfo,
+);
+typedef ProcessingSetIsThresholding = int Function(
+    bool outInfo,
+);
+
 
 
 typedef ProcessingResetFftNormalizationNative = Void Function();
@@ -126,6 +201,8 @@ typedef ProcessingSetThreshold = void Function(double threshold);
 
 typedef ProcessingResetThresholdNative = Void Function();
 typedef ProcessingResetThreshold = void Function();
+typedef ProcessingResetThresholdBufferNative = Void Function();
+typedef ProcessingResetThresholdBuffer = void Function();
 
 typedef ProcessingResumeThresholdNative = Void Function();
 typedef ProcessingResumeThreshold = void Function();
@@ -138,6 +215,9 @@ typedef ProcessingProcessThresholdNative = Int32 Function(
     Pointer<Int32> outSampleCounts,
     Pointer<Pointer<Int16>> inSamples,
     Pointer<Int32> inSampleCounts,
+    Pointer<Int32> inEventIndices,
+    Pointer<Int32> inEventLabels,
+    Int32 inEventCount,
     Bool averageSamples);
 
 typedef ProcessingProcessThreshold = int Function(
@@ -145,6 +225,10 @@ typedef ProcessingProcessThreshold = int Function(
     Pointer<Int32> outSampleCounts,
     Pointer<Pointer<Int16>> inSamples,
     Pointer<Int32> inSampleCounts,
+    Pointer<Int32> inEventIndices,
+    Pointer<Int32> inEventLabels,
+    int inEventCount,
+    // const int32_t* in_event_indices, int32_t in_event_count,
     bool averageSamples);
 
 typedef ProcessingSetBpmProcessingNative = Void Function(Int32 processBpm);
@@ -176,10 +260,62 @@ typedef ProcessingPrepareForSignalDrawing = int Function(
 typedef ProcessingCleanupNative = Void Function();
 typedef ProcessingCleanup = void Function();
 
+
+
+// processing_nwbfile_inject_data_result
+typedef ProcessingNwbfileInjectDataResultNative = Int32 Function(
+    Pointer<Int16> outFft,
+    Pointer<Int32> samplesCount,
+    Int32 selectedChannel,
+    Int32 channelCount,
+);
+typedef ProcessingNwbfileInjectDataResult = int Function(
+    Pointer<Int16> outFft,
+    Pointer<Int32> samplesCount,
+    int selectedChannel,
+    int channelCount,
+);
+
+typedef ProcessingFindSampleSpikeNative = Int32 Function(
+    Pointer<Int16> inSamples,
+    Int64 sampleCount,
+    Int32 channelCount,
+    Int32 sampleRate,
+    Pointer<Pointer<Int16>> valuesPos,
+    Pointer<Pointer<Int32>> indicesPos,
+    Pointer<Pointer<Float>> timesPos,
+    Pointer<Pointer<Int16>> valuesNeg,
+    Pointer<Pointer<Int32>> indicesNeg,
+    Pointer<Pointer<Float>> timesNeg,
+    Pointer<Int32> outPosCounts,
+    Pointer<Int32> outNegCounts,
+);
+typedef ProcessingFindSampleSpike = int Function(
+    Pointer<Int16> inSamples,
+    int sampleCount,
+    int channelCount,
+    int sampleRate,
+    Pointer<Pointer<Int16>> valuesPos,
+    Pointer<Pointer<Int32>> indicesPos,
+    Pointer<Pointer<Float>> timesPos,
+    Pointer<Pointer<Int16>> valuesNeg,
+    Pointer<Pointer<Int32>> indicesNeg,
+    Pointer<Pointer<Float>> timesNeg,
+    Pointer<Int32> outPosCounts,
+    Pointer<Int32> outNegCounts,
+);
+
+typedef InitDartApiNative = IntPtr Function(Pointer<Void>);
+typedef InitDartApiDart = int Function(Pointer<Void>);
+
 class ProcessingBindings {
   static DynamicLibrary? _lib;
   static ProcessingBindings? _instance;
   static bool _isDebugMode = true;
+
+  late final ProcessingRegisterDartPort registerDartPort;
+  late final ProcessingUnregisterDartPort unregisterDartPort;
+  late final ProcessingSetDartPostCobjectFunc setDartPostCobjectFunc;
 
   late final ProcessingInit init;
   late final ProcessingSetSampleRate setSampleRate;
@@ -188,12 +324,16 @@ class ProcessingBindings {
   late final ProcessingSetSelectedChannel setSelectedChannel;
   late final ProcessingSetBandFilter setBandFilter;
   late final ProcessingSetNotchFilter setNotchFilter;
+  late final ProcessingSetChannelFilterEnabled setChannelFilterEnabled;
   late final ProcessingProcessMicrophoneStream processMicrophoneStream;
+  // late final ProcessingProcessThresholdStream processThresholdStream;
   late final ProcessingProcessSampleStream processSampleStream;
+  late final ProcessingProcessSerialDataResult processSerialDataResult;
   late final ProcessingFilterData filterData;
   late final ProcessingRms rms;
   late final ProcessingMap map;
   late final ProcessingProcessFft processFft;
+  late final ProcessingPrepareFftDrawing prepareFftDrawing;
   late final ProcessingResetFftNormalization resetFftNormalization;
   late final ProcessingIsAudioStreamAmModulated isAudioStreamAmModulated;
   late final ProcessingGetAveragedSampleCount getAveragedSampleCount;
@@ -202,6 +342,7 @@ class ProcessingBindings {
   late final ProcessingSetAveragingTriggerType setAveragingTriggerType;
   late final ProcessingSetThreshold setThreshold;
   late final ProcessingResetThreshold resetThreshold;
+  late final ProcessingResetThresholdBuffer resetThresholdBuffer;
   late final ProcessingResumeThreshold resumeThreshold;
   late final ProcessingPauseThreshold pauseThreshold;
   late final ProcessingProcessThreshold processThreshold;
@@ -209,7 +350,13 @@ class ProcessingBindings {
   late final ProcessingPrepareForSignalDrawing prepareForSignalDrawing;
   late final ProcessingCleanup cleanup;
   
+  late final ProcessingNwbfileInjectDataResult nwbfileInjectDataResult;
+  late final ProcessingFindSampleSpike findSampleSpike;
+
   late final ProcessingGetInformation getInformation;
+  late final ProcessingSetIsThresholding setIsThresholding;
+
+  late final InitDartApiDart initDartApiDL;
 
   ProcessingBindings(DynamicLibrary dynamicLibrary) {
     // _lib ??= _loadLibrary();
@@ -250,8 +397,12 @@ class ProcessingBindings {
 
     setNotchFilter = _lib!.lookupFunction<ProcessingSetNotchFilterNative,ProcessingSetNotchFilter>('processing_set_notch_filter');
 
+    setChannelFilterEnabled = _lib!.lookupFunction<ProcessingSetChannelFilterEnabledNative, ProcessingSetChannelFilterEnabled>('processing_set_channel_filter_enabled');
+
     processMicrophoneStream = _lib!.lookupFunction<ProcessingProcessMicrophoneStreamNative,ProcessingProcessMicrophoneStream>('processing_process_microphone_stream');
-    processSampleStream = _lib!.lookupFunction<ProcessingProcessSampleStreamNative,ProcessingProcessSampleStream>('processing_process_sample_stream');
+    // processThresholdStream = _lib!.lookupFunction<ProcessingProcessThresholdStreamNative,ProcessingProcessThresholdStream>('processing_process_threshold_stream');
+    processSampleStream = _lib!.lookupFunction<ProcessingProcessSampleStreamNative, ProcessingProcessSampleStream>('processing_process_sample_stream');
+    processSerialDataResult = _lib!.lookupFunction<ProcessingProcessSerialDataResultNative, ProcessingProcessSerialDataResult>('processing_serial_data_result');
 
     // filterData = _lib!.lookupFunction<ProcessingFilterDataNative, ProcessingFilterData>('processing_filter_data');
 
@@ -260,6 +411,7 @@ class ProcessingBindings {
     map = _lib!.lookupFunction<ProcessingMapNative, ProcessingMap>('processing_map');
 
     processFft = _lib!.lookupFunction<ProcessingProcessFftNative, ProcessingProcessFft>('processing_process_fft');
+    prepareFftDrawing = _lib!.lookupFunction<ProcessingPrepareFftDrawingNative, ProcessingPrepareFftDrawing>('processing_prepare_fft_for_drawing');
 
     resetFftNormalization = _lib!.lookupFunction<ProcessingResetFftNormalizationNative, ProcessingResetFftNormalization>('processing_reset_fft_normalization');
 
@@ -277,6 +429,8 @@ class ProcessingBindings {
 
     resetThreshold = _lib!.lookupFunction<ProcessingResetThresholdNative, ProcessingResetThreshold>('processing_reset_threshold');
 
+    resetThresholdBuffer = _lib!.lookupFunction<ProcessingResetThresholdBufferNative, ProcessingResetThresholdBuffer>('processing_reset_threshold_buffer');
+
     resumeThreshold = _lib!.lookupFunction<ProcessingResumeThresholdNative, ProcessingResumeThreshold>('processing_resume_threshold');
 
     pauseThreshold = _lib!.lookupFunction<ProcessingPauseThresholdNative, ProcessingPauseThreshold>('processing_pause_threshold');
@@ -289,9 +443,17 @@ class ProcessingBindings {
     
     getInformation = _lib!.lookupFunction<ProcessingGetInformationNative, ProcessingGetInformation>('processing_get_information');
 
+    setIsThresholding = _lib!.lookupFunction<ProcessingSetIsThresholdingNative, ProcessingSetIsThresholding>('processing_set_is_thresholding');
+
     cleanup = _lib!.lookupFunction<ProcessingCleanupNative, ProcessingCleanup>('processing_cleanup');
+    
+    nwbfileInjectDataResult = _lib!.lookupFunction<ProcessingNwbfileInjectDataResultNative, ProcessingNwbfileInjectDataResult>('processing_nwbfile_inject_data_result');
 
+    findSampleSpike = _lib!.lookupFunction<ProcessingFindSampleSpikeNative, ProcessingFindSampleSpike>('processing_find_sample_spike');
 
+    registerDartPort = _lib!.lookupFunction<ProcessingRegisterDartPortNative, ProcessingRegisterDartPort>('processing_register_dart_port');
+    unregisterDartPort = _lib!.lookupFunction<ProcessingUnregisterDartPortNative, ProcessingUnregisterDartPort>('processing_unregister_dart_port');
+    initDartApiDL = _lib!.lookupFunction<InitDartApiNative, InitDartApiDart>("InitDartApiDL");
 
 
     // Dart code
@@ -405,6 +567,7 @@ class ProcessingBindings {
   static void setDebugMode(bool isDebug) {
     _isDebugMode = isDebug;
   }
+  getLibrary() => _lib;
 }
 
 

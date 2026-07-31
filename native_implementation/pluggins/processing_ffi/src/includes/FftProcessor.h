@@ -37,7 +37,7 @@ namespace backyardbrains {
             static const char *TAG;
 
             //
-            static constexpr float FFT_PROCESSING_TIME = 6.0f;
+            static constexpr float FFT_PROCESSING_TIME = 20.0f;
             // Percentage of overlap between to consecutive FFT windows
             static constexpr int FFT_WINDOW_OVERLAP_PERCENT = 99;
             // We only look at approx. 30% of the fft data cause we only want to analyze low frequency
@@ -100,7 +100,7 @@ namespace backyardbrains {
             int *dsIndices;
             int dsIndexCount;
 
-            float maxMagnitude = 4.83;
+            float maxMagnitude = 4.83f;
             float halfMaxMagnitude = maxMagnitude * .5f;
         };
     }

@@ -44,6 +44,12 @@ class CircularBuffer {
       return ((_buffer.length - 1) - _readIndex) + _writeIndex;
     }
   }
+
+  /// Drop all bytes not yet consumed (e.g. after serial line speed change).
+  void clear() {
+    _readIndex = 0;
+    _writeIndex = 0;
+  }
 }
 
 class BufferHandler {
@@ -72,6 +78,11 @@ class BufferHandler {
       Uint8List dtRead = _buffer.read(chunkReadSize);
       onDataAvailable?.call(dtRead);
     }
+  }
+
+  /// Discards bytes waiting for a full [chunkReadSize] chunk (wrong baud / reconnect).
+  void discardPendingInput() {
+    _buffer.clear();
   }
 }
 

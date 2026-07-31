@@ -8,28 +8,35 @@ class SpikerBoxButton extends StatelessWidget {
       this.iconSize,
       this.padding,
       this.iconColor,
+      this.enabled = true,
       required this.iconData});
   final Function() onTapButton;
   final IconData iconData;
   final EdgeInsetsGeometry? padding;
   final Color? iconColor;
   final double? iconSize;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTapButton,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: SoftwareColors.kButtonBackGroundColor,
-          shape: BoxShape.circle,
-        ),
-        child: Padding(
-          padding: padding ?? const EdgeInsets.all(12.0),
-          child: Icon(
-            iconData,
-            size: iconSize ?? 25,
-            color: iconColor ?? SoftwareColors.kButtonColor,
+    final Color resolvedIconColor = iconColor ?? SoftwareColors.kButtonColor;
+
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.4,
+      child: InkWell(
+        onTap: enabled ? onTapButton : null,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: SoftwareColors.kButtonBackGroundColor,
+            shape: BoxShape.circle,
+          ),
+          child: Padding(
+            padding: padding ?? const EdgeInsets.all(12.0),
+            child: Icon(
+              iconData,
+              size: iconSize ?? 25,
+              color: resolvedIconColor,
+            ),
           ),
         ),
       ),
@@ -37,6 +44,21 @@ class SpikerBoxButton extends StatelessWidget {
   }
 }
 
+generateSpikerBoxDecorate(iconData) {
+  Container boxStyle = Container(
+    width: 50,
+    height: 50,
+    decoration: BoxDecoration(
+      color: SoftwareColors.kButtonBackGroundColor,
+      shape: BoxShape.circle,
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: iconData,
+    ),
+  );
+  return boxStyle;
+}
 
 // InkWell(
 //       onTap: ontap,

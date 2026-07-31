@@ -23,6 +23,9 @@ class GraphDataProvider extends ChangeNotifier {
   int get sampleOnGraph => _samplesOnGraph;
   double getViewPortWidth() => _viewportWidth;
 
+  bool isRewind = false;
+  bool isForward = false;
+
   void setStreamOfData(Stream<Uint8List> graphStreamData) {
       _inputGraphStream = graphStreamData;
       _outputGraphStream = _outputGraphStreamController.stream
@@ -44,8 +47,20 @@ class GraphDataProvider extends ChangeNotifier {
 
   void resetGraphBuffer() {
       // Reset any necessary state
+      isRewind = !isRewind;
       notifyListeners();
   }
+
+  void forwardGraphBuffer() {
+      // Reset any necessary state
+      isForward = !isForward;
+      notifyListeners();
+  }
+
+  void notifyEvent(){
+    notifyListeners();
+  }
+
 
   StreamTransformer<Uint8List, List<double>> myStreamTransformer() {
     return StreamTransformer<Uint8List, List<double>>.fromHandlers(

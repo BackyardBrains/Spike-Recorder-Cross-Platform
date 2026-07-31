@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:mic_stream/mic_stream.dart';
-// import 'package:record/record.dart';
+import 'package:record/record.dart';
+import 'package:spikerbox_architecture/screen/graph_template.dart';
 
 import 'microphone_stream_check.dart';
 // ignore: library_prefixes
@@ -12,34 +14,80 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
   @override
   // Stream<Uint8List>? micStream;
   ValueNotifier<Uint8List> micStream = ValueNotifier(Uint8List(0));
+  // WINDOWS
+  final record = AudioRecorder();
 
   @override
   // StreamController<Uint8List> addListenAudioStreamController =  StreamController();
-  ValueNotifier<Uint8List> addListenAudioStreamController = ValueNotifier(Uint8List(0));
+  ValueNotifier<Uint8List> addListenAudioStreamController =
+      ValueNotifier(Uint8List(0));
 
   // List<int> intList = List<int>.generate(2000, (index) => index);
   Int16List? data;
 
   @override
   double sampleRate = 44100;
+  @override
+  Future<void> stopListeningToMicrophone({bool resetStream = false}) async {
+    await micStatus?.cancel();
+    micStatus = null;
+    micStream.value = Uint8List(0);
+    addListenAudioStreamController.value = Uint8List(0);
+    // record.startStream keeps a native WASAPI capture thread alive until stop.
+    // Without this, closing the window leaves spikerbox_flutter.exe in Task Manager.
+    try {
+      if (await record.isRecording()) {
+        await record.stop();
+      }
+    } catch (e) {
+      debugPrint('MicrophoneUtilWindow: record.stop failed: $e');
+    }
+    if (resetStream) {
+      MicStream.resetCachedStream();
+    }
+  }
 
   @override
-  Future<void> init() async {
-    MicStream.shouldRequestPermission(true);
-    var microphoneStream = (await MicStream.microphone(
-            audioSource: AudioSource.DEFAULT,
-            sampleRate: 44100,
-            channelConfig: ChannelConfig.CHANNEL_IN_MONO,
-            audioFormat: AudioFormat.ENCODING_PCM_16BIT));
-    micStream = addListenAudioStreamController;
-    microphoneStream?.listen((onData) {
-      micStream?.value = onData;
-    });
+  Future<void> init({bool forceRestart = false}) async {
+    if (forceRestart) {
+      await stopListeningToMicrophone(resetStream: true);
+    }
+    if (Platform.isWindows) {
+      micStatus?.cancel();
+      sampleRate = 48000;
+      // /*
+      final stream = await record.startStream(RecordConfig(
+          numChannels: 1,
+          sampleRate: sampleRate.toInt(),
+          encoder: AudioEncoder.pcm16bits));
+      micStream = addListenAudioStreamController;
+      micStatus = stream?.listen((onData) {
+        if (GraphTemplate.isLoadingFile < 3) {
+          micStream?.value = onData;
+        }
+      });
+      // */
+    } else {
+      // /*
 
+      MicStream.shouldRequestPermission(true);
+      var microphoneStream = (await MicStream.microphone(
+          audioSource: AudioSource.DEFAULT,
+          sampleRate: 44100,
+          channelConfig: ChannelConfig.CHANNEL_IN_MONO,
+          audioFormat: AudioFormat.ENCODING_PCM_16BIT));
+      micStream = addListenAudioStreamController;
+      microphoneStream?.listen((onData) {
+        if (GraphTemplate.isLoadingFile < 3) {
+          micStream?.value = onData;
+        }
+      });
 
-    double? tempSampleRate = await MicStream.sampleRate;
-    if (tempSampleRate != null) {
-      sampleRate = tempSampleRate;
+      double? tempSampleRate = await MicStream.sampleRate;
+      if (tempSampleRate != null) {
+        sampleRate = tempSampleRate;
+      }
+      // */
     }
     // double? sampleRate = await MicStream.sampleRate;
     // print("MICSTREAM $sampleRate");
@@ -62,4 +110,7 @@ class MicrophoneUtilWindow implements MicrophoneUtil {
     // final valueis = await native_add.setTheMicData(_bufferData);
     // print("the value is getted $valueis");
   }
+
+  @override
+  StreamSubscription? micStatus;
 }

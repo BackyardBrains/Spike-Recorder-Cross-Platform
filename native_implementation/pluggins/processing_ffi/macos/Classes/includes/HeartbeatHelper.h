@@ -43,7 +43,7 @@ namespace backyardbrains {
             static const char *TAG;
 
             // By default we shouldn't process more than 1 seconds of samples in any given moment
-            static constexpr float DEFAULT_PROCESSING_SECONDS = 6.0f;
+            static constexpr float DEFAULT_PROCESSING_SECONDS = 10.0f;
             // When one heartbeat ends by default we should have a dead period of 0.2s before checking for next heartbeat
             static constexpr float DEFAULT_DEAD_PERIOD_SECONDS = 0.2f;
             // If current heartbeat happens by default 2.5s after previous one we don't want to take it into account

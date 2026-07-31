@@ -3,6 +3,16 @@
 //
 
 #include <FftProcessor.h>
+#include <cstdlib>
+#include <cstring>
+#include <string>
+#define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
+void platform_log_fftp(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+}
 
 namespace backyardbrains {
 
@@ -17,7 +27,7 @@ namespace backyardbrains {
 
             // initialize object that's doing actual FFT analysis
             fft.init(FFT_WINDOW_SAMPLE_COUNT);
-
+            
             init(getSampleRate());
         }
 
@@ -32,10 +42,13 @@ namespace backyardbrains {
 
         void FftProcessor::setSampleRate(float sampleRate) {
             //__android_log_print(ANDROID_LOG_DEBUG, TAG, "setSampleRate(%f)", sampleRate);
+            // platform_log("\n SET SAMPLE RATE : \n");
+            
             Processor::setSampleRate(sampleRate);
 
             resetOnNextCycle = true;
             resetNormalizationOnNextCycle = true;
+
         }
 
         void FftProcessor::resetNormalization() {
@@ -49,29 +62,45 @@ namespace backyardbrains {
 //            //__android_log_print(ANDROID_LOG_DEBUG, TAG, "%ld - AFTER CLEAN AND INIT -> %d",
 //                                static_cast<long>(currentTimeInMilliseconds() - start), oWindowSampleCount);
 
+
             float sampleRate = getSampleRate();
+            
+
+            // if (sampleRate != this.sampleRate) {
+            //     resetOnNextCycle = true;
+            //     resetNormalizationOnNextCycle = true;
+                // platform_log("\n CHANGE SAMPLE RATE XAAA : \n");
+                // platform_log(std::to_string(sampleRate).c_str());
+            //     platform_log("\n CURRENT SAMPLE RATE : \n");
+            //     platform_log(std::to_string(currentSampleRate).c_str());
+            // }
             auto selectedChannel = getSelectedChannel();
             // check if data for existing channel exists
+
             if (selectedChannel >= channelCount) {
                 windowCounter = 0;
                 frequencyCounter = 0;
                 return;
             }
             auto sampleCount = inSampleCount[selectedChannel];
-
             // if max number of samples is sent it means we are seeking
+            
             if (sampleCount == oMaxWindowsSampleCount) {
+                // platform_log_fftp("\n SEEK RETURN sampleCount == oMaxWindowsSampleCount: \n");
                 processSeek(outData, windowCount, windowCounter, frequencyCounter, channelCount, inSamples,
                             inSampleCount);
                 return;
             }
 
             if (resetOnNextCycle) {
+                // platform_log("\n INI RESET NEXT CYCLE : \n");
                 clean();
                 init(sampleRate);
+
                 resetOnNextCycle = false;
             }
             if (resetNormalizationOnNextCycle) {
+                // platform_log("\n RESET NORMALIZATION NEXT CYCLE : \n");
                 initNormalizationParams();
                 resetNormalizationOnNextCycle = false;
             }
@@ -81,16 +110,34 @@ namespace backyardbrains {
 
             const int newUnanalyzedSampleCount = unanalyzedSampleCount + sampleCount;
             auto addWindowsCount = static_cast<uint16_t>(newUnanalyzedSampleCount / oWindowSampleDiffCount);
-
+            // platform_log_fftp("\n unanalyzedSampleCount : \n");
+            // platform_log_fftp(std::to_string(unanalyzedSampleCount).c_str());
+            // platform_log("\n oWindowSampleDiffCount : \n");
+            // platform_log(std::to_string(oWindowSampleDiffCount).c_str());
+            // platform_log("\n oWindowSampleCount : \n");
+            // platform_log(std::to_string(oWindowSampleCount).c_str());
+            // platform_log("\n maxMagnitude : \n");
+            // platform_log(std::to_string(maxMagnitude).c_str());
+            // platform_log("\n half maxMagnitude : \n");
+            // platform_log(std::to_string(halfMaxMagnitude).c_str());
+            // platform_log_fftp("\n addWindowsCount : \n");
+            // platform_log_fftp(std::to_string(addWindowsCount).c_str());
+            
             if (addWindowsCount == 0) {
                 std::copy(samples, samples + sampleCount, unanalyzedSamples + unanalyzedSampleCount);
                 unanalyzedSampleCount += sampleCount;
+                // platform_log_fftp("\n addWindowsCount: \n");
+                // platform_log_fftp(std::to_string(unanalyzedSampleCount).c_str());
+                // platform_log_fftp("\n oWindowSampleDiffCount: \n");
+                // platform_log_fftp(std::to_string(oWindowSampleDiffCount).c_str());
 
                 windowCounter = addWindowsCount;
                 frequencyCounter = FFT_WINDOW_30HZ_DATA_SIZE;
 
                 return;
             } else if (addWindowsCount >= windowCount) {
+                platform_log_fftp("\n addWindowsCount >= windowCount : \n");
+
                 processSeek(outData, windowCount, windowCounter, frequencyCounter, channelCount, inSamples,
                             inSampleCount);
                 return;
@@ -100,7 +147,6 @@ namespace backyardbrains {
             if (unanalyzedSampleCount > 0)
                 std::copy(unanalyzedSamples, unanalyzedSamples + unanalyzedSampleCount, samplesToAnalyze);
             std::copy(samples, samples + sampleCount, samplesToAnalyze + unanalyzedSampleCount);
-
 
             int offset = 0;
             auto *in = new short[oWindowSampleCount]{0};
@@ -132,6 +178,7 @@ namespace backyardbrains {
                         halfMaxMagnitude = maxMagnitude * 0.5f;
                     }
                     outData[counter][j] = static_cast<float>(outData[counter][j] / halfMaxMagnitude - 1.0);
+                    // outData[counter][j] = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);;
                 }
                 counter++;
 
@@ -146,6 +193,8 @@ namespace backyardbrains {
 
             windowCounter = counter;
             frequencyCounter = FFT_WINDOW_30HZ_DATA_SIZE;
+            // platform_log_fftp("\nwindowCounter : \n");
+            // platform_log_fftp(std::to_string(counter).c_str());
 
             delete[] dsSamples;
             delete[] in;
@@ -211,6 +260,7 @@ namespace backyardbrains {
                         halfMaxMagnitude = maxMagnitude * 0.5f;
                     }
                     outData[counter][j] = static_cast<float>(outData[counter][j] / halfMaxMagnitude - 1.0);
+                    // outData[counter][j] = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);;
                 }
                 counter++;
 
@@ -221,6 +271,8 @@ namespace backyardbrains {
 
             windowCounter = counter;
             frequencyCounter = FFT_WINDOW_30HZ_DATA_SIZE;
+            // platform_log_fftp("\n windowCounter : \n");
+            // platform_log_fftp(std::to_string(windowCounter).c_str());
 
             delete[] dsSamples;
             delete[] tmpSamples;
@@ -235,6 +287,8 @@ namespace backyardbrains {
 
         void FftProcessor::init(float sampleRate) {
             //__android_log_print(ANDROID_LOG_DEBUG, TAG, "init(%f)", sampleRate);
+            // platform_log("\n sampleRate : \n");
+            // platform_log(std::to_string(sampleRate).c_str());
 
             // calculate number of samples that fit in single FFT window before downsampling
             oWindowSampleCount = static_cast<uint32_t>(FFT_WINDOW_TIME_LENGTH * sampleRate);
@@ -262,6 +316,8 @@ namespace backyardbrains {
 
         void FftProcessor::initNormalizationParams() {
             //__android_log_print(ANDROID_LOG_DEBUG, TAG, "initNormalizationParams()");
+            // platform_log("\n init Normalization params : \n");
+
 
             maxMagnitude = 4.83;
             halfMaxMagnitude = maxMagnitude * .5f;

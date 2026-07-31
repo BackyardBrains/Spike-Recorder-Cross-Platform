@@ -38,6 +38,14 @@ public class SwiftMicStreamPlugin: NSObject, FlutterStreamHandler, FlutterPlugin
             case "getBufferSize":
                 result(self.BUFFER_SIZE)
                 break;
+            case "stopListening":
+                self.session?.stopRunning()
+                self.session = nil
+                self.eventSink = nil
+                self.actualSampleRate = nil
+                self.actualBitDepth = nil
+                result(nil)
+                break;
             default:
                 result(FlutterMethodNotImplemented)
         }
@@ -45,6 +53,10 @@ public class SwiftMicStreamPlugin: NSObject, FlutterStreamHandler, FlutterPlugin
     
     public func onCancel(withArguments arguments:Any?) -> FlutterError?  {
         self.session?.stopRunning()
+        self.session = nil
+        self.eventSink = nil
+        self.actualSampleRate = nil
+        self.actualBitDepth = nil
         return nil
     }
 
@@ -90,11 +102,23 @@ public class SwiftMicStreamPlugin: NSObject, FlutterStreamHandler, FlutterPlugin
     }
     
     func startCapture() {
-    
+        self.session?.stopRunning()
+        self.session = nil
+
         if let audioCaptureDevice : AVCaptureDevice = AVCaptureDevice.default(for:AVMediaType.audio) {
 
             self.session = AVCaptureSession()
             do {
+                let audioSession = AVAudioSession.sharedInstance()
+                // Release any prior ExternalAccessory audio route before mic capture.
+                try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+                try audioSession.setCategory(
+                    .playAndRecord,
+                    mode: .measurement,
+                    options: [.defaultToSpeaker, .allowBluetooth]
+                )
+                try audioSession.setActive(true, options: [])
+
                 try audioCaptureDevice.lockForConfiguration()
                 
                 let audioInput = try AVCaptureDeviceInput(device: audioCaptureDevice)
@@ -156,9 +180,11 @@ public class SwiftMicStreamPlugin: NSObject, FlutterStreamHandler, FlutterPlugin
         
         if(self.actualSampleRate == nil) {
             let fd = CMSampleBufferGetFormatDescription(sampleBuffer)
-            let asbd:UnsafePointer<AudioStreamBasicDescription>? = CMAudioFormatDescriptionGetStreamBasicDescription(fd!)
-            self.actualSampleRate = asbd?.pointee.mSampleRate
-            self.actualBitDepth = asbd?.pointee.mBitsPerChannel
+            if let fd = fd,
+               let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(fd) {
+                self.actualSampleRate = asbd.pointee.mSampleRate
+                self.actualBitDepth = asbd.pointee.mBitsPerChannel
+            }
         }
         
         let data = Data(bytesNoCopy: audioBufferList.mBuffers.mData!, count: Int(audioBufferList.mBuffers.mDataByteSize), deallocator: .none)

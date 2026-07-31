@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ffi';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
+import 'package:flutter/material.dart';
 import 'package:native_add/model/model.dart';
 import 'package:native_add/native_add.dart' as native_add;
 import 'package:processing_ffi/processing_ffi.dart' as pb;
@@ -12,12 +13,18 @@ import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 class LocalPluginWindow implements LocalPlugin {
   final List<BufferHandlerOnDemand?> _bufferHandlerOnDemand =
       List.filled(channelCountBuffer, null);
+  @override
+  String currentExpansionBoardString = "";
 
+  @override
+  ValueNotifier channelCountNotifier = ValueNotifier(0);
+  
   @override
   Future<void> spawnHelperIsolate() async {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
 
     await native_add.spawnHelperIsolate();
+    print("spawnHelperIsolate :  $channelCountBuffer");
     for (int i = 0; i < channelCountBuffer; i++) {
       _bufferHandlerOnDemand[i] = BufferHandlerOnDemand(
         onDataAvailable: (Uint8List newList) {
@@ -104,5 +111,17 @@ class LocalPluginWindow implements LocalPlugin {
   StreamController<Uint8List> postDisplayStreamController =
       StreamController<Uint8List>();
   
+  int MAX_DISPLAY_SECONDS = 10000;
+  
+  int channelCount = 1;
+  int sampleRate = 10000;
+  int packetLen = 100000;
+  
+  @override
+  Stream<int>? postChannelCountStream;
+  
+  @override
+  // TODO: implement postChannelCountController
+  StreamController<int> get postChannelCountController => throw UnimplementedError();
 
 }

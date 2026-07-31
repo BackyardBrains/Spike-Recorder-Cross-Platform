@@ -4,13 +4,15 @@ import 'dart:typed_data';
 import 'package:native_add/model/model.dart';
 import 'package:spikerbox_architecture/models/local_plugins/local_plugins_check.dart';
 import 'package:native_add/native_add.dart' as native_add;
+import 'package:processing_ffi/processing_ffi.dart' as pb;
 import 'package:spikerbox_architecture/models/models.dart';
 import 'package:spikerbox_architecture/provider/graph_stream_data.dart';
 
 class LocalPluginAndroid implements LocalPlugin {
   final List<BufferHandlerOnDemand?> _bufferHandlerOnDemand =
       List.filled(channelCountBuffer, null);
-
+  @override
+  String currentExpansionBoardString = "";
   @override
   Future<void> spawnHelperIsolate() async {
     postFilterStream = postFilterStreamController.stream.asBroadcastStream();
@@ -27,10 +29,21 @@ class LocalPluginAndroid implements LocalPlugin {
 
   @override
   Future<bool> initNotchPassFilters(FilterSetup filterBaseSettingsModel) async {
-    bool checkInit = native_add.initNotchPassFilter(filterBaseSettingsModel);
-    return checkInit;
+    // native_add.SetUpNotchFilter();
+    // bool checkInit = native_add.initNotchPassFilter(filterBaseSettingsModel);
+    if (filterBaseSettingsModel.isFilterOn) {
+      if (filterBaseSettingsModel.filterConfiguration.cutOffFrequency == 50) {
+        pb.processingBindings.setNotchFilter(50);
+      } else 
+      if (filterBaseSettingsModel.filterConfiguration.cutOffFrequency == 60) {
+        pb.processingBindings.setNotchFilter(60);
+      } else {
+        pb.processingBindings.setNotchFilter(-1);
+      }
+    }
+    // print("the init notch Pass filter is $checkInit");
+    return true;
   }
-
   @override
   Future<void> filterArrayElements(
       {required array,
@@ -95,6 +108,13 @@ class LocalPluginAndroid implements LocalPlugin {
   int channelCount = 1;
   int sampleRate = 10000;
   int packetLen = 100000;
+  
+  @override
+  Stream<int>? postChannelCountStream;
+  
+  @override
+  // TODO: implement postChannelCountController
+  StreamController<int> get postChannelCountController => throw UnimplementedError();
 
   // @override
   // void initializeSerial(Board board) {

@@ -36,9 +36,11 @@ namespace backyardbrains {
 
             void setSelectedChannel(int selectedChannel);
 
-            void setBandFilter(float lowCutOffFreq, float highCutOffFreq);
+            void setBandFilter(int channelIdx, float lowCutOffFreq, float highCutOffFreq);
 
             void setNotchFilter(float centerFreq);
+
+            void setChannelFilterEnabled(int channel, bool enabled);
 
         protected:
             float getSampleRate();
@@ -65,9 +67,9 @@ namespace backyardbrains {
             // Default number of bits  per sample
             static constexpr int DEFAULT_BITS_PER_SAMPLE = 16;
 
-            void createFilters(float sampleRate, int channelCount);
+            void createFilters(float sampleRate, int channelCount, int channelIdx, float lowCutOffFreq, float highCutOffFreq, float centerFrequency);
 
-            void deleteFilters(int channelCount);
+            void deleteFilters(int channelCount, int channelIdx);
 
             typedef LowPassFilter *LowPassFilterPtr;
             typedef HighPassFilter *HighPassFilterPtr;
@@ -101,6 +103,8 @@ namespace backyardbrains {
             bool notchFilteringEnabled = false;
             // Notch filters for all channels
             NotchFilterPtr *notchFilter;
+
+            bool *channelFilterEnabled;
         };
     }
 }

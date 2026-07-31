@@ -17,7 +17,7 @@ namespace backyardbrains {
 
         class ThresholdProcessor : public Processor {
         public:
-            static constexpr int DEFAULT_SAMPLE_COUNT = static_cast<const int>(2.4f * 44100.0f);
+            static constexpr int DEFAULT_SAMPLE_COUNT = static_cast<const int>(2.4f * 48000.0f);
 
             explicit ThresholdProcessor(backyardbrains::utils::OnHeartbeatListener *listener);
 
@@ -55,7 +55,7 @@ namespace backyardbrains {
             static const char *TAG;
 
             // We shouldn't process more than 2.4 seconds of samples in any given moment
-            static constexpr float MAX_PROCESSED_SECONDS = 2.4f;
+            static constexpr float MAX_PROCESSED_SECONDS = 2.4f * 4;
             // When threshold is hit we should have a dead period of 5ms before checking for next threshold hit
             static constexpr float DEAD_PERIOD_SECONDS = 0.005f;
             // Default number of samples that needs to be summed to get the averaged sample

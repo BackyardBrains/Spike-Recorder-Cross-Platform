@@ -1,71 +1,47 @@
-// The Android Gradle Plugin builds the native code with the Android NDK.
+plugins {
+    id 'com.android.library'
+}
 
 group 'com.example.native_add'
 version '1.0'
 
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-
-    dependencies {
-        // The Android Gradle Plugin knows how to build native code with the NDK.
-        classpath 'com.android.tools.build:gradle:7.3.0'
-    }
-}
-
-rootProject.allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-
-apply plugin: 'com.android.library'
-
 android {
-    // Bumping the plugin compileSdkVersion requires all clients of this plugin
-    // to bump the version in their app.
-    compileSdkVersion 31
+    namespace 'com.example.native_add'
+    
+    // Bumping compileSdk requires clients to match this in their app
+    compileSdk 35
 
-    // Bumping the plugin ndkVersion requires all clients of this plugin to bump
-    // the version in their app and to download a newer version of the NDK.
-    ndkVersion "23.1.7779620"
-
-//     externalNativeBuild {
-//    cmake {
-//        // cppFlags are configured according to your selection
-//        // of "Customize C++ Support", in this codelab's
-//        //    "Create a Sample App with the C++ Template",
-//        //    step 6
-//        cppFlags "-std=c++17"
-//    }
-
-//     }
+    // NDK version matches your requirement for 16KB page size support
+    ndkVersion "28.2.13676358"
 
     // Invoke the shared CMake build with the Android Gradle Plugin.
     externalNativeBuild {
         cmake {
             path "../src/CMakeLists.txt"
-             version "3.10.2"
-
-            // The default CMake version for the Android Gradle Plugin is 3.10.2.
-            // https://developer.android.com/studio/projects/install-ndk#vanilla_cmake
-            //
-            // The Flutter tooling requires that developers have CMake 3.10 or later
-            // installed. You should not increase this version, as doing so will cause
-            // the plugin to fail to compile for some customers of the plugin.
-            // version "3.10.2"
+            version "3.22.1"
         }
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     defaultConfig {
-        minSdkVersion 16
+        minSdk 25
+        
+        // If you need specific C++ standards, define them here
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+            }
+        }
+    }
+
+    // Recommended for native plugins targeting modern Android (Pixel 9+ support)
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
 }

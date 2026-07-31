@@ -1,8 +1,13 @@
 //
 // Created by Tihomir Leka <tihomir at backyardbrains.com>
 //
-
 #include "ThresholdProcessor.h"
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/bind.h>
+    using namespace emscripten;
+    #include <emscripten.h>
+    #include <wasm_simd128.h>
+#endif
 
 namespace backyardbrains {
 

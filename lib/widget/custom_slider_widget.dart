@@ -1,9 +1,23 @@
+import 'dart:io';
+import 'dart:math';
+import 'package:another_xlider/another_xlider.dart';
+import 'package:another_xlider/models/handler.dart';
+import 'package:another_xlider/models/hatch_mark.dart';
+import 'package:another_xlider/models/hatch_mark_label.dart';
+import 'package:another_xlider/models/slider_step.dart';
+import 'package:another_xlider/models/tooltip/tooltip.dart';
+import 'package:another_xlider/models/tooltip/tooltip_box.dart';
+import 'package:another_xlider/models/trackbar.dart';
+import 'package:another_xlider/widgets/sized_box.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:native_add/model/model.dart';
 import 'package:provider/provider.dart';
+import 'package:spikerbox_architecture/functionality/debouncer.dart';
 import 'package:spikerbox_architecture/provider/custom_slider_provider.dart';
 import 'package:spikerbox_architecture/provider/provider_export.dart';
 
+import '../constant/app_theme.dart';
 import '../constant/const_export.dart';
 import '../models/constant.dart';
 import '../models/microphone_stream/microphone_stream_check.dart';
@@ -11,7 +25,7 @@ import '../screen/graph_template.dart';
 import '../models/processing_utils/processing_util.dart';
 
 class CustomSliderBarButton extends StatefulWidget {
-  const CustomSliderBarButton({
+  CustomSliderBarButton({
     required this.sliderValue,
     required this.startValue,
     required this.endValue,
@@ -21,11 +35,18 @@ class CustomSliderBarButton extends StatefulWidget {
     required this.onLowPassFilterSetup,
     required this.onSampleChange,
     required this.isMicrophoneEnable,
+    required this.channelIdx,
+    required this.channelCount,
+    this.readOnly = false,
   });
 
+  final int channelIdx;
+  final int channelCount;
   final double sliderValue;
-  final double startValue;
-  final double endValue;
+  double startValue;
+  double endValue;
+  bool readOnly;
+
   final ProcessingUtil processingUtil;
   final Function(bool) isMicrophoneEnable;
   final Function(bool) onSampleChange;
@@ -55,20 +76,97 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
   double start = 0;
   double end = 0;
   double maxFreq = 0;
+  
+  bool isMobileDevice = false;
+
+  static const double _rulerSnapThresholdHz = 10;
+
+  /// Snaps frequencies below 10 Hz to integer ruler ticks (0–9).
+  double _snapToRulerFrequency(double freq) {
+    if (freq <= 0) {
+      return 0;
+    }
+    if (freq < _rulerSnapThresholdHz) {
+      return freq.round().clamp(0, 9).toDouble();
+    }
+    return freq;
+  }
+
   @override
-  void initState() {
-    super.initState();
+  void dispose() {
+    _lowSampleRateController.dispose();
+    _lowCutOffController.dispose();
+    _highSampleRateController.dispose();
+    _highCutOffController.dispose();
+    super.dispose();
+  }
+
+  // Convert linear frequency to custom log space where 0-1 has step size of 1
+  double _linearToCustomLogSpace(double freq, double minLog, double log1) {
+    freq = _snapToRulerFrequency(freq);
+    if (freq == 0) {
+      return minLog; // 0 maps to minimum log position
+    } else if (freq <= 1) {
+      return log1;
+    } else {
+      return log(freq) / ln10;
+    }
+  }
+
+  double _clampStartFrequency(double value, double currentEnd) {
+    double clamped = _snapToRulerFrequency(value.clamp(0.0, maxFreq));
+    if (clamped >= currentEnd) {
+      clamped = _snapToRulerFrequency(max(0, currentEnd - 1).toDouble());
+    }
+    return clamped;
+  }
+
+  double _clampEndFrequency(double value, double currentStart) {
+    double clamped = _snapToRulerFrequency(value.clamp(0.0, maxFreq));
+    if (clamped <= currentStart) {
+      clamped = _snapToRulerFrequency(min(maxFreq, currentStart + 1));
+    }
+    return clamped;
+  }
+
+  // Convert custom log space back to linear frequency
+  double _customLogSpaceToLinear(double logVal, double minLog, double log1) {
+    // Use a threshold halfway between minLog and log1 to determine if we're closer to 0 or 1
+    double threshold = (minLog + log1) / 2;
+    final double freq;
+    if (logVal <= threshold) {
+      freq = 0;
+    } else if (logVal <= log1) {
+      freq = 1;
+    } else {
+      freq = pow(10, logVal).toDouble();
+    }
+    return _snapToRulerFrequency(freq);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     sliderValue = widget.sliderValue;
+
+    // print("startValue: ${context.read<CustomRangeSliderProvider>().startValue}");
+    // print("endValue: ${context.read<CustomRangeSliderProvider>().endValue}");
+    print("BUILD Slider Value: ${sliderValue}");
 
     sampleRate = context.read<SampleRateProvider>().sampleRate.toDouble();
     maxFreq = sampleRate / 2;
-    start = context.read<CustomRangeSliderProvider>().startValue;
-    double endValue = context.read<CustomRangeSliderProvider>().endValue;
+    final appColors =
+        AppThemeColors.of(context.watch<ThemeModeProvider>().isDarkMode);
+    final sliderProvider = context.watch<CustomRangeSliderProvider>();
+    start = sliderProvider.startValue[widget.channelIdx];
+    final double endValue = sliderProvider.endValue[widget.channelIdx];
     if (endValue == 0) {
       end = maxFreq;
     } else {
-      end = context.read<CustomRangeSliderProvider>().endValue;
+      end = endValue;
     }
+
+    // print("start: $start, end: $end");
+    // print("maxFreq: $maxFreq");
 
     _highPassFilterSettings =
         context.read<DataStatusProvider>().highPassFilterSettings;
@@ -88,83 +186,496 @@ class _CustomSliderState extends State<CustomSliderBarButton> {
 
     _isMicrophoneEnable = context.read<DataStatusProvider>().isMicrophoneData;
     _isSampleDataOn = context.read<DataStatusProvider>().isSampleDataOn;
-  }
-
-  @override
-  Widget build(BuildContext context) {
+    
+    // Allow 0 as minimum, but clamp end to maxFreq
+    if (start < 0) start = 0;
+    if (end < 0) end = 0;
+    if (end > maxFreq) end = maxFreq;
+    if (start >= end) {
+      end = min(maxFreq, start + 1);
+      if (start >= end) {
+        start = max(0, end - 1);
+      }
+    }
+    
+    // Use 0.1Hz as the minimum for logarithmic calculation (represents 0 in linear space)
+    const double minFreqForLog = 0.1;
+    double maxLog = log(maxFreq) / ln10;
+    double minLog = log(minFreqForLog) / ln10; // Use 0.1Hz for log calculation
+    double log1 = log(1.0) / ln10; // log(1) = 0, this is the boundary for 0-1 range
+    
+    // Convert linear to custom log space (0-1 is a single step)
+    double startLog = _linearToCustomLogSpace(start.clamp(0.0, maxFreq), minLog, log1);
+    double endLog = _linearToCustomLogSpace(end.clamp(0.0, maxFreq), minLog, log1);
+    
+    // Clamp log values to valid range
+    startLog = startLog.clamp(minLog, maxLog);
+    endLog = endLog.clamp(minLog, maxLog);
+    if (kIsWeb) {
+      isMobileDevice = false;
+    } else 
+    if (Platform.isIOS || Platform.isAndroid) {
+      isMobileDevice = true;
+    }
+    
+            
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+        Container(
+          padding: EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            // color: Color(0xFF2e2e2e),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          // padding: const EdgeInsets.symmetric(horizontal: 0),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.start,
+            mainAxisSize: MainAxisSize.max,
+            // crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SetFrequencyWidget(
-                frequencyType: "Low",
-                frequencyValue: start.toInt(),
-                maxFrequency: maxFreq,
-                onFrequencyChanged: (value) {
-                  start = value.toDouble();
-                  Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                      .setStartValue(start);
-                  double lowFreq = start == 0 ? -1 : start;
-                  double highFreq = end >= maxFreq ? -1 : end;
-                  widget.processingUtil.setBandFilter(lowFreq, highFreq);
-                  setState(() {});
-                },
+              if (!widget.readOnly && !isMobileDevice) ... [
+                SetFrequencyWidget(
+                  key: ValueKey('low-${widget.channelIdx}'),
+                  frequencyType: "Low",
+                  frequencyValue: start.toInt(),
+                  maxFrequency: maxFreq - 1,
+                  onFrequencyChanged: (value) {
+                    start = _clampStartFrequency(value.toDouble(), end);
+                    Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                        .setStartValue(start, widget.channelIdx);
+                    double lowFreq = start; // Allow 0 value
+                    double highFreq = end >= maxFreq ? -1 : end;
+                    // if (widget.channelIdx == -1) {
+                    //   for (int i = 0; i < widget.channelCount; i++) {
+                    //     widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                    //   }
+                    // } else {
+                    //   widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                    // }
+
+                    widget.startValue = start;
+                    print("START VALUE startValue CUSTOMIZing: ${widget.startValue}");
+                    settingBandFilter(start, end, maxFreq, widget);
+
+                    setState(() {});
+                    return start;
+                  },
+                ),
+              ],
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Icon(const IconData(0xe90d, fontFamily: "IcomoonIcons"), color: Colors.white),
+                        // SizedBox(width: 10),
+                        Text("Set band-pass filter cutoff frequencies",
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: appColors.textPrimary)),
+                        // Spacer(),
+                        // GestureDetector(
+                        //   onTap: () {
+                        //     print("Show up setting configuration");
+                        //   },
+                        //   child: Icon(const IconData(0xe90a, fontFamily: "IcomoonIcons"), color: Colors.white)
+                        // ),
+                      ],
+                    ),
+                    IgnorePointer(
+                      ignoring: widget.readOnly,
+                      child: FlutterSlider(
+                        values: [startLog, endLog],
+                        rangeSlider: true,
+                        min: minLog, // Fixed minimum in log space
+                        max: maxLog, // Fixed maximum in log space
+                        step: FlutterSliderStep(step: 0.01),
+                        
+                        // Styling to match the "ruler" image
+                        trackBar: FlutterSliderTrackBar(
+                          activeTrackBar: BoxDecoration(
+                            color: SoftwareColors.kButtonBackGroundColor,
+                            border: Border.all(color: Colors.grey.shade400, width: 0.5),
+                          ),
+                          inactiveTrackBar: BoxDecoration(
+                            color: appColors.sliderInactiveTrack,
+                            border: Border.all(color: Colors.grey.shade400, width: 0.5),
+                          ),
+                          activeTrackBarHeight: 20, // Match the thick bar in the image
+                          inactiveTrackBarHeight: 20,
+                        ),
+                      
+                        // Rectangular grey handlers as seen in your reference
+                        handler: customThumb(),
+                        rightHandler: customThumb(),
+                      
+                        // The "Ruler" markings
+                        hatchMark: FlutterSliderHatchMark(
+                          displayLines: false, // We turn off default lines to use our own
+                          labels: _generateRulerItems(minLog, maxLog, appColors),
+                        ),             
+                      
+                        tooltip: FlutterSliderTooltip(
+                          alwaysShowTooltip: false,
+                          boxStyle: FlutterSliderTooltipBox(
+                            decoration: BoxDecoration(color: Colors.black),
+                          ),
+                          textStyle: TextStyle(color: Colors.white, fontSize: 12),
+                          format: (String value) {
+                            // Convert custom log space back to linear frequency for display
+                            double logVal = double.tryParse(value) ?? 0;
+                            const double minFreqForLog = 0.1;
+                            double minLog = log(minFreqForLog) / ln10;
+                            double log1 = log(1.0) / ln10;
+                            double freq = _customLogSpaceToLinear(logVal, minLog, log1);
+                            if (freq == 0) {
+                              return "0";
+                            }
+                            return freq >= 1000 ? "${(freq / 1000).toStringAsFixed(1)}k" : freq.toStringAsFixed(0);
+                          },
+                        ),
+                      
+                        onDragging: (handlerIndex, lowerValue, upperValue) {
+                          print("onDragging: $lowerValue, $upperValue");
+                          setState(() {
+                            // Convert from custom log space back to linear frequency space
+                            const double minFreqForLog = 0.1;
+                            double minLog = log(minFreqForLog) / ln10;
+                            double log1 = log(1.0) / ln10;
+                            
+                            // Use custom conversion function
+                            start = _customLogSpaceToLinear(lowerValue, minLog, log1);
+                            end = _customLogSpaceToLinear(upperValue, minLog, log1);
+
+                            start = start.clamp(0.0, maxFreq);
+                            end = end.clamp(0.0, maxFreq);
+                            if (start >= end) {
+                              if (handlerIndex == 0) {
+                                start = _snapToRulerFrequency(
+                                  max(0, end - 1).toDouble(),
+                                );
+                              } else {
+                                end = _snapToRulerFrequency(
+                                  min(maxFreq, start + 1),
+                                );
+                              }
+                            }
+                      
+                            // 1. Update Provider
+                            final provider = Provider.of<CustomRangeSliderProvider>(context, listen: false);
+                            provider.setStartValue(start, widget.channelIdx);
+                            widget.startValue = start;
+                            provider.setEndValue(end, widget.channelIdx);
+                            widget.endValue = end;
+                      
+                            // 2. Logic for processingUtil - allow 0 value
+                            double lowFreq = start; // Allow 0 value
+                            // double highFreq = end >= maxFreq ? -1 : end;
+                            double highFreq = end >= maxFreq ? maxFreq : end;
+                            print("widget.channelIdx: ${widget.channelIdx} | end : $end | maxFreq: $maxFreq");
+                            if (widget.channelIdx == -1) {
+                              for (int i = 0; i < widget.channelCount; i++) {
+                                widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                              }
+                            } else {
+                              print("setBandFilter: ${widget.channelIdx}, lowFreq: $lowFreq, highFreq: $highFreq");
+                              widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                            }
+                          });
+                        },
+                      ),
+                    )                    
+                    // RangeSlider(
+                    //   inactiveColor: Colors.grey,
+                    //   activeColor: SoftwareColors.kGraphColor,
+                    //   values: RangeValues(start, end),
+                    //   labels: RangeLabels(start.toString(), end.toString()),
+                    //   onChanged: (value) {
+                    //     setState(() {
+                    //       start = value.start;
+                    //       end = value.end;
+                          
+                    //       // Update the slider values in provider
+                    //       Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                    //           .setStartValue(start);
+                    //       Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                    //           .setEndValue(end);
+                    
+                    //       // Pass -1 if start is 0 or end is at max
+                    //       double lowFreq = start == 0 ? -1 : start;
+                    //       double highFreq = end >= maxFreq ? -1 : end;
+                    //       widget.processingUtil.setBandFilter(lowFreq, highFreq);
+                    //     });
+                    //   },
+                    //   min: 0,
+                    //   max: maxFreq,
+                    // ),
+                  ],
+                ),
               ),
-              SetFrequencyWidget(
-                frequencyType: "High",
-                frequencyValue: end.toInt(),
-                maxFrequency: maxFreq,
-                onFrequencyChanged: (value) {
-                  end = value.toDouble();
-                  Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                      .setEndValue(end);
-                  double lowFreq = start == 0 ? -1 : start;
-                  double highFreq = end >= maxFreq ? -1 : end;
-                  widget.processingUtil.setBandFilter(lowFreq, highFreq);
-                  setState(() {});
-                },
+
+              if (!widget.readOnly && !isMobileDevice) ... [
+                SetFrequencyWidget(
+                  key: ValueKey('high-${widget.channelIdx}'),
+                  frequencyType: "High",
+                  frequencyValue: end.toInt(),
+                  maxFrequency: maxFreq,
+                  onFrequencyChanged: (value) {
+                    print("end: $end");
+                    end = _clampEndFrequency(value.toDouble(), start);
+                    print("end after clamp: $end");
+                    Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                        .setEndValue(end, widget.channelIdx);
+                    double lowFreq = start; // Allow 0 value
+                    double highFreq = end >= maxFreq ? -1 : end;
+                    // widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                    // if (widget.channelIdx == -1) {
+                    //   for (int i = 0; i < widget.channelCount; i++) {
+                    //     widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+                    //   }
+                    // } else {
+                    //   widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+                    // }
+                    widget.endValue = end;
+                    print("endValue CUSTOMIZing: ${widget.endValue}");
+                    settingBandFilter(start, end, maxFreq, widget);
+
+                    setState(() {});
+                    return end;
+                  },
+                ),
+              ],
+              
+            ],
+          ),
+        ),
+        if (isMobileDevice) ... [
+          Row(
+            children: [
+              Container(
+                margin: EdgeInsets.only(left:10, bottom: 10),
+                child: SetFrequencyWidget(
+                  key: ValueKey('low-mobile-${widget.channelIdx}'),
+                  frequencyType: "Low",
+                  frequencyValue: start.toInt(),
+                  maxFrequency: maxFreq,
+                  onFrequencyChanged: (value) {
+                    start = _clampStartFrequency(value.toDouble(), end);
+                    Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                        .setStartValue(start, widget.channelIdx);
+                    widget.startValue = start;
+                    settingBandFilter(start, end, maxFreq, widget);
+                    setState(() {});
+                    return start;
+                  },
+                ),
+              ),
+              Spacer(),
+              Container(
+                margin: EdgeInsets.only(right:10, bottom: 10),
+                child: SetFrequencyWidget(
+                  key: ValueKey('high-mobile-${widget.channelIdx}'),
+                  frequencyType: "High",
+                  frequencyValue: end.toInt(),
+                  maxFrequency: maxFreq,
+                  onFrequencyChanged: (value) {
+                    end = _clampEndFrequency(value.toDouble(), start);
+                    Provider.of<CustomRangeSliderProvider>(context, listen: false)
+                        .setEndValue(end, widget.channelIdx);
+                    widget.endValue = end;
+                    settingBandFilter(start, end, maxFreq, widget);
+                    setState(() {});
+                    return end;
+                  },
+                ),
+              ),
+
+
+            ],
+          ),
+        ]
+        
+      //   Row(
+      //     children: [
+      //       Expanded(
+      //         child: RangeSlider(
+      //           inactiveColor: Colors.grey,
+      //           activeColor: SoftwareColors.kGraphColor,
+      //           values: RangeValues(start, end),
+      //           labels: RangeLabels(start.toString(), end.toString()),
+      //           onChanged: (value) {
+      //             setState(() {
+      //               start = value.start;
+      //               end = value.end;
+                    
+      //               // Update the slider values in provider
+      //               Provider.of<CustomRangeSliderProvider>(context, listen: false)
+      //                   .setStartValue(start);
+      //               Provider.of<CustomRangeSliderProvider>(context, listen: false)
+      //                   .setEndValue(end);
+
+      //               // Pass -1 if start is 0 or end is at max
+      //               double lowFreq = start == 0 ? -1 : start;
+      //               double highFreq = end >= maxFreq ? -1 : end;
+      //               widget.processingUtil.setBandFilter(lowFreq, highFreq);
+      //             });
+      //           },
+      //           min: 0,
+      //           max: maxFreq,
+      //         ),
+      //       ),
+      //     ],
+      //   ),
+      ],
+    );
+  }
+
+
+  List<FlutterSliderHatchMarkLabel> _generateRulerItems(
+      double minL, double maxL, AppThemeColors appColors) {
+    List<FlutterSliderHatchMarkLabel> items = [];
+
+    // Add 0 label at the leftmost position (minL represents 0 via 0.1Hz mapping)
+    const double minFreqForLog = 0.1;
+    double minLogForZero = log(minFreqForLog) / ln10;
+    if ((minL - minLogForZero).abs() < 0.01) { // Check if minL represents 0
+      items.add(
+        FlutterSliderHatchMarkLabel(
+          percent: 0,
+          label: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: 42),
+              Container(
+                width: 1,
+                height: 10, // Major tick height
+                color: appColors.sliderTick,
+              ),
+              Text(
+                "0",
+                style: TextStyle(color: appColors.textPrimary, fontSize: 10),
               ),
             ],
           ),
         ),
-        Row(
-          children: [
-            Expanded(
-              child: RangeSlider(
-                inactiveColor: Colors.grey,
-                activeColor: SoftwareColors.kGraphColor,
-                values: RangeValues(start, end),
-                labels: RangeLabels(start.toString(), end.toString()),
-                onChanged: (value) {
-                  setState(() {
-                    start = value.start;
-                    end = value.end;
-                    
-                    // Update the slider values in provider
-                    Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                        .setStartValue(start);
-                    Provider.of<CustomRangeSliderProvider>(context, listen: false)
-                        .setEndValue(end);
+      );
+    }
 
-                    // Pass -1 if start is 0 or end is at max
-                    double lowFreq = start == 0 ? -1 : start;
-                    double highFreq = end >= maxFreq ? -1 : end;
-                    widget.processingUtil.setBandFilter(lowFreq, highFreq);
-                  });
-                },
-                min: 0,
-                max: maxFreq,
+    // Iterate through decades (1, 10, 100, 1000, 10000)
+    for (int exp = 0; exp <= 4; exp++) {
+      // Major ticks (powers of 10)
+      num majorVal = pow(10, exp);
+      if (majorVal > maxFreq) break;
+      
+      double majorLogVal = log(majorVal) / ln10;
+      double majorPercent = ((majorLogVal - minL) / (maxL - minL)) * 100;
+      
+      // Add major tick mark (taller)
+      items.add(
+        FlutterSliderHatchMarkLabel(
+          percent: majorPercent,
+          label: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: 42),
+              Container(
+                width: 1,
+                height: 10, // Major tick height
+                color: appColors.sliderTick,
+              ),
+              Text(
+                _formatLabel(majorVal.toDouble()),
+                style: TextStyle(color: appColors.textPrimary, fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Minor ticks (2-9 within each decade)
+      if (exp < 4) { // Don't add minor ticks after the last major tick
+        for (int m = 2; m <= 9; m++) {
+          num minorVal = m * pow(10, exp);
+          if (minorVal > maxFreq) break;
+          
+          double minorLogVal = log(minorVal) / ln10;
+          double minorPercent = ((minorLogVal - minL) / (maxL - minL)) * 100;
+          
+          // Add minor tick mark (shorter)
+          items.add(
+            FlutterSliderHatchMarkLabel(
+              percent: minorPercent,
+              label: Container(
+                margin: EdgeInsets.only(top: 24),
+                width: 1,
+                height: 6, // Minor tick height
+                color: appColors.sliderTick,
               ),
             ),
-          ],
-        ),
-      ],
+          );
+        }
+      }
+    }
+    return items;
+  }
+
+  String _formatLabel(double value) {
+    int intVal = value.toInt();
+    // Format numbers >= 1000 with commas
+    if (intVal >= 1000) {
+      String str = intVal.toString();
+      // Add comma every 3 digits from right
+      String result = '';
+      for (int i = 0; i < str.length; i++) {
+        if (i > 0 && (str.length - i) % 3 == 0) {
+          result += ',';
+        }
+        result += str[i];
+      }
+      return result;
+    }
+    return intVal.toString();
+  }
+
+
+  FlutterSliderHandler customThumb() {
+    return FlutterSliderHandler(
+      // 1. Remove the default white circle and shadow here
+      decoration: BoxDecoration(
+        color: Colors.transparent, // Removes the white background
+      ),
+      // 2. Disable the shadow if it's still appearing
+      // shadowStep: 0, 
+      child: Container(
+        width: 24,
+        height: 24,
+        color: Colors.grey, // Your square box
+      ),
     );
   }
+  
+  void settingBandFilter(double start, double end, double maxFreq, CustomSliderBarButton widget) {
+    double lowFreq = start; // Allow 0 value
+    // double highFreq = end >= maxFreq ? -1 : end;
+    double highFreq = end >= maxFreq ? maxFreq : end;
+    print("widget.channelIdx: ${widget.channelIdx} | end : $end | maxFreq: $maxFreq");
+    if (widget.channelIdx == -1) {
+      for (int i = 0; i < widget.channelCount; i++) {
+        widget.processingUtil.setBandFilter(i, lowFreq, highFreq);
+      }
+    } else {
+      print("setBandFilter: ${widget.channelIdx}, lowFreq: $lowFreq, highFreq: $highFreq");
+      widget.processingUtil.setBandFilter(widget.channelIdx, lowFreq, highFreq);
+    }
+  }
+
 }
+
 
 class SetFrequencyWidget extends StatefulWidget {
   const SetFrequencyWidget({
@@ -187,6 +698,7 @@ class SetFrequencyWidget extends StatefulWidget {
 class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
   late TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
+  Debouncer debouncer = Debouncer(milliseconds: 777);
 
   @override
   void initState() {
@@ -198,8 +710,9 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
   @override
   void didUpdateWidget(SetFrequencyWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Update text field when slider changes the value
-    if (oldWidget.frequencyValue != widget.frequencyValue) {
+    // Sync from slider only when the field is not being edited.
+    if (!_focusNode.hasFocus &&
+        oldWidget.frequencyValue != widget.frequencyValue) {
       _controller.text = widget.frequencyValue.toString();
     }
   }
@@ -213,12 +726,15 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
 
   void _onFocusChange() {
     if (!_focusNode.hasFocus) {
-      _validateAndUpdate();
+      debouncer.run(() {
+        _validateAndUpdate();
+      });
     }
   }
 
   void _validateAndUpdate() {
     // Parse the input, defaulting to 0 if invalid
+    print("validateAndUpdate: ${_controller.text}");
     int? value = int.tryParse(_controller.text);
     if (value == null) {
       value = 0;
@@ -226,22 +742,34 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
 
     // Clamp the value between 0 and maxFrequency
     value = value.clamp(0, widget.maxFrequency.toInt());
-
-    // Update the controller text to show the clamped value
-    _controller.text = value.toString();
+    debouncer.run(() {
+      print("debouncer: $value");
+      // Update the controller text to show the clamped value
+      // Notify parent about the change
+      double newFrequency = widget.onFrequencyChanged(value!);
+      _controller.text = newFrequency.floor().toString();
+    });
     
-    // Notify parent about the change
-    widget.onFrequencyChanged(value);
+  }
+
+  updateFrequencyController(int value) {
+    _controller.text = value.toString();
   }
 
   @override
   Widget build(BuildContext context) {
+    final appColors =
+        AppThemeColors.of(context.watch<ThemeModeProvider>().isDarkMode);
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "${widget.frequencyType} Frequency",
-          style: SoftwareTextStyle().kWtMediumTextStyle,
+          "${widget.frequencyType}",
+          style: SoftwareTextStyle().kWtMediumTextStyle.copyWith(
+              color: appColors.textSecondary, fontWeight: FontWeight.w500),
+          textAlign: TextAlign.left,
         ),
+        SizedBox(height: 4),
         SizedBox(
           width: 100,
           child: TextField(
@@ -252,25 +780,114 @@ class _SetFrequencyWidgetState extends State<SetFrequencyWidget> {
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
               filled: true,
-              fillColor: Colors.grey[800],
+              fillColor: appColors.inputBackground,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             ),
+
             onTap: () {
-              // Select all text when tapped
               _controller.selection = TextSelection(
                 baseOffset: 0,
                 extentOffset: _controller.text.length,
               );
             },
-            onSubmitted: (value) {
-              _validateAndUpdate();
-            },
+            onChanged: (_) => _validateAndUpdate(),
+            onSubmitted: (_) => _validateAndUpdate(),
+            onEditingComplete: _validateAndUpdate,
           ),
         ),
       ],
     );
-  }
+  }  
 }
+
+
+
+
+// class LogarithmicFilter extends StatefulWidget {
+//   @override
+//   _LogarithmicFilterState createState() => _LogarithmicFilterState();
+// }
+
+// class _LogarithmicFilterState extends State<LogarithmicFilter> {
+//   // We use a linear range for the slider (0 to 1) and map it to log values
+//   RangeValues _sliderValues = const RangeValues(0.1, 0.5); 
+  
+//   final double minFreq = 1.0;
+//   final double maxFreq = 22050.0;
+
+//   // Convert linear slider position to logarithmic frequency
+//   double _lerpLog(double value) {
+//     return minFreq * pow(maxFreq / minFreq, value);
+//   }
+
+//   // Convert frequency back to linear slider position (for initial setup)
+//   double _invLerpLog(double frequency) {
+//     return log(frequency / minFreq) / log(maxFreq / minFreq);
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     double lowFreq = _lerpLog(_sliderValues.start);
+//     double highFreq = _lerpLog(_sliderValues.end);
+
+//     return Column(
+//       children: [
+//         Row(
+//           mainAxisAlignment: MainAxisAlignment.spaceAround,
+//           children: [
+//             _buildValueBox("Low", lowFreq.toInt().toString(), isSelected: true),
+//             _buildValueBox("High", highFreq.toInt().toString(), isSelected: false),
+//           ],
+//         ),
+//         SliderTheme(
+//           data: SliderThemeData(
+//             activeTrackColor: Color(0xFFFF7A5C),
+//             inactiveTrackColor: Colors.grey[800],
+//             trackHeight: 20,
+//             rangeThumbShape: RoundRangeSliderThumbShape(enabledThumbRadius: 0),
+//           ),
+//           child: RangeSlider(
+//             values: _sliderValues,
+//             min: 0.0,
+//             max: 1.0,
+//             onChanged: (values) {
+//               setState(() => _sliderValues = values);
+//             },
+//           ),
+//         ),
+//         // Frequency labels aligned to the log scale
+//         Padding(
+//           padding: const EdgeInsets.symmetric(horizontal: 20),
+//           child: Row(
+//             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//             children: [1, 10, 100, 1000, 10000].map((f) {
+//               return Text('$f', style: TextStyle(color: Colors.white, fontSize: 10));
+//             }).toList(),
+//           ),
+//         )
+//       ],
+//     );
+//   }
+
+//   // Helper for the value boxes
+//   Widget _buildValueBox(String label, String value, {bool isSelected = false}) {
+//     return Column(
+//       children: [
+//         Text(label, style: TextStyle(color: Colors.grey, fontSize: 12)),
+//         Container(
+//           margin: EdgeInsets.only(top: 4),
+//           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+//           decoration: BoxDecoration(
+//             color: Color(0xFF333333),
+//             border: Border.all(color: isSelected ? Colors.purpleAccent : Colors.transparent),
+//             borderRadius: BorderRadius.circular(4),
+//           ),
+//           child: Text(value, style: TextStyle(color: Colors.white)),
+//         ),
+//       ],
+//     );
+//   }
+// }

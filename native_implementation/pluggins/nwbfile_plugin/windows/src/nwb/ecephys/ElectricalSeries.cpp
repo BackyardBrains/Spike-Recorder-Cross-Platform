@@ -1,0 +1,211 @@
+#include <algorithm>
+#include <functional>
+
+#include "nwb/ecephys/ElectricalSeries.hpp"
+
+#include "Utils.hpp"
+#include "nwb/file/ElectrodesTable.hpp"
+
+using namespace AQNWB::NWB;
+
+// ElectricalSeries
+// Initialize the static registered_ member to trigger registration
+REGISTER_SUBCLASS_IMPL(ElectricalSeries)
+
+/** Constructor */
+ElectricalSeries::ElectricalSeries(const std::string& path,
+                                   std::shared_ptr<IO::BaseIO> io)
+    : TimeSeries(path, io)
+{
+}
+
+/** Destructor */
+ElectricalSeries::~ElectricalSeries() {}
+
+/** Initialization function*/
+Status ElectricalSeries::initialize(
+    const IO::BaseArrayDataSetConfig& dataConfig,
+    const Types::ChannelVector& channelVector,
+    const std::string& description,
+    const float& conversion,
+    const float& resolution,
+    const float& offset)
+{
+  auto ioPtr = getIO();
+  if (!ioPtr) {
+    std::cerr << "ElectricalSeries::initialize: IO object is not valid."
+              << std::endl;
+    return Status::Failure;
+  }
+
+  // Validate channelVector is not empty
+  if (channelVector.empty()) {
+    std::cerr << "ElectricalSeries::initialize: channelVector cannot be empty."
+              << std::endl;
+    return Status::Failure;
+  }
+
+  auto tsInitStatus = TimeSeries::initialize(dataConfig,
+                                             "volts",
+                                             description,
+                                             channelVector[0].getComments(),
+                                             conversion,
+                                             resolution,
+                                             offset);
+
+  this->m_channelVector = channelVector;
+
+  // get the number of electrodes from the electrode table
+  std::string idPath =
+      AQNWB::mergePaths(ElectrodesTable::electrodesTablePath, "id");
+  SizeArray elecTableDsetSize = ioPtr->getStorageObjectShape(idPath);
+  SizeType numElectrodes = elecTableDsetSize[0];
+
+  // setup variables based on number of channels
+  std::vector<int> electrodeInds(channelVector.size());
+  std::vector<float> channelConversions(channelVector.size());
+  for (size_t i = 0; i < channelVector.size(); ++i) {
+    SizeType globalIndex = channelVector[i].getGlobalIndex();
+    if (globalIndex >= numElectrodes) {
+      std::cerr << "ElectricalSeries::initialize electrode index "
+                << globalIndex << " is out of range. Max index is "
+                << (numElectrodes - 1) << std::endl;
+      return Status::Failure;
+    }
+    electrodeInds[i] = static_cast<int>(channelVector[i].getGlobalIndex());
+    channelConversions[i] = channelVector[i].getConversion();
+  }
+  m_samplesRecorded = SizeArray(channelVector.size(), 0);
+
+  // make channel conversion dataset (1D array with num_channels elements)
+  // use default chunk size of 8192 or use the num_channels if less than 2
+  // chunks would be created with the default chunk size
+  SizeType channelChunkSize =
+      channelVector.size() < 16385 ? channelVector.size() : 8192;
+  IO::ArrayDataSetConfig channelConversionConfig(
+      IO::BaseDataType::F32,
+      SizeArray {channelVector.size()},
+      SizeArray {channelChunkSize});
+  try {
+    ioPtr->createArrayDataSet(
+        channelConversionConfig,
+        AQNWB::mergePaths(getPath(), "/channel_conversion"));
+    auto channelConversionRecorder = recordChannelConversion();
+    channelConversionRecorder->writeDataBlock(
+        SizeArray(1, channelVector.size()),
+        IO::BaseDataType::F32,
+        &channelConversions[0]);
+    // add axis attribute for channel conversion
+    const signed int axis_value = 1;
+    ioPtr->createAttribute(IO::BaseDataType::I32,
+                           &axis_value,
+                           AQNWB::mergePaths(getPath(), "channel_conversion"),
+                           "axis",
+                           1);
+  } catch (const std::runtime_error& e) {
+    std::cerr << "Failed to create or write channel conversion dataset: "
+              << e.what() << std::endl;
+    return Status::Failure;
+  }
+
+  // make electrodes dataset (1D array with num_channels elements)
+  IO::ArrayDataSetConfig electrodesConfig(IO::BaseDataType::I32,
+                                          SizeArray {channelVector.size()},
+                                          SizeArray {channelChunkSize});
+  try {
+    ioPtr->createArrayDataSet(electrodesConfig,
+                              AQNWB::mergePaths(getPath(), "electrodes"));
+
+    auto electrodesRecorder = recordElectrodes();
+    electrodesRecorder->writeDataBlock(SizeArray {channelVector.size()},
+                                       IO::BaseDataType::I32,
+                                       &electrodeInds[0]);
+    auto electrodesPath = AQNWB::mergePaths(getPath(), "electrodes");
+    ioPtr->createCommonNWBAttributes(
+        electrodesPath, "hdmf-common", "DynamicTableRegion");
+    ioPtr->createAttribute(
+        "the electrodes that generated this electrical series",
+        electrodesPath,
+        "description");
+    ioPtr->createReferenceAttribute(ElectrodesTable::electrodesTablePath,
+                                    AQNWB::mergePaths(getPath(), "electrodes"),
+                                    "table");
+  } catch (const std::runtime_error& e) {
+    std::cerr << "Failed to create or write electrodes dataset: " << e.what()
+              << std::endl;
+    return Status::Failure;
+  }
+
+  return tsInitStatus;
+}
+
+Status ElectricalSeries::writeChannel(SizeType channelInd,
+                                      const SizeType& numSamples,
+                                      const void* dataInput,
+                                      const void* timestampsInput,
+                                      const void* controlInput)
+{
+  // get offsets and datashape
+  SizeArray dataShape = {
+      numSamples, 1};  // Note: schema has 1D and 3D but planning to deprecate
+  SizeArray positionOffset = {m_samplesRecorded[channelInd], channelInd};
+
+  // track samples recorded per channel
+  m_samplesRecorded[channelInd] += numSamples;
+
+  // write channel data
+  if (channelInd == 0) {
+    return TimeSeries::writeData(
+        dataShape, positionOffset, dataInput, timestampsInput, controlInput);
+  } else {
+    return TimeSeries::writeData(dataShape, positionOffset, dataInput);
+  }
+}
+
+Status ElectricalSeries::writeAllChannels(const SizeType& numSamples,
+                                          const void* dataInput,
+                                          const void* timestampsInput,
+                                          const void* controlInput)
+{
+  // All channels must be at the same sample offset before calling this
+  // function (i.e. m_samplesRecorded must be uniform across all channels).
+  // This is always satisfied when writeAllChannels is called exclusively for
+  // every write, but would be violated if writeChannel had previously been
+  // called for only a subset of channels.
+  if (!channelsAtSameSampleOffset()) {
+    std::cerr << "ElectricalSeries::writeAllChannels: channels are at "
+                 "different sample offsets. All channels must have the same "
+                 "number of samples recorded before calling writeAllChannels."
+              << std::endl;
+    return Status::Failure;
+  }
+
+  // Write all channels at once using a [numSamples, numChannels] block.
+  // The caller provides data in interleaved (row-major) order:
+  //   [t0_ch0, t0_ch1, ..., t0_chK, t1_ch0, ..., tJ_chK]
+  SizeType numChannels = m_channelVector.size();
+  SizeArray dataShape = {numSamples, numChannels};
+  SizeArray positionOffset = {m_samplesRecorded[0], 0};
+
+  // Perform the write operation first.
+  Status status = TimeSeries::writeData(
+      dataShape, positionOffset, dataInput, timestampsInput, controlInput);
+
+  // Only advance the sample counter for every channel if the write succeeded.
+  if (status == Status::Success) {
+    for (auto& count : m_samplesRecorded) {
+      count += numSamples;
+    }
+  }
+
+  return status;
+}
+
+bool ElectricalSeries::channelsAtSameSampleOffset() const
+{
+  return m_samplesRecorded.empty()
+      || std::adjacent_find(m_samplesRecorded.begin(),
+                            m_samplesRecorded.end(),
+                            std::not_equal_to<SizeType>())
+      == m_samplesRecorded.end();
+}

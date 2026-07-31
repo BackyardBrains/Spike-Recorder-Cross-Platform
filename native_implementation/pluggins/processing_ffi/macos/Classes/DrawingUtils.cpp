@@ -1,8 +1,23 @@
 //
 // Created by Tihomir Leka <tihomir at backyardbrains.com>
 //
-
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/bind.h>
+    using namespace emscripten;
+    #include <emscripten.h>
+    #include <wasm_simd128.h>
+#endif
 #include <DrawingUtils.h>
+
+#include <cstring>
+#include <string>
+#define IS_WIN32 defined(WIN32) || defined(_WIN32) || defined(__WIN32)
+void platform_log(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+}
 
 namespace backyardbrains {
 
@@ -57,8 +72,17 @@ namespace backyardbrains {
             int currentIndex = 0;
             int currentColor = 0;
             auto w = (short) (widthSegments + 1);
+
+
+            // platform_log("\nWindow Count : \n");
+            // platform_log(std::to_string(windowCount).c_str());
+            // platform_log("\nWidth Segments : \n");
+            // platform_log(std::to_string(xWidth).c_str());
+            // platform_log("\nHeight Segments: \n");
+            // platform_log(std::to_string(yHeight).c_str());
             for (int y = 0; y < heightSegments + 1; y++) {
                 for (int x = 0; x < widthSegments + 1; x++) {
+
                     outVertices[currentVertex] = xOffset + x * xWidth;
                     outVertices[currentVertex + 1] = yOffset + y * yHeight;
                     currentVertex += 2;
@@ -83,10 +107,26 @@ namespace backyardbrains {
                     outColors[currentColor + 1] = green(gray);
                     outColors[currentColor + 2] = blue(gray);
                     outColors[currentColor + 3] = 1.0f;
+                    // platform_log("\nCurrent FFT: \n");
+                    // platform_log(std::to_string(fft[x][y]).c_str());
+                    // platform_log("\nCurrent Color RED: \n");
+                    // platform_log(std::to_string(outColors[currentColor + 0]).c_str());
+                    // platform_log("\nCurrent Color Green: \n");
+                    // platform_log(std::to_string(outColors[currentColor + 1]).c_str());
+                    // platform_log("\nCurrent Color Blue: \n");
+                    // platform_log(std::to_string(outColors[currentColor + 2]).c_str());
 
                     currentColor += 4;
                 }
             }
+            // outVertices[0] = -123;
+            // outVertices[1] = -456;
+
+            // platform_log("\Current Vertex: \n");
+            // platform_log(std::to_string(currentVertex).c_str());
+            // platform_log("\Current Color: \n");
+            // platform_log(std::to_string(currentColor).c_str());
+
         }
 
         void DrawingUtils::prepareSpikesForDrawing(float *outVertices, float *outColors, int &outVertexCount,
@@ -163,6 +203,7 @@ namespace backyardbrains {
                             if (eventCounter > 0) {
                                 for (int k = 0; k < eventCounter; k++) {
                                     outEventIndices[eventIndex++] = sampleIndex;
+
                                 }
                             }
                             outSamples[i][sampleIndex++] = max;
@@ -180,7 +221,21 @@ namespace backyardbrains {
 
                 outSampleCount[i] = sampleIndex;
                 if (!eventsProcessed) outEventIndicesCount = eventIndex;
-
+                // platform_log("\n samplesPerPixel : \n");
+                // platform_log(std::to_string(samplesPerPixel).c_str());
+                // platform_log("\n");
+                // platform_log("\n samplesPerPixelRest : \n");
+                // platform_log(std::to_string(samplesPerPixelRest).c_str());
+                // platform_log("\n");
+                // platform_log("\n drawSamplesCount : \n");
+                // platform_log(std::to_string(drawSamplesCount).c_str());
+                // platform_log("\n");
+                // platform_log("\n drawSurfaceWidth : \n");
+                // platform_log(std::to_string(drawSurfaceWidth).c_str());
+                // platform_log("\n");
+                // platform_log("\n sampleIndex : \n");
+                // platform_log(std::to_string(sampleIndex).c_str());
+                // platform_log("\n");
                 eventsProcessed = true;
                 sampleIndex = 0;
                 eventIndex = 0;

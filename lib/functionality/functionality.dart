@@ -21,33 +21,34 @@ class SetUpFunctionality {
   }
   static Future<dynamic> getDeviceCatalog(localData) async {
     String url =
-        "https://firebasestorage.googleapis.com/v0/b/webspikerecorder.appspot.com/o/default_config.json?alt=media&token=8b0f5e9c-110a-455d-99e9-9fbc0a875f99";
+        // "https://firebasestorage.googleapis.com/v0/b/webspikerecorder.appspot.com/o/default_config.json?alt=media&token=8b0f5e9c-110a-455d-99e9-9fbc0a875f99";
+        "https://firebasestorage.googleapis.com/v0/b/webspikerecorder.appspot.com/o/default_config.json?alt=media&token=26b43910-0d36-411a-b8c0-9de4bdfaa874";
     print("getDeviceCatalog");
     var config = localData;
-    try {
-      final response = (await https.get(Uri.parse(url)));
-      if (response.statusCode == 200) {
-        print("found https");
-        config = response.body;
-      } else {
-        print("error https");
-        config = localData;
-      }
-    } catch (err) {
-      config = localData;
-      print("err");
-      print(err);
-    }
+    // try {
+    //   final response = (await https.get(Uri.parse(url)));
+    //   if (response.statusCode == 200) {
+    //     print("found https");
+    //     config = response.body;
+    //   } else {
+    //     print("error https");
+    //     config = localData;
+    //   }
+    // } catch (err) {
+    //   config = localData;
+    //   print("err getting device catalog");
+    //   print(err);
+    // }
 
     return config;
   }
 
 
   Future<Config> getAllDeviceList() async {
-    print("getAllDeviceList000");
-    print(defaultDeviceConfig);
+    // print("getAllDeviceList000");
+    // print(defaultDeviceConfig);
     if (defaultDeviceConfig != null) {
-      print("defaultDeviceConfig");
+      // print("defaultDeviceConfig");
       DefaultConfig data = await SetUpFunctionality().jsonLoad();
       defaultDeviceConfig = data;
       return defaultDeviceConfig!.config!;

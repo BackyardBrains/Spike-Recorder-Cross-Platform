@@ -22,8 +22,10 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
     this.gain = 100,
     this.levelMedian = -1,
     this.strokeWidth = 0.5,
-    this.eventMarkersNumber = 1,
+    this.eventMarkersNumber = const [],
     this.eventMarkersPosition = const [],
+    this.canvasOffsetY = 0,
+    this.screenHeight = 0,
   }) : super(
           samples: samples,
           color: color,
@@ -63,8 +65,10 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
   final double gain;
   final double levelMedian;
   final double strokeWidth;
-  final int eventMarkersNumber;
+  final List<int> eventMarkersNumber;
   final List<double> eventMarkersPosition;
+  final double canvasOffsetY;
+  final double screenHeight;
 
   double prevMax = 0;
   double curMax = 0;
@@ -102,45 +106,45 @@ class PolygonInActiveWaveformPainter extends InActiveWaveformPainter {
       int i = 0;
       for (; i < samples.length - 1; i++) {
         final x = sampleWidth * i;
-        final y = samples[i] * gain;
+        final y = -samples[i] * gain + levelMedian;
+        // path.lineTo(x, y);
+        // final y = samples[i] * gain;
         path.lineTo(x, y);
-        // if (i < 10) {
-        //   print("values at index $i : ${samples[i]}");
-        // }
-        // if (i == 0) {
-        //   path.moveTo(x, y);
-        // } else {
-        //   path.lineTo(x, y);
-        // }
       }
 
-      final shiftedPath = path.shift(Offset(0, levelMedian));
-      canvas.drawPath(shiftedPath, mypaint);
+
+      // final shiftedPath = path.shift(Offset(0, levelMedian));
+      // canvas.drawPath(shiftedPath, mypaint);
+
+      canvas.drawPath(path, mypaint);
       if (eventMarkersPosition.isNotEmpty && channelIdx == channelActive) {
-        var n = eventMarkersPosition.length;
+        var n = eventMarkersNumber.length;
         double prevX = -1;
         double counterStacked = 10;
-        double evY = 0;
-        if (channelIdx == 2) {
-          evY = -50;
-        }
 
-        // try{
+        final double lineTop = -canvasOffsetY;
+        final double lineBottom =
+            screenHeight > 0 ? screenHeight - canvasOffsetY : size.height;
+
         for (i = 0; i < n; i++) {
-          if (eventMarkersPosition[i] == 0) {
+          if (eventMarkersPosition[i] <= 0) {
             continue;
           }
           final evX = eventMarkersPosition[i];
-          final offset1 = Offset(evX, evY);
-          final offset2 = Offset(evX, 2900);
+          final offset1 = Offset(evX, lineTop);
+          final offset2 = Offset(evX, lineBottom);
 
           canvas.drawLine(
             offset1,
             offset2,
-            MARKER_PAINT[eventMarkersNumber],
+            MARKER_PAINT[eventMarkersNumber[i]],
           );
-          final TextPainter tp = textPainters[eventMarkersNumber];
-          counterStacked = i > 0 && evX - 20 <= prevX ? 30 : 100;
+          final TextPainter tp = textPainters[eventMarkersNumber[i]];
+          if (i > 0 && evX - 20 <= prevX) {
+            counterStacked += 30;
+          } else {
+            counterStacked = lineTop + 100;
+          }
           prevX = evX;
           tp.paint(canvas, Offset(evX - 3, counterStacked));
         }

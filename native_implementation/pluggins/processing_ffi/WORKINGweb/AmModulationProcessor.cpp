@@ -1,6 +1,9 @@
 //
 // Created by Tihomir Leka <tihomir at backyardbrains.com>
 //
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 #include "AmModulationProcessor.h"
 #include "DebuggingLogBYB.h"
@@ -77,7 +80,7 @@ namespace backyardbrains {
         {
             //log_debug("Processing am modulation - debug flutter);
             auto channelCount = getChannelCount();
-            auto **deinterleavedSignal = new short *[channelCount];
+            short **deinterleavedSignal = new short *[channelCount];
             for (int i = 0; i < channelCount; i++) {
                 deinterleavedSignal[i] = new short[frameCount];
             }
@@ -105,7 +108,6 @@ namespace backyardbrains {
             delete[] amBuffer;
 
             if (sqrtf(rmsOfOriginalSignal) / sqrtf(rmsOfNotchedAMSignal) > 5) {
-                
                 if (!receivingAmSignal) receivingAmSignal = true;
 
                 for (int i = 0; i < channelCount; i++) {
@@ -134,7 +136,6 @@ namespace backyardbrains {
 
                 return;
             } else {
-                
                 for (int i = 0; i < channelCount; i++) {
                     std::copy(deinterleavedSignal[i], deinterleavedSignal[i] + frameCount, outSamples[i]);
 
@@ -145,8 +146,10 @@ namespace backyardbrains {
                 // free memory
                 for (int i = 0; i < channelCount; i++) {
                     delete[] deinterleavedSignal[i];
+                    deinterleavedSignal[i] = nullptr;
                 }
                 delete[] deinterleavedSignal;
+                deinterleavedSignal = nullptr;
             }
             
             if (receivingAmSignal) receivingAmSignal = false;

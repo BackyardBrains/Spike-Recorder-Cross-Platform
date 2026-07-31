@@ -26,10 +26,19 @@ class MessageIdentifier {
   final List<int> _messageBuffer = [];
   int _startSequenceFoundIndex = -1;
 
+  void reset() {
+    messageState = MessageState.noSequence;
+    _deviceDataBuffer.clear();
+    _messageBuffer.clear();
+    _startSequenceFoundIndex = -1;
+  }
+
   void addPacket(Uint8List newPacket) {
     for (int i = 0; i < newPacket.length; i++) {
       switch (messageState) {
         case MessageState.noSequence:
+          // print("NO SEQUENCE _messageBuffer Device : ");
+          // print(newPacket);
           if (newPacket[i] == startSequence.first) {
             _startSequenceFoundIndex = 0;
             messageState = MessageState.inStartSequence;
@@ -46,9 +55,13 @@ class MessageIdentifier {
               _startSequenceFoundIndex++;
             }
           } else {
-            // Adding the partial start sequence found to data
-            _deviceDataBuffer.addAll(startSequence.sublist(0, _startSequenceFoundIndex + 1));
+            // Partial false positive: emit matched prefix as sample stream, then
+            // re-handle this byte in noSequence (do not drop [i]).
+            _deviceDataBuffer.addAll(
+                startSequence.sublist(0, _startSequenceFoundIndex + 1));
             messageState = MessageState.noSequence;
+            _startSequenceFoundIndex = -1;
+            i--;
           }
           break;
 
@@ -63,8 +76,6 @@ class MessageIdentifier {
 
           // Keep on adding messages / end sequence bytes to _messageBuffer
           _messageBuffer.add(newPacket[i]);
-          // print("_messageBuffer Device : ");
-          // print(_messageBuffer);
 
           // When endSequence is found then remove the endSequence from _messageBuffer
           // and send the _messageBuffer

@@ -1,6 +1,6 @@
 // This is a generated file; do not edit or check into version control.
 FLUTTER_ROOT=/Users/macbook/development/flutter
-FLUTTER_APPLICATION_PATH=/Users/macbook/development/BYB/GH/SR_GH/Spike-Recorder-Cross-Platform/native_implementation/pluggins/mic_stream/example
+FLUTTER_APPLICATION_PATH=/Users/macbook/development/BYB/GH/SR_GH/AI/Spike-Recorder-Cross-Platform/native_implementation/pluggins/mic_stream/example
 COCOAPODS_PARALLEL_CODE_SIGN=true
 FLUTTER_BUILD_DIR=build
 FLUTTER_BUILD_NAME=1.0.0

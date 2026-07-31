@@ -18,7 +18,6 @@ import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
-import io.flutter.plugin.common.PluginRegistry.Registrar;
 
 /** MicStreamPlugin
  *  In reference to flutters official sensors plugin
@@ -41,11 +40,6 @@ public class MicStreamPlugin implements FlutterPlugin, EventChannel.StreamHandle
     @Override
     public void onDetachedFromEngine(FlutterPluginBinding binding) {
         onCancel(null);
-    }
-
-    /// Deprecated way of registering plugin
-    public void registerWith(Registrar registrar) {
-        registerWith(registrar.messenger());
     }
 
     private void registerWith(BinaryMessenger messenger) {

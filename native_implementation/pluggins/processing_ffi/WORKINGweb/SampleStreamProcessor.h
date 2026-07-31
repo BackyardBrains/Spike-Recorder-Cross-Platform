@@ -117,6 +117,13 @@ namespace backyardbrains {
             // Average signal which we use to avoid signal offset
             double average;
 
+            // Holds the expansion board type.
+            int currentExpansionBoardType;
+            // Holds the channel's position that need to be adjusted
+            int currentExpansionBoardAdjustedChannel;
+            // Holds the channel's value that need to be adjusted
+            int currentExpansionBoardAdjustedValue;
+
             void writeLogsInFile(std::string string);
 
             void readLogsFromFile();

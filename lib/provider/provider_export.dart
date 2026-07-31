@@ -8,3 +8,7 @@ export 'software_setting_provider.dart';
 export 'serial_provider.dart';
 export 'port_scan_provider.dart';
 export 'sample_rate_provider.dart';
+export 'channel_color_provider.dart';
+export 'channel_filter_provider.dart';
+export 'theme_mode_provider.dart';
+export 'spike_analysis_provider.dart';
